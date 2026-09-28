@@ -24,7 +24,9 @@ export interface PhotoPickerProps {
   /** Alt text + avatar initials fallback, e.g. the member's name. */
   alt: string
   disabled?: boolean
-  /** directus_files folder uuid. Omit for the root folder (profile photos live there today). */
+  /** directus_files folder uuid. Omit for a public image (profile photo): it lands in the upload
+   *  quarantine and migration 388 publishes it once the photo column references it
+   *  (src/lib/privateFolders.ts). Never pass PUBLIC_IMAGES_FOLDER. */
   folder?: string
   /** Default 5 * 1024 * 1024. */
   maxBytes?: number

@@ -11,6 +11,7 @@
  */
 
 import { FRONTEND_URL } from './email-template.js'
+import { FORM_UPLOADS_FOLDER, fileUploads, answerFileIds } from './upload-folders.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -147,6 +148,25 @@ export function registerPublicForms(router, { database, logger }, helpers) {
       }
 
       await database('form_submissions').insert({ form: form.id, member: null, answers: allowed })
+
+      // File the answers' uploads (audit 2026-09-28 F01/F25). This insert is raw
+      // knex, so the kscw-hooks form_submissions action never files them: an
+      // anonymous upload would stay in the quarantine, where no form manager can
+      // preview it. Only unfiled (root / quarantine) files of THIS uploader move —
+      // anonymous ones (uploaded_by IS NULL), plus the caller's own when a signed-in
+      // member uses the public page — so naming someone else's file id, or one that
+      // already lives in another folder, relocates nothing. Best-effort: the
+      // submission is saved either way.
+      const fileIds = answerFileIds(fields, allowed)
+      if (fileIds.length) {
+        try {
+          await fileUploads(database, fileIds, FORM_UPLOADS_FOLDER, null)
+          const caller = req.accountability?.user
+          if (caller) await fileUploads(database, fileIds, FORM_UPLOADS_FOLDER, caller)
+        } catch (mvErr) {
+          log.warn(`public-forms submit: could not file answer uploads (${mvErr.message})`)
+        }
+      }
       await notifyOwner(database, form, log)
 
       res.json({ success: true })

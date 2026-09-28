@@ -15,8 +15,13 @@
 #
 # Then register:  claude mcp add directus-dev --scope local -- \
 #                   bash directus/scripts/directus-mcp.sh
+#
+# ⚠ The package is PINNED (audit 2026-09-28, F75). `@latest` meant every launch
+# ran whatever the registry served that minute, with a Directus token in its
+# environment. Bump deliberately: read the release, then change the version.
 set -euo pipefail
+CONTENT_MCP_VERSION=0.1.0
 export DIRECTUS_URL="${DIRECTUS_URL:-https://directus-dev.kscw.ch}"
 export DIRECTUS_TOKEN
 DIRECTUS_TOKEN="$(rbw get --folder repos/wiedisync-local DIRECTUS_DEV_MCP_TOKEN)"
-exec npx -y @directus/content-mcp@latest
+exec npx -y "@directus/content-mcp@${CONTENT_MCP_VERSION}"

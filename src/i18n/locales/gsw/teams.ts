@@ -242,4 +242,6 @@ export default {
   staffRemoved: '{{name}} entfernt',
   removeStaffTitle: 'Rolle entferne',
   removeStaffMessage: '{{name}} ({{role}}) entferne?',
+  rosterAddRateLimited: 'Z vill Kaderergänzige i de letschte Stund. Probier s spöter nomal oder frög en Admin',
+  rosterAddMemberInactive: 'Das Mitglied isch nüm aktiv im Verein',
 } as const

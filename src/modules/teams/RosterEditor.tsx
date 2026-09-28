@@ -9,6 +9,8 @@ import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { useMutation } from '../../hooks/useMutation'
 import { useCollection } from '../../lib/query'
+import { hasApiErrorCode } from '../../lib/apiErrorCode'
+import { rosterAddErrorKey } from './rosterAddError'
 import TeamChip from '../../components/TeamChip'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import TeamSponsorsEditor from './TeamSponsorsEditor'
@@ -145,8 +147,9 @@ export default function RosterEditor() {
       toast.success(t('memberAdded', { name: displayName(member ?? {} as Member) }))
       setSearch('')
       refetch()
-    } catch {
-      toast.error(t('common:errorSaving'))
+    } catch (err) {
+      const key = rosterAddErrorKey(err)
+      toast.error(key ? t(key) : t('common:errorSaving'))
     } finally {
       setAddingId(null)
     }
@@ -235,8 +238,8 @@ export default function RosterEditor() {
       logActivity('update', 'teams', team.id, { team_picture: updated.team_picture })
       setTeam((prev) => prev ? { ...prev, team_picture: updated.team_picture } : prev)
       toast.success(t('common:saved'))
-    } catch {
-      toast.error(t('errorUploadingPicture'))
+    } catch (err) {
+      toast.error(hasApiErrorCode(err, 'FILE_NOT_YOURS') ? t('common:fileNotYours') : t('errorUploadingPicture'))
     }
     setUploadingPicture(false)
     if (fileInputRef.current) fileInputRef.current.value = ''

@@ -414,7 +414,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await clearAllCachedDocuments()
     } catch { /* never block logout */ }
 
-    apiLogout()
+    // User-initiated: also unbind this device's push subscription (F37).
+    apiLogout({ unbindPush: true })
     setImpersonating(false)
     setImpersonatedMember(null)
     sessionStorage.removeItem(IMPERSONATE_KEY)

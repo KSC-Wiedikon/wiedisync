@@ -108,6 +108,8 @@ export default {
   signupFormFailed: 'The signup form could not be created',
   inviteSending: 'Invitations are being sent in the background',
   inviteFailed: 'The invitations could not be sent',
+  inviteAudienceTooLarge: 'Too many people to notify — ask an admin to send the invitation',
+  inviteRateLimited: 'Too many invitations sent recently — try again later',
   signupFormReplaceConfirm: 'This event already has a signup form. Create a new one and link that instead? The old form and its entries are kept.',
   signupFormUnlinkConfirm: 'Remove the signup link from this event? The form and its entries are kept.',
   signupLinkTitle: 'Signup link for guests',
@@ -138,4 +140,5 @@ export default {
   signupsUpstreamError: 'Guest signups could not be loaded right now.',
   signupsLoadFailed: 'The signups could not be loaded',
   signupsExport: 'Export CSV',
+  notEventManager: 'You can only invite people to an event you manage',
 } as const

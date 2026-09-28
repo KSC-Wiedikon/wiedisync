@@ -4,7 +4,7 @@
  * builder (seat maths, request coverage, and that no phone number ever leaves).
  */
 import { describe, it, expect } from 'vitest'
-import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows } from '../carpools.js'
+import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows, effectiveScope } from '../carpools.js'
 
 describe('normalizeTime', () => {
   it('accepts 24h clocks and drops seconds', () => {
@@ -182,5 +182,27 @@ describe('per-offer teams + return time (migration 380)', () => {
     const o = buildBoard(entries, pax, 1).offers.find((x) => x.id === 1)
     expect(o).toMatchObject({ return_time: '18:00', teams: [3] })
     expect(buildBoard(entries, pax, 5, { myTeams: [9] }).totals.seats_free).toBe(2)
+  })
+})
+
+describe('effectiveScope (audit 2026-09-28 F21)', () => {
+  it('an explicit scope wins for every type', () => {
+    expect(effectiveScope('game', [4], [1, 2])).toEqual([4])
+    expect(effectiveScope('event', [4])).toEqual([4])
+  })
+  it('an unscoped game is for its own team + guest teams, not the whole club', () => {
+    expect(effectiveScope('game', [], [1, 2])).toEqual([1, 2])
+    expect(scopeAllows(effectiveScope('game', [], [1, 2]), [9])).toBe(false)
+    expect(scopeAllows(effectiveScope('game', [], [1, 2]), [2])).toBe(true)
+  })
+  it('an unscoped training is for its own team (cuts a stale seat on an archived team)', () => {
+    expect(effectiveScope('training', [], [7])).toEqual([7])
+    expect(scopeAllows(effectiveScope('training', [], [7]), [3])).toBe(false)
+    expect(scopeAllows(effectiveScope('training', [], [7]), [7])).toBe(true)
+  })
+  it('unscoped events (policy-scoped already) and team-less games/trainings stay open', () => {
+    expect(effectiveScope('training', [], [])).toBeNull()
+    expect(effectiveScope('event', [], [])).toBeNull()
+    expect(effectiveScope('game', [], [])).toBeNull()
   })
 })

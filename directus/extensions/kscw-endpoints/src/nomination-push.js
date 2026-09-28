@@ -47,7 +47,10 @@ export function registerNominationPush(router, { database, logger }) {
       if (game && game.kscw_team != null && !allowed && req.accountability?.user) {
         // Authz: a sport admin, or a coach / team responsible of the playing team.
         const me = await database('members').where({ user: req.accountability.user }).first('id')
-        if (me) {
+        // Active team only (audit 2026-09-28 F31): a seat on an archived team
+        // grants nothing.
+        const teamActive = await database('teams').where({ id: game.kscw_team, active: true }).first('id')
+        if (me && teamActive) {
           const [coach, tr] = await Promise.all([
             database('teams_coaches').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),
             database('teams_responsibles').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),

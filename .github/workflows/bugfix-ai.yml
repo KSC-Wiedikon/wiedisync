@@ -11,10 +11,19 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+# Least privilege (audit 2026-09-28, F35). The prompt is fed error text that a
+# member or the server can influence, so treat the Claude step as running
+# attacker-steerable code:
+#   • nothing at workflow level; each job asks for exactly what it uses;
+#   • no `id-token: write` — without a github_token input, claude-code-action
+#     trades an OIDC token for a Claude GitHub App installation token, which is
+#     broader than this job (it can write workflow files). The job's own
+#     GITHUB_TOKEN is passed instead: it can push the bugfix branch and open
+#     the PR, cannot touch .github/workflows/, and its pushes do not trigger
+#     other workflows;
+#   • the Directus admin token never enters the Claude job's runner — the
+#     failure report is a separate job on a fresh runner.
+permissions: {}
 
 concurrency:
   group: bugfix-${{ github.event.inputs.error_hash }}
@@ -24,6 +33,9 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,6 +61,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: "--model claude-sonnet-4-20250514"
           prompt: |
             You are fixing a bug in the wiedisync KSCW platform.
@@ -74,8 +87,14 @@ jobs:
                public_summary: <user-facing one-liner in German>
             9. Output the PR URL as the last line
 
+  report-failure:
+    needs: fix
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
       - name: Report failure
-        if: failure()
         env:
           ERROR_HASH: ${{ github.event.inputs.error_hash }}
           DIRECTUS_TOKEN: ${{ secrets.DIRECTUS_ADMIN_TOKEN }}

@@ -1171,7 +1171,7 @@ export interface ScorerDelegation extends BaseRecord {
 
 export interface Notification extends BaseRecord {
   member: string
-  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline' | 'carpool_update'
+  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline' | 'carpool_update' | 'team_added'
   title: string
   body: string
   activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'form' | 'expense' | 'announcement' | 'fine' | ''

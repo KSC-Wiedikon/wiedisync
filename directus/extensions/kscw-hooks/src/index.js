@@ -173,6 +173,22 @@ function toIdValue(v) {
 // Priority: superuser/admin > Sport Admin > Vorstand+Coach > Vorstand > Team Responsible > Member
 
 /**
+ * True when the member is coach or team responsible of at least one ACTIVE
+ * team. The single definition of "is team staff" for the role sync and the
+ * per-user LEADER attach/revoke, matching setup-permissions §10.
+ */
+async function hasActiveStaffRow(db, memberId) {
+  for (const junction of ['teams_coaches', 'teams_responsibles']) {
+    const row = await db(junction)
+      .join('teams', 'teams.id', `${junction}.teams_id`)
+      .where(`${junction}.members_id`, memberId).where('teams.active', true)
+      .first(`${junction}.id`)
+    if (row) return true
+  }
+  return false
+}
+
+/**
  * Determine the correct Directus role for a member.
  * @returns {{ userId: string, roleName: string } | null}
  */
@@ -189,10 +205,12 @@ async function resolveDirectusRole(db, memberId) {
     return { userId: member.user, roleName: 'Sport Admin' }
   }
 
-  // Check coach/TR junctions
-  const isCoach = await db('teams_coaches').where('members_id', memberId).first()
-  const isTR = await db('teams_responsibles').where('members_id', memberId).first()
-  const isTeamResponsible = !!(isCoach || isTR)
+  // Check coach/TR junctions — ACTIVE teams only (security audit 2026-09-28,
+  // F30). A staff row on last season's (inactive) team is history, not a
+  // mandate: counting it kept every ex-coach on the Team Responsible role, and
+  // setup-permissions §10 (which attaches per-user LEADER for active teams
+  // only) disagreed with this hook on every deploy.
+  const isTeamResponsible = await hasActiveStaffRow(db, memberId)
 
   // Vorstand who is also a coach → Team Responsible (higher write access)
   if (roles.includes('vorstand') && isTeamResponsible) {
@@ -314,6 +332,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // them for anon while the folder-less public photos keep serving. The folder
   // is created by migration 074 with this fixed UUID on every environment.
   const FEEDBACK_FILES_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
+  // Migration 387's fixed folders (src/lib/privateFolders.ts, setup-permissions.mjs).
+  const EXPENSE_RECEIPTS_FOLDER = '0e1a0387-0000-4000-8000-000000000001'
+  const FORM_UPLOADS_FOLDER = '0e1a0387-0000-4000-8000-000000000002'
+  const PUBLIC_IMAGES_FOLDER = '0e1a0387-0000-4000-8000-000000000003'
+  const UPLOAD_QUARANTINE_FOLDER = '0e1a0387-0000-4000-8000-000000000004'
   async function quarantineFeedbackScreenshot(feedbackId) {
     try {
       if (!feedbackId) return
@@ -326,7 +349,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (typeof arr === 'string') { try { arr = JSON.parse(arr) } catch { arr = [] } }
       if (Array.isArray(arr)) for (const id of arr) { if (id) ids.add(id) }
       if (ids.size > 0) {
-        await database('directus_files').whereIn('id', [...ids]).update({ folder: FEEDBACK_FILES_FOLDER })
+        // Only an unfiled upload (root, or the 388 quarantine) is moved. The ids
+        // are client-written — an anonymous feedback naming a team photo or a
+        // sponsor logo must not pull it off the website (audit 2026-09-28).
+        await database('directus_files').whereIn('id', [...ids])
+          .where((q) => q.whereNull('folder').orWhere('folder', UPLOAD_QUARANTINE_FOLDER))
+          .update({ folder: FEEDBACK_FILES_FOLDER })
       }
     } catch (err) {
       log.error({ msg: `[feedback-quarantine] ${err.message}`, event: 'feedback_quarantine', stack: err.stack })
@@ -355,7 +383,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const ids = new Set()
       for (const col of REGISTRATION_FILE_COLS) { if (row?.[col]) ids.add(row[col]) }
       if (ids.size > 0) {
-        await database('directus_files').whereIn('id', [...ids]).update({ folder: REGISTRATION_FILES_FOLDER })
+        // Unfiled uploads only (root or quarantine) — same reason as feedback.
+        await database('directus_files').whereIn('id', [...ids])
+          .where((q) => q.whereNull('folder').orWhere('folder', UPLOAD_QUARANTINE_FOLDER))
+          .update({ folder: REGISTRATION_FILES_FOLDER })
       }
     } catch (err) {
       log.error({ msg: `[registration-quarantine] ${err.message}`, event: 'registration_quarantine', stack: err.stack })
@@ -366,6 +397,87 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     for (const k of (Array.isArray(keys) ? keys : [])) await quarantineRegistrationDocs(k)
   })
 
+  // ── Form file answers + expense receipts → private folders (audit 2026-09-28, F01) ──
+  // Same hole as the registration scans above: every folder-less file is
+  // Public-readable via /assets, and form file answers / expense receipts were
+  // uploaded without a folder — so anyone could list and download them. Their
+  // upload call sites (FormFieldRenderer, ExpenseUploadPage) still name no
+  // folder, so this hook is what files them. Migration 387 creates both folders
+  // with these fixed UUIDs on every environment and moves the existing files;
+  // migration 388 then turns every folder-less upload into one in the Upload
+  // quarantine (…-0004) at INSERT, so a fresh answer arrives THERE — readable
+  // by its uploader only, not by the form's managers — and must be matched in
+  // both states (root = before 388 is applied, quarantine = after).
+  //
+  // Only a file that is still unfiled (root or quarantine) AND was uploaded by
+  // the same login that wrote the row is moved. An answer is client-written JSON, so without
+  // that check a member could name any public site image (a team photo, a
+  // sponsor logo) as their "file" and have this hook pull it off the website.
+  // Best-effort (try/catch + log), like the two quarantines above.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  async function quarantineOwnUploads(fileIds, uploader, folder, tag) {
+    try {
+      const ids = [...new Set(fileIds.filter((id) => typeof id === 'string' && UUID_RE.test(id)))]
+      if (!ids.length || !uploader) return
+      await database('directus_files')
+        .whereIn('id', ids)
+        .where((q) => q.whereNull('folder').orWhere('folder', UPLOAD_QUARANTINE_FOLDER))
+        .where('uploaded_by', uploader)
+        .update({ folder })
+    } catch (err) {
+      log.error({ msg: `[${tag}] ${err.message}`, event: tag, stack: err.stack })
+    }
+  }
+  /** File ids in a submission's answers, for the form's `file` fields only. */
+  async function formAnswerFileIds(submissionIds) {
+    const subs = await database('form_submissions').whereIn('id', submissionIds).select('form', 'answers')
+    const out = []
+    for (const sub of subs) {
+      const form = await database('forms').where('id', sub.form).first('fields')
+      let fields = form?.fields
+      if (typeof fields === 'string') { try { fields = JSON.parse(fields) } catch { fields = [] } }
+      let answers = sub.answers
+      if (typeof answers === 'string') { try { answers = JSON.parse(answers) } catch { answers = {} } }
+      if (!Array.isArray(fields) || !answers || typeof answers !== 'object') continue
+      for (const f of fields) {
+        if (f?.type !== 'file') continue
+        const v = answers[f.id]
+        for (const a of Array.isArray(v) ? v : [v]) {
+          if (a && typeof a === 'object' && a.id) out.push(String(a.id))
+          else if (typeof a === 'string') out.push(a)
+        }
+      }
+    }
+    return out
+  }
+  async function quarantineFormAnswers(keys, accountability) {
+    const ids = (Array.isArray(keys) ? keys : [keys]).filter((k) => k != null)
+    if (!ids.length || !accountability?.user) return
+    try {
+      await quarantineOwnUploads(await formAnswerFileIds(ids), accountability.user, FORM_UPLOADS_FOLDER, 'form_upload_quarantine')
+    } catch (err) {
+      log.error({ msg: `[form_upload_quarantine] ${err.message}`, event: 'form_upload_quarantine', stack: err.stack })
+    }
+  }
+  action('form_submissions.items.create', async ({ key }, ctx) => { await quarantineFormAnswers(key, ctx?.accountability) })
+  action('form_submissions.items.update', async ({ keys }, ctx) => { await quarantineFormAnswers(keys, ctx?.accountability) })
+  // ⚠ Receipts normally reach finance_expenses through /kscw/expenses (raw knex),
+  // which fires none of these hooks and does NOT file the receipt itself — that
+  // endpoint has to move it (same uploader check) for the real flow to be
+  // covered. This covers an items-API write only.
+  async function quarantineExpenseReceipts(keys, accountability) {
+    const ids = (Array.isArray(keys) ? keys : [keys]).filter((k) => k != null)
+    if (!ids.length || !accountability?.user) return
+    try {
+      const rows = await database('finance_expenses').whereIn('id', ids).select('file')
+      await quarantineOwnUploads(rows.map((r) => r.file), accountability.user, EXPENSE_RECEIPTS_FOLDER, 'receipt_quarantine')
+    } catch (err) {
+      log.error({ msg: `[receipt_quarantine] ${err.message}`, event: 'receipt_quarantine', stack: err.stack })
+    }
+  }
+  action('finance_expenses.items.create', async ({ key }, ctx) => { await quarantineExpenseReceipts(key, ctx?.accountability) })
+  action('finance_expenses.items.update', async ({ keys }, ctx) => { await quarantineExpenseReceipts(keys, ctx?.accountability) })
+
   // ── 0b. Cascade: Directus user deletion → delete linked member ──
   // When a user is deleted from Directus admin UI, also delete the linked member.
   // The Postgres CASCADE constraints then clean up all member-owned data.
@@ -373,9 +485,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Capture member IDs before user deletion (filter runs before delete)
   const pendingUserDeletes = new Map()
 
-  filter('users.delete', async (keys) => {
+  filter('users.delete', async (keys, _meta, context) => {
     try {
-      const members = await database('members').whereIn('user', keys).select('id', 'user', 'email')
+      const members = await (context?.database ?? database)('members').whereIn('user', keys).select('id', 'user', 'email')
       for (const m of members) {
         pendingUserDeletes.set(m.user, { memberId: m.id, email: m.email })
       }
@@ -411,9 +523,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   const pendingMemberDeletes = new Map()
 
-  filter('members.items.delete', async (keys) => {
+  filter('members.items.delete', async (keys, _meta, context) => {
     try {
-      const members = await database('members').whereIn('id', keys).select('id', 'user')
+      const members = await (context?.database ?? database)('members').whereIn('id', keys).select('id', 'user')
       for (const m of members) {
         if (m.user) pendingMemberDeletes.set(m.id, m.user)
       }
@@ -552,12 +664,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!payload || !IDENTITY_FIELDS.some((f) => f in payload)) return payload
     const acc = context?.accountability
     if (!acc?.user || acc.admin) return payload
-    const me = await database('members').where('user', acc.user).first('id', 'role')
+    const db = context?.database ?? database
+    const me = await db('members').where('user', acc.user).first('id', 'role')
     const myRoles = Array.isArray(me?.role) ? me.role : []
     if (myRoles.includes('admin') || myRoles.includes('superuser')) return payload
     const keys = (Array.isArray(meta?.keys) ? meta.keys : []).filter((k) => Number(k) !== Number(me?.id))
     if (keys.length === 0) return payload
-    const rows = await database('members').whereIn('id', keys).select('id', 'role', 'email', 'user')
+    const rows = await db('members').whereIn('id', keys).select('id', 'role', 'email', 'user')
     const norm = (v) => String(v ?? '').trim().toLowerCase()
     // Only an actual change counts — a form re-sending the unchanged value passes.
     const changes = (r) => ('email' in payload && norm(payload.email) !== norm(r.email))
@@ -574,7 +687,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!payload || !PRIVILEGE_FLAGS.some((f) => f in payload)) return payload
     const userId = context?.accountability?.user
     if (!userId) return payload // system-context update (cron/hook) — trust
-    const m = await database('members').where('user', userId).select('role').first()
+    const m = await (context?.database ?? database)('members').where('user', userId).select('role').first()
     const roles = Array.isArray(m?.role) ? m.role : []
     if (roles.includes('admin') || roles.includes('superuser')) return payload
     for (const f of PRIVILEGE_FLAGS) {
@@ -605,13 +718,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const keys = Array.isArray(meta?.keys) ? meta.keys : []
     if (keys.length === 0) return payload
 
-    const rows = await database('members').whereIn('id', keys).select('id', 'licence_status')
+    const db = context?.database ?? database
+    const rows = await db('members').whereIn('id', keys).select('id', 'licence_status')
     const changed = rows.filter((r) => r.licence_status !== next).map((r) => r.id)
     if (changed.length === 0) return payload
 
     // The season the new status describes is always the CURRENT one — a human
     // is answering "where is this licence now", never backdating last season.
-    const [{ season }] = (await database.raw('SELECT public.kscw_current_season_label() AS season')).rows
+    const [{ season }] = (await db.raw('SELECT public.kscw_current_season_label() AS season')).rows
     payload.licence_status_season = season
     payload.licence_status_updated_at = new Date()
     // The order date survives the status moving on (migration 373) — it is
@@ -629,10 +743,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const userId = context?.accountability?.user
     let who = 'System'
     if (userId) {
-      const actor = await database('members').where('user', userId).first('first_name', 'last_name')
+      const actor = await db('members').where('user', userId).first('first_name', 'last_name')
       who = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim()
       if (!who) {
-        const du = await database('directus_users').where('id', userId).first('first_name', 'last_name', 'email')
+        const du = await db('directus_users').where('id', userId).first('first_name', 'last_name', 'email')
         who = [du?.first_name, du?.last_name].filter(Boolean).join(' ').trim() || du?.email || `User ${userId}`
       }
     }
@@ -696,10 +810,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //     row to now hold exactly the queued address, and the same actor.
   const pendingLoginEmailSync = new Map()
 
-  async function mayMoveLoginEmail(accountability, memberIds) {
+  async function mayMoveLoginEmail(db, accountability, memberIds) {
     if (!accountability?.user) return false          // system writes: never move a login
     if (accountability.admin) return true
-    const me = await database('members').where('user', accountability.user).first('id', 'role')
+    const me = await db('members').where('user', accountability.user).first('id', 'role')
     if (!me) return false
     const roles = Array.isArray(me.role) ? me.role : []
     if (roles.includes('admin') || roles.includes('superuser')) return true
@@ -713,8 +827,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const next = String(payload.email || '').trim().toLowerCase()
     const keys = Array.isArray(meta?.keys) ? meta.keys : []
     if (!next || keys.length === 0) return payload
-    if (!(await mayMoveLoginEmail(accountability, keys))) return payload
-    const rows = await database('members').whereIn('id', keys).select('id', 'email')
+    const db = context?.database ?? database
+    if (!(await mayMoveLoginEmail(db, accountability, keys))) return payload
+    const rows = await db('members').whereIn('id', keys).select('id', 'email')
     for (const r of rows) {
       const prev = String(r.email || '').trim().toLowerCase()
       if (prev && prev !== next) {
@@ -770,7 +885,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!payload || !PRIVILEGE_FLAGS.some((f) => f in payload)) return payload
     const userId = context?.accountability?.user
     if (!userId) return payload // system-context create (cron/hook) — trust
-    const m = await database('members').where('user', userId).select('role').first()
+    const m = await (context?.database ?? database)('members').where('user', userId).select('role').first()
     const roles = Array.isArray(m?.role) ? m.role : []
     if (roles.includes('admin') || roles.includes('superuser')) return payload
     for (const f of PRIVILEGE_FLAGS) {
@@ -789,10 +904,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // team-invite claims) carry their own dedup logic and bypass items filters
   // by design. Uses the same symmetric first-name-prefix rule as
   // createMemberFromRegistration (firstNamesMatch, hoisted from below).
-  filter('members.items.create', async (payload) => {
+  filter('members.items.create', async (payload, _meta, context) => {
     const email = String(payload?.email || '').trim().toLowerCase()
     if (!email) return payload
-    const existingRows = await database('members')
+    const existingRows = await (context?.database ?? database)('members')
       .whereRaw('LOWER(email) = ?', [email])
       .select('id', 'first_name', 'last_name')
     const samePerson = existingRows.find(r => firstNamesMatch(r.first_name, payload?.first_name))
@@ -939,6 +1054,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       const member = await database('members').where('id', memberId).select('user').first()
       if (!member?.user) return
+      // A staff row on an inactive team grants nothing (F30, matches §10).
+      if (!(await hasActiveStaffRow(database, memberId))) return
       const policyId = await getLeaderPolicyId()
       if (!policyId) return
       const existing = await database('directus_access')
@@ -1041,9 +1158,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       const member = await database('members').where('id', memberId).select('user').first()
       if (!member?.user) return
-      const stillCoach = await database('teams_coaches').where('members_id', memberId).first()
-      const stillTR = await database('teams_responsibles').where('members_id', memberId).first()
-      if (stillCoach || stillTR) return
+      // Active teams only (F30) — same rule as the role sync and §10.
+      if (await hasActiveStaffRow(database, memberId)) return
       const policyId = await getLeaderPolicyId()
       if (!policyId) return
       const deleted = await database('directus_access')
@@ -1076,17 +1192,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Capture member IDs before deletion via filter, then sync in action
   const pendingJunctionDeletes = new Map()
 
-  filter('teams_coaches.items.delete', async (keys) => {
+  filter('teams_coaches.items.delete', async (keys, _meta, context) => {
     try {
-      const rows = await database('teams_coaches').whereIn('id', keys).select('members_id')
+      const rows = await (context?.database ?? database)('teams_coaches').whereIn('id', keys).select('members_id')
       for (const r of rows) pendingJunctionDeletes.set(`coach-${r.members_id}`, r.members_id)
     } catch (e) { /* ignore */ }
     return keys
   })
 
-  filter('teams_responsibles.items.delete', async (keys) => {
+  filter('teams_responsibles.items.delete', async (keys, _meta, context) => {
     try {
-      const rows = await database('teams_responsibles').whereIn('id', keys).select('members_id')
+      const rows = await (context?.database ?? database)('teams_responsibles').whereIn('id', keys).select('members_id')
       for (const r of rows) pendingJunctionDeletes.set(`tr-${r.members_id}`, r.members_id)
     } catch (e) { /* ignore */ }
     return keys
@@ -1113,6 +1229,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   action('teams_coaches.items.delete', async () => { await drainPendingJunction('coach-') })
   action('teams_responsibles.items.delete', async () => { await drainPendingJunction('tr-') })
+
+  // A team flipping `active` changes who counts as team staff (F30: the role
+  // and LEADER only count ACTIVE teams), so re-sync its coaches and TRs. Only
+  // items-API writes land here; the season rollover (raw knex) is reconciled by
+  // setup-permissions §10 on the next deploy, as before.
+  action('teams.items.update', async ({ keys, payload }) => {
+    if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'active')) return
+    try {
+      const ids = (Array.isArray(keys) ? keys : []).filter((k) => k != null)
+      if (!ids.length) return
+      const staff = new Set()
+      for (const junction of ['teams_coaches', 'teams_responsibles']) {
+        const rows = await database(junction).whereIn('teams_id', ids).select('members_id')
+        for (const r of rows) if (r.members_id != null) staff.add(r.members_id)
+      }
+      for (const memberId of staff) {
+        await syncMemberRole(memberId)
+        if (payload.active) await ensureLeaderAccess(memberId)
+        else await revokeLeaderAccessIfOrphan(memberId)
+      }
+    } catch (err) {
+      log.warn({ msg: `[role-sync] team active flip: ${err.message}`, event: 'role_sync', stack: err.stack })
+    }
+  })
 
   // ── Absence Auto-Decline ────────────────────────────────────────
   // When an absence is created or updated, auto-decline all overlapping
@@ -1472,9 +1612,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Migration 053 added the columns; this fills them at write time so the
   // frontend can render "Edited by coach (Daniela Imhof) on …" without a
   // per-row round-trip.
-  async function resolveAbsenceEditorMeta(accountability, affectedMemberId) {
+  async function resolveAbsenceEditorMeta(db, accountability, affectedMemberId) {
     try {
-      const editorUser = await database('directus_users').where('id', accountability.user)
+      const editorUser = await db('directus_users').where('id', accountability.user)
         .select('first_name', 'last_name').first()
       const name = [editorUser?.first_name, editorUser?.last_name].filter(Boolean).join(' ') || null
       if (accountability.admin) return { name, role: 'admin' }
@@ -1483,23 +1623,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Active teams only: an unqualified read attributes an edit as "coach"
       // from ANY team the member was ever on, so a past coach's edit is labelled
       // "Edited by coach (X)" indefinitely.
-      const memberTeams = await database('member_teams as mt')
+      const memberTeams = await db('member_teams as mt')
         .join('teams as t', 't.id', 'mt.team')
         .where('mt.member', affectedMemberId).where('t.active', true)
         .select('mt.team as team')
       const teamIds = memberTeams.map(mt => mt.team).filter(Boolean)
       if (teamIds.length === 0) return { name, role: 'staff' }
 
-      const editorMember = await database('members').where('user', accountability.user).select('id').first()
+      const editorMember = await db('members').where('user', accountability.user).select('id').first()
       if (!editorMember) return { name, role: 'staff' }
 
-      const isCoach = await database('teams_coaches')
+      const isCoach = await db('teams_coaches')
         .whereIn('teams_id', teamIds)
         .andWhere('members_id', editorMember.id)
         .first()
       if (isCoach) return { name, role: 'coach' }
 
-      const isTR = await database('teams_responsibles')
+      const isTR = await db('teams_responsibles')
         .whereIn('teams_id', teamIds)
         .andWhere('members_id', editorMember.id)
         .first()
@@ -1512,9 +1652,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   }
 
-  filter('absences.items.create', async (payload, _meta, { accountability }) => {
+  filter('absences.items.create', async (payload, _meta, { accountability, database: ctxDb }) => {
     if (!accountability?.user) return payload
-    const meta = await resolveAbsenceEditorMeta(accountability, payload.member)
+    const meta = await resolveAbsenceEditorMeta(ctxDb ?? database, accountability, payload.member)
     return {
       ...payload,
       last_edited_by: accountability.user,
@@ -1523,14 +1663,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       last_edited_role: meta.role,
     }
   })
-  filter('absences.items.update', async (payload, meta, { accountability }) => {
+  filter('absences.items.update', async (payload, meta, { accountability, database: ctxDb }) => {
     if (!accountability?.user) return payload
+    const db = ctxDb ?? database
     let affectedMemberId = payload.member
     if (!affectedMemberId && Array.isArray(meta?.keys) && meta.keys.length === 1) {
-      const row = await database('absences').where('id', meta.keys[0]).select('member').first()
+      const row = await db('absences').where('id', meta.keys[0]).select('member').first()
       affectedMemberId = row?.member
     }
-    const editorMeta = await resolveAbsenceEditorMeta(accountability, affectedMemberId)
+    const editorMeta = await resolveAbsenceEditorMeta(db, accountability, affectedMemberId)
     return {
       ...payload,
       last_edited_by: accountability.user,
@@ -2037,7 +2178,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // `a` is the EFFECTIVE audience state (payload merged over the stored row),
   // never a bare update payload — see validateAnnouncementAudience.
-  async function assertAudienceAllowed(a, isVb, isBb) {
+  async function assertAudienceAllowed(db, a, isVb, isBb) {
     const sport = isVb ? 'volleyball' : (isBb ? 'basketball' : null)
     if (!sport) denyAudience('Only global admins can post club-wide announcements.')
     const type = a.audience_type || 'all'
@@ -2058,7 +2199,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (type === 'teams') {
       const ids = parseJsonArray(a.audience_teams).map(Number).filter(Number.isFinite)
       if (ids.length === 0) denyAudience('Select at least one team to target.')
-      const rows = await database('teams').whereIn('id', ids).select('id', 'sport')
+      const rows = await db('teams').whereIn('id', ids).select('id', 'sport')
       if (rows.length !== ids.length) denyAudience('One or more selected teams do not exist.')
       if (rows.some(r => r.sport !== sport)) {
         denyAudience(`Only ${sport === 'volleyball' ? 'basketball' : 'volleyball'} admins can target ${sport === 'volleyball' ? 'basketball' : 'volleyball'} teams.`)
@@ -2081,7 +2222,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   async function validateAnnouncementAudience(payload, meta, context) {
     const userId = context?.accountability?.user
     if (!userId) return
-    const m = await database('members').where('user', userId).select('role').first()
+    const db = context?.database ?? database
+    const m = await db('members').where('user', userId).select('role').first()
     if (!m) return
     const roles = Array.isArray(m.role) ? m.role : []
     // Global admins / superusers can post anything. Members with both sport
@@ -2098,22 +2240,22 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // and validate the state the write would actually produce.
     const keys = meta?.keys || (meta?.key ? [meta.key] : [])
     if (keys.length > 0) {
-      const existing = await database('announcements')
+      const existing = await db('announcements')
         .whereIn('id', keys)
         .select('audience_type', 'audience_sport', 'audience_teams', 'audience_roles')
       for (const row of existing) {
-        await assertAudienceAllowed({ ...row, ...payload }, isVb, isBb)
+        await assertAudienceAllowed(db, { ...row, ...payload }, isVb, isBb)
       }
       return
     }
-    await assertAudienceAllowed(payload || {}, isVb, isBb)
+    await assertAudienceAllowed(db, payload || {}, isVb, isBb)
   }
 
   filter('announcements.items.create', async (payload, meta, context) => {
     await validateAnnouncementAudience(payload, meta, context)
     const userId = context?.accountability?.user
     if (userId) {
-      const m = await database('members').where('user', userId).select('id').first()
+      const m = await (context?.database ?? database)('members').where('user', userId).select('id').first()
       if (m?.id) payload.created_by = m.id
       else delete payload.created_by
     } else {
@@ -2926,7 +3068,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const userId = context?.accountability?.user
     // System context (cron/endpoint/registration backend) — trusted, as elsewhere.
     if (!userId) return payload
-    const m = await database('members').where('user', userId).select('id', 'role').first()
+    const db = context?.database ?? database
+    const m = await db('members').where('user', userId).select('id', 'role').first()
     if (!m) return payload
     const roles = Array.isArray(m.role) ? m.role : []
     const isManager = roles.includes('admin') || roles.includes('superuser')
@@ -2938,7 +3081,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // the stored row. A PATCH of only {is_public:true} carries no audience.
       const keys = meta?.keys || (meta?.key ? [meta.key] : [])
       const existing = keys.length
-        ? await database('forms').whereIn('id', keys).select('audience', 'is_public')
+        ? await db('forms').whereIn('id', keys).select('audience', 'is_public')
         : [{}]
       for (const row of existing) {
         const next = { ...row, ...payload }
@@ -2954,7 +3097,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const links = Array.isArray(payload?.teams) ? payload.teams : []
       for (const link of links) {
         const teamId = typeof link === 'object' ? (link.teams_id ?? link) : link
-        if (teamId != null && !(await actorLeadsTeam(database, context.accountability, teamId))) {
+        if (teamId != null && !(await actorLeadsTeam(db, context.accountability, teamId))) {
           throw kscwScopeError('You can only target teams you coach or are responsible for.', 403, 'FORM_TEAM_SCOPE')
         }
       }
@@ -2997,10 +3140,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (typeof v === 'string') return v.trim() === ''
     return false
   }
-  filter('form_submissions.items.create', async (payload) => {
+  filter('form_submissions.items.create', async (payload, _meta, context) => {
     try {
       if (!payload || !payload.form) return payload
-      const form = await database('forms').where('id', payload.form).select('fields').first()
+      const form = await (context?.database ?? database)('forms').where('id', payload.form).select('fields').first()
       const fields = Array.isArray(form?.fields) ? form.fields : []
       const answers = payload.answers && typeof payload.answers === 'object' ? payload.answers : {}
       for (const f of fields) {
@@ -3141,14 +3284,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     { member: 'bb_timekeeper_member', name: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
     { member: 'bb_24s_official', name: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
   ]
-  filter('games.items.update', async (payload, _meta, { accountability }) => {
+  filter('games.items.update', async (payload, _meta, { accountability, database: ctxDb }) => {
     if (!payload) return payload
     const touched = DUTY_CONFIRM_ROLES.filter((r) => r.member in payload)
     if (touched.length === 0) return payload
     try {
       let actorName = null
       if (touched.some((r) => payload[r.member]) && accountability?.user) {
-        const m = await database('members').where('user', accountability.user).first('first_name', 'last_name')
+        const m = await (ctxDb ?? database)('members').where('user', accountability.user).first('first_name', 'last_name')
         if (m) actorName = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
       }
       const nowIso = new Date().toISOString()
@@ -3475,6 +3618,44 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       ? await database('member_teams').where('id', key).first('team', 'member')
       : null
     await backfillJoinerAutoConfirm(row?.team ?? payload?.team, row?.member ?? payload?.member, 'member_teams.create')
+  })
+  // F24: tell the person they were put on a roster (in-app only, no push/email),
+  // so an add they did not ask for is visible to them. Human adds only — system
+  // context (sync, rollover clone) and a login adding its own member row stay
+  // silent. Title is an i18n key (`notifications.team_added[_no_by]`), body the vars.
+  action('member_teams.items.create', async ({ key, payload }, ctx) => {
+    const accountability = ctx?.accountability
+    if (!accountability?.user) return
+    try {
+      const row = key != null ? await database('member_teams').where('id', key).first('team', 'member') : null
+      const memberId = row?.member ?? toIdValue(payload?.member)
+      const teamId = row?.team ?? toIdValue(payload?.team)
+      if (memberId == null || teamId == null) return
+      const [target, actor, team] = await Promise.all([
+        database('members').where('id', memberId).first('id', 'user'),
+        database('members').where('user', accountability.user).first('id', 'first_name', 'last_name'),
+        database('teams').where('id', teamId).first('name'),
+      ])
+      if (!target || (target.user && target.user === accountability.user)) return
+      if (actor && String(actor.id) === String(target.id)) return
+      const teamName = team?.name || `Team ${teamId}`
+      const by = actor ? [actor.first_name, actor.last_name].filter(Boolean).join(' ').trim() : ''
+      // Keys live in src/i18n/locales/*/notifications.ts (team_added /
+      // team_added_no_by); getNavigationPath sends type team_added to
+      // /teams/:activity_id, so activity_id is the team ID, not its name.
+      await database('notifications').insert({
+        member: target.id,
+        type: 'team_added',
+        title: by ? 'team_added' : 'team_added_no_by',
+        body: JSON.stringify({ team: teamName, by: by || null }),
+        activity_type: 'team',
+        activity_id: String(teamId),
+        team: teamId,
+        read: false,
+      })
+    } catch (err) {
+      log.warn({ msg: `[team-added-notify] ${err.message}`, event: 'team_added_notify', stack: err.stack })
+    }
   })
   // A staff-only person's rows carry is_staff = true, and a person who is BOTH
   // coach and player is a player — teamPeopleSql decides that, not the callsite.
@@ -5075,54 +5256,55 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   const PRIVACY_FULL_ROLES = ['admin', 'superuser']
   const PRIVACY_SPORT_ROLES = ['vb_admin', 'bb_admin']
 
-  filter('members.items.read', async (payload, meta, context) => {
-    // Administrator / Superuser — admin_access bypasses policies entirely.
-    if (context.accountability?.admin) return payload
-
-    // ⚠ Query on the knex Directus hands us, NEVER the module-level `database`.
-    // ItemsService.updateMany opens a transaction and, for the revision
-    // snapshot, re-reads the row through a trx-bound ItemsService — which emits
-    // THIS filter. A query on the global pool here is a SECOND connection
-    // taken while the transaction still holds the first; with the default pool
-    // of 10, ten concurrent members PATCHes each hold one and each wait for an
-    // eleventh, and the whole API stalls for the 60 s acquire timeout (the
-    // 2026-09-14 DU20 roster-open outage: the position auto-heal fired 25
-    // parallel PATCHes and prod answered nothing for a minute, three times).
-    // `context.database` is the trx inside a write and the pool otherwise.
-    const db = context.database ?? database
-
-    const currentUser = context.accountability?.user || null
-
-    // The caller's own roles: ONE indexed lookup per REQUEST, not per item —
-    // the Data Explorer reads ~700 members in a single call.
-    //
-    // `scope` is the section this caller reads unredacted:
-    //   null              → not staff, redact everything below (the common path)
-    //   'all'             → full admin or dual sport admin, nothing to redact
-    //   'volleyball'|'basketball' → per-item, decided against the member's section
-    let scope = null
-    if (currentUser) {
-      const me = await db('members').where('user', currentUser).select('role').first()
-      const myRoles = Array.isArray(me?.role) ? me.role : []
-      if (myRoles.some((r) => PRIVACY_FULL_ROLES.includes(r))) return payload
-      if (myRoles.some((r) => PRIVACY_SPORT_ROLES.includes(r))) {
-        // sportAdminScope returns null for a DUAL sport admin (no boundary can
-        // be drawn between two sections you both run) — which, having already
-        // established the caller is a sport admin, means unconfined.
-        scope = sportAdminScope(myRoles) ?? 'all'
-      }
+  /**
+   * The caller's privacy scope — ONE indexed lookup per REQUEST, not per item
+   * (the Data Explorer reads ~700 members in a single call):
+   *   null              → not staff, redact everything below (the common path)
+   *   'all'             → full admin or dual sport admin, nothing to redact
+   *   'volleyball'|'basketball' → per-item, decided against the member's section
+   */
+  async function resolvePrivacyScope(db, currentUser) {
+    if (!currentUser) return null
+    const me = await db('members').where('user', currentUser).select('role').first()
+    const myRoles = Array.isArray(me?.role) ? me.role : []
+    if (myRoles.some((r) => PRIVACY_FULL_ROLES.includes(r))) return 'all'
+    if (myRoles.some((r) => PRIVACY_SPORT_ROLES.includes(r))) {
+      // sportAdminScope returns null for a DUAL sport admin (no boundary can
+      // be drawn between two sections you both run) — which, having already
+      // established the caller is a sport admin, means unconfined.
+      return sportAdminScope(myRoles) ?? 'all'
     }
-    if (scope === 'all') return payload
+    return null
+  }
 
-    const items = Array.isArray(payload) ? payload : [payload]
+  /**
+   * Redact member objects IN PLACE. Shared by the root read (`members.items.read`)
+   * and the relational walk below (`items.read`), so the two can never apply
+   * different rules. `items` are member-shaped objects in whatever projection
+   * the caller asked for.
+   */
+  // Directus field functions return under `<column>_<fn>` (run-ast
+  // applyFunctionToColumnName), so `?fields=month(birthdate),day(birthdate)`
+  // arrives as `birthdate_month` / `birthdate_day` — past every `'birthdate' in
+  // item` rule. Explicit list: `birthdate_visibility` is a real column.
+  const BIRTHDATE_FN_KEYS = ['year', 'month', 'week', 'day', 'weekday', 'hour', 'minute', 'second']
+    .map((fn) => `birthdate_${fn}`)
+  function nullBirthdateFunctions(item, keepYear) {
+    for (const k of BIRTHDATE_FN_KEYS) {
+      if (keepYear && k === 'birthdate_year') continue
+      if (k in item) item[k] = null
+    }
+  }
 
+  async function redactMemberItems(db, currentUser, scope, items) {
     // Re-fetch the gating flags (user, hide_phone, hide_email, birthdate_visibility)
     // directly from the DB keyed by member id. The redaction MUST NOT depend on the
     // caller's `?fields=` projection — if the gating flags are omitted from the
     // requested fields, the in-payload values are undefined and a JS `=== true`
     // scrub silently leaks the hidden phone/email/birthdate. By reading the
     // authoritative flags from the DB we enforce privacy regardless of projection,
-    // and fail closed (redact) when an item's gating flag can't be resolved.
+    // and fail closed (redact) when an item's gating flag can't be resolved —
+    // which includes a nested member object read WITHOUT its `id`.
     const ids = []
     for (const item of items) {
       if (item && item.id != null) ids.push(item.id)
@@ -5131,26 +5313,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     let gateRows = []
     if (ids.length > 0) {
       gateRows = await db('members')
-        .whereIn('id', ids)
+        .whereIn('id', [...new Set(ids.map(String))])
         .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private',
           // Only for the sport resolver below — passing these in is what keeps it
           // from running its own `members` query over the same ids.
           'sektion', 'beitragskategorie')
-      for (const row of gateRows) gateById.set(row.id, row)
+      for (const row of gateRows) gateById.set(String(row.id), row)
     }
 
     // Section of each member on this page, for a sport-confined caller only:
     // four queries for the WHOLE page (three junctions + teams — the `members`
     // rows are already in hand above), and none at all for everybody else.
     const sportById = scope && ids.length > 0
-      ? await resolveMemberSports(db, ids, { memberRows: gateRows })
+      ? await resolveMemberSports(db, [...new Set(ids.map(String))], { memberRows: gateRows })
       : new Map()
 
     for (const item of items) {
       if (!item) continue
 
       // Authoritative gating flags from the DB (never the requested projection).
-      const gate = item.id != null ? gateById.get(item.id) : undefined
+      const gate = item.id != null ? gateById.get(String(item.id)) : undefined
 
       // Skip filtering for the member's own record (resolved from the DB so the
       // self-check is correct even when `user` isn't in the projection).
@@ -5172,9 +5354,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const birthdateVisibility = gate ? gate.birthdate_visibility : 'hidden'
       if (birthdateVisibility === 'hidden') {
         if ('birthdate' in item) item.birthdate = null
-      } else if (birthdateVisibility === 'year_only' && item.birthdate) {
-        // Extract just the year (handles both '1990-01-01' and ISO datetime strings)
-        item.birthdate = String(item.birthdate).substring(0, 4)
+        nullBirthdateFunctions(item, false)
+      } else if (birthdateVisibility === 'year_only') {
+        if (item.birthdate) {
+          // Extract just the year (handles both '1990-01-01' and ISO datetime strings)
+          item.birthdate = String(item.birthdate).substring(0, 4)
+        }
+        nullBirthdateFunctions(item, true)
       }
 
       // Phone visibility — fail closed (hide) when the flag can't be resolved.
@@ -5199,6 +5385,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           item.last_name = s ? s.charAt(0).toUpperCase() + '.' : ''
         }
         if ('birthdate' in item) item.birthdate = null
+        nullBirthdateFunctions(item, false)
       }
 
       // AHV number — self, full admins, and a sport admin reading their own
@@ -5207,8 +5394,234 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // OTHER section, gets null.
       if ('ahv_nummer' in item) item.ahv_nummer = null
     }
+  }
 
+  filter('members.items.read', async (payload, meta, context) => {
+    // Administrator / Superuser — admin_access bypasses policies entirely.
+    if (context.accountability?.admin) return payload
+
+    // ⚠ Query on the knex Directus hands us, NEVER the module-level `database`.
+    // ItemsService.updateMany opens a transaction and, for the revision
+    // snapshot, re-reads the row through a trx-bound ItemsService — which emits
+    // THIS filter. A query on the global pool here is a SECOND connection
+    // taken while the transaction still holds the first; with the default pool
+    // of 10, ten concurrent members PATCHes each hold one and each wait for an
+    // eleventh, and the whole API stalls for the 60 s acquire timeout (the
+    // 2026-09-14 DU20 roster-open outage: the position auto-heal fired 25
+    // parallel PATCHes and prod answered nothing for a minute, three times).
+    // `context.database` is the trx inside a write and the pool otherwise.
+    const db = context.database ?? database
+
+    const currentUser = context.accountability?.user || null
+    const scope = await resolvePrivacyScope(db, currentUser)
+    if (scope === 'all') return payload
+
+    const items = Array.isArray(payload) ? payload : [payload]
+    await redactMemberItems(db, currentUser, scope, items)
     return Array.isArray(payload) ? items : items[0]
+  })
+
+  // ── 11b. Member privacy on RELATIONAL reads (security audit 2026-09-28, F05) ──
+  // Directus emits `members.items.read` for ROOT member reads only. A member
+  // object reached through a relation — `/items/member_teams?fields=member.phone`,
+  // `/items/teams?fields=coach.members_id.last_name` — is fetched inside the AST
+  // runner and never passes that filter, so every rule above (hidden phone /
+  // email / birthdate, AHV, sport confinement, and the anonymous website
+  // surname rule) was bypassed by asking for the same column one hop away.
+  // Verified: anonymous callers got the full surname of 32 of 33 name-private
+  // coaches via `teams.coach.members_id`.
+  //
+  // `items.read` fires for every items read with the full result tree, so this
+  // walks it with the schema's relation map, collects every nested object whose
+  // collection is `members`, and runs the SAME redaction. Nested objects read
+  // without their `id` cannot be matched to their flags and fail closed.
+  //
+  // Skipped: system reads with no accountability at all (endpoint/cron
+  // ItemsService calls — trusted, and unchanged from before), full admins, and
+  // the root rows of a `members` read (the filter above owns those).
+  //
+  // ⚠ Not covered here, by construction: `filter[...]` / `sort` oracles
+  // (`?filter[member][ahv_nummer][_starts_with]=756.1`) never return the value,
+  // so no read hook can see them. Those need the column out of the policy's
+  // field list (setup-permissions.mjs).
+  const relIndexBySchema = new WeakMap()
+  function relationIndex(schema) {
+    if (!schema || typeof schema !== 'object') return new Map()
+    let idx = relIndexBySchema.get(schema)
+    if (idx) return idx
+    idx = new Map()
+    for (const r of Array.isArray(schema.relations) ? schema.relations : []) {
+      if (!r?.related_collection) continue // M2A — no single target collection
+      idx.set(`${r.collection}.${r.field}`, r.related_collection)               // M2O
+      if (r.meta?.one_field) idx.set(`${r.related_collection}.${r.meta.one_field}`, r.collection) // O2M
+    }
+    relIndexBySchema.set(schema, idx)
+    return idx
+  }
+  // Aliases (`?alias[c]=coach`, `deep[rel][_alias][m]=members_id`, and every
+  // GraphQL field alias, which Directus turns into the same two) return a
+  // relation under a key that is not its field name. The walk resolves them
+  // level by level exactly as the AST builder does (parse-fields.js: the root
+  // takes `query.alias`, a child level takes `deep[<result key>]._alias`), and
+  // fails CLOSED on anything it cannot place:
+  //   • an object-valued key that is neither a relation nor a real column of
+  //     its collection → 400 (the walk would otherwise lose the subtree);
+  //   • ANY alias on a `members` level (root or nested) → 400. An alias there
+  //     renames a column (`alias[p]=phone`) past every `'phone' in item` rule
+  //     in redactMemberItems; no app, website or Data Studio read needs one.
+  // Only reads that already hit a member path pay for any of this.
+  const aliasRefused = () => kscwScopeError('Aliases are not supported on member data', 400, 'MEMBER_ALIAS_REFUSED')
+  const aliasMapOf = (deep) => {
+    const a = deep && typeof deep === 'object' ? (deep._alias ?? deep.alias) : null
+    return a && typeof a === 'object' && !Array.isArray(a) ? a : null
+  }
+  const hasKeys = (o) => !!o && Object.keys(o).length > 0
+  /** Collect member objects nested anywhere below `node` (an item of `collection`). */
+  function collectNestedMembers(ctx, collection, node, out, alias, deep, depth = 0) {
+    if (depth > 12 || !node || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const n of node) collectNestedMembers(ctx, collection, n, out, alias, deep, depth)
+      return
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (!value || typeof value !== 'object') continue
+      const aliased = !!alias && Object.prototype.hasOwnProperty.call(alias, key)
+      const field = aliased ? String(alias[key]) : key
+      const target = ctx.idx.get(`${collection}.${field}`)
+      if (!target) {
+        // A real non-relational column holding JSON, or a function alias
+        // (`json(data, a.b)`) computed from one — no relation below it.
+        if (ctx.schema?.collections?.[collection]?.fields?.[field]) continue
+        if (aliased && /^\w+\(/.test(field)) continue
+        throw aliasRefused()
+      }
+      const childDeep = deep && typeof deep === 'object' ? deep[key] : undefined
+      const childAlias = aliasMapOf(childDeep)
+      if (target === 'members' && hasKeys(childAlias)) throw aliasRefused()
+      const children = Array.isArray(value) ? value : [value]
+      for (const child of children) {
+        if (!child || typeof child !== 'object' || Array.isArray(child)) continue
+        if (target === 'members') out.add(child)
+        collectNestedMembers(ctx, target, child, out, childAlias, childDeep, depth + 1)
+      }
+    }
+  }
+  // ── 11c. Member levels without `id` get one (F05 follow-up) ──
+  // A nested member object read WITHOUT its `id` cannot be matched to its
+  // privacy flags, so the walk above fails it closed — which for the anonymous
+  // website read `teams?fields=coach.members_id.first_name,…last_name`
+  // (kscw-website youthBasketball.ts) abbreviated EVERY coach's surname, not
+  // only the name-private ones. Rather than make the website change its query,
+  // the query filter adds `<member path>.id` to any member level the caller
+  // selected without it, the read filter redacts with the real flags, and then
+  // removes the ids it added — so the response has exactly the requested shape.
+  // Public may read members.id (setup-permissions), as may every other role.
+  // Paths it cannot place (aliases, M2A, wildcards mid-path) are left alone and
+  // keep failing closed.
+  const injectedIdPaths = new WeakMap()
+  function memberLevelPrefixes(idx, collection, fields) {
+    const prefixes = new Set()
+    if (collection === 'members') prefixes.add('')
+    for (const f of fields) {
+      if (typeof f !== 'string') continue
+      const parts = f.split('.')
+      let coll = collection
+      for (let i = 0; i < parts.length - 1; i++) {
+        const seg = parts[i]
+        if (!seg || seg.includes(':') || seg.includes('*') || seg.startsWith('$')) break
+        const target = idx.get(`${coll}.${seg}`)
+        if (!target) break
+        coll = target
+        if (target === 'members') prefixes.add(parts.slice(0, i + 1).join('.'))
+      }
+    }
+    return prefixes
+  }
+  filter('items.query', async (query, meta, context) => {
+    const accountability = context?.accountability
+    if (!accountability || accountability.admin) return query
+    if (!query || typeof query !== 'object' || !Array.isArray(query.fields) || query.fields.length === 0) return query
+    if (query.aggregate && hasKeys(query.aggregate)) return query
+    const collection = meta?.collection
+    if (!collection) return query
+    const idx = relationIndex(context.schema)
+    if (idx.size === 0) return query
+    const have = new Set(query.fields.filter((f) => typeof f === 'string'))
+    const added = []
+    for (const prefix of memberLevelPrefixes(idx, collection, query.fields)) {
+      const idPath = prefix ? `${prefix}.id` : 'id'
+      const star = prefix ? `${prefix}.*` : '*'
+      if (have.has(idPath) || have.has(star)) continue
+      added.push(prefix)
+    }
+    if (added.length === 0) return query
+    const next = { ...query, fields: [...query.fields, ...added.map((p) => (p ? `${p}.id` : 'id'))] }
+    injectedIdPaths.set(next, added)
+    return next
+  })
+  /** Remove the `id` key the query filter added, at each member path. */
+  function stripInjectedIds(payload, paths) {
+    for (const p of paths) {
+      const parts = p ? p.split('.') : []
+      const walk = (node, i) => {
+        if (!node || typeof node !== 'object') return
+        if (Array.isArray(node)) { for (const n of node) walk(n, i); return }
+        if (i === parts.length) { delete node.id; return }
+        walk(node[parts[i]], i + 1)
+      }
+      walk(payload, 0)
+    }
+  }
+
+  filter('items.read', async (payload, meta, context) => {
+    const accountability = context?.accountability
+    if (!accountability || accountability.admin) return payload
+    const collection = meta?.collection
+    if (!collection || !payload || typeof payload !== 'object') return payload
+    const query = meta?.query && typeof meta.query === 'object' ? meta.query : {}
+    const rootAlias = query.alias && typeof query.alias === 'object' ? query.alias : null
+    if (collection === 'members' && hasKeys(rootAlias)) throw aliasRefused()
+    // Aggregate reads return `{ min: { birthdate } }`-shaped rows, which no
+    // relation walk (and no `'birthdate' in item` rule) can see — and they never
+    // expand relations, so there is nothing nested to walk. On `members` itself,
+    // `aggregate[min]=birthdate&filter[id][_eq]=…` would hand back the exact
+    // hidden value: only a count (the app's only aggregate) is allowed below the
+    // unconfined staff scope.
+    if (query.aggregate && typeof query.aggregate === 'object' && hasKeys(query.aggregate)) {
+      if (collection !== 'members') return payload
+      const valueAgg = Object.entries(query.aggregate).some(([fn, cols]) =>
+        !['count', 'countDistinct'].includes(fn)
+        || (Array.isArray(cols) ? cols : [cols]).some((c) => !['*', 'id'].includes(String(c))))
+      if (!valueAgg) return payload
+      const scope = await resolvePrivacyScope(context.database ?? database, accountability.user || null)
+      if (scope !== 'all') throw kscwScopeError('This aggregate is not available on member data', 400, 'MEMBER_AGGREGATE_REFUSED')
+      return payload
+    }
+    const idx = relationIndex(context.schema)
+    if (idx.size === 0) return payload
+    const nested = new Set()
+    collectNestedMembers({ idx, schema: context.schema }, collection, payload, nested, rootAlias, query.deep)
+    if (nested.size === 0) return payload
+    const db = context.database ?? database
+    const currentUser = accountability.user || null
+    const scope = await resolvePrivacyScope(db, currentUser)
+    if (scope === 'all') return payload
+    await redactMemberItems(db, currentUser, scope, [...nested])
+    return payload
+  })
+  // Registered AFTER both redaction filters (members.items.read is emitted
+  // after items.read for the same read, and filters run in order of
+  // registration within an event) — see the strip filters below.
+  filter('items.read', async (payload, meta) => {
+    const paths = meta?.query ? injectedIdPaths.get(meta.query) : null
+    if (!paths || meta.collection === 'members') return payload
+    stripInjectedIds(payload, paths)
+    return payload
+  })
+  filter('members.items.read', async (payload, meta) => {
+    const paths = meta?.query ? injectedIdPaths.get(meta.query) : null
+    if (paths) stripInjectedIds(payload, paths)
+    return payload
   })
 
   // ── 12. Cron: Error Log Cleanup (03:30 UTC) ─────────────────────
@@ -5741,11 +6154,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // family completes the docs via the website's "Dokumente nachreichen" page
   // first. Legacy rows without a stored nationality code only need the base 3
   // (the non-CH requirement can't be derived for them).
-  filter('registrations.items.update', async (payload, meta) => {
+  filter('registrations.items.update', async (payload, meta, context) => {
     if (payload?.status !== 'approved') return payload
     const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
     for (const key of keys) {
-      const reg = await database('registrations').where('id', key)
+      const reg = await (context?.database ?? database)('registrations').where('id', key)
         .first('id', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
           'bb_docs_waived',
           'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
@@ -6738,15 +7151,52 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // the items API for everyone but admins and system writes (the member-merge
   // and cascade code writes via knex, which never reaches these filters).
   // System-owned bookkeeping columns are stripped for the same callers.
+  //
+  // Junction key columns (security audit 2026-09-28, F08/F32/F07). The LEADER
+  // update grants on the staff / slot / event / form / sponsor junctions are
+  // row-filtered on the PRE-update row with fields '*', and only CREATE had a
+  // guard — so a coach could PATCH their own `teams_coaches` row
+  // `{teams_id: <any team>}` and become coach of it (roster PII incl. minors,
+  // roster/fine/RSVP writes), graft their slot or event link onto another
+  // team, or move a game-guest invite onto another game (the
+  // `participation_visibility` reconcile then grants cross-team RSVP reads).
+  // No legitimate flow changes a key column: the app only creates and deletes
+  // these rows, and the M2M editors re-send a kept link unchanged with its
+  // junction id (`m2mUpdatePayload`), which passes. Moving a link = delete +
+  // create, and create has its own team-scope guard. `member_teams.team` is
+  // NOT listed — its dedicated guard below allows a move between two teams the
+  // caller leads; `member` is, since re-pointing a roster row at another person
+  // is an unguarded "add to my team".
   const IMMUTABLE_ON_UPDATE = {
     participations: ['member', 'activity_type', 'activity_id'],
     absences: ['member'],
     push_subscriptions: ['member'],
     poll_votes: ['member', 'poll'],
     notifications: ['member'],
+    teams_coaches: ['teams_id', 'members_id'],
+    teams_responsibles: ['teams_id', 'members_id'],
+    hall_slots_teams: ['hall_slots_id', 'teams_id'],
+    events_teams: ['events_id', 'teams_id'],
+    forms_teams: ['forms_id', 'teams_id'],
+    teams_sponsors: ['teams_id', 'sponsors_id'],
+    member_teams: ['member'],
+    game_guests: ['game', 'member', 'via_team'],
+    game_guest_teams: ['game', 'team'],
+    // LEADER holds update grants on both, row-filtered on the PRE-update row:
+    // re-pointing an own `events_members` row at another team's private event
+    // grants its visibility (invited_members arm of EVENTS_VISIBLE) and roster;
+    // a session moved onto another event rewrites that event's schedule.
+    // Migration 389 is the DB twin for events_members.
+    events_members: ['events_id', 'members_id'],
+    event_sessions: ['event'],
   }
   const SYSTEM_OWNED_ON_UPDATE = {
     participations: ['waitlisted_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
+    // Stamped from the inviter on create (stampInviter); never re-attributable.
+    game_guests: ['invited_by_name', 'invited_by_email'],
+    game_guest_teams: ['invited_by_name', 'invited_by_email'],
+    // Stamped from the acting-member swap on create (migration 382).
+    push_subscriptions: ['acting_guardian_user'],
   }
   for (const [coll, fields] of Object.entries(IMMUTABLE_ON_UPDATE)) {
     filter(`${coll}.items.update`, async (payload, meta, { database: db, accountability }) => {
@@ -6759,7 +7209,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       for (const f of touched) {
         const next = payload[f] && typeof payload[f] === 'object' ? payload[f].id : payload[f]
         // Unchanged values (a form re-sending the whole row) are fine.
-        if (rows.length === 0 || rows.some((r) => String(r[f]) !== String(next))) {
+        if (rows.length === 0 || rows.some((r) => String(r[f] ?? '') !== String(next ?? ''))) {
           throw kscwScopeError('This field cannot be changed', 403, 'IMMUTABLE_FIELD')
         }
         delete payload[f]
@@ -6773,11 +7223,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // member POST a log row attributed to ANY member (forging the audit trail
   // that /admin/audit surfaces). Force the actor to the caller's own member id
   // so client-supplied `user` can't be spoofed. System/admin context passes.
+  //
+  // `acting_guardian` is stamped the same way (security audit 2026-09-28, F33):
+  // it records which main account was acting, so a member must not be able to
+  // forge it (or clear it) — it comes from the acting swap, never the body.
   filter('user_logs.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!payload) return payload
-    if (!accountability?.user || accountability.admin) return payload // system / admin — trust
+    if (!accountability?.user) return payload // system — trust
+    payload.acting_guardian = accountability.kscwGuardian?.memberId ?? null
+    if (accountability.admin) return payload  // admin — trust `user`
     const me = await db('members').where('user', accountability.user).select('id').first()
     if (me) payload.user = me.id
+    return payload
+  })
+
+  // push_subscriptions: which main account registered this device while acting
+  // for a linked member (migration 382). The subscription is the PARENT's device
+  // receiving the child's pushes; when that grant ends (revoke, the child gets
+  // her own login) migration 382's deferred trigger deletes the row, so the
+  // device stops receiving them. Stamped from the swap, never the body. The
+  // /kscw/web-push/subscribe endpoint writes via knex and stamps it itself.
+  filter('push_subscriptions.items.create', async (payload, _meta, { accountability }) => {
+    if (!payload || !accountability?.user) return payload
+    // Set only when acting, so a plain subscribe never names the column (it
+    // does not exist until migration 382 has run).
+    if (accountability.kscwGuardian?.user) payload.acting_guardian_user = accountability.kscwGuardian.user
+    else delete payload.acting_guardian_user
     return payload
   })
 
@@ -6875,11 +7346,60 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // scoped to teams the caller leads (roster editing); update must not re-point a
   // row to (or away from) a team the caller doesn't lead. Self-add to an
   // unrelated team IS the escalation, so there is deliberately no "self" bypass.
+  //
+  // F24 (security audit 2026-09-28): adding a person to your roster hands you
+  // their roster-visible contact data, and the roster editor may add any
+  // active member — so the add is also (a) limited to live members, (b) capped
+  // per actor per hour for coaches, and (c) announced to the person added
+  // (action below). The add itself is audited server-side by audit.js
+  // (action('items.create') → user_logs, raw knex, not forgeable); the rate cap
+  // counts those rows. Registration approval inserts through raw knex and never
+  // reaches this filter; admins and system context bypass it.
+  const ROSTER_ADD_CAP_PER_HOUR = 30
+  // Staff who can already read every member — a cap would protect nothing.
+  const ROSTER_ADD_UNCAPPED_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser']
+  const ROSTER_ADD_WINDOW_MS = 60 * 60 * 1000
+  // actor member id → timestamps of adds that passed this filter in the window.
+  const rosterAddLedger = new Map()
   filter('member_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user) return payload
     if (accountability.admin) return payload
     if (!(await actorLeadsTeam(db, accountability, toIdValue(payload?.team)))) {
       throw kscwScopeError('You can only add members to a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+    }
+    const memberId = toIdValue(payload?.member)
+    if (memberId == null) throw kscwScopeError('A roster entry needs a member', 400, 'MEMBER_REQUIRED')
+    const target = await db('members').where('id', memberId).first('id', 'kscw_membership_active', 'deactivated_at')
+    if (!target) throw kscwScopeError('This member does not exist', 404, 'MEMBER_NOT_FOUND')
+    if (target.kscw_membership_active === false || target.deactivated_at != null) {
+      throw kscwScopeError('This member is no longer active in the club', 403, 'MEMBER_INACTIVE')
+    }
+    const me = await db('members').where('user', accountability.user).first('id', 'role')
+    const myRoles = Array.isArray(me?.role) ? me.role : []
+    if (me && !myRoles.some((r) => ROSTER_ADD_UNCAPPED_ROLES.includes(r))) {
+      const since = new Date(Date.now() - ROSTER_ADD_WINDOW_MS)
+      const row = await db('user_logs')
+        .where({ collection_name: 'member_teams', action: 'create', user: me.id })
+        .where('date_created', '>=', since)
+        .countDistinct({ n: 'record_id' })
+        .first()
+      // user_logs only sees COMMITTED adds (audit.js writes in the action, after
+      // commit), so an array POST or parallel requests would all read the same
+      // stale count. The process-local ledger covers adds still in flight: the
+      // prune → check → push below runs with no await in between, so on the one
+      // Directus process it is atomic. A rolled-back add still counts — the cap
+      // errs on the strict side for an hour. max(), not sum: a committed add is
+      // in both.
+      const now = Date.now()
+      const key = String(me.id)
+      const recent = (rosterAddLedger.get(key) || []).filter((t) => t > now - ROSTER_ADD_WINDOW_MS)
+      const n = Math.max(Number(row?.n ?? 0), recent.length)
+      if (n >= ROSTER_ADD_CAP_PER_HOUR) {
+        rosterAddLedger.set(key, recent)
+        throw kscwScopeError('Too many roster additions in the last hour. Try again later or ask an admin', 429, 'ROSTER_ADD_RATE_LIMITED')
+      }
+      recent.push(now)
+      rosterAddLedger.set(key, recent)
     }
     return payload
   })
@@ -7023,13 +7543,46 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const ev = await db('events').where('id', eventId).first('created_by')
     if (!ev) return false
     if (String(ev.created_by) === String(me.id)) return true
-    const links = await db('events_teams').where('events_id', eventId).select('teams_id')
+    // Only ACTIVE attached teams confer management (F19/F30): last season's
+    // coach no longer runs that team's events.
+    const links = await db('events_teams')
+      .join('teams', 'teams.id', 'events_teams.teams_id')
+      .where('events_teams.events_id', eventId).where('teams.active', true)
+      .select('events_teams.teams_id')
     for (const l of links) if (await actorLeadsTeam(db, accountability, l.teams_id)) return true
     return false
   }
+
+  // Club-level roles that manage every event (members.role; full admins never
+  // reach here — accountability.admin returns first).
+  const EVENT_CLUB_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser']
+  async function actorHasClubRole(db, accountability, roles) {
+    const me = await db('members').where('user', accountability.user).first('role')
+    const mine = Array.isArray(me?.role) ? me.role : []
+    return mine.some((r) => roles.includes(r))
+  }
+
+  // events_members (security audit 2026-09-28, F19). A personal invitation is
+  // what makes a private event visible (invited_members arm of EVENTS_VISIBLE)
+  // and exposes its roster, and Directus cannot row-filter a CREATE — so a
+  // coach could invite THEMSELVES into any private event. The only writer is
+  // EventForm (nested `invited_members` on the event create / update, which
+  // Directus runs through this collection's ItemsService with events_id set to
+  // the parent); there is no member self-RSVP path through this junction
+  // (RSVPs are `participations`). So: the event's creator, a coach / TR of an
+  // attached active team (or that sport's admin), or a club-level role.
+  filter('events_members.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user || accountability.admin) return payload
+    const eventId = toIdValue(payload?.events_id)
+    if (eventId == null) throw kscwScopeError('An invitation needs an event', 400, 'EVENT_REQUIRED')
+    if (await actorManagesEvent(db, accountability, eventId)) return payload
+    if (await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES)) return payload
+    throw kscwScopeError('You can only invite people to an event you manage', 403, 'NOT_EVENT_MANAGER')
+  })
   filter('event_sessions.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user || accountability.admin) return payload
-    if (!(await actorManagesEvent(db, accountability, toIdValue(payload?.event)))) {
+    if (!(await actorManagesEvent(db, accountability, toIdValue(payload?.event)))
+      && !(await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES))) {
       throw kscwScopeError('You can only add days to an event you manage', 403, 'NOT_TEAM_LEADER')
     }
     return payload
@@ -7045,6 +7598,92 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       'You can only create trainings for teams you coach or are responsible for')
     return payload
   })
+
+  // events.created_by (security audit 2026-09-28, F15/F17). `created_by` is an
+  // AUTHORITY column: the LEADER events update/delete grants, event_sessions,
+  // events_members and actorManagesEvent all trust it, and event-notify's
+  // creator branch reads it. It was client-supplied (EventForm sends
+  // `created_by: user.id` on create AND on every edit), so a coach could stamp
+  // someone else as creator on create, or — as a co-manager of an event —
+  // re-attribute it to themselves on edit. Same arrangement as forms and
+  // announcements: stamped from the caller on create, never changed on update
+  // by anyone below full admin. Stripping (not refusing) on update keeps the
+  // form's re-send working when a co-manager saves.
+  //
+  // `signup_form_slug` (migration 385) binds an OpnForm form to the event for
+  // GET /events/:id/signups and is written only by that endpoint (raw knex,
+  // which never reaches this filter) — never through /items.
+  const EVENT_ENDPOINT_OWNED = ['signup_form_slug']
+  filter('events.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!payload || !accountability?.user) return payload   // system context
+    const me = await db('members').where('user', accountability.user).first('id')
+    if (accountability.admin) {
+      // A full admin may record an event for someone else; default to self.
+      if (payload.created_by == null && me) payload.created_by = me.id
+      return payload
+    }
+    for (const f of EVENT_ENDPOINT_OWNED) delete payload[f]
+    payload.created_by = me?.id ?? null
+    return payload
+  })
+  filter('events.items.update', async (payload, _meta, { accountability }) => {
+    if (!payload || !accountability?.user || accountability.admin) return payload
+    delete payload.created_by
+    for (const f of EVENT_ENDPOINT_OWNED) delete payload[f]
+    return payload
+  })
+
+  // ── Public image references: only your own upload (audit 2026-09-28, F01) ──
+  // Migration 388 publishes a freshly uploaded raster file the moment one of
+  // these columns names it — but a trigger has no actor, so it cannot tell
+  // whose file that is. A reference is client-written: without this filter a
+  // member could set their `photo` to another member's quarantined upload (a
+  // receipt photo, a form answer, a feedback screenshot) and have it served
+  // publicly. This is the ownership half: a non-admin may name a file only if
+  // they uploaded it (acting swap: the same identity the upload ran under), or
+  // it is ALREADY a public image. An unchanged re-send of the current value
+  // (a form saving the whole row) passes. Full admins and system writes bypass;
+  // raw-knex writers (wadmin news) never reach here and are admin-only.
+  const PUBLIC_IMAGE_COLUMNS = {
+    members: 'photo',
+    teams: 'team_picture',
+    sponsors: 'logo',
+    news: 'image',
+    announcements: 'image',
+  }
+  const notYourFile = () => kscwScopeError('You can only use an image you uploaded yourself', 403, 'FILE_NOT_YOURS')
+  async function assertPublicImageRef(db, accountability, coll, col, payload, keys) {
+    if (!payload || !accountability?.user || accountability.admin) return
+    if (!Object.prototype.hasOwnProperty.call(payload, col)) return
+    const raw = payload[col]
+    if (raw == null) return
+    // A nested object without an id would CREATE a directus_files row from
+    // the items API — never an upload, never needed by the app.
+    const fileId = raw && typeof raw === 'object' ? raw.id : raw
+    if (fileId == null || (typeof fileId !== 'string' && typeof fileId !== 'number')) throw notYourFile()
+    if (Array.isArray(keys) && keys.length > 0) {
+      const rows = await db(coll).whereIn('id', keys).select(col)
+      if (rows.length === keys.length && rows.every((r) => String(r[col] ?? '') === String(fileId))) return
+    }
+    const file = await db('directus_files').where('id', String(fileId)).first('folder', 'uploaded_by')
+    if (!file) throw notYourFile()
+    if (file.folder === PUBLIC_IMAGES_FOLDER) return
+    const uploader = file.uploaded_by != null ? String(file.uploaded_by) : null
+    if (uploader && (uploader === String(accountability.user)
+      || (accountability.kscwGuardian?.user && uploader === String(accountability.kscwGuardian.user)))) return
+    throw notYourFile()
+  }
+  for (const [coll, col] of Object.entries(PUBLIC_IMAGE_COLUMNS)) {
+    filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
+      await assertPublicImageRef(db, accountability, coll, col, payload, null)
+      return payload
+    })
+    filter(`${coll}.items.update`, async (payload, meta, { database: db, accountability }) => {
+      const keys = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
+      await assertPublicImageRef(db, accountability, coll, col, payload, keys)
+      return payload
+    })
+  }
 
   // referee_expenses feed the season-end payout run (finance.js), which
   // reimburses every unpaid row it finds. A leader may only record a fee for a
@@ -7236,15 +7875,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // applies the cascade. Map is keyed by slotId so concurrent updates
   // don't clobber each other's snapshots.
   const pendingSlotPreState = new Map()
+  // Filters run BEFORE Directus checks access (security audit 2026-09-28), so a
+  // refused update still lands a snapshot here that no action will drain. It is
+  // read-only and harmless, but it must not outlive a real edit: entries carry
+  // a timestamp and anything older than a filter→action cycle is swept.
+  const SLOT_PRESTATE_TTL_MS = 5 * 60 * 1000
+  const prunePendingSlotPreState = () => {
+    const cutoff = Date.now() - SLOT_PRESTATE_TTL_MS
+    for (const [k, v] of pendingSlotPreState) if (!v || v.ts < cutoff) pendingSlotPreState.delete(k)
+  }
 
-  filter('hall_slots.items.update', async (payload, meta) => {
+  filter('hall_slots.items.update', async (payload, meta, context) => {
     try {
+      prunePendingSlotPreState()
       const keys = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
       for (const k of keys) {
-        if (!pendingSlotPreState.has(k)) {
-          const pre = await snapshotSlot(database, k)
-          if (pre) pendingSlotPreState.set(k, pre)
-        }
+        // Always take a fresh snapshot: an entry left by a refused (or
+        // anonymous) PATCH must never stand in for this request's pre-state.
+        const pre = await snapshotSlot(context?.database ?? database, k)
+        if (pre) pendingSlotPreState.set(k, { pre, ts: Date.now() })
+        else pendingSlotPreState.delete(k)
       }
     } catch (err) {
       log.error({ msg: `[slot-cascade] snapshot failed: ${err.message}`, event: 'slot_cascade_snapshot_failed', stack: err.stack })
@@ -7255,7 +7905,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   action('hall_slots.items.update', async ({ keys }) => {
     const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
     for (const id of ids) {
-      const pre = pendingSlotPreState.get(id)
+      const pre = pendingSlotPreState.get(id)?.pre
       pendingSlotPreState.delete(id)
       try {
         const createdIds = await cascadeSlotUpdate(database, id, pre, log)
@@ -7281,29 +7931,80 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // Slot deletion → wipe future trainings derived from it. Historic trainings
   // (date < today) stay so attendance records aren't lost; future ones are
-  // generator output and would otherwise dangle with a now-invalid hall_slot
-  // FK. Participations are deleted in the same txn (no FK cascade — activity_id
-  // is a polymorphic int, not a real FK).
-  filter('hall_slots.items.delete', async (keys) => {
+  // generator output and would otherwise dangle with `hall_slot = NULL`
+  // (`trainings_hall_slot_foreign` is ON DELETE SET NULL). Their participations
+  // go with them: `trg_trainings_0_purge_polymorphic` (migration 246) purges
+  // them per deleted training, and the explicit delete below is belt-and-braces.
+  //
+  // ⚠⚠ Security audit 2026-09-28 (Critical, F03): this used to DELETE inside
+  // the filter, on the global pool. Directus runs `items.delete` filters BEFORE
+  // its access check, and the global pool autocommits — so an anonymous
+  // `DELETE /items/hall_slots/:id` wiped every future training and RSVP of that
+  // slot and only then got its 403. The filter now only READS (which future
+  // trainings belong to the slot, on the request's own connection); the action,
+  // which Directus fires only for a delete that committed, does the deleting.
+  // A refused request leaves nothing behind but a snapshot entry that expires.
+  // The action re-checks `hall_slot IS NULL`, i.e. that the FK really let go.
+  const pendingSlotDeletes = new Map()
+
+  filter('hall_slots.items.delete', async (keys, _meta, context) => {
     const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
     if (!ids.length) return keys
     try {
-      const futureIds = await database('trainings')
+      prunePendingSlotPreState()
+      const db = context?.database ?? database
+      const rows = await db('trainings')
         .whereIn('hall_slot', ids)
-        .andWhere('date', '>=', database.raw("(now() AT TIME ZONE 'Europe/Zurich')::date"))
-        .pluck('id')
-      if (futureIds.length) {
-        await database('participations')
-          .where('activity_type', 'training')
-          .whereIn(database.raw('activity_id::int'), futureIds)
-          .delete()
-        const deleted = await database('trainings').whereIn('id', futureIds).delete()
-        log.info({ msg: `[slot-cascade] deleted ${deleted} future trainings for slot(s) ${ids.join(',')}`, event: 'slot_cascade_delete', slots: ids, count: deleted })
+        .andWhere('date', '>=', db.raw("(now() AT TIME ZONE 'Europe/Zurich')::date"))
+        .select('id', 'hall_slot')
+      const now = Date.now()
+      for (const id of ids) {
+        // Fresh snapshot, UNIONED with a still-pending one. A refused DELETE
+        // that lands between a legitimate delete's commit and its action reads
+        // an empty list (the FK already let go) and must not wipe the real
+        // snapshot. Unioning cannot over-delete: the action only removes rows
+        // that are still future AND detached (hall_slot IS NULL).
+        const fresh = rows.filter((r) => String(r.hall_slot) === String(id)).map((r) => r.id)
+        const prev = pendingSlotDeletes.get(String(id))
+        const keep = prev && prev.ts >= now - SLOT_PRESTATE_TTL_MS ? prev.trainingIds : []
+        pendingSlotDeletes.set(String(id), { trainingIds: [...new Set([...keep, ...fresh])], ts: now })
       }
+      for (const [k, v] of pendingSlotDeletes) if (v.ts < now - SLOT_PRESTATE_TTL_MS) pendingSlotDeletes.delete(k)
+    } catch (err) {
+      log.error({ msg: `[slot-cascade] delete snapshot failed: ${err.message}`, event: 'slot_cascade_delete_failed', slots: ids, stack: err.stack })
+    }
+    return keys
+  })
+
+  action('hall_slots.items.delete', async ({ keys }) => {
+    const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    const futureIds = []
+    for (const id of ids) {
+      const snap = pendingSlotDeletes.get(String(id))
+      pendingSlotDeletes.delete(String(id))
+      if (snap) futureIds.push(...snap.trainingIds)
+    }
+    if (!futureIds.length) return
+    try {
+      const deleted = await database.transaction(async (trx) => {
+        // Only rows the FK actually detached, and still in the future — a
+        // training re-attached or moved in between is left alone.
+        const detached = await trx('trainings')
+          .whereIn('id', futureIds)
+          .whereNull('hall_slot')
+          .andWhere('date', '>=', trx.raw("(now() AT TIME ZONE 'Europe/Zurich')::date"))
+          .pluck('id')
+        if (!detached.length) return 0
+        await trx('participations')
+          .where('activity_type', 'training')
+          .whereIn('activity_id', detached.map(String))
+          .delete()
+        return trx('trainings').whereIn('id', detached).delete()
+      })
+      log.info({ msg: `[slot-cascade] deleted ${deleted} future trainings for slot(s) ${ids.join(',')}`, event: 'slot_cascade_delete', slots: ids, count: deleted })
     } catch (err) {
       log.error({ msg: `[slot-cascade] delete cascade failed: ${err.message}`, event: 'slot_cascade_delete_failed', slots: ids, stack: err.stack })
     }
-    return keys
   })
 
   // ── Training occurrence tombstones (migration 162) ─────────────────
@@ -7338,22 +8039,44 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return String(d).slice(0, 10)
   }
 
-  // DELETE → tombstone each slot-linked occurrence (in the filter, before the
-  // row is gone — mirrors the hall_slots delete hook). Standalone trainings
-  // (no hall_slot) need none: nothing regenerates them.
+  // DELETE → tombstone each slot-linked occurrence. The filter only READS the
+  // (hall_slot, date) pair while the row still exists; the tombstone is written
+  // by the action, i.e. only for a delete that committed. It used to be written
+  // in the filter, which Directus runs before its access check — so a refused
+  // (even anonymous) DELETE planted `training_slot_skips` rows that suppressed
+  // regeneration of trainings nobody deleted (security audit 2026-09-28, F03).
+  // Standalone trainings (no hall_slot) need none: nothing regenerates them.
+  const pendingTrainingDeletes = new Map()
   filter('trainings.items.delete', async (keys, _meta, ctx) => {
     const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
     if (!ids.length) return keys
     try {
-      const rows = await database('trainings').whereIn('id', ids).select('hall_slot', 'date')
-      const actor = ctx?.accountability?.user || null
+      prunePendingTrainingPreState()
+      const now = Date.now()
+      for (const [k, v] of pendingTrainingDeletes) if (v.ts < now - PRESTATE_TTL_MS) pendingTrainingDeletes.delete(k)
+      const rows = await (ctx?.database ?? database)('trainings').whereIn('id', ids).select('id', 'hall_slot', 'date')
       for (const row of rows) {
-        if (row?.hall_slot) await addTrainingSkip(database, row.hall_slot, row.date, actor)
+        if (row?.hall_slot) pendingTrainingDeletes.set(String(row.id), { hall_slot: row.hall_slot, date: row.date, ts: now })
       }
     } catch (err) {
-      log.error({ msg: `[slot-cascade] delete tombstone failed: ${err.message}`, event: 'training_skip_del_failed', stack: err.stack })
+      log.error({ msg: `[slot-cascade] delete tombstone snapshot failed: ${err.message}`, event: 'training_skip_del_failed', stack: err.stack })
     }
     return keys
+  })
+
+  action('trainings.items.delete', async ({ keys }, ctx) => {
+    const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    const actor = ctx?.accountability?.user || null
+    for (const id of ids) {
+      const snap = pendingTrainingDeletes.get(String(id))
+      pendingTrainingDeletes.delete(String(id))
+      if (!snap) continue
+      try {
+        await addTrainingSkip(database, snap.hall_slot, snap.date, actor)
+      } catch (err) {
+        log.error({ msg: `[slot-cascade] delete tombstone failed: ${err.message}`, event: 'training_skip_del_failed', training: id, stack: err.stack })
+      }
+    }
   })
 
   // UPDATE → if an edit moves/detaches a slot-linked occurrence, tombstone the
@@ -7368,10 +8091,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       prunePendingTrainingPreState()
       const keys = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
       for (const k of keys) {
-        if (!pendingTrainingPreState.has(k)) {
-          const pre = await database('trainings').where('id', k).first('hall_slot', 'date')
-          if (pre) pendingTrainingPreState.set(k, { pre, actor: ctx?.accountability?.user || null, ts: Date.now() })
-        }
+        // Always overwrite (as the delete filters do): a stale entry from a
+        // refused PATCH must never replace this request's own pre-state.
+        const pre = await (ctx?.database ?? database)('trainings').where('id', k).first('hall_slot', 'date')
+        if (pre) pendingTrainingPreState.set(k, { pre, ts: Date.now() })
+        else pendingTrainingPreState.delete(k)
       }
     } catch (err) {
       log.error({ msg: `[slot-cascade] update tombstone snapshot failed: ${err.message}`, event: 'training_skip_upd_snapshot_failed', stack: err.stack })
@@ -7379,8 +8103,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
-  action('trainings.items.update', async ({ keys }) => {
+  action('trainings.items.update', async ({ keys }, ctx) => {
     const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    // The actor of the write that COMMITTED — not whoever planted the snapshot
+    // (a refused request can have been first; filters run before access checks).
+    const actor = ctx?.accountability?.user || null
     for (const id of ids) {
       const snap = pendingTrainingPreState.get(id)
       pendingTrainingPreState.delete(id)
@@ -7391,7 +8118,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         const preSlot = snap.pre.hall_slot ?? null
         const postSlot = post.hall_slot ?? null
         const samePair = preSlot === postSlot && isoDay(snap.pre.date) === isoDay(post.date)
-        if (preSlot != null && !samePair) await addTrainingSkip(database, preSlot, snap.pre.date, snap.actor)
+        if (preSlot != null && !samePair) await addTrainingSkip(database, preSlot, snap.pre.date, actor)
         if (postSlot != null && !samePair) await clearTrainingSkip(database, postSlot, post.date)
       } catch (err) {
         log.error({ msg: `[slot-cascade] update tombstone failed: ${err.message}`, event: 'training_skip_upd_failed', training: id, stack: err.stack })

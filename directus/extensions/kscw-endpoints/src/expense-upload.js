@@ -34,6 +34,7 @@ import { sendLocalizedPush, memberLangToCode } from './push-i18n.js'
 // finance-payout.js so the referee reimbursement run and this auto-payout
 // resolve the same IBAN precedence and mint the same finance_payouts shape.
 import { isValidIban, cleanIban, isChLiIban, PAYOUT_SKIP, resolvePayee, insertPayout } from './finance-payout.js'
+import { EXPENSE_RECEIPTS_FOLDER, fileUploads } from './upload-folders.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const OCR_MODEL = process.env.EXPENSE_OCR_MODEL || 'claude-haiku-4-5'
@@ -454,6 +455,20 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         log.warn(`expense submit: no members row for user ${userId} — email-only fallback`)
       }
 
+      // File the receipt (audit 2026-09-28 F01). This write is raw knex, so the
+      // kscw-hooks finance_expenses action never runs: without this move a receipt
+      // stays in the upload quarantine (migration 388) or, from an old bundle, at
+      // the root. loadFile() above already proved uploaded_by = caller; the move
+      // repeats that check and only touches an unfiled file (root / quarantine),
+      // so a receipt uploaded straight into the receipts folder is left alone.
+      // Best-effort: the claim is persisted either way, and GET /receipt streams
+      // regardless of folder.
+      try {
+        await fileUploads(database, [fileId], EXPENSE_RECEIPTS_FOLDER, userId)
+      } catch (mvErr) {
+        log.warn(`expense submit: could not file receipt ${fileId} (${mvErr.message})`)
+      }
+
       const fmtAmount = `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       const rows = [
         { label: 'Member', value: submitterName },
@@ -582,6 +597,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       if (!isOwner && !canManageFinance(req, mem)) return res.status(404).json({ error: 'Not found' })
 
       // No owner scoping here — finance may fetch a file another user uploaded.
+      // No folder filter either: a legacy receipt at the root, one still in the
+      // upload quarantine, or one already filed in the receipts folder all stream.
       const row = await database('directus_files')
         .where({ id: expense.file })
         .first('id', 'filename_disk', 'filename_download', 'type', 'filesize')

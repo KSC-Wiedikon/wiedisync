@@ -69,6 +69,7 @@ import ExplorerBulkEditModal from './ExplorerBulkEditModal'
 import ExplorerBulkDepartModal from './ExplorerBulkDepartModal'
 import type { CacheShape, MemberTeamRow, StaffRow, ClubdeskSyncStatus, RegFileInfo } from './explorerHelpers'
 import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTime, teamLabel } from './explorerHelpers'
+import { rosterAddErrorKey } from '../../teams/rosterAddError'
 
 interface Props {
   /** Filtered cache from the page (member filters already applied). */
@@ -1267,10 +1268,18 @@ export default function ExplorerGrid({
     // between the Jun-1 cutover and the manually-run rollover. A mis-stamped row
     // is then skipped by the rollover's clone and silently orphaned.
     const rosterSeason = teamById.get(teamId)?.season ?? getCurrentSeason()
-    const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
-      'member_teams',
-      { member: memberId, team: teamId, season: rosterSeason },
-    )
+    let created: { id: string | number; guest_level: number | null; season: string | null }
+    try {
+      created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
+        'member_teams',
+        { member: memberId, team: teamId, season: rosterSeason },
+      )
+    } catch (err) {
+      // The pickers toast `err.message`; a guard refusal (rate cap / inactive
+      // member) arrives as an SDK object with no usable message.
+      const key = rosterAddErrorKey(err)
+      throw key ? new Error(t(key)) : err
+    }
     const newRow: MemberTeamRow = {
       id: String(created.id),
       member: memberId,

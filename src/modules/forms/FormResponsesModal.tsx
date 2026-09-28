@@ -7,7 +7,7 @@ import { FileText, FileSpreadsheet, Braces, FileDown, BellRing, Users } from 'lu
 import { useCollection } from '../../lib/query'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { FilePreviewDialog } from '../../components/FilePreview'
-import { kscwApi, assetUrl } from '../../lib/api'
+import { kscwApi, API_URL } from '../../lib/api'
 import { toCSV, toJSON, toXlsx, downloadText, downloadBlob } from '../admin/utils/exportResults'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { resolveFieldLabel } from './labels'
@@ -27,6 +27,16 @@ interface FormStats {
 
 function fileBase(title: string): string {
   return (title || 'form').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'form'
+}
+
+/**
+ * A form file answer lives in the private Form uploads folder (migration 387), so
+ * a bare /assets/:id is refused for coaches/TRs. The form-scoped endpoint checks
+ * the caller manages this form AND that the file is one of its answers, then
+ * streams it. FilePreview fetches it credentialed and renders from a blob: URL.
+ */
+function formFileUrl(formId: string | number, fileId: string): string {
+  return `${API_URL}/kscw/forms/${encodeURIComponent(String(formId))}/files/${encodeURIComponent(fileId)}`
 }
 
 function isFileAnswer(v: AnswerValue): v is FileAnswer {
@@ -123,10 +133,11 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
   }
   const fieldLabel = (f: FieldDef) => resolveFieldLabel(f, i18n.language)
 
-  // String form of an answer (for export). File answers export their asset URL.
+  // String form of an answer (for export). File answers export the form-scoped
+  // file URL (opens for a signed-in form manager only — never a public link).
   const answerToString = (v: AnswerValue, field: FieldDef): string => {
     if (v === null || v === undefined || v === '') return ''
-    if (isFileAnswer(v)) return assetUrl(v.id)
+    if (isFileAnswer(v)) return formFileUrl(form.id, v.id)
     if (field.type === 'multi_choice' && Array.isArray(v)) return v.join(', ')
     if (field.type === 'yes_no' || typeof v === 'boolean') return v ? t('yes') : t('no')
     if (field.type === 'rating') return `${v}/5`
@@ -267,7 +278,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
         key={preview?.id}
         open={!!preview}
         onOpenChange={(o) => { if (!o) setPreview(null) }}
-        url={preview ? assetUrl(preview.id) : null}
+        url={preview ? formFileUrl(form.id, preview.id) : null}
         label={preview?.name}
         filename={preview?.name}
       />

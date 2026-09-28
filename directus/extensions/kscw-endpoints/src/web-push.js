@@ -208,6 +208,12 @@ export function registerWebPush(router, ctx) {
         return res.status(400).json({ error: 'endpoint not accepted' })
       }
 
+      // F37 (migration 382): a row registered while a main account acts for a
+      // linked member carries that guardian login, so revoking the grant unbinds
+      // her device. Server-side only — from the acting swap, never the body; an
+      // own-device (re)subscribe clears it.
+      const actingGuardianUser = req.accountability?.kscwGuardian?.user ?? null
+
       // Upsert by member+endpoint
       const existing = await database('push_subscriptions')
         .where('member', member.id)
@@ -218,6 +224,7 @@ export function registerWebPush(router, ctx) {
         await database('push_subscriptions').where('id', existing.id).update({
           keys_p256dh,
           keys_auth,
+          acting_guardian_user: actingGuardianUser,
         })
         log.info(`Updated push subscription for member ${member.id}`)
         return res.json({ success: true, updated: true })
@@ -228,6 +235,7 @@ export function registerWebPush(router, ctx) {
         endpoint,
         keys_p256dh,
         keys_auth,
+        acting_guardian_user: actingGuardianUser,
       })
 
       log.info(`New push subscription for member ${member.id}`)

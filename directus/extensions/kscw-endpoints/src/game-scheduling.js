@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto'
-import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
+import { claimVmAccount, vmAccountHeldBy, VM_LEASE_MS } from './vm-account-lock.js'
 import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { SCHEDULING_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
@@ -137,6 +137,128 @@ function weekdayHomeTime(dateYmd, startTime) {
   return dow >= 1 && dow <= 5 ? '20:00' : String(startTime || '').slice(0, 5)
 }
 
+/** Fresh self-registrations one address may make per 24 h, across all teams (F60). */
+export const REGISTER_ADDR_CAP = 5
+
+/**
+ * The dedup key of a self-registration address: lower-cased, `+tag` stripped,
+ * so a+1@x and a+2@x count as a@x (audit 2026-09-28 F60). Mirrors the SQL
+ * `regexp_replace(lower(contact_email), '\+[^@]*@', '@')` in /register.
+ */
+export function registerAddressKey(email) {
+  return String(email || '').toLowerCase().trim().replace(/\+[^@]*@/, '@')
+}
+
+/**
+ * Receipt recipients from the opponent's KNOWN addresses (already parsed) —
+ * pure, unit-tested. The typed proposer address is used only when it is one of
+ * them (audit 2026-09-28 F60). Null when nothing is known.
+ */
+export function pickReceiptRecipients(knownAddresses, proposerEmail) {
+  const known = [...new Set((knownAddresses || []).map((e) => String(e).toLowerCase()).filter(Boolean))]
+  if (!known.length) return null
+  const p = String(proposerEmail || '').trim().toLowerCase()
+  const to = known.includes(p) ? p : known[0]
+  const cc = known.filter((e) => e !== to)
+  return { to, cc: cc.length ? cc : null }
+}
+
+/**
+ * The Directus roles the staff reconcile below may move a user BETWEEN. A user on
+ * any other role (Administrator, Superuser, Sport Admin, Website Admin, a custom
+ * tier) is left alone: those are above or beside the coach/TR boundary, and the
+ * season flip changes nothing about them.
+ */
+export const STAFF_TIER_ROLES = ['Team Responsible', 'Vorstand', 'Member']
+
+/**
+ * Pure mirror of `resolveDirectusRole` (kscw-hooks) for the part a season flip can
+ * change: which of Team Responsible / Vorstand / Member the member belongs on.
+ * Returns null when members.role puts them above the boundary (superuser/admin,
+ * vb_admin/bb_admin) — the reconcile then does not touch them.
+ * ⚠ Keep in step with resolveDirectusRole and setup-permissions §10a.
+ */
+export function expectedStaffTierRole(memberRoles, hasActiveStaff) {
+  const roles = Array.isArray(memberRoles) ? memberRoles : []
+  if (roles.includes('superuser') || roles.includes('admin')) return null
+  if (roles.includes('vb_admin') || roles.includes('bb_admin')) return null
+  if (hasActiveStaff) return 'Team Responsible'
+  if (roles.includes('vorstand')) return 'Vorstand'
+  return 'Member'
+}
+
+/**
+ * Re-run the role + per-user LEADER sync for `memberIds` after a raw-knex flip of
+ * teams.active (rollover / archive / restore). Those writes bypass the items API,
+ * so kscw-hooks' `syncMemberRole` / `ensureLeaderAccess` / `revokeLeaderAccessIfOrphan`
+ * never fire, and an ex-coach kept the Team Responsible ROLE (which carries LEADER
+ * at role level) until someone edited their junctions (audit 2026-09-28, F30).
+ * The hook functions live in another extension and cannot be imported, so this
+ * reproduces them with the same SQL: "is staff" = a coach/TR row on an ACTIVE team
+ * (= `hasActiveStaffRow`). Only moves users across STAFF_TIER_ROLES. Never throws —
+ * the season flip has already committed; setup-permissions §10/§10a reconciles
+ * anything this misses on the next deploy.
+ */
+async function resyncStaffAccess(db, log, memberIds) {
+  const ids = [...new Set((memberIds || []).map(Number).filter(Number.isInteger))]
+  const out = { checked: ids.length, roles_changed: 0, leader_attached: 0, leader_revoked: 0 }
+  if (!ids.length) return out
+  try {
+    const roleRows = await db('directus_roles').whereIn('name', STAFF_TIER_ROLES).select('id', 'name')
+    const roleId = Object.fromEntries(roleRows.map((r) => [r.name, r.id]))
+    const leader = await db('directus_policies').where('name', 'KSCW Team Responsible').first('id')
+    const active = new Set()
+    for (const junction of ['teams_coaches', 'teams_responsibles']) {
+      const rows = await db(junction)
+        .join('teams', 'teams.id', `${junction}.teams_id`)
+        .whereIn(`${junction}.members_id`, ids).where('teams.active', true)
+        .distinct(`${junction}.members_id as m`)
+      for (const r of rows) active.add(Number(r.m))
+    }
+    const members = await db('members as m')
+      .join('directus_users as u', 'u.id', 'm.user')
+      .whereIn('m.id', ids)
+      .select('m.id', 'm.role', 'm.user', 'u.role as current_role')
+    const tierIds = new Set(Object.values(roleId))
+    for (const m of members) {
+      try {
+        const isStaff = active.has(Number(m.id))
+        const want = expectedStaffTierRole(m.role, isStaff)
+        if (want && roleId[want] && tierIds.has(m.current_role) && m.current_role !== roleId[want]) {
+          await db('directus_users').where('id', m.user).update({ role: roleId[want] })
+          out.roles_changed++
+          log.info({ msg: `[season-staff-sync] member ${m.id} → ${want}`, memberId: m.id })
+        }
+        if (leader?.id) {
+          const has = await db('directus_access').where({ user: m.user, policy: leader.id }).first('id')
+          if (isStaff && !has) {
+            await db('directus_access').insert({ id: crypto.randomUUID(), user: m.user, policy: leader.id })
+            out.leader_attached++
+          } else if (!isStaff && has) {
+            await db('directus_access').where({ user: m.user, policy: leader.id }).delete()
+            out.leader_revoked++
+          }
+        }
+      } catch (err) {
+        log.warn({ msg: `[season-staff-sync] member ${m.id}: ${err.message}`, memberId: m.id, stack: err.stack })
+      }
+    }
+  } catch (err) {
+    log.warn({ msg: `[season-staff-sync] failed: ${err.message}`, stack: err.stack })
+  }
+  return out
+}
+
+/** Every member on a coach/TR junction of the given teams (active or not). */
+async function staffMemberIdsOfTeams(db, teamQuery) {
+  const ids = new Set()
+  for (const junction of ['teams_coaches', 'teams_responsibles']) {
+    const rows = await db(junction).whereIn('teams_id', teamQuery.clone().select('id')).distinct('members_id as m')
+    for (const r of rows) if (r.m != null) ids.add(Number(r.m))
+  }
+  return [...ids]
+}
+
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
 
@@ -150,16 +272,52 @@ export function registerGameScheduling(router, { database, logger, services, get
   // The child self-authenticates (sync admin + VM creds) and writes the push
   // result back onto the booking (vm_push_status/…). Never blocks the request;
   // a VM failure is recorded on the booking, not surfaced as an HTTP error.
+  //
+  // ⚠ The child logs into the SHARED Volleymanager account (CLAUDE.md → "The
+  // shared VolleyManager account"), so every push holds claimVmAccount from
+  // spawn to the child's `exit` — never released while it is still logged in
+  // (audit 2026-09-28 F39). Pushes run one at a time through `vmPushChain`
+  // (the Saturday rebalance re-pushes several bookings back to back) and each
+  // waits for the account for up to VM_PUSH_CLAIM_WAIT_MS — longer than the
+  // lease, so a crashed holder is always outwaited. A push that still cannot
+  // get the account is marked `failed` on the booking, where the dashboard's
+  // retry button picks it up.
+  const VM_PUSH_CLAIM_WAIT_MS = VM_LEASE_MS + 5 * 60 * 1000
+  const VM_PUSH_CLAIM_POLL_MS = 5000
+  let vmPushChain = Promise.resolve()
+
   async function spawnVmPush(bookingId, { svrzId = null } = {}) {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
+      log.warn('VM push skipped: VM_USERNAME/VM_PASSWORD not set')
+      return
+    }
+    if (!process.env.DIRECTUS_SYNC_EMAIL || !process.env.DIRECTUS_SYNC_PASSWORD) {
+      log.warn('VM push skipped: DIRECTUS_SYNC_EMAIL/PASSWORD not set')
+      return
+    }
+    vmPushChain = vmPushChain
+      .then(() => runVmPush(bookingId, { svrzId }))
+      .catch((e) => log.warn(`spawnVmPush failed: ${e.message}`))
+  }
+
+  async function runVmPush(bookingId, { svrzId }) {
+    const who = `terminplanung:vm-push:${bookingId}`
+    let release = claimVmAccount(who)
+    const deadline = Date.now() + VM_PUSH_CLAIM_WAIT_MS
+    while (!release && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, VM_PUSH_CLAIM_POLL_MS))
+      release = claimVmAccount(who)
+    }
+    if (!release) {
+      const holder = vmAccountHeldBy()
+      log.warn(`VM push skipped for booking ${bookingId}: Volleymanager account held by ${holder || 'another job'}`)
+      await database('game_scheduling_bookings').where('id', bookingId)
+        .update({ vm_push_status: 'failed', vm_push_error: 'Volleymanager was busy with another job — push again' })
+        .catch(() => {})
+      return
+    }
+    let child
     try {
-      if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
-        log.warn('VM push skipped: VM_USERNAME/VM_PASSWORD not set')
-        return
-      }
-      if (!process.env.DIRECTUS_SYNC_EMAIL || !process.env.DIRECTUS_SYNC_PASSWORD) {
-        log.warn('VM push skipped: DIRECTUS_SYNC_EMAIL/PASSWORD not set')
-        return
-      }
       const { spawn } = await import('node:child_process')
       const { openSync } = await import('node:fs')
       let logOut, logErr
@@ -178,11 +336,21 @@ export function registerGameScheduling(router, { database, logger, services, get
         BOOKING_ID: String(bookingId),
         ...(svrzId ? { FORCE_SVRZ_ID: String(svrzId) } : {}),
       }
-      const child = spawn('node', ['/directus/scripts/vm-push-game.mjs'], { env, detached: true, stdio: ['ignore', logOut, logErr] })
-      child.unref()
+      child = spawn('node', ['/directus/scripts/vm-push-game.mjs'], { env, detached: true, stdio: ['ignore', logOut, logErr] })
     } catch (e) {
-      log.warn(`spawnVmPush failed: ${e.message}`)
+      release() // nothing was spawned, so nothing is logged in
+      throw e
     }
+    // Hold the chain (and the account) until the child is gone. The lease caps
+    // a hung child: past VM_LEASE_MS the account is free again anyway, so the
+    // queue moves on rather than stalling every later push behind it.
+    await new Promise((resolve) => {
+      const cap = setTimeout(resolve, VM_LEASE_MS)
+      const done = () => { clearTimeout(cap); release(); resolve() }
+      child.once('exit', done)
+      child.once('error', (err) => { log.warn(`VM push spawn error (booking ${bookingId}): ${err.message}`); done() })
+      child.unref()
+    })
   }
 
   // An opponent's contact_email may hold SEVERAL addresses (a club often lists
@@ -284,35 +452,73 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(400).json({ error: 'Captcha verification failed' })
       }
 
-      const teamRow = await database('teams').where('id', kscw_team).first('id')
+      // Audit 2026-09-28 F38: only an ACTIVE team, only while a season is open,
+      // and the row is stamped with that season. Season-less rows were invisible
+      // on the dashboard (it filters by season) yet their proposals held dates.
+      const teamRow = await database('teams').where({ id: kscw_team, active: true }).first('id')
       if (!teamRow) {
         return res.status(400).json({ error: 'Invalid team' })
       }
+      const openSeason = await database('game_scheduling_seasons').where('status', 'open').orderBy('id', 'desc').first('id')
+      if (!openSeason) {
+        return res.status(409).json({ error: 'Registration is closed', code: 'registration_closed' })
+      }
+      const teamName = String(team_name).replace(/[\r\n]+/g, ' ').trim().slice(0, 200)
+      const contactName = String(contact_name).replace(/[\r\n]+/g, ' ').trim().slice(0, 200)
+      const email = String(contact_email).toLowerCase().trim()
 
-      const token = crypto.randomBytes(16).toString('hex')
+      // One live registration per (season, team, address): a repeat answers the
+      // same success but neither inserts nor mails again — otherwise this
+      // anonymous form is a way to send KSCW mail to any address at will
+      // (audit 2026-09-28 F60). Same response either way, so it is no oracle.
+      // The address is compared with its `+tag` stripped (a+1@x ≡ a@x), and
+      // one address gets at most REGISTER_ADDR_CAP fresh registrations a day
+      // across ALL teams. Both checks and the insert run under a per-address
+      // advisory lock, so parallel requests cannot race past them.
       const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString()
-
-      await database('game_scheduling_opponents').insert({
-        team_name, contact_name, contact_email: contact_email.toLowerCase().trim(),
-        token, kscw_team, status: 'active', expires_at: expiresAt, language: lang,
+      const addrKey = registerAddressKey(email)
+      const token = crypto.randomBytes(16).toString('hex')
+      const inserted = await database.transaction(async (trx) => {
+        await trx.raw('SELECT pg_advisory_xact_lock(hashtext(?))', [`terminplanung:register:${addrKey}`])
+        const sameAddr = (q) => q.where('source', 'self_registration')
+          .whereRaw(`regexp_replace(lower(contact_email), '\\+[^@]*@', '@') = ?`, [addrKey])
+        const existing = await sameAddr(trx('game_scheduling_opponents'))
+          .where({ season: openSeason.id, kscw_team: teamRow.id })
+          .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+          .first('id')
+        if (existing) return false
+        const recent = await sameAddr(trx('game_scheduling_opponents'))
+          .where('date_created', '>', new Date(Date.now() - 86400000))
+          .count({ n: '*' }).first()
+        if (Number(recent?.n || 0) >= REGISTER_ADDR_CAP) return false
+        await trx('game_scheduling_opponents').insert({
+          team_name: teamName, contact_name: contactName, contact_email: email,
+          token, kscw_team: teamRow.id, season: openSeason.id, status: 'active', expires_at: expiresAt, language: lang,
+          // No column default — stamp it, or the daily cap above never counts it.
+          date_created: new Date(),
+        })
+        return true
       })
+      if (!inserted) return res.json({ success: true, expires_at: expiresAt })
 
-      // Send confirmation email (branded HTML + plain-text fallback).
+      // Send confirmation email (branded HTML + plain-text fallback). It carries
+      // NO caller-supplied text (F60): the address is unverified, so a name or
+      // team typed into the form must not ride along into someone else's inbox.
       try {
         const accessUrl = `${SCHEDULING_URL}/terminplanung/${token}`
-        const text = `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${accessUrl}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`
+        const text = `Hallo,\n\nDein Zugangslink zur Spielplanung:\n${accessUrl}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`
         const html = buildEmailLayout(
           `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px">Dein Zugangslink zur Spielplanung ist bereit. Der Link ist 30 Tage gültig.</p>`,
           {
             title: 'Spielplanung',
             sport: 'vb',
-            greeting: `Hallo ${contact_name},`,
+            greeting: 'Hallo,',
             ctaUrl: accessUrl,
             ctaLabel: 'Zur Spielplanung',
             footerExtra: 'Sportliche Grüsse, KSC Wiedikon',
           },
         )
-        await sendSchedulingMail(contact_email, 'KSC Wiedikon – Spielplanung', text, null, html)
+        await sendSchedulingMail(email, 'KSC Wiedikon – Spielplanung', text, null, html)
       } catch (mailErr) {
         log.warn(`Scheduling email failed: ${mailErr.message}`)
       }
@@ -322,18 +528,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       try {
         const team = await database('teams').where('id', kscw_team).first('name')
         const kscw = `KSCW ${team?.name || ''}`.trim()
-        const text = `${team_name} (${contact_name}, ${contact_email}) hat sich für die Spielplanung gegen ${kscw} registriert.`
+        const text = `${teamName} (${contactName}, ${email}) hat sich für die Spielplanung gegen ${kscw} registriert.`
         const html = adminNotifyHtml({
           title: 'Neue Anmeldung Spielplanung',
-          lead: `${team_name} hat sich für die Spielplanung gegen ${kscw} registriert.`,
+          lead: `${teamName} hat sich für die Spielplanung gegen ${kscw} registriert.`,
           infoRows: [
-            { label: 'Team', value: team_name },
-            { label: 'Kontakt', value: contact_name },
-            { label: 'E-Mail', value: contact_email },
+            { label: 'Team', value: teamName },
+            { label: 'Kontakt', value: contactName },
+            { label: 'E-Mail', value: email },
             { label: 'Gegner', value: kscw },
           ],
         })
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Anmeldung Spielplanung – ${team_name} (${kscw})`, text, null, html)
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Anmeldung Spielplanung – ${teamName} (${kscw})`, text, null, html)
       } catch (mailErr) {
         log.warn(`Scheduling group notice failed: ${mailErr.message}`)
       }
@@ -353,6 +559,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   const writeAttempts = new Map() // ip → { count, resetAt }
   const langAttempts = new Map()  // ip → { count, resetAt } — language flips (generous)
   const registerAttempts = new Map() // ip → { count, resetAt } — public opponent self-registration (audit EP-SCH-2)
+  const clubProposeAttempts = new Map() // ip → { count, resetAt } — club-portal propose, checked BEFORE the fixture scan (audit 2026-09-28 F63)
 
   function rateLimit(map, req, maxAttempts, windowMs) {
     // 2026-05-12 audit #20: prefer CF-Connecting-IP (set by Cloudflare Tunnel)
@@ -376,6 +583,21 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const [k, v] of map) { if (now > v.resetAt) map.delete(k) }
     }
     return true
+  }
+
+  // Who gets the "proposals recorded" receipt (audit 2026-09-28 F60). The
+  // proposer's name/email are typed by whoever holds the token, so the receipt
+  // goes to the addresses KSCW already has for that opponent (the invite /
+  // calendar / team contacts); the proposer is on it only when their address
+  // is one of those. It used to go TO the typed address — KSCW-branded mail to
+  // anyone, at the token holder's choice. Returns { to, cc } for
+  // sendSchedulingMail, or null when there is no known address at all.
+  function receiptRecipients(opponent, proposerEmail) {
+    const list = (v) => { const r = parseRecipients(v || ''); return Array.isArray(r) ? r : (r ? [r] : []) }
+    return pickReceiptRecipients(
+      [...list(opponent.contact_email), ...list(opponent.calendar_contact_email), ...list(opponent.team_contact_email)],
+      proposerEmail,
+    )
   }
 
   // Validate + normalise the proposer (the opponent-club person confirming) from
@@ -423,13 +645,19 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Team ids where this Directus user is a coach or team responsible — resolved
   // member-first (members.user → members_id in the teams_coaches /
   // teams_responsibles junctions). Feeds canViewTeamScheduling only.
+  // ACTIVE teams only: a seat on an archived season's team is residue, and
+  // date-context would otherwise keep showing an ex-coach that lineage's
+  // absence names + dates (audit 2026-09-28 F31). Rollover clones the seats
+  // onto the new active team, so a continuing coach keeps access.
   async function coachOrTrTeamIds(database, userId) {
     if (!userId) return []
     const member = await database('members').where('user', userId).first('id')
     if (!member) return []
     const [coachRows, trRows] = await Promise.all([
-      database('teams_coaches').where('members_id', member.id).pluck('teams_id'),
-      database('teams_responsibles').where('members_id', member.id).pluck('teams_id'),
+      database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id')
+        .where('tc.members_id', member.id).where('t.active', true).pluck('tc.teams_id'),
+      database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id')
+        .where('tr.members_id', member.id).where('t.active', true).pluck('tr.teams_id'),
     ])
     return [...new Set([...coachRows, ...trRows].map(Number).filter(Number.isFinite))]
   }
@@ -543,6 +771,14 @@ export function registerGameScheduling(router, { database, logger, services, get
   // hold (they're soft alternatives — the admin just gets a contention warning).
   // opts.excludeOpponent: skip that opponent's own holds, so their slot-1 reserve
   // doesn't block their own alternatives (2 & 3) or their re-proposal.
+  // opts.season: only holds of opponents in that season.
+  //
+  // Only a REAL opponent's proposal holds (audit 2026-09-28 F38): a live link
+  // (not revoked/expired/lapsed, unless booked), stamped with a season, and not
+  // an anonymous `/terminplanung/register` row. Those self-registered rows used
+  // to carry no season, never expire and never show on the dashboard — yet their
+  // pending first proposal reserved ±HOLD_WINDOW_DAYS for every real opponent.
+  // Their proposals are still stored (soft, like proposals 2 & 3).
   async function committedGameDates(kscwTeamId, gapDays = DEFAULT_GAPS.home, opts = {}) {
     const set = new Set()
     const addWindow = (val, w = gapDays) => {
@@ -582,7 +818,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         const q = database('game_scheduling_bookings as b')
           .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
           .where('o.kscw_team', kscwTeamId).where('b.status', 'pending')
+          .whereIn('o.status', ['active', 'invited', 'viewed', 'booked'])
+          .whereNotNull('o.season')
+          .where((w) => w.where('o.created_by_admin', true).orWhereNot('o.source', 'self_registration'))
+          .where((w) => w.where('o.status', 'booked').orWhereNull('o.expires_at').orWhere('o.expires_at', '>', database.fn.now()))
         if (opts.excludeOpponent) q.whereNot('b.opponent', opts.excludeOpponent)
+        if (opts.season != null) q.where('o.season', opts.season)
         return q
       }
       // Home: pending proposed_slot_1 → its slot date. Held with the fixed,
@@ -1449,7 +1690,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     const seasonId = seasonRow.id
     const teamId = teamRow.id
     const gaps = await seasonGaps(seasonId)
-    const held = { includeHeld: true }
+    const held = { includeHeld: true, season: seasonId }
     const committedHome = await committedGameDates(teamId, gaps.home, held)
     const committedProposal = await committedGameDates(teamId, gaps.proposal, held)
     const committedProposal3 = await committedGameDates(teamId, gaps.proposal3, held)
@@ -2094,7 +2335,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const gaps = await seasonGaps(opponent.season)
       // Include other opponents' held first-proposals (slot-1 / date-1 reserve the
       // date); exclude this opponent's own holds so their alternatives stay open.
-      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const held = { includeHeld: true, excludeOpponent: opponent.id, season: opponent.season }
       const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
       const committedProposal = await committedGameDates(opponent.kscw_team, gaps.proposal, held)
       const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
@@ -2573,7 +2814,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // + 0 absences; pick 3 lenient: proposal-3 gap + <3 absences), mirroring the
       // read-time list. Slots are not held.
       const gaps = await seasonGaps(opponent.season)
-      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const held = { includeHeld: true, excludeOpponent: opponent.id, season: opponent.season }
       const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
       const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
       const toYmd = (v) => (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10))
@@ -2856,12 +3097,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           return { date, time: weekdayHomeTime(s.date, s.start_time), hall }
         }).filter(Boolean)
         const list = slotRowsMail.map((r) => `• ${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}`).join('\n')
-        // Receipt to the person who confirmed (always known now) + CC the club's
-        // contact list, so the individual always gets a copy.
+        // Receipt to the club's KNOWN contacts; the person who confirmed is the
+        // To only when their address is one of them (receiptRecipients, F60).
         const { subject, text, html } = schedEmail(opponent.language, 'home_proposals_sent', {
           contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
         })
-        await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
+        const rcpt = receiptRecipients(opponent, proposer.email)
+        if (rcpt) await sendSchedulingMail(rcpt.to, subject, text, rcpt.cc, html)
         const adminText = `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${SCHEDULING_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Heim-Slot-Vorschläge',
@@ -3201,7 +3443,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // gap; proposal 3 the (smaller) proposal-3 gap (mirrors the strict/loose
       // sets the calendar greys with).
       const proposalGaps = await seasonGaps(opponent.season)
-      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const held = { includeHeld: true, excludeOpponent: opponent.id, season: opponent.season }
       const committedStrict = await committedGameDates(opponent.kscw_team, proposalGaps.proposal, held)
       const committedLoose = await committedGameDates(opponent.kscw_team, proposalGaps.proposal3, held)
       // Intra-club derby clamp (Art. 27): reject any away date before this team's
@@ -3339,12 +3581,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           slotRowsMail.push({ date, time })
         }
         const list = slotRowsMail.map((r) => `• ${r.date}${r.time ? `, ${r.time}` : ''}`).join('\n')
-        // Receipt to the person who confirmed (always known now) + CC the club's
-        // contact list, so the individual always gets a copy.
+        // Receipt to the club's KNOWN contacts; the person who confirmed is the
+        // To only when their address is one of them (receiptRecipients, F60).
         const { subject, text, html } = schedEmail(opponent.language, 'proposals_sent', {
           contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
         })
-        await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
+        const rcpt = receiptRecipients(opponent, proposer.email)
+        if (rcpt) await sendSchedulingMail(rcpt.to, subject, text, rcpt.cc, html)
         const adminText = `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${SCHEDULING_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Auswärts-Terminvorschläge',
@@ -3565,6 +3808,12 @@ export function registerGameScheduling(router, { database, logger, services, get
   // opponent home handler for the pairing that owns req.body.svrz_game_id.
   router.post('/terminplanung/club/propose-home/:token', async (req, res) => {
     try {
+      // Before any lookup: resolving the portal and scanning every pairing's
+      // SVRZ fixtures is the expensive part (F63). The dispatched handler still
+      // applies its own writeAttempts limit to the actual write.
+      if (!rateLimit(clubProposeAttempts, req, 10, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
       const portal = await clubPortalByToken(req.params.token)
       if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
       if (portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)) {
@@ -3583,6 +3832,12 @@ export function registerGameScheduling(router, { database, logger, services, get
   // POST /kscw/terminplanung/club/propose-away/:token — same, away handler.
   router.post('/terminplanung/club/propose-away/:token', async (req, res) => {
     try {
+      // Before any lookup: resolving the portal and scanning every pairing's
+      // SVRZ fixtures is the expensive part (F63). The dispatched handler still
+      // applies its own writeAttempts limit to the actual write.
+      if (!rateLimit(clubProposeAttempts, req, 10, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
       const portal = await clubPortalByToken(req.params.token)
       if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
       if (portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)) {
@@ -4133,7 +4388,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
         // Gap: the chosen proposal slot decides strict vs lenient (1-2 strict, 3 loose).
         const awayGaps = await seasonGaps(awayOpponent.season)
-        const held = { includeHeld: true, excludeOpponent: awayOpponent.id }
+        const held = { includeHeld: true, excludeOpponent: awayOpponent.id, season: awayOpponent.season }
         const committedGap = await committedGameDates(awayOpponent.kscw_team, n < 3 ? awayGaps.proposal : awayGaps.proposal3, held)
         if (committedGap.has(chosenDay)) {
           return res.status(400).json({ error: `${chosenDay} is too close to an existing game — please pick another date.` })
@@ -4733,9 +4988,15 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'closed' })
 
+      // Raw-knex flip of teams.active — no hook re-syncs roles (F30). Restored
+      // staff get Team Responsible + LEADER back now, not at the next deploy.
+      const staffSync = await resyncStaffAccess(database, log,
+        await staffMemberIdsOfTeams(database, database('teams').where('sport', 'volleyball').where('season', season.season)))
+
       log.info({
         msg: `restore-season id=${seasonId} (${season.season})`,
         teams_restored: teamsRestored,
+        staff_sync: staffSync,
         userId: req.accountability?.user || null,
       })
       res.json({ success: true, season: season.season, teams_restored: teamsRestored })
@@ -4778,10 +5039,16 @@ export function registerGameScheduling(router, { database, logger, services, get
       // 3. Flip season to 'archived'
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'archived' })
 
+      // 4. Raw-knex flip of teams.active — no hook re-syncs roles (F30). Drop
+      // Team Responsible + LEADER from staff who now lead no active team.
+      const staffSync = await resyncStaffAccess(database, log,
+        await staffMemberIdsOfTeams(database, database('teams').where('sport', 'volleyball').where('season', season.season)))
+
       log.info({
         msg: `archive-season id=${seasonId} (${season.season})`,
         teams_archived: teamsArchived,
         invites_expired: invitesExpired,
+        staff_sync: staffSync,
         userId: req.accountability?.user || null,
       })
       res.json({
@@ -4829,6 +5096,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       let counts
       try {
         await database.transaction(async (trx) => {
+          // Migration 389 makes junction keys immutable; this rollover is the one
+          // sanctioned in-place re-point (hall_slots_teams / events_teams /
+          // forms_teams → the cloned team, below). Transaction-local GUC, so it
+          // ends with this transaction. Without it the first re-point raises
+          // check_violation and the whole rollover rolls back.
+          await trx.raw("SELECT set_config('kscw.allow_junction_repoint', 'on', true)")
           // Idempotency keys already present in the target season
           const existing = await trx('teams').where('season', toSeason).select('team_id', 'name')
           const seen = new Set(existing.map((t) => t.team_id || `name:${t.name}`))
@@ -5111,10 +5384,23 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
       }
 
+      // The archive step above flipped teams.active via raw knex INSIDE the
+      // transaction, so no kscw-hooks role sync ran: an ex-coach (staff on the
+      // archived team, not carried onto any active one) kept the Team
+      // Responsible role and its role-level LEADER (audit 2026-09-28, F30).
+      // Re-sync the staff of both seasons now that the transaction committed.
+      // Continuing coaches were cloned onto the new active teams, so they stay.
+      let staffSync = null
+      if (!dryRun) {
+        staffSync = await resyncStaffAccess(database, log,
+          await staffMemberIdsOfTeams(database, database('teams').whereIn('season', [counts.from_season, counts.to_season])))
+      }
+
       log.info({
         msg: `rollover-season ${counts.from_season} → ${counts.to_season}${dryRun ? ' (dry-run)' : ''}`,
         ...counts,
         dry_run: dryRun,
+        staff_sync: staffSync,
         userId: req.accountability?.user || null,
       })
       res.json({ success: true, dry_run: dryRun, ...counts })
@@ -5271,7 +5557,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(409).json({ status: 'skipped', reason: 'already-running', holder: vmAccountHeldBy() })
       }
 
-      const { spawn } = await import('node:child_process')
+      const { spawn } = await import('node:child_process').catch((e) => { releaseVm(); throw e })
       // Pipe child stdout + stderr to a persistent log so the run leaves a
       // trail when it fails. Without this, stdio: 'ignore' would silently
       // swallow all output and we'd never know why a sync failed.
@@ -5302,10 +5588,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       const startedAt = Date.now()
       let settled = false
       svrzManualSyncRunning = true
-      const child = spawn('node', ['/directus/scripts/svrz-scheduling-sync.mjs'], {
-        env,
-        stdio: ['ignore', logOut, logErr],
-      })
+      let child
+      try {
+        child = spawn('node', ['/directus/scripts/svrz-scheduling-sync.mjs'], {
+          env,
+          stdio: ['ignore', logOut, logErr],
+        })
+      } catch (e) {
+        // Nothing spawned → hand the account straight back (F61 class).
+        svrzManualSyncRunning = false
+        releaseVm()
+        throw e
+      }
       const watchdog = setTimeout(() => { try { child.kill('SIGKILL') } catch { /* already gone */ } }, 900_000)
       const settle = async (status, errorMessage) => {
         if (settled) return
@@ -5911,6 +6205,10 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Lists opponent clubs from synced svrz_games plus per-game Spielplanverantwortlicher
   // contacts, with fallback to the bulk svrz_spielplaner_contacts feed.
   router.get('/admin/terminplanung/invites/import-from-svrz', async (req, res) => {
+    // The live per-game contact lookup logs into the SHARED Volleymanager
+    // account, so it claims it first (audit 2026-09-28 F39) and hands it back
+    // in `finally`. Busy → the import falls back to the synced club feed only.
+    let releaseVm = null
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
@@ -6001,11 +6299,21 @@ export function registerGameScheduling(router, { database, logger, services, get
       // 3. Per-game contact lookup (primary). Fall back to bulk feed if empty.
       let jar = null
       let ctx = null
+      let vmBusy = false
       const tryLogin = async () => {
         if (jar) return true
+        if (vmBusy) return false
         try {
           const vm = await import('/directus/scripts/vm-client.mjs')
           if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return false
+          if (!releaseVm) {
+            releaseVm = claimVmAccount('terminplanung:invites-import')
+            if (!releaseVm) {
+              vmBusy = true
+              log.warn(`[invites import] Volleymanager account held by ${vmAccountHeldBy() || 'another job'} — synced contacts only`)
+              return false
+            }
+          }
           jar = await vm.vmLogin({ username: process.env.VM_USERNAME, password: process.env.VM_PASSWORD })
           ctx = await vm.csrfFromPage(jar, '/sportmanager.indoorvolleyball/game/index')
           ctx.VM_BASE = vm.VM_BASE
@@ -6119,10 +6427,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         kscw_team: { id: kscwTeamRow.id, name: kscwTeamRow.name, league: kscwTeamRow.league },
         opponents,
         total_games_matched: games.length,
+        ...(vmBusy ? { vm_busy: true } : {}),
       })
     } catch (err) {
       log.error({ msg: `import-from-svrz: ${err.message}`, endpoint: 'admin/terminplanung/invites/import-from-svrz', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
+    } finally {
+      releaseVm?.()
     }
   })
 

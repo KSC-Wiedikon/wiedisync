@@ -426,6 +426,10 @@ async function officialPoolIds(database, teamId, gameId) {
 
 async function isTeamLeader(database, memberId, teamId) {
   if (memberId == null || teamId == null) return false
+  // Active teams only (audit 2026-09-28 F31) — a seat left on an archived
+  // team is not a coach of anything playing now.
+  const active = await database('teams').where({ id: teamId, active: true }).first('id')
+  if (!active) return false
   const [coach, tr] = await Promise.all([
     database('teams_coaches').where({ teams_id: teamId, members_id: memberId }).first('id'),
     database('teams_responsibles').where({ teams_id: teamId, members_id: memberId }).first('id'),

@@ -11,7 +11,7 @@ import IconButton from '../../components/IconButton'
 import { Input } from '../../components/ui/input'
 import { Textarea } from '../../components/ui/textarea'
 import { Badge } from '../../components/ui/badge'
-import { createRecord, API_URL, client } from '../../lib/api'
+import { createRecord, uploadFile } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 type FeedbackType = 'bug' | 'feature' | 'feedback'
@@ -178,21 +178,22 @@ export default function FeedbackPage() {
     setSubmitting(true)
     try {
       // Upload ALL selected screenshots (up to 5), collecting their file ids.
+      // Through uploadFile(): the session cookie (credentials: 'include') plus the
+      // acting header, so a signed-in member uploads AS THEMSELVES and reads the
+      // row back through the own-upload branch. The old Bearer lookup always
+      // came back empty in session-auth mode, so every screenshot went up
+      // anonymously and relied on the 2-minute anonymous read-back window
+      // (audit 2026-09-28 F25). Logged-out visitors still use that window.
+      // No folder: it lands in the quarantine and the feedback create hook
+      // files it into the private feedback folder. A failed screenshot is
+      // skipped, as before — the text feedback still goes through.
       const screenshotIds: string[] = []
-      if (files.length > 0) {
-        const token = await client.getToken()
-        for (const file of files) {
-          const fd = new FormData()
-          fd.append('file', file)
-          const res = await fetch(`${API_URL}/files`, {
-            method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
-          })
-          if (res.ok) {
-            const result = await res.json()
-            if (result.data?.id) screenshotIds.push(result.data.id)
-          }
+      for (const file of files) {
+        try {
+          const { id } = await uploadFile(file)
+          screenshotIds.push(id)
+        } catch {
+          /* skipped — uploadFile already reported it */
         }
       }
 

@@ -36,6 +36,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   team_fine_waived: <Gavel className="h-4 w-4" />,
   auto_declined_deadline: <CalendarX className="h-4 w-4" />,
   carpool_update: <Car className="h-4 w-4" />,
+  team_added: <UserPlus className="h-4 w-4" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -57,6 +58,7 @@ const typeLabels: Record<string, string> = {
   team_fine_waived: 'fineLabel',
   auto_declined_deadline: 'deadlineMissed',
   carpool_update: 'carpoolLabel',
+  team_added: 'teamAdded',
 }
 
 function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -70,9 +72,20 @@ function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown
   return t('daysAgo', { count: days })
 }
 
+function teamAddedPath(n: Notification): string {
+  try {
+    const team = n.body ? (JSON.parse(n.body) as { team?: unknown }).team : null
+    if (typeof team === 'string' && team) return `/teams/${encodeURIComponent(team)}`
+  } catch { /* legacy / malformed body */ }
+  return '/teams'
+}
+
 function getNavigationPath(n: Notification): string {
   if (n.type === 'duty_delegation_request' || n.activity_type === 'scorer_duty') return '/scorer'
   if (n.type === 'member_join_request' && n.activity_id) return `/teams/${n.activity_id}`
+  // Added to a roster (kscw-hooks member_teams create). activity_id is the team
+  // ID, but /teams/:teamSlug resolves by NAME — route on the name in the body.
+  if (n.type === 'team_added') return teamAddedPath(n)
   // Expense status changes (paid / rejected) → the member's submissions list.
   if (n.type === 'expense_status' || n.activity_type === 'expense') return '/finance/expense'
   // Club news (announcement publish) → the news feed.

@@ -13,10 +13,13 @@ export default {
   resultAvailable: 'Résultat',
   dutyDelegation: 'Service de marqueur',
   memberJoinRequest: 'Demande d\'adhésion',
+  teamAdded: 'Ajouté à l\'équipe',
   expenseStatus: 'Note de frais',
   announcement: 'Actualités du club',
   eventInvite: 'Invitation à un événement',
   member_join_request: '{{memberName}} souhaite rejoindre {{teamName}}',
+  team_added: '{{by}} t\'a ajouté à {{team}}',
+  team_added_no_by: 'Tu as été ajouté à {{team}}',
   expense_paid: 'Ta note de frais de {{amount}} a été payée.',
   expense_rejected: 'Ta note de frais de {{amount}} a été refusée.',
   // Delegation notification messages

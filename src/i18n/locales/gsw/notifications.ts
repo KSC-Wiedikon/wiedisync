@@ -13,10 +13,13 @@ export default {
   resultAvailable: 'Resultat',
   dutyDelegation: 'Schriiberdienst',
   memberJoinRequest: 'Biträttsaafrag',
+  teamAdded: 'Zum Team hinzuegfüegt',
   expenseStatus: 'Spese',
   announcement: 'Vereinsnews',
   eventInvite: 'Aalass-Iiladig',
   member_join_request: '{{memberName}} möcht {{teamName}} biträte',
+  team_added: '{{by}} hät dich zu {{team}} hinzuegfüegt',
+  team_added_no_by: 'Du bisch zu {{team}} hinzuegfüegt worde',
   expense_paid: 'Dini Spese über {{amount}} sind zahlt worde.',
   expense_rejected: 'Dini Spese über {{amount}} sind abglehnt worde.',
   // Delegation notification messages

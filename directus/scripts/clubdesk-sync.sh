@@ -18,6 +18,11 @@
 # (playwright + playwright-core, 1.60.0). Run from root crontab.
 #
 # Target: defaults to prod. Set CLUBDESK_ENV=dev to load the dev database.
+# On dev, step 2 (import-clubdesk-csv.mjs dev …) applies the dev-refresh PII
+# scrub to every row before it is staged — AHV/phones/bank details nulled or
+# faked, street → 'Teststrasse N', DoB shifted (import-clubdesk-dev-scrub.mjs;
+# audit 2026-09-28, F14). Deploy that module with `npm run clubdesk:deploy`
+# (its import-clubdesk-*.mjs glob ships it); prod never loads it.
 #
 set -euo pipefail
 

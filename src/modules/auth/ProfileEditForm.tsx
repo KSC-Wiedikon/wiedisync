@@ -35,6 +35,7 @@ import { logActivity } from '../../utils/logActivity'
 import { KANTONSSCHULEN } from '../../utils/kantonsschulen'
 import type { MemberPosition } from '../../types'
 import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
+import { hasApiErrorCode } from '../../lib/apiErrorCode'
 
 
 interface ProfileEditFormProps {
@@ -545,8 +546,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       // full page reload.
       await refreshUser()
       onSaved()
-    } catch {
-      setError(t('errorSaving'))
+    } catch (err) {
+      // The photo reference guard (kscw-hooks, audit 2026-09-28 F01).
+      setError(hasApiErrorCode(err, 'FILE_NOT_YOURS') ? tc('fileNotYours') : t('errorSaving'))
     } finally {
       setLoading(false)
     }

@@ -70,28 +70,41 @@ export default {
     let headerSnippet = ''
     try {
       const contentEncoding = request.headers.get('Content-Encoding') || ''
-      let bytes = new Uint8Array(await request.arrayBuffer())
-
       // Enforce the cap on the actual bytes too — Content-Length can be absent
-      // or understated. (Checked pre-decompression: the gzip branch below would
-      // otherwise let a small compressed body expand past the limit, but the
-      // raw transfer is what we bound here.)
-      if (bytes.length > MAX_ENVELOPE_BYTES) {
+      // (chunked upload) or understated. Read the body through the same capped
+      // reader as the gzip branch, so an oversized body is cut off at the cap
+      // instead of being buffered whole first (audit 2026-09-28, F70). The gzip
+      // branch below enforces the same cap on the DECOMPRESSED size separately.
+      const raw = request.body ? await readCapped(request.body, MAX_ENVELOPE_BYTES) : new Uint8Array(0)
+      if (raw === null) {
         return new Response('Payload too large', {
           status: 413,
           headers: corsHeaders(origin, env.ALLOWED_ORIGIN),
         })
       }
+      let bytes: Uint8Array<ArrayBuffer> = raw
 
       // If the whole request was gzipped by the client, decompress to raw bytes.
       // (The browser SDK does NOT do this — per-item replay compression lives
       // inside the envelope — but keep the branch for completeness.)
+      //
+      // ⚠ Never buffer the whole decompressed stream: a few hundred KB of gzip
+      // can inflate to gigabytes and kill the isolate (audit 2026-09-28, F70).
+      // Read it chunk by chunk and give up the moment the running total passes
+      // the same cap the raw body is held to.
       if (contentEncoding.includes('gzip')) {
         try {
-          const decompressed = await new Response(
+          const inflated = await readCapped(
             new Response(bytes).body!.pipeThrough(new DecompressionStream('gzip')),
-          ).arrayBuffer()
-          bytes = new Uint8Array(decompressed)
+            MAX_ENVELOPE_BYTES,
+          )
+          if (inflated === null) {
+            return new Response('Payload too large', {
+              status: 413,
+              headers: corsHeaders(origin, env.ALLOWED_ORIGIN),
+            })
+          }
+          bytes = inflated
         } catch (e) {
           console.error('[sentry-tunnel] gzip-decode-failed:', e instanceof Error ? e.message : String(e))
           return new Response('Bad envelope: gzip-decode-failed', { status: 400 })
@@ -160,6 +173,32 @@ export default {
 // envelopes are the biggest legitimate payloads and sit well under 5 MB;
 // anything bigger is malformed or abusive.
 const MAX_ENVELOPE_BYTES = 5 * 1024 * 1024 // 5 MB
+
+// Drain a byte stream into one buffer, or return null (and cancel the stream)
+// as soon as it exceeds `max` bytes — so an over-limit body is never held in
+// memory in full.
+async function readCapped(stream: ReadableStream<Uint8Array>, max: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) {
+    out.set(c, offset)
+    offset += c.byteLength
+  }
+  return out
+}
 
 // In-isolate per-IP rate limit: sliding window of timestamps. Best-effort only
 // (state is per-isolate, reset on cold start) — a durable cap belongs in a

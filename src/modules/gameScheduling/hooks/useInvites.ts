@@ -32,6 +32,9 @@ export interface SvrzImportPreview {
   kscw_team: { id: string | number; name: string; league: string }
   opponents: SvrzOpponentPreview[]
   total_games_matched: number
+  /** The shared VolleyManager account was held by another job, so only the
+   *  already-synced contacts are in `opponents` (no live VM lookup). */
+  vm_busy?: boolean
 }
 
 export interface SvrzClubContact {

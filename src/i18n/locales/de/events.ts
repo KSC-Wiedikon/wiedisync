@@ -108,6 +108,8 @@ export default {
   signupFormFailed: 'Das Anmeldeformular konnte nicht erstellt werden',
   inviteSending: 'Die Einladungen werden im Hintergrund versendet',
   inviteFailed: 'Die Einladungen konnten nicht versendet werden',
+  inviteAudienceTooLarge: 'Zu viele Personen zum Benachrichtigen — bitte einen Admin, die Einladung zu versenden',
+  inviteRateLimited: 'Zu viele Einladungen in kurzer Zeit versendet — versuche es später erneut',
   signupFormReplaceConfirm: 'Dieser Anlass hat bereits ein Anmeldeformular. Ein neues erstellen und stattdessen verknüpfen? Das alte Formular und seine Einträge bleiben erhalten.',
   signupFormUnlinkConfirm: 'Den Anmeldelink von diesem Anlass entfernen? Das Formular und seine Einträge bleiben erhalten.',
   signupLinkTitle: 'Anmeldelink für Gäste',
@@ -138,4 +140,5 @@ export default {
   signupsUpstreamError: 'Die Gästeanmeldungen konnten momentan nicht geladen werden.',
   signupsLoadFailed: 'Die Anmeldungen konnten nicht geladen werden',
   signupsExport: 'CSV exportieren',
+  notEventManager: 'Du kannst nur zu Events einladen, die du verwaltest',
 } as const

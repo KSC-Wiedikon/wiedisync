@@ -34,7 +34,10 @@ interface SignupsResponse {
     data: Record<string, unknown>[]
     total: number
   } | null
-  external_error: 'form_not_found' | 'upstream_error' | null
+  // 'form_not_linked' (audit 2026-09-28 F15): the endpoint reads guest signups
+  // only from the form IT created (events.signup_form_slug), never from the
+  // client-writable signup_url — a hand-pasted OpnForm link lists nothing.
+  external_error: 'form_not_found' | 'upstream_error' | 'form_not_linked' | null
 }
 
 interface EventSignupsModalProps {
@@ -96,6 +99,13 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
   const internal = data?.internal ?? []
   const externalFields = data?.external?.fields ?? []
   const externalRows = data?.external?.data ?? []
+  // A signup_url the endpoint did not bind (hand-pasted link) comes back with
+  // external: null and no error — "no form linked", not "no guests yet". Also
+  // honours an explicit 'form_not_linked' if the endpoint starts sending one.
+  const formNotLinked = !!data && (
+    data.external_error === 'form_not_linked'
+    || (!!data.event.signup_url && data.external == null && !data.external_error)
+  )
 
   // Exports are always English regardless of UI locale — they land in ClubDesk
   // and in spreadsheets shared outside the app.
@@ -189,10 +199,10 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
               {data.external_error === 'upstream_error' && (
                 <p className="text-sm text-amber-600 dark:text-amber-400">{t('signupsUpstreamError')}</p>
               )}
-              {!data.event.signup_url && (
+              {(!data.event.signup_url || formNotLinked) && (
                 <p className="text-sm text-muted-foreground">{t('signupsNoForm')}</p>
               )}
-              {data.event.signup_url && !data.external_error && externalRows.length === 0 && (
+              {data.event.signup_url && !formNotLinked && !data.external_error && externalRows.length === 0 && (
                 <p className="text-sm text-muted-foreground">{t('signupsNoGuests')}</p>
               )}
               {externalRows.length > 0 && (

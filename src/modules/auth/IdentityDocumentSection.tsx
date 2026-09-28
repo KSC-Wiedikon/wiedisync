@@ -10,6 +10,7 @@ import { API_URL, kscwApi } from '../../lib/api'
 import { captureApiError } from '../../lib/sentry'
 import { decryptDocument, encryptDocument, unwrapContentKey, wrapContentKeyFor, type Envelope } from '../../lib/e2ee'
 import { formatDateZurich } from '../../utils/dateHelpers'
+import { safeBlobType } from '../../utils/filePreviewKind'
 import IdentityCropDialog from './IdentityCropDialog'
 
 const MAX_BYTES = 8 * 1024 * 1024
@@ -251,7 +252,9 @@ export default function IdentityDocumentSection() {
       })
       if (!res.ok) throw new Error(String(res.status))
       const plain = await decryptDocument(new Uint8Array(await res.arrayBuffer()), doc.iv, key)
-      const url = URL.createObjectURL(new Blob([plain as BlobPart], { type: doc.mime ?? 'image/jpeg' }))
+      // `doc.mime` is whatever the uploading browser declared — never trust it as a
+      // blob type (an image/svg+xml blob is a scriptable same-origin document).
+      const url = URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(doc.mime ?? 'image/jpeg') }))
       setPreview(url)
     } catch {
       toast.error(t('idDecryptFailed'))

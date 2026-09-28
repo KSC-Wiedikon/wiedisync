@@ -110,6 +110,8 @@ export default {
   signupFormFailed: 'Le formulaire d\'inscription n\'a pas pu être créé',
   inviteSending: 'Les invitations sont envoyées en arrière-plan',
   inviteFailed: 'Les invitations n\'ont pas pu être envoyées',
+  inviteAudienceTooLarge: 'Trop de personnes à notifier — demande à un admin d\'envoyer l\'invitation',
+  inviteRateLimited: 'Trop d\'invitations envoyées récemment — réessaie plus tard',
   signupFormReplaceConfirm: 'Cet événement a déjà un formulaire d\'inscription. En créer un nouveau et l\'associer à la place ? L\'ancien formulaire et ses entrées sont conservés.',
   signupFormUnlinkConfirm: 'Retirer le lien d\'inscription de cet événement ? Le formulaire et ses entrées sont conservés.',
   signupLinkTitle: 'Lien d\'inscription pour les invités',
@@ -140,4 +142,5 @@ export default {
   signupsUpstreamError: 'Les inscriptions des invités n\'ont pas pu être chargées pour le moment.',
   signupsLoadFailed: 'Les inscriptions n\'ont pas pu être chargées',
   signupsExport: 'Exporter en CSV',
+  notEventManager: 'Tu ne peux inviter des personnes qu\'à un événement que tu gères',
 } as const

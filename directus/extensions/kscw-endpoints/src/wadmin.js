@@ -20,6 +20,7 @@ import { streamManagedFile, readManagedFile } from './storage-read.js'
 // held to exactly what the participant upload accepts, and two copies would drift.
 import { SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
+import { writeUserLog } from './activity-log.js'
 
 export const ALL_SECTIONS = [
   'news', 'events', 'registrations', 'sponsors', 'scorer_courses', 'mixed_turnier',
@@ -1162,10 +1163,25 @@ export function registerWadmin(router, ctx) {
     const sections = Array.isArray(req.body?.sections) ? req.body.sections : []
     try {
       const { row, conflict } = buildUpsert(target, sections)
+      const before = await database('website_admin_access').where('user', target).first('sections')
       await database('website_admin_access')
         .insert(row)
         .onConflict(conflict)
         .merge({ sections: row.sections, date_updated: database.fn.now() })
+      // Actor capture — a grant change is raw knex, invisible to the items audit trail
+      // (2026-09-28 audit F55).
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'website_admin_access',
+        recordId: target,
+        data: {
+          what: 'wadmin_sections',
+          target_user: target,
+          before: before ? normalizeSections(before.sections) : null,
+          after: normalizeSections(sections),
+        },
+      })
       res.json({ data: { id: target, sections: normalizeSections(sections) } })
     } catch (e) {
       log.warn({ msg: 'wadmin/admins upsert failed', error: e.message })

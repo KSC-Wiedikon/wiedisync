@@ -16,11 +16,16 @@
 #   4. Clone prod's public schema into dev.
 #   5. Row-count gate — abort (leaving dev stopped + the safety dump) if the
 #      restore looks implausible.
-#   6. Scrub PII: member/user emails -> non-deliverable sink, phones nulled,
-#      push subscriptions + sessions + verification rows cleared. Admin/dev
-#      login emails are kept on an allowlist so OAuth + admin login still work.
+#   6. Scrub (refresh-dev-scrub.sql — the SAME file the nightly cron runs):
+#      every cloned credential ALWAYS (tokens, password hashes, TOTP seeds,
+#      prod-valid link tokens); PII unless --no-scrub (emails -> sink, phones,
+#      AHV, IBAN, street nulled/faked, birthdates shifted within the year).
+#      Admin/dev login emails are kept on an allowlist so OAuth + admin login
+#      still work.
 #   7. Re-pin dev's captured service creds onto the cloned allowlist accounts,
-#      restart dev Directus.
+#      null any dev token (and any non-allowlist password hash) still
+#      identical to prod's
+#      (audit 2026-09-28, F13), restart dev Directus.
 #   8. (unless --no-migrate) run `npm run db:migrate:dev` so any dev-branch
 #      schema ahead of prod is re-applied on top of the prod data.
 #
@@ -33,11 +38,19 @@
 #   bash directus/scripts/refresh-dev-from-prod.sh --yes      # skip confirm
 #   bash directus/scripts/refresh-dev-from-prod.sh --no-migrate
 #   bash directus/scripts/refresh-dev-from-prod.sh --no-scrub # DANGER: real PII
+#                                                              # (credentials are
+#                                                              # scrubbed anyway)
 #
 set -euo pipefail
 
 # script lives in directus/scripts/ -> cd to repo root for npm
 cd "$(dirname "$0")/../.."
+
+# The scrub SQL is shared with refresh-dev-daily.sh. The remote phase reads its
+# script from stdin, so the SQL travels as one base64 positional argument.
+SCRUB_FILE=directus/scripts/refresh-dev-scrub.sql
+[ -s "$SCRUB_FILE" ] || { echo "Missing $SCRUB_FILE" >&2; exit 1; }
+SCRUB_B64=$(base64 -w0 "$SCRUB_FILE")
 
 SSH_HOST=hetzner
 PGC=kscw-postgres
@@ -67,10 +80,12 @@ echo " * The ENTIRE dev database is replaced with a copy of prod."
 echo " * Dev's current data (incl. any test data / in-progress schema) is lost."
 echo " * A safety backup of dev is taken first (to /data/backups on the VPS)."
 if [ "$DO_SCRUB" -eq 1 ]; then
-  echo " * PII is SCRUBBED: emails -> sink, phones -> null, push/sessions cleared."
+  echo " * PII is SCRUBBED: emails -> sink; phones, AHV, IBAN, street nulled/faked;"
+  echo "   birthdates shifted; push/sessions cleared."
 else
-  echo " * !! --no-scrub: REAL prod emails/phones will be copied into dev."
+  echo " * !! --no-scrub: REAL prod PII (emails, phones, AHV, IBAN, addresses) will be copied into dev."
 fi
+echo " * Credentials (tokens, password hashes, TOTP) are ALWAYS scrubbed."
 echo
 
 if [ "$ASSUME_YES" -ne 1 ]; then
@@ -83,19 +98,33 @@ echo "==> Running clone + scrub on the VPS (this can take a minute) ..."
 # Quoted heredoc => nothing is expanded locally; config is passed as positional
 # args to the remote bash. Every `docker exec` that is NOT a file/pipe redirect
 # gets </dev/null so it can't swallow the script stream.
-ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER" <<'REMOTE'
+ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER $SCRUB_B64" <<'REMOTE'
 set -uo pipefail
 DO_SCRUB="$1"; PGC="$2"; PROD_DB="$3"; DEV_DB="$4"; DEV_CONTAINER="$5"
+# Root-only output (captured creds, safety dump), scratch in a private dir that
+# is removed on EVERY exit — failures included (audit 2026-09-28, F71: the
+# scrub-failure path used to leave the captured password hashes + tokens in a
+# world-readable /tmp file and print its path).
+umask 077
+WORK=$(mktemp -d /tmp/refresh-dev.XXXXXX) || { echo "!! mktemp failed — aborting (dev untouched)."; exit 1; }
+trap 'rm -rf "$WORK"' EXIT
 TS=$(date +%F_%H%M%S)
 BACKUP=/data/backups/kscw_dev_pre-refresh_${TS}.sql.gz
-CREDS=/tmp/refresh_devcreds_${TS}.txt
-SCRUB=/tmp/refresh_scrub_${TS}.sql
-REPIN=/tmp/refresh_repin_${TS}.sql
-RLOG=/tmp/refresh_restore_${TS}.log
+CREDS="$WORK/devcreds.txt"
+SCRUB="$WORK/scrub.sql"
+REPIN="$WORK/repin.sql"
+PGUARD="$WORK/prod-guard.sql"
+RLOG="$WORK/restore.log"
+printf '%s' "$6" | base64 -d > "$SCRUB" 2>/dev/null
+if [ ! -s "$SCRUB" ]; then
+  echo "!! Scrub SQL did not arrive — aborting (dev untouched)."; exit 1
+fi
 
 # Emails kept REAL after scrub (admin/cron logins + your own OAuth account).
 # Used both as the scrub allowlist and as the re-pin filter.
 ALLOW_SQL="'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com','cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'"
+# Quotes doubled, for use INSIDE a SQL string literal (the guard below).
+ALLOW_SQL_LIT=${ALLOW_SQL//\'/\'\'}
 
 echo "[1/7] Capturing dev service-account creds (for re-pin after clone)"
 # id is captured FIRST and used as the re-pin key: it survives the PII scrub
@@ -105,11 +134,27 @@ docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A -F'|' </dev/null \
   -c "SELECT id, email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
   > "$CREDS" 2>/dev/null || true
 
+echo "[1b/7] Fingerprinting prod credentials (prod-equality guard)"
+# One UPDATE per credential kind, listing md5() of every PROD token / password
+# hash; run on dev after the re-pin it nulls whatever dev still shares with
+# prod (audit 2026-09-28, F13). Only fingerprints are written.
+# ⚠ ACCEPTED RESIDUAL: allowlist PASSWORDS are exempt (nulling them would lock
+# the operator out of dev admin); tokens never are. Full rationale in
+# refresh-dev-daily.sh at the same step.
+# ⚠ Keep identical to refresh-dev-daily.sh.
+docker exec "$PGC" psql -U supabase_admin -d "$PROD_DB" -t -A -v ON_ERROR_STOP=1 </dev/null \
+  -c "SELECT 'UPDATE directus_users SET token = NULL WHERE token IS NOT NULL AND md5(token) IN (' || coalesce(string_agg(DISTINCT quote_literal(md5(token)), ','), 'NULL') || ');' FROM directus_users WHERE token IS NOT NULL UNION ALL SELECT 'UPDATE directus_users SET password = NULL WHERE password IS NOT NULL AND (email IS NULL OR lower(email) NOT IN ($ALLOW_SQL_LIT)) AND md5(password) IN (' || coalesce(string_agg(DISTINCT quote_literal(md5(password)), ','), 'NULL') || ');' FROM directus_users WHERE password IS NOT NULL;" \
+  > "$PGUARD" 2>/dev/null || true
+if [ "$(grep -c '^UPDATE directus_users SET ' "$PGUARD")" -ne 2 ]; then
+  echo "!! Could not fingerprint prod credentials — aborting BEFORE touching dev (dev untouched)."
+  exit 1
+fi
+
 echo "[2/7] Safety snapshot of dev -> $BACKUP"
 docker exec "$PGC" pg_dump -U supabase_admin -d "$DEV_DB" --no-owner --no-acl </dev/null | gzip > "$BACKUP"
 if [ ! -s "$BACKUP" ]; then
   echo "!! Safety dump failed/empty — aborting BEFORE touching dev (dev untouched)."
-  rm -f "$CREDS"; exit 1
+  exit 1
 fi
 echo "      $(ls -lh "$BACKUP" | awk '{print $5}')"
 
@@ -153,7 +198,8 @@ done
 if [ "$fail" -eq 1 ]; then
   echo "!! Restore verification FAILED — dev left STOPPED to avoid serving a bad clone."
   echo "   Safety backup: $BACKUP"
-  echo "   Restore log:   $RLOG"
+  echo "   Restore log (tail):"
+  tail -n 20 "$RLOG" | sed 's/^/     /'
   echo "   Roll back (as root on the VPS):"
   echo "     docker exec $PGC psql -U supabase_admin -d $DEV_DB -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
   echo "     zcat $BACKUP | docker exec -i $PGC psql -U supabase_admin -d $DEV_DB"
@@ -174,68 +220,18 @@ docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
   -c "UPDATE directus_settings SET license_key=NULL, license_token=NULL;" >/dev/null 2>&1 || true
 
 if [ "$DO_SCRUB" = "1" ]; then
-  echo "[6/7] Scrubbing PII"
-  cat > "$SCRUB" <<'SQL'
-BEGIN;
-
--- Members (real player PII)
-UPDATE members SET email    = 'member_' || id || '@devsink.invalid' WHERE email IS NOT NULL AND email <> '';
-UPDATE members SET vm_email = NULL WHERE vm_email IS NOT NULL;
-UPDATE members SET phone    = NULL WHERE phone IS NOT NULL;
-
--- Directus login accounts (keep admin/dev logins on the allowlist)
-UPDATE directus_users
-   SET email = 'user_' || id || '@devsink.invalid'
- WHERE email IS NOT NULL
-   -- Household shadow logins (synthetic, no PII): scrubbing them would
-   -- fire migration 377's revoke trigger and unlink every household on dev.
-   AND lower(email) NOT LIKE '%@managed.wiedisync.kscw.ch'
-   AND lower(email) NOT IN (
-     'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com',
-     'cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'
-   );
-
--- ClubDesk: {basketball,people,volleyball} are VIEWS over clubdesk_export — scrub the base only
-UPDATE clubdesk_export SET
-  email            = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
-  email_alternativ = CASE WHEN email_alternativ IS NOT NULL AND email_alternativ<>'' THEN 'scrub_'||substr(md5(email_alternativ),1,16)||'@devsink.invalid' ELSE email_alternativ END;
-
--- Other contact tables
-UPDATE event_signups             SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE feedback                  SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE game_scheduling_opponents SET contact_email = 'scrub_'||substr(md5(contact_email),1,16)||'@devsink.invalid' WHERE contact_email IS NOT NULL AND contact_email<>'';
-UPDATE newsletter_subscribers    SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE registrations             SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE sv_vm_check               SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE svrz_spielplaner_contacts SET contact_email = CASE WHEN contact_email IS NOT NULL AND contact_email<>'' THEN 'scrub_'||substr(md5(contact_email),1,16)||'@devsink.invalid' ELSE contact_email END,
-                                     contact_phone = NULL;
-UPDATE vm_vb_spielplan_contact   SET "Email"       = 'scrub_'||substr(md5("Email"),1,16)||'@devsink.invalid'       WHERE "Email" IS NOT NULL AND "Email"<>'';
-
--- Mailbox credentials (Emails Garage, migration 326).
--- ⚠⚠ The INVENTORY is useful on dev; the CIPHERTEXT is not. Without this, a
--- clone hands dev every club mailbox password, and the only thing standing
--- between dev and plaintext is EMAIL_VAULT_KEY differing between the two
--- containers — a one-line env mistake away from being the same key. Null the
--- column instead so the question cannot arise: dev's page lists the accounts
--- and honestly reports "no password stored".
-UPDATE email_accounts SET password_enc = NULL WHERE password_enc IS NOT NULL;
-
--- Devices / transient state
-TRUNCATE push_subscriptions;
-DELETE FROM email_verifications;
-DELETE FROM directus_sessions;
-
-COMMIT;
-SQL
-  if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$SCRUB"; then
-    echo "!! Scrub FAILED — dev left STOPPED (unscrubbed prod data is NOT served)."
-    echo "   Safety backup: $BACKUP   Scrub SQL: $SCRUB   Captured creds: $CREDS"
-    exit 1
-  fi
+  echo "[6/7] Scrubbing credentials + PII (refresh-dev-scrub.sql)"
+else
+  echo "[6/7] Scrubbing credentials only (--no-scrub keeps PII)"
+fi
+if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -v scrub_pii="$DO_SCRUB" -q < "$SCRUB"; then
+  echo "!! Scrub FAILED — dev left STOPPED (unscrubbed prod data is NOT served)."
+  echo "   Safety backup: $BACKUP"
+  exit 1
+fi
+if [ "$DO_SCRUB" = "1" ]; then
   docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
     -c "UPDATE directus_settings SET project_url='https://wiedisync.pages.dev' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
-else
-  echo "[6/7] Scrub SKIPPED (--no-scrub)"
 fi
 
 echo "[7/7] Re-pinning dev creds by id (allowlist passwords + all captured tokens)"
@@ -262,8 +258,17 @@ if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=
   echo "   (warning: some re-pins failed; admin/cron login on dev may need attention)"
 fi
 
+echo "[7b/7] Prod-equality guard (null any dev token / non-allowlist password hash identical to prod)"
+# Prints "UPDATE <n>" per kind; non-zero n = a dev credential that was still a
+# prod credential, now gone. Mint a dev-only token / set a dev-only password on
+# dev and the next refresh's re-pin keeps it.
+if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 < "$PGUARD" 2>&1 | sed 's/^/      /'; then
+  echo "!! Prod-equality guard FAILED — dev left STOPPED (it may still hold prod credentials)."
+  echo "   Safety backup: $BACKUP"
+  exit 1
+fi
+
 docker start "$DEV_CONTAINER" >/dev/null </dev/null
-rm -f "$SCRUB" "$REPIN" "$CREDS" "$RLOG"
 echo "==> VPS phase done. Dev restarted. Safety backup: $BACKUP"
 REMOTE
 

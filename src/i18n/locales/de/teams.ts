@@ -245,4 +245,6 @@ export default {
   staffRemoved: '{{name}} entfernt',
   removeStaffTitle: 'Rolle entfernen',
   removeStaffMessage: '{{name}} ({{role}}) entfernen?',
+  rosterAddRateLimited: 'Zu viele Kaderergänzungen in der letzten Stunde. Versuche es später erneut oder frag einen Admin',
+  rosterAddMemberInactive: 'Dieses Mitglied ist nicht mehr aktiv im Verein',
 } as const

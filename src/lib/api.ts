@@ -198,7 +198,63 @@ export async function login(email: string, password: string) {
   }
 }
 
-export async function logout() {
+/**
+ * Unbind THIS device's Web Push subscription before the session ends (audit
+ * 2026-09-28 F37). Directus emits no logout hook, so without this a shared club
+ * laptop / family phone kept receiving the previous member's pushes — names,
+ * events, fines — after she logged out, and the next person's "Notifications on"
+ * toggle painted a subscription that belonged to someone else.
+ *
+ * Best-effort and bounded: every failure is swallowed and the whole thing gives
+ * up after LOGOUT_PUSH_TIMEOUT_MS, so it can never block logout. Raw fetch, not
+ * kscwApi: no 401 retry, no Sentry noise, and no read-only-impersonation toast.
+ * The server row is removed first (needs the session), then the browser side.
+ * When acting for a household member, both the owner's and the acting member's
+ * row are targeted — the subscription may have been registered as either.
+ */
+const LOGOUT_PUSH_TIMEOUT_MS = 3000
+
+async function unbindPushDevice(actingId: number | null): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  // getRegistration(), not `.ready`: `.ready` never settles when no worker is
+  // registered (dev, Safari private mode) and would stall the timeout.
+  const reg = await navigator.serviceWorker.getRegistration()
+  const sub = await reg?.pushManager?.getSubscription()
+  if (!sub) return
+  const body = JSON.stringify({ endpoint: sub.endpoint })
+  const post = (headers: Record<string, string>) => fetch(`${API_URL}/kscw/web-push/unsubscribe`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body,
+  })
+  const calls = [post({})]
+  if (actingId != null) calls.push(post({ [ACTING_HEADER]: String(actingId) }))
+  await Promise.allSettled(calls)
+  await sub.unsubscribe().catch(() => false)
+}
+
+/**
+ * End the session. `unbindPush` is opt-in and must be set ONLY for a logout the
+ * user asked for (AuthProvider.logout: TopNav, MoreSheet, SchedulingLayout,
+ * PendingPage, DeleteAccountModal). The session-restore failure paths (refresh
+ * rejected after a long idle, no linked member) and SetPasswordPage also call
+ * this; there the unsubscribe POST would 401 and leave the server row, while
+ * sub.unsubscribe() would still kill the browser subscription — the member would
+ * silently lose push for good. Same device, same member: no F37 gain there.
+ */
+export async function logout(opts: { unbindPush?: boolean } = {}) {
+  // Captured now: the caller tears the acting state down synchronously right
+  // after this function yields at its first await.
+  const actingAtLogout = _actingMemberId
+  if (opts.unbindPush) {
+    try {
+      await Promise.race([
+        unbindPushDevice(actingAtLogout),
+        new Promise<void>((resolve) => setTimeout(resolve, LOGOUT_PUSH_TIMEOUT_MS)),
+      ])
+    } catch { /* best-effort — never block logout */ }
+  }
   try { await client.logout() } catch { /* ignore */ }
   setAuthHint(false)
   // Clean up legacy token storage from the pre-cookie era + local caches.
@@ -872,7 +928,16 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
     throw err
   }
   assertActingEcho(res, sentId)
-  const { data } = await res.json()
+  // Directus answers a create it cannot read back (file landed in a folder the
+  // uploader has no read on) with 204 + empty body. The file WAS stored but we
+  // have no id to reference, so fail loudly instead of a JSON SyntaxError.
+  const text = res.status === 204 ? '' : await res.text()
+  const data = text ? (JSON.parse(text) as { data?: { id?: unknown; filename_download?: string } }).data : undefined
+  if (data?.id == null) {
+    const err = new Error(`Upload failed (${res.status}: no file id returned)`)
+    captureApiError(err, { operation: 'uploadFile', collection: 'directus_files', status: res.status })
+    throw err
+  }
   return { id: String(data.id), name: data.filename_download || file.name }
 }
 

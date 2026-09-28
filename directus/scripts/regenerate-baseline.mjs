@@ -80,6 +80,51 @@ if (r.status !== 0) {
   process.exit(2)
 }
 
+// ── Our triggers on Directus-owned tables ──────────────────────────────────
+// `--exclude-table=directus_*` above drops the TABLE and, with it, every
+// trigger a migration of OURS attached to it — while the tracker seed below
+// still marks that migration as applied, so a DR rebuild never recreates it.
+// Concretely: migration 377's `trg_directus_users_revoke_managed` (a household
+// shadow login that gains a password/email/status must lose its managed link)
+// was absent from SCHEMA.sql (audit 2026-09-28, F49). The trigger FUNCTIONS are
+// in the dump (they live in public); only the CREATE TRIGGER lines are lost.
+//
+// SCHEMA.sql is applied after Directus's first boot (its FKs already reference
+// public.directus_users), so the tables exist by the time this tail runs.
+// Emitted as DROP IF EXISTS + CREATE so the tail is re-runnable.
+// ⚠ pg_dump's header runs `set_config('search_path', '', false)`, and this tail
+// is appended to that same session: every name must be schema-qualified.
+// pg_get_triggerdef qualifies only what is NOT on the current search_path, so
+// the query runs with search_path = pg_catalog (→ `public.trg_…()`).
+// ⚠ SQL goes over stdin, not argv — see the tracker note below on why argv
+// quoting through ssh is a trap.
+const directusTriggerSql = `
+SET search_path = pg_catalog;
+SELECT format('DROP TRIGGER IF EXISTS %I ON public.%I;', t.tgname, c.relname) || chr(10) || pg_get_triggerdef(t.oid) || ';'
+  FROM pg_trigger t
+  JOIN pg_class c ON c.oid = t.tgrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'public' AND c.relname LIKE 'directus\\_%' AND NOT t.tgisinternal
+ ORDER BY c.relname, t.tgname;
+`
+const trigQ = spawnSync('ssh', ['hetzner', `sudo docker exec -i ${env.container} psql -U supabase_admin -d ${env.database} -q -t -A -v ON_ERROR_STOP=1`], {
+  input: directusTriggerSql, encoding: 'utf-8', maxBuffer: 8 * 1024 * 1024,
+})
+if (trigQ.status !== 0) {
+  console.error(`[baseline] reading triggers on directus_* tables failed:\n${trigQ.stderr}`)
+  process.exit(2)
+}
+const directusTriggers = (trigQ.stdout || '').trim()
+const directusTriggerTail = directusTriggers ? `
+
+-- ============================================================================
+-- KSCW triggers on Directus-owned tables (directus_* are excluded from the dump
+-- above because Directus creates them on first boot; these triggers come from
+-- our migrations and would otherwise be lost). GENERATED; do not hand-edit.
+-- ============================================================================
+${directusTriggers}
+` : ''
+
 const generatedAt = new Date().toISOString()
 const banner = `-- ============================================================================
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
@@ -144,14 +189,15 @@ const trackerSeed = `
 -- Migration tracker seed — ${filenames.length} migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS kscw_migrations (
+-- Schema-qualified: pg_dump's header emptied search_path for this session.
+CREATE TABLE IF NOT EXISTS public.kscw_migrations (
   filename   text PRIMARY KEY,
   sha256     text,
   applied_at timestamptz NOT NULL DEFAULT now(),
   applied_by text
 );
 
-INSERT INTO kscw_migrations (filename, sha256, applied_by)
+INSERT INTO public.kscw_migrations (filename, sha256, applied_by)
 SELECT v.fname, 'unknown', 'baseline'
 FROM (VALUES
 ${values}
@@ -159,7 +205,8 @@ ${values}
 ON CONFLICT (filename) DO NOTHING;
 `
 
-writeFileSync(OUT, banner + r.stdout + trackerSeed)
+writeFileSync(OUT, banner + r.stdout + directusTriggerTail + trackerSeed)
+console.log(`[baseline] ✓ ${directusTriggers ? directusTriggers.split('\n').filter((l) => l.startsWith('CREATE TRIGGER')).length : 0} trigger(s) on directus_* tables appended`)
 console.log(`[baseline] ✓ Seeded tracker with ${filenames.length} migration(s)`)
 console.log(`[baseline] ✓ Wrote ${OUT} (${(r.stdout.length / 1024).toFixed(1)} KB)`)
 console.log(`[baseline] Diff against committed version, then commit if intended.`)

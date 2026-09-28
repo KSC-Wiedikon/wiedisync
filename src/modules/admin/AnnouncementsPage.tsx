@@ -7,7 +7,8 @@ import {
   Plus, Edit2, Trash2, Pin, Calendar, Send, Mail, Bell, Image as ImageIcon, X, Loader2,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { fetchItems, createRecord, updateRecord, deleteRecord, assetUrl, API_URL } from '../../lib/api'
+import { fetchItems, createRecord, updateRecord, deleteRecord, assetUrl, uploadFile } from '../../lib/api'
+import { hasApiErrorCode } from '../../lib/apiErrorCode'
 import { pickTranslation } from '../../hooks/useAnnouncements'
 import { isSafeAppLink } from '../../utils/sanitizeUrl'
 import { useConfirm } from '../../components/ConfirmProvider'
@@ -205,16 +206,11 @@ export default function AnnouncementsPage() {
     }
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch(`${API_URL}/files`, {
-        method: 'POST',
-        credentials: 'include',
-        body: fd,
-      })
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-      const { data } = await res.json()
-      setForm((f) => ({ ...f, image: data.id }))
+      // uploadFile() sends the same acting header the save below will (a raw
+      // fetch did not), so the file is owned by whoever saves the post — the
+      // image-reference guard (FILE_NOT_YOURS) compares exactly those two.
+      const { id } = await uploadFile(file)
+      setForm((f) => ({ ...f, image: id }))
       toast.success(t('imageUploaded'))
     } catch (err) {
       toast.error(t('imageUploadError'))
@@ -337,7 +333,7 @@ export default function AnnouncementsPage() {
       setEditorOpen(false)
       refresh()
     } catch (err) {
-      toast.error(t('saveError'))
+      toast.error(hasApiErrorCode(err, 'FILE_NOT_YOURS') ? t('common:fileNotYours') : t('saveError'))
       console.error(err)
     } finally {
       setSubmitting(false)

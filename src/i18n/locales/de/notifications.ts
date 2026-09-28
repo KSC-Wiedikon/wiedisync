@@ -13,10 +13,13 @@ export default {
   resultAvailable: 'Resultat',
   dutyDelegation: 'Schreiberdienst',
   memberJoinRequest: 'Beitrittsanfrage',
+  teamAdded: 'Zum Team hinzugefügt',
   expenseStatus: 'Spesen',
   announcement: 'Vereinsnews',
   eventInvite: 'Anlass-Einladung',
   member_join_request: '{{memberName}} möchte {{teamName}} beitreten',
+  team_added: '{{by}} hat dich zu {{team}} hinzugefügt',
+  team_added_no_by: 'Du wurdest zu {{team}} hinzugefügt',
   expense_paid: 'Deine Spesen über {{amount}} wurden bezahlt.',
   expense_rejected: 'Deine Spesen über {{amount}} wurden abgelehnt.',
   // Delegation notification messages

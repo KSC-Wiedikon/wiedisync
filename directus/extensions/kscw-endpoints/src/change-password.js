@@ -37,7 +37,29 @@ import { writeUserLog } from './activity-log.js'
 
 const MIN_PASSWORD_LENGTH = 8
 
-export function registerChangePassword(router, { database, services, getSchema, logger }) {
+/**
+ * Fallback for when index.js has not handed over its `validatePassword` (the one with the
+ * server-only common-password list). Same length + composition rule as it and as
+ * `checkPassword()` in src/lib/passwordRules.ts, so the change path can never again be
+ * the one door that accepts `aaaaaaaa` (2026-09-28 audit F56). Exported for the test.
+ */
+export function basicPasswordCheck(password) {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`, code: 'password_too_short' }
+  }
+  const hasLetter = /[a-zA-Z]/.test(password)
+  const hasDigitOrSpecial = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+  if (!hasLetter || !hasDigitOrSpecial) {
+    return {
+      error: 'Password must contain at least one letter and one number or special character',
+      code: 'password_weak',
+    }
+  }
+  return null
+}
+
+export function registerChangePassword(router, { database, services, getSchema, logger }, { validatePassword } = {}) {
+  const checkPassword = typeof validatePassword === 'function' ? validatePassword : basicPasswordCheck
   const log = logger.child({ endpoint: 'change-password' })
 
   router.post('/change-password', async (req, res) => {
@@ -55,12 +77,10 @@ export function registerChangePassword(router, { database, services, getSchema, 
       if (!current || !next) {
         return res.status(400).json({ error: 'current_password and new_password are required' })
       }
-      if (String(next).length < MIN_PASSWORD_LENGTH) {
-        return res.status(400).json({
-          error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-          code: 'too_short',
-        })
-      }
+      // The same rules as every other password path (F56) — /set-password, the signup
+      // invite and the OTP flow all run validatePassword; this one only checked length.
+      const pwError = checkPassword(String(next))
+      if (pwError) return res.status(400).json(pwError)
       if (String(current) === String(next)) {
         return res.status(400).json({ error: 'The new password must differ', code: 'unchanged' })
       }

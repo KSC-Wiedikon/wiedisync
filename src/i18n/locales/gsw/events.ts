@@ -108,6 +108,8 @@ export default {
   signupFormFailed: 'S Aamäldeformular het nöd chöne erstellt werde',
   inviteSending: 'D Iiladige wärded im Hintergrund verschickt',
   inviteFailed: 'D Iiladige hend nöd chöne verschickt werde',
+  inviteAudienceTooLarge: 'Z vill Lüüt zum Benachrichtige — frög en Admin, öb er d Iiladig verschickt',
+  inviteRateLimited: 'Z vill Iiladige i churzer Ziit verschickt — probier s spöter nomal',
   signupFormReplaceConfirm: 'De Aalass het scho es Aamäldeformular. Es nöis erstelle und stattdesse verchnüpfe? S alte Formular und sini Iiträg blibed erhalte.',
   signupFormUnlinkConfirm: 'De Aamäldelink vo dem Aalass entferne? S Formular und sini Iiträg blibed erhalte.',
   signupLinkTitle: 'Aamäldelink für Gäscht',
@@ -138,4 +140,5 @@ export default {
   signupsUpstreamError: 'D Gescht-Aamäldige hend momentan nöd chöne glade werde.',
   signupsLoadFailed: 'D Aamäldige hend nöd chöne glade werde',
   signupsExport: 'CSV exportiere',
+  notEventManager: 'Du chasch nur zu Events iilade, wo du verwaltisch',
 } as const

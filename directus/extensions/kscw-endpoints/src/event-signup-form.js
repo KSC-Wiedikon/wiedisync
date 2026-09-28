@@ -23,8 +23,17 @@ import {
   badSlug, listSubmissions, createFormFromTemplate, findFreeSlug, formUrl,
 } from './opnform.js'
 import { writeUserLog } from './activity-log.js'
+import { sportAdminCovers } from './event-notify.js'
 
-/** Same shape kscw-website's calendar-grid.ts parses out of signup_url. */
+/**
+ * Same shape kscw-website's calendar-grid.ts parses out of signup_url.
+ *
+ * ⚠ Display only. NEVER use it to decide which OpnForm form's submissions to read:
+ * `signup_url` is client-writable by the event's creator (any coach), so a slug parsed
+ * from it let a coach list ANY club form's submissions via the club-wide PAT (2026-09-28
+ * audit F15). The signups route reads `events.signup_form_slug` (migration 385), which
+ * only this file writes — see `writeSignupBinding`.
+ */
 const SLUG_FROM_URL = /\/forms\/([a-z0-9][a-z0-9-]{0,80})/i
 
 export function slugFromSignupUrl(url) {
@@ -52,8 +61,11 @@ export async function resolveTemplateId(database) {
   return fromDb || String(process.env.OPNFORM_TEMPLATE_FORM_ID || '').trim()
 }
 
-/** Roles that may manage any event, mirroring event-notify's `elevated` set. */
-const ELEVATED_ROLES = new Set(['admin', 'superuser', 'vb_admin', 'bb_admin'])
+/**
+ * Roles that may manage any event. Sport admins (vb_admin / bb_admin) only for events
+ * of their own sport — same rule as event-notify (2026-09-28 audit F59).
+ */
+const ELEVATED_ROLES = new Set(['admin', 'superuser'])
 
 function parseRoles(raw) {
   if (Array.isArray(raw)) return raw
@@ -78,8 +90,14 @@ async function authorizeEventAdmin(database, accountability, event) {
 
   const roles = parseRoles(caller.role)
   if (roles.some((r) => ELEVATED_ROLES.has(r))) return { ok: true, member: caller }
-  if (event?.created_by != null && String(event.created_by) === String(caller.id)) {
-    return { ok: true, member: caller }
+  const isCreator = event?.created_by != null && String(event.created_by) === String(caller.id)
+  if (isCreator) return { ok: true, member: caller }
+  if (roles.includes('vb_admin') || roles.includes('bb_admin')) {
+    const sports = (await database('events_teams as et')
+      .join('teams as t', 't.id', 'et.teams_id')
+      .where('et.events_id', event.id)
+      .select('t.sport')).map((r) => r.sport)
+    if (sportAdminCovers(roles, sports, isCreator)) return { ok: true, member: caller }
   }
   return { ok: false, status: 403, error: 'Event admin access required' }
 }
@@ -107,6 +125,22 @@ function underCreateLimit(user) {
   return true
 }
 
+/**
+ * Write `signup_url` + the endpoint-owned `signup_form_slug` together. The migration-385
+ * trigger ignores slug writes unless the transaction sets `kscw.signup_slug_write`, which
+ * is what keeps the items API (and the creator) from re-pointing it.
+ */
+export async function writeSignupBinding(database, eventId, { url, slug }) {
+  await database.transaction(async (trx) => {
+    await trx.raw("SELECT set_config('kscw.signup_slug_write', 'on', true)")
+    await trx('events').where('id', eventId).update({
+      signup_url: url,
+      signup_form_slug: slug,
+      date_updated: new Date(),
+    })
+  })
+}
+
 export function registerEventSignupForm(router, { database, logger }) {
   const log = logger.child({ endpoint: 'event-signup-form' })
 
@@ -118,7 +152,7 @@ export function registerEventSignupForm(router, { database, logger }) {
     }
     const event = await database('events')
       .where('id', id)
-      .first('id', 'title', 'start_date', 'respond_by', 'signup_url', 'created_by')
+      .first('id', 'title', 'start_date', 'respond_by', 'signup_url', 'signup_form_slug', 'created_by')
     if (!event) {
       res.status(404).json({ error: 'Event not found' })
       return null
@@ -186,17 +220,14 @@ export function registerEventSignupForm(router, { database, logger }) {
         closesAt,
       })
 
-      await database('events').where('id', event.id).update({
-        signup_url: form.url,
-        date_updated: new Date(),
-      })
+      await writeSignupBinding(database, event.id, { url: form.url, slug: form.slug })
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'update',
         collection: 'events',
         recordId: event.id,
-        data: { signup_url: form.url, opnform_id: form.id, replaced: event.signup_url || null },
+        data: { signup_url: form.url, signup_form_slug: form.slug, opnform_id: form.id, replaced: event.signup_url || null },
       })
 
       log.info({
@@ -229,18 +260,15 @@ export function registerEventSignupForm(router, { database, logger }) {
     const event = await loadEvent(req, res)
     if (!event) return
 
-    if (!event.signup_url) return res.json({ ok: true, signup_url: null })
+    if (!event.signup_url && !event.signup_form_slug) return res.json({ ok: true, signup_url: null })
 
-    await database('events').where('id', event.id).update({
-      signup_url: null,
-      date_updated: new Date(),
-    })
+    await writeSignupBinding(database, event.id, { url: null, slug: null })
     await writeUserLog(database, log, {
       accountability: req.accountability,
       action: 'update',
       collection: 'events',
       recordId: event.id,
-      data: { signup_url: null, unlinked: event.signup_url },
+      data: { signup_url: null, unlinked: event.signup_url, unlinked_slug: event.signup_form_slug ?? null },
     })
     res.json({ ok: true, signup_url: null, unlinked: event.signup_url })
   })
@@ -291,7 +319,12 @@ export function registerEventSignupForm(router, { database, logger }) {
       .orderBy('date_created', 'asc')
       .select('id', 'name', 'email', 'phone', 'guest_count', 'note', 'date_created')
 
-    const slug = slugFromSignupUrl(event.signup_url)
+    // Only the endpoint-bound slug — never one parsed from the client-writable
+    // signup_url (2026-09-28 audit F15). A pasted link simply has no external half.
+    // Also require the link to still point at it: an edited/cleared signup_url means the
+    // bound form is no longer this event's door, so its signups are not shown here.
+    const slug = event.signup_form_slug && slugFromSignupUrl(event.signup_url) === event.signup_form_slug
+      ? event.signup_form_slug : null
     let external = null
     let externalError = null
     if (slug && !badSlug(slug)) {
@@ -301,6 +334,11 @@ export function registerEventSignupForm(router, { database, logger }) {
         externalError = err.status === 404 ? 'form_not_found' : 'upstream_error'
         log.warn({ msg: 'event signups external fetch failed', event: event.id, slug, status: err.status })
       }
+    } else if (event.signup_url) {
+      // A signup link exists but no endpoint-bound form backs it (pasted by hand,
+      // or edited away from the bound form): say so explicitly instead of an
+      // empty external half. EventSignupsModal renders this code.
+      externalError = 'form_not_linked'
     }
 
     res.json({

@@ -35,6 +35,59 @@ const NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS = 60
 const NON_PRIVILEGED_EMAIL_MAX_PER_HOUR = 3
 const userEmailRateLimit = new Map() // `${user}` → { count, resetAt }
 
+/**
+ * Same guard for the push + in-app half (2026-09-28 audit F17). The creator branch
+ * trusts `created_by` / `invited_roles` / `invited_members`, all client-set, so a
+ * plain member could create an event inviting `coach` + every licence flag and push
+ * the whole club. A non-privileged CREATOR is therefore held to the email cap for the
+ * whole fan-out, plus a per-user hourly budget across events (the per-(user, event)
+ * limit resets with every new event). A coach/TR notifying the teams they lead is
+ * scoped by construction and not capped.
+ */
+const NON_PRIVILEGED_FANOUT_MAX_RECIPIENTS = NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS
+const NON_PRIVILEGED_FANOUT_MAX_PER_HOUR = 6
+const userFanoutRateLimit = new Map() // `${user}` → { count, resetAt }
+
+const SPORT_ADMIN_ROLE = { vb_admin: 'volleyball', bb_admin: 'basketball' }
+
+/**
+ * Is a sport admin's authority good for this event? Only when every one of the
+ * event's teams is of a sport they administer (2026-09-28 audit F59: a vb_admin was
+ * elevated AND privileged on a basketball event). A team-less (club-wide) event
+ * belongs to no sport, so it counts only when they created it themselves.
+ */
+export function sportAdminCovers(roles, eventTeamSports, isCreator) {
+  const mine = new Set(roles.map((r) => SPORT_ADMIN_ROLE[r]).filter(Boolean))
+  if (!mine.size) return false
+  if (!eventTeamSports.length) return !!isCreator
+  return eventTeamSports.every((s) => mine.has(String(s)))
+}
+
+/**
+ * The part of a non-privileged creator's audience that is NOT reached through an
+ * event team they lead as coach/TR — i.e. what came in via invited_roles,
+ * invited_members or a team they do not lead. Only this part is held to the
+ * NON_PRIVILEGED_FANOUT_* cap: a coach creating a multi-team camp for their own
+ * squads is scoped by construction, exactly like the leader branch. Pure; exported.
+ */
+export function unscopedRecipients(memberIdArray, scopedIds) {
+  return memberIdArray.filter((id) => !scopedIds.has(String(id)))
+}
+
+async function loadLedTeamIds(db, evTeamIds, callerId, into) {
+  if (!evTeamIds.length || callerId == null) return
+  const coachRows = await db('teams_coaches')
+    .whereIn('teams_id', evTeamIds)
+    .where('members_id', callerId)
+    .select('teams_id')
+  for (const r of coachRows) into.add(Number(r.teams_id))
+  const trRows = await db('teams_responsibles')
+    .whereIn('teams_id', evTeamIds)
+    .where('members_id', callerId)
+    .select('teams_id')
+  for (const r of trRows) into.add(Number(r.teams_id))
+}
+
 export function registerEventNotify(router, { services, database, getSchema, logger }) {
   const { ItemsService, MailService } = services
 
@@ -85,28 +138,32 @@ export function registerEventNotify(router, { services, database, getSchema, log
         const roles = Array.isArray(caller?.role)
           ? caller.role
           : (caller?.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
-        if (['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand'].some((r) => roles.includes(r))) privileged = true
-        if (roles.includes('admin') || roles.includes('superuser') || roles.includes('vb_admin') || roles.includes('bb_admin')) {
+        const isCreator = !!(caller && event.created_by && String(event.created_by) === String(caller.id))
+        // Sport admins: only for events of their own sport (F59). Sport comes from
+        // ALL the event's teams, never an arbitrary first one.
+        let sportAdminOk = false
+        if (roles.includes('vb_admin') || roles.includes('bb_admin')) {
+          const evTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t).filter(Boolean)
+          const sports = evTeamIds.length
+            ? (await db('teams').whereIn('id', evTeamIds).select('sport')).map((t) => t.sport)
+            : []
+          sportAdminOk = sportAdminCovers(roles, sports, isCreator)
+        }
+        if (['admin', 'superuser', 'vorstand'].some((r) => roles.includes(r)) || sportAdminOk) privileged = true
+        if (roles.includes('admin') || roles.includes('superuser') || sportAdminOk) {
           elevated = true
           allowed = true
-        } else if (caller && event.created_by && String(event.created_by) === String(caller.id)) {
+        } else if (isCreator) {
           elevated = true
           allowed = true
+          // Also for the creator: the fan-out cap below exempts the part of the
+          // audience reached through teams they lead.
+          const evTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t).filter(Boolean)
+          await loadLedTeamIds(db, evTeamIds, caller.id, ledTeamIds)
         } else if (caller) {
           const evTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t).filter(Boolean)
-          if (evTeamIds.length > 0) {
-            const coachRows = await db('teams_coaches')
-              .whereIn('teams_id', evTeamIds)
-              .where('members_id', caller.id)
-              .select('teams_id')
-            for (const r of coachRows) ledTeamIds.add(Number(r.teams_id))
-            const trRows = await db('teams_responsibles')
-              .whereIn('teams_id', evTeamIds)
-              .where('members_id', caller.id)
-              .select('teams_id')
-            for (const r of trRows) ledTeamIds.add(Number(r.teams_id))
-            if (ledTeamIds.size > 0) allowed = true
-          }
+          await loadLedTeamIds(db, evTeamIds, caller.id, ledTeamIds)
+          if (ledTeamIds.size > 0) allowed = true
         }
       }
       if (!allowed) {
@@ -131,6 +188,9 @@ export function registerEventNotify(router, { services, database, getSchema, log
       // team(s) they actually lead — the event's club-wide invited_roles and
       // invited_members are NOT expanded for them.
       const memberIds = new Set()
+      // Recipients reached through an event team the caller leads (coach/TR) —
+      // exempt from the non-privileged creator's fan-out cap.
+      const scopedIds = new Set()
 
       // 1. Team members. NO season filter: `teamIds` comes from the event's own
       // team links, and a teams row belongs to exactly one season by
@@ -150,14 +210,20 @@ export function registerEventNotify(router, { services, database, getSchema, log
         const memberTeams = await db('member_teams')
           .whereIn('team', teamIds)
           .modify((q) => { if (event.invite_guests === false) q.whereRaw('COALESCE(guest_level, 0) = 0') })
-          .select('member')
-        for (const mt of memberTeams) memberIds.add(String(mt.member))
+          .select('member', 'team')
+        for (const mt of memberTeams) {
+          memberIds.add(String(mt.member))
+          if (ledTeamIds.has(Number(mt.team))) scopedIds.add(String(mt.member))
+        }
 
         // Also coaches of these teams
         const coaches = await db('teams_coaches')
           .whereIn('teams_id', teamIds)
-          .select('members_id')
-        for (const c of coaches) memberIds.add(String(c.members_id))
+          .select('members_id', 'teams_id')
+        for (const c of coaches) {
+          memberIds.add(String(c.members_id))
+          if (ledTeamIds.has(Number(c.teams_id))) scopedIds.add(String(c.members_id))
+        }
       }
 
       // 2. Role-based members (elevated callers only — never expand club-wide
@@ -223,6 +289,26 @@ export function registerEventNotify(router, { services, database, getSchema, log
       memberIds.delete('')
       const memberIdArray = [...memberIds].filter(id => id && !isNaN(Number(id)))
       if (memberIdArray.length === 0) return res.json({ notified: 0 })
+
+      // Fan-out guard for a non-privileged creator (see NON_PRIVILEGED_FANOUT_*).
+      // Checked before anything is inserted or pushed; a refusal hands back the
+      // per-event slot so the creator can retry once an admin widens it.
+      // Only the part of the audience NOT reached through a team the creator leads
+      // counts: a coach's own multi-team camp or batch of tournament dates is
+      // scoped by construction and neither capped nor rate-limited.
+      const unscoped = elevated && !privileged ? unscopedRecipients(memberIdArray, scopedIds) : []
+      if (unscoped.length > 0) {
+        const refuse = (status, body) => { notifyRateLimit.delete(rateKey); return res.status(status).json(body) }
+        if (unscoped.length > NON_PRIVILEGED_FANOUT_MAX_RECIPIENTS) {
+          return refuse(403, {
+            error: `Notifying more than ${NON_PRIVILEGED_FANOUT_MAX_RECIPIENTS} people outside your teams needs an admin`,
+            code: 'audience_too_large',
+          })
+        }
+        if (!userEventRateLimit(userFanoutRateLimit, String(req.accountability.user), NON_PRIVILEGED_FANOUT_MAX_PER_HOUR, 60 * 60 * 1000)) {
+          return refuse(429, { error: 'Too many notifications — please wait before sending another', code: 'notify_rate_limited' })
+        }
+      }
 
       // Email blast guard (see NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS). Refused
       // BEFORE anything is inserted or pushed, so the caller can retry without

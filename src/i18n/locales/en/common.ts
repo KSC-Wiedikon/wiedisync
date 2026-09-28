@@ -247,4 +247,5 @@ export default {
   householdNotSetUp: 'This profile isn\'t set up yet — you\'re back on your own account',
   householdNotWhileActing: 'Not available while using another account',
   householdSwitchTo: 'Switch to {{names}}',
+  fileNotYours: 'You can only use an image you uploaded yourself',
 }

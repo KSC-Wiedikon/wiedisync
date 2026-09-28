@@ -13,10 +13,13 @@ export default {
   resultAvailable: 'Risultato',
   dutyDelegation: 'Servizio segnapunti',
   memberJoinRequest: 'Richiesta di adesione',
+  teamAdded: 'Aggiunto alla squadra',
   expenseStatus: 'Spesa',
   announcement: 'Notizie del club',
   eventInvite: 'Invito a evento',
   member_join_request: '{{memberName}} vuole unirsi a {{teamName}}',
+  team_added: '{{by}} ti ha aggiunto a {{team}}',
+  team_added_no_by: 'Sei stato aggiunto a {{team}}',
   expense_paid: 'La tua spesa di {{amount}} è stata pagata.',
   expense_rejected: 'La tua spesa di {{amount}} è stata respinta.',
   // Delegation notification messages

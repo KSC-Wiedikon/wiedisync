@@ -8,6 +8,8 @@
 # to a nightly cron. Mirror of the repo copy (directus/scripts/).
 #
 # ⚠ CSVs hold member PII (IBAN/AHV) — the EXIT trap deletes them; never let them linger.
+# ⚠ CLUBDESK_ENV=dev: the importer maps recipient_email to the dev-refresh sink
+#   address (import-clubdesk-dev-scrub.mjs, audit 2026-09-28 F14); prod unchanged.
 # ⚠ One ClubDesk session per account — runs on a dedicated service account.
 set -euo pipefail
 DIR=/opt/clubdesk-sync

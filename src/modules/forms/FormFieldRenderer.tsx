@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
 import TruncatedText from '@/components/TruncatedText'
 import { uploadFile } from '../../lib/api'
+import { FORM_UPLOADS_FOLDER } from '../../lib/privateFolders'
 import { resolveFieldLabel } from './labels'
 import type { FieldDef, AnswerValue, FileAnswer } from './types'
 
@@ -165,7 +166,10 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
         if (!picked || preview) return
         setUploading(true)
         try {
-          onChange(await uploadFile(picked))
+          // Private folder (audit F01): form managers read it via
+          // /kscw/forms/:formId/files/:fileId, the uploader via own-upload read-back.
+          // Also allowed for anonymous public-form uploads (ANON_UPLOAD_FOLDERS).
+          onChange(await uploadFile(picked, FORM_UPLOADS_FOLDER))
         } catch {
           onChange(null)
         } finally {

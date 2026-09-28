@@ -379,9 +379,11 @@ const SYSTEM_ADMIN_EMAILS = new Set(['admin@kscw.ch', 'cron-service@kscw.ch'])
  * §3c — audit membership of the built-in `Administrator` role.
  *
  * §3b closed the role→POLICY blind spot. This closes the adjacent one:
- * `directus_users.role` itself. The only writer of that column in the tree is
+ * `directus_users.role` itself. The writers of that column in the tree are
  * `syncMemberRole` → `resolveDirectusRole` (kscw-hooks/src/index.js), which can
- * return at most Superuser | Sport Admin | Vorstand | Team Responsible | Member
+ * return at most Superuser | Sport Admin | Vorstand | Team Responsible | Member,
+ * plus §10a here and `resyncStaffAccess` (game-scheduling.js), which only move
+ * users between Team Responsible | Vorstand | Member
  * — `Administrator` is unreachable by code. So every Administrator holder was
  * set by hand in the Directus UI, and nothing in `db:deploy`, `db:smoke` or any
  * PERMISSIONS.md verification query has ever looked at them. Prod carried an
@@ -480,7 +482,7 @@ async function deleteLegacyPolicy(name) {
 
 // ── Permission Helpers ────────────��──────────────────────────────
 
-async function setPerm(policyId, collection, action, filter = null, fields = null, validation = null) {
+async function setPerm(policyId, collection, action, filter = null, fields = null, validation = null, presets = null) {
   const body = {
     policy: policyId,
     collection,
@@ -489,6 +491,13 @@ async function setPerm(policyId, collection, action, filter = null, fields = nul
   }
   if (filter) body.permissions = filter
   if (validation) body.validation = validation
+  // `presets` are merged UNDER the payload (Directus process-payload: assign({},
+  // ...presets, payload)), so a client value wins unless its field is outside
+  // `fields`. ⚠ `validation` rows are AND-ed across every policy a caller holds
+  // (process-payload builds `_and` of all of them), so a validation on a policy
+  // many users hold constrains all of their other policies' creates too — only
+  // use it on a policy that is held alone (Public) or is itself the gate (§9d).
+  if (presets) body.presets = presets
   // NOTE: Directus enforces neither `permissions` nor a relational `validation`
   // filter usefully on CREATE — `permissions` has no existing row to match, and
   // a relational `validation` (e.g. member.user == $CURRENT_USER) can't be
@@ -847,6 +856,29 @@ for (const field of MEMBER_LICENCE_STATUS_READ_FIELDS) {
   }
 }
 
+/**
+ * Member columns that are CREDENTIALS, not data (audit 2026-09-28, F05). No
+ * policy below full admin reads them: Vorstand and Sport Admin get `members`
+ * minus these (computed at deploy time — see liveFieldNames), and the lists
+ * every other tier reads are explicit and must never grow them.
+ *   ical_token      — bearer for the member's private calendar feed
+ *   e2ee_private_key, e2ee_kdf_salt — the password-wrapped identity-document key
+ *                     and its salt; together an offline guessing target for the
+ *                     member's password. Read by the owner only, through
+ *                     /kscw/identity/* on the system connection.
+ */
+const MEMBER_SECRET_FIELDS = ['ical_token', 'e2ee_private_key', 'e2ee_kdf_salt']
+
+for (const field of MEMBER_SECRET_FIELDS) {
+  if (
+    MEMBER_VISIBLE_FIELDS.includes(field) ||
+    MEMBER_EDITABLE_FIELDS.includes(field) ||
+    MEMBER_DERIVED_READ_FIELDS.includes(field)
+  ) {
+    throw new Error(`setup-permissions: members."${field}" is a credential and must not appear in a member field list.`)
+  }
+}
+
 /** Public fields for teams */
 const PUBLIC_TEAM_FIELDS = [
   'id', 'name', 'full_name', 'sport', 'league', 'season', 'team_picture',
@@ -1075,7 +1107,8 @@ const FINANCE_MEMBER_BILLING_FIELDS = [
 const FINANCE_INVOICE_FOLDER = 'f1a0d0c5-0000-4000-8000-000000000001'
 /** Private folder for feedback screenshots (migration 074). Can contain a member's
  *  authenticated screen / PII — must NOT be member-readable (audit PERM-1, 2026-06-25);
- *  only Vorstand / Sport Admin review them via a folder-scoped read below. */
+ *  Sport Admin reviews them via its folder-scoped read (§9), the uploader reads their
+ *  own back. (This said "Vorstand / Sport Admin" — Vorstand has never had the read.) */
 const FEEDBACK_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
 /** Private folder for registration documents — government-ID scans + Swiss Basketball
  *  licence/declaration docs (migration 169; quarantine hook + /registration/upload).
@@ -1104,15 +1137,73 @@ const IDENTITY_DOCS_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
  *  `assertAllPrivateFoldersDenied` now fails the deploy instead of trusting memory. */
 const SCORER_EXAM_FOLDER = 'd0c00002-0000-4000-8000-000000000001'
 
-/** Every folder that must never be readable by the Member tier. Adding a folder
- *  constant above without adding it here is the bug this list exists to make
- *  impossible — see the assertion below. */
+/** Expense receipts (migration 387). Read back only through the owner/finance-
+ *  checked `GET /kscw/expenses/:id/receipt` stream — no policy reads the folder. */
+const EXPENSE_RECEIPTS_FOLDER = '0e1a0387-0000-4000-8000-000000000001'
+/** File answers on native forms (migration 387). Vorstand + Sport Admin (form
+ *  managers club-wide) read the folder; the uploader reads their own. */
+const FORM_UPLOADS_FOLDER = '0e1a0387-0000-4000-8000-000000000002'
+/** THE public folder (migration 387): team photos, profile photos, sponsor logos,
+ *  news + announcement images. The only folder Public and Member read by default.
+ *  Nothing is uploaded INTO it — migration 388 moves a file here when a public
+ *  image column starts referencing it, and keeps every other writer out. */
+const PUBLIC_IMAGES_FOLDER = '0e1a0387-0000-4000-8000-000000000003'
+/** Upload quarantine (migrations 387/388): where every upload that names no
+ *  folder lands, until it is referenced as a public image or never. */
+const UPLOAD_QUARANTINE_FOLDER = '0e1a0387-0000-4000-8000-000000000004'
+
+/** Every folder that must never be readable by the Member tier as a whole.
+ *
+ *  ⚠ Since 2026-09-28 (audit F01) the Public and Member `directus_files` reads
+ *  are an ALLOW-list — PUBLIC_IMAGES_FOLDER plus the caller's own uploads — so a
+ *  folder missing from this list is private by default rather than readable by
+ *  ~500 members, which is what the deny-list did to the scorer-exam folder and
+ *  would have done to every folder after it. The list still matters: it names
+ *  the folders `assertAllPrivateFoldersDenied` cross-checks against the endpoint
+ *  code, and the own-upload read-back below is limited to the ones where a
+ *  member legitimately uploads for themselves. */
 const PRIVATE_FOLDERS = [
   FINANCE_INVOICE_FOLDER,
   FEEDBACK_FOLDER,
   REGISTRATION_FILES_FOLDER,
   IDENTITY_DOCS_FOLDER,
   SCORER_EXAM_FOLDER,
+  EXPENSE_RECEIPTS_FOLDER,
+  FORM_UPLOADS_FOLDER,
+  UPLOAD_QUARANTINE_FOLDER,
+]
+
+/** Folders a caller may read their OWN uploads from (`uploaded_by =
+ *  $CURRENT_USER`). Needed because POST /files reads the new row back with the
+ *  caller's accountability and answers 204 with NO id when that read is
+ *  forbidden — the upload succeeds and the client cannot attach it. Limited to
+ *  folders a member uploads into from the browser; registration, identity,
+ *  scorer-exam and finance files are written by endpoints or read by their own
+ *  scoped grants, and are deliberately not here. */
+const OWN_UPLOAD_READBACK_FOLDERS = [
+  UPLOAD_QUARANTINE_FOLDER,
+  EXPENSE_RECEIPTS_FOLDER,
+  FORM_UPLOADS_FOLDER,
+  FEEDBACK_FOLDER,
+]
+
+/** Folders an ANONYMOUS upload may land in, and — for 2 minutes — be read back
+ *  from: the quarantine (the feedback page names no folder; a logged-out visitor's
+ *  screenshot lands here and the feedback hook files it) and Form uploads (public
+ *  `/f/:slug` file answers, once FormFieldRenderer names that folder). Enforced as
+ *  a create `validation` on the Public policy, which only anonymous callers hold.
+ *  ⚠ The feedback folder is deliberately NOT here (2026-09-28 review): no client
+ *  uploads into it directly, and listing it would re-expose a screenshot for the
+ *  rest of its window after the hook had already made it private. */
+const ANON_UPLOAD_FOLDERS = [UPLOAD_QUARANTINE_FOLDER, FORM_UPLOADS_FOLDER]
+
+/** directus_files columns a non-admin may UPDATE. Metadata only: `filename_disk`
+ *  and `storage` name the bytes on disk, and a file row re-pointed at another
+ *  file's `filename_disk` serves THAT file under its own (public) id. Also
+ *  excludes the in-place replace (PATCH multipart) for these tiers, which writes
+ *  the whole row — upload a new file instead. */
+const FILE_METADATA_UPDATE_FIELDS = [
+  'title', 'description', 'tags', 'location', 'focal_point_x', 'focal_point_y', 'filename_download',
 ]
 
 /**
@@ -1129,18 +1220,63 @@ const ENDPOINT_PRIVATE_FOLDERS = {
   'registration.js → REGISTRATION_FILES_FOLDER': REGISTRATION_FILES_FOLDER,
   'identity-document.js → IDENTITY_FOLDER': IDENTITY_DOCS_FOLDER,
   'scorer-exam.js → SCORER_EXAM_FOLDER': SCORER_EXAM_FOLDER,
+  'src/lib/privateFolders.ts → EXPENSE_RECEIPTS_FOLDER': EXPENSE_RECEIPTS_FOLDER,
+  'src/lib/privateFolders.ts → FORM_UPLOADS_FOLDER': FORM_UPLOADS_FOLDER,
+  'src/lib/privateFolders.ts → FEEDBACK_FOLDER': FEEDBACK_FOLDER,
+  '388-upload-folder-defaults.sql → quarantine': UPLOAD_QUARANTINE_FOLDER,
 }
 
 function assertAllPrivateFoldersDenied() {
   const missing = Object.entries(ENDPOINT_PRIVATE_FOLDERS)
     .filter(([, uuid]) => !PRIVATE_FOLDERS.includes(uuid))
     .map(([where, uuid]) => `${where} (${uuid})`)
-  if (missing.length) {
-    console.error('\n💥 Private folder(s) missing from the Member deny-list — every member could read them:')
-    for (const m of missing) console.error(`   - ${m}`)
-    console.error('   Add them to PRIVATE_FOLDERS in setup-permissions.mjs.\n')
+  // The public folder must never be named private, and no private folder may
+  // ever be the public one — a typo'd constant would otherwise publish a folder.
+  const crossed = PRIVATE_FOLDERS.includes(PUBLIC_IMAGES_FOLDER)
+  if (missing.length || crossed) {
+    console.error('\n💥 Private-folder list out of step with the code:')
+    for (const m of missing) console.error(`   - missing from PRIVATE_FOLDERS: ${m}`)
+    if (crossed) console.error(`   - PUBLIC_IMAGES_FOLDER (${PUBLIC_IMAGES_FOLDER}) is listed as private`)
+    console.error('   Fix PRIVATE_FOLDERS in setup-permissions.mjs.\n')
     process.exit(1)
   }
+}
+
+/**
+ * Report every LIVE folder this script does not know (audit 2026-09-28, F45 — an
+ * empty hand-made "registrations" folder was member-readable because the old
+ * deny-list only ever looked at constants, never at `directus_folders`). Under
+ * the allow-list an unknown folder is private by default, so this is a report,
+ * not a failure: it exists so a folder somebody created by hand for a new upload
+ * path is noticed before that path goes live and 403s for its own users.
+ */
+async function auditLiveFolders() {
+  const known = new Set([PUBLIC_IMAGES_FOLDER, ...PRIVATE_FOLDERS])
+  const folders = await api('GET', '/folders?fields=id,name&limit=-1') || []
+  const unknown = folders.filter((f) => !known.has(f.id))
+  if (unknown.length === 0) {
+    console.log(`  ✓ All ${folders.length} directus_folders are declared here`)
+    return
+  }
+  console.warn(`  ⚠ ${unknown.length} folder(s) not declared in setup-permissions.mjs — private to everyone but admins:`)
+  for (const f of unknown) console.warn(`      ${f.id} "${f.name}"`)
+}
+
+/**
+ * Every field of `collection` on the LIVE instance (columns + alias fields).
+ * Used where a tier reads "everything except a few secrets": Directus field
+ * permissions are an allow-list with no deny form, so the list is computed at
+ * deploy time — a column added by a migration reaches the tier on the very next
+ * `db:setup-perms`, which `db:deploy:*` runs right after `db:migrate`.
+ * Throws rather than degrade to `*`.
+ */
+async function liveFieldNames(collection) {
+  const rows = await api('GET', `/fields/${collection}`) || []
+  const names = rows.map((f) => f.field).filter(Boolean)
+  if (names.length === 0) {
+    throw new Error(`setup-permissions: GET /fields/${collection} returned no fields — refusing to fall back to '*'`)
+  }
+  return names
 }
 
 // ── Main ──────────────────────────────────��──────────────────────
@@ -1315,6 +1451,14 @@ async function main() {
     console.warn(`  ⚠ Administrator audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
   }
 
+  // ── 3d. Audit live folders (report-only, never fatal — same rule as §3c) ──
+  console.log('\n3d. Auditing directus_folders...')
+  try {
+    await auditLiveFolders()
+  } catch (e) {
+    console.warn(`  ⚠ Folder audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
+  }
+
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
   console.log('\n4. Clearing old permissions...')
@@ -1340,6 +1484,19 @@ async function main() {
   // LedBox publisher holds exactly one collection — safe to clear and recreate.
   await clearPolicyPermissions(LEDBOX_POLICY, 'LedBox Publisher')
   await clearPolicyPermissions(WEBSITE_ADMIN_POLICY, 'Website_admin')
+  // Every OTHER admin_access policy — in practice Directus's built-in
+  // "Administrator" — is declared EMPTY. admin_access bypasses permission rows
+  // entirely, so a row there grants nothing, and it is exactly the kind of
+  // undeclared state this script exists to remove: prod carried 31 of them,
+  // hand-clicked, incl. a read on the dropped `hall_events_halls` (audit
+  // 2026-09-28, F77). Clearing is safe for the same reason the rows were
+  // meaningless. The policy itself and its role attachment are NOT touched
+  // (PROTECTED_ROLES / §3b).
+  for (const p of allPolicies || []) {
+    if (p.admin_access === true && p.id !== ADMIN_POLICY) {
+      await clearPolicyPermissions(p.id, `${p.name} (admin_access — declared empty)`)
+    }
+  }
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -1429,19 +1586,43 @@ async function main() {
     await setPerm(PUBLIC_POLICY, 'mixed_tournament_signups', 'create', null,
       ['name', 'email', 'sex', 'position_1', 'position_2', 'position_3', 'teams', 'notes', 'is_member', 'member_id'])
 
-    // Files. 2026-05-31 security audit: anon could fetch ANY uploaded asset via
-    // GET /assets/:id (e.g. feedback screenshots, which can contain a member's
-    // authenticated screen / PII). /assets applies the file's row-level read
-    // filter, so scope the public read to FOLDER-LESS files only: the public
-    // site's team/member/sponsor/news images live at the root (no folder), while
-    // sensitive uploads (feedback screenshots) are relocated into a private
-    // folder by migration 074 + the kscw-hooks feedback hook. A folder
-    // assignment therefore === private, and new private folders are excluded by
-    // default (fail-safe). NB: anon /items/directus_files LISTING is denied
-    // regardless (system-collection listing isn't granted to Public) — this
-    // scopes the /assets read path, which is what actually leaked.
-    await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _null: true } })
-    await setPerm(PUBLIC_POLICY, 'directus_files', 'create')
+    // Files — an ALLOW-list since 2026-09-28 (audit F01, Critical). The rule
+    // used to be `folder IS NULL` on the theory that "a folder assignment ===
+    // private": it made the ROOT public, so every upload that forgot a folder
+    // was published. All 8 expense receipts and every form file answer sat
+    // there, anonymously listable via GET /files (the old note here claiming
+    // "anon listing is denied" was false — /files is not /items) and
+    // downloadable via /assets. Now:
+    //   • the Public images folder, and nothing else, is public. Files reach it
+    //     only by being referenced as a public image (migration 388 trigger);
+    //   • a just-finished ANONYMOUS upload in one of ANON_UPLOAD_FOLDERS is
+    //     readable for 2 minutes after its bytes land (`uploaded_on`, stamped
+    //     at the end of the upload), because POST /files reads the new row back
+    //     as the caller and answers 204 with no id when it cannot — the feedback
+    //     page and public forms would get a success and nothing to attach. Two
+    //     minutes kills hosting (F25) without breaking the read-back.
+    await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _eq: PUBLIC_IMAGES_FOLDER } })
+    await setPermRead(PUBLIC_POLICY, 'directus_files', {
+      _and: [
+        { folder: { _in: ANON_UPLOAD_FOLDERS } },
+        { uploaded_by: { _null: true } },
+        { uploaded_on: { _gte: '$NOW(-2 minutes)' } },
+      ],
+    })
+    // Anonymous CREATE stays: two real flows need it (FeedbackPage sends no
+    // session for any visitor, PublicFormPage file answers). Narrowed (F25):
+    //   fields     — exactly what a multipart upload writes; `folder` is the only
+    //                client-chosen one
+    //   presets    — no folder named → quarantine
+    //   validation — the folder must be one of ANON_UPLOAD_FOLDERS. Safe here and
+    //                nowhere else: validations are AND-ed across policies, and
+    //                the Public policy applies only to callers with no role.
+    // Rate/size limits are not expressible here (FILES_MAX_UPLOAD_SIZE + an edge
+    // rate limit on POST /files — see SECURITY.md 2026-09-28).
+    await setPerm(PUBLIC_POLICY, 'directus_files', 'create', null,
+      ['storage', 'filename_download', 'title', 'type', 'folder'],
+      { folder: { _in: ANON_UPLOAD_FOLDERS } },
+      { folder: UPLOAD_QUARANTINE_FOLDER })
 
     // Live scoreboard (migration 272) — the /live page is a PUBLIC spectator view
     // and most viewers in the hall are not logged in. The row holds nothing but a
@@ -1468,9 +1649,12 @@ async function main() {
   // nothing outside `live_scores`.
 
   console.log('\n5b. LedBox publisher permissions...')
-  await setPerm(LEDBOX_POLICY, 'live_scores', 'create')
+  // Audit 2026-09-28: the one board token writes only its own channel. With a
+  // second board, give it its own service user + policy rather than widening this.
+  const LEDBOX_CHANNEL = { channel: { _eq: 'kscw' } }
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'create', null, null, LEDBOX_CHANNEL)
   await setPerm(LEDBOX_POLICY, 'live_scores', 'read')
-  await setPerm(LEDBOX_POLICY, 'live_scores', 'update')
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'update', LEDBOX_CHANNEL, null, LEDBOX_CHANNEL)
   // History is APPEND-ONLY for the board: create, and deliberately NO update or
   // delete. A device in a hall may add a finished match; correcting or removing one
   // is an admin action.
@@ -1478,27 +1662,31 @@ async function main() {
   // Public grant above applies to authenticated requests too and Directus policies
   // are additive with no deny rule. Harmless: the collection is public anyway.
   // Append-only is enforced by the absence of update/delete, which IS effective.)
-  await setPerm(LEDBOX_POLICY, 'live_history', 'create')
+  await setPerm(LEDBOX_POLICY, 'live_history', 'create', null, null, LEDBOX_CHANNEL)
   // The match log (migration 376) is append-only for the same reason. A re-sent
   // upload is rejected by the (channel, match_key) unique index, which the board
   // reads as "already uploaded" — so no read or update is needed to be idempotent.
-  await setPerm(LEDBOX_POLICY, 'live_match_logs', 'create')
+  await setPerm(LEDBOX_POLICY, 'live_match_logs', 'create', null, null, LEDBOX_CHANNEL)
   console.log('  ✓ LedBox publisher permissions set')
 
   // ── 5c. Website Admin permissions ──────────────────────────────
   // The public image library, and nothing else. See the WEBSITE_ADMIN_POLICY
   // comment above for what this replaced and why it mattered.
   //
-  // PUBLIC_FILES is `folder _null` — the same predicate the Public policy reads,
-  // so "what a website admin can touch" and "what the website can serve" are one
-  // definition. Applying it to UPDATE is the load-bearing half: Directus
-  // evaluates a row filter against the EXISTING row, so a file sitting in the
-  // registration folder cannot be selected for update at all, and therefore
-  // cannot be pulled out of it by setting `folder: null`.
-  const PUBLIC_FILES = { folder: { _null: true } }
+  // PUBLIC_FILES is the Public images folder — the same predicate the Public
+  // policy reads, so "what a website admin can touch" and "what the website can
+  // serve" are one definition. Applying it to UPDATE is the load-bearing half:
+  // Directus evaluates a row filter against the EXISTING row, so a file sitting
+  // in the registration folder cannot be selected for update at all. Since
+  // 2026-09-28 (F01/F26) the update is also metadata-only — `folder` is out
+  // (publishing happens by referencing an image; migration 388 keeps every
+  // direct move into the public folder out), and so are `filename_disk` /
+  // `storage`, which would re-point a public row at another file's bytes.
+  // Their own fresh uploads (quarantine) are read back via the Member policy.
+  const PUBLIC_FILES = { folder: { _eq: PUBLIC_IMAGES_FOLDER } }
   await setPerm(WEBSITE_ADMIN_POLICY, 'directus_files', 'create')
   await setPermRead(WEBSITE_ADMIN_POLICY, 'directus_files', PUBLIC_FILES)
-  await setPerm(WEBSITE_ADMIN_POLICY, 'directus_files', 'update', PUBLIC_FILES)
+  await setPerm(WEBSITE_ADMIN_POLICY, 'directus_files', 'update', PUBLIC_FILES, FILE_METADATA_UPDATE_FIELDS)
   // `teams` read — public information, and the website renders it. Unchanged.
   await setPermRead(WEBSITE_ADMIN_POLICY, 'teams')
   // Self only. The previous unfiltered `directus_users` read was the whole user
@@ -1540,18 +1728,27 @@ async function main() {
   for (const col of MEMBER_READ_ALL) {
     await setPermRead(MEMBER_POLICY, col)
   }
-  // Files: folder-less files PLUS any foldered file that is NOT in a private
-  // folder. Two folders are private: finance-invoice (migration 134) holds a
-  // member's billing PDFs, and feedback (migration 074) holds feedback
-  // screenshots that can contain a member's authenticated screen / PII. Neither
-  // may be member-readable via /assets (audit PERM-1, 2026-06-25 — previously
-  // only the finance folder was excluded, so any member could enumerate +
-  // download every feedback screenshot). Null-folder files don't match a bare
-  // _nin, hence the _or. Finance + board re-add their folder below.
+  // Files — an ALLOW-list since 2026-09-28 (audit F01/F45). Was a deny-list
+  // (`folder _null OR folder _nin PRIVATE_FOLDERS`): every root file (receipts,
+  // form answers) and every folder nobody remembered to name (scorer exams in
+  // 2026-08, an empty hand-made "registrations" folder in 2026-09) was readable
+  // by every member. Now two branches:
+  //   1. the Public images folder — team / profile photos, sponsor logos, news
+  //      and announcement images, everything the app shows about other people;
+  //   2. the caller's OWN uploads, in the root (legacy) or a folder a member
+  //      uploads into from the browser. POST /files reads the new row back as the
+  //      caller and returns no id when it cannot, so without this an avatar,
+  //      receipt or form answer would upload and then be un-attachable.
+  // Finance, board and sport admins add their folders in their own sections.
   await setPermRead(MEMBER_POLICY, 'directus_files', {
     _or: [
-      { folder: { _null: true } },
-      { folder: { _nin: PRIVATE_FOLDERS } },
+      { folder: { _eq: PUBLIC_IMAGES_FOLDER } },
+      {
+        _and: [
+          { uploaded_by: { _eq: '$CURRENT_USER' } },
+          { _or: [{ folder: { _null: true } }, { folder: { _in: OWN_UPLOAD_READBACK_FOLDERS } }] },
+        ],
+      },
     ],
   })
 
@@ -1844,6 +2041,26 @@ async function main() {
     // licence stands; only staff and the sync write it.
     ...MEMBER_LICENCE_STATUS_READ_FIELDS,
   ])]
+  // ⚠ OPEN (audit 2026-09-28 F05 remainder) — this own-row grant carries
+  // `ahv_nummer` and `iban`, and Directus 11 (api 38) validates a `filter` /
+  // `sort` path against the UNION of a caller's read rows
+  // (validate-path-permissions.js) and then applies it to the RAW column
+  // (apply-query/filter: no CASE WHEN on filters, only on selected fields and on
+  // `search`). So any member can run `GET /items/members?filter[ahv_nummer]
+  // [_starts_with]=756.12&fields=id` — or the same path through any relation,
+  // e.g. `participations?filter[member][iban][_starts_with]=CH93` — and read
+  // the column bit by bit from which rows come back. The SELECTED value stays
+  // own-row only (CASE WHEN), so this is an oracle, not a dump.
+  // They cannot simply leave this list: ProfileEditForm fills the AHV/IBAN
+  // inputs from this read and re-sends both on every save, so without the read
+  // the next profile save would WIPE the member's stored AHV number and IBAN;
+  // HomePage's IBAN nudge and GuideStart read it too. Closing it needs either
+  // (a) a kscw-hooks `items.query` filter refusing non-admin filter/sort/deep
+  // paths that end in members.ahv_nummer / members.iban unless the caller holds
+  // an unconditional read of that column (Sport Admin, finance, Vorstand for
+  // iban), or (b) an own-sensitive-fields endpoint the profile reads instead,
+  // after which both columns leave MEMBER_OWN_READABLE (keep them in
+  // MEMBER_EDITABLE_FIELDS — a write needs no read).
   await setPermRead(MEMBER_POLICY, 'members', OWN_USER, MEMBER_OWN_READABLE)
 
   // Members — update own profile (limited fields)
@@ -1883,7 +2100,10 @@ async function main() {
       {
         _or: [
           { audience: { _eq: 'club_wide' } },
-          { teams: { teams_id: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+          // `active: true` (audit 2026-09-28, F44) — same rule as MY_TEAMS_FILTER:
+          // the roster row on an archived team is never deleted, so without it a
+          // former player keeps reading that team's forms indefinitely.
+          { teams: { teams_id: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
         ],
       },
     ],
@@ -1938,8 +2158,10 @@ async function main() {
   // UNFILTERED read until 2026-08-10, so any member could read every poll in
   // the club). Voter identity is never exposed here — `poll_votes` is
   // OWN_MEMBER-scoped and /poll-results checks membership — only the question.
+  // `active: true` added 2026-09-28 (F44) — an archived team's roster row
+  // lingers, so without it a former player reads that team's polls for good.
   await setPermRead(MEMBER_POLICY, 'polls', {
-    team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } },
+    team: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } },
   })
 
   // Spielplaner assignments — self-scoped (migrations 034, 042).
@@ -2030,7 +2252,11 @@ async function main() {
     // `members` is the o2m alias on teams (each row is a member_teams junction);
     // `teams.member_teams` is NOT a relational field → "Invalid query" that
     // broke fine_rules reads on the home page + roster editor for everyone.
-    team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } },
+    // `active: true` (2026-09-28, F44): an archived team's rules fine nobody.
+    // ⚠ Deliberately NOT added to the team-level `fines` branch above: a team
+    // fine is money the team still owes after rollover, and hiding it from the
+    // players who pay it is the 350 bug again.
+    team: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } },
   })
 
   // Scheduling blocks (migration 085) — team blackout dates. Read-only for
@@ -2073,7 +2299,12 @@ async function main() {
     'finance_note', 'payout', 'status_changed_at', 'date_created',
   ])
 
-  // Files — create (upload profile pics)
+  // Files — create (profile photos, receipts, form answers, feedback). No
+  // folder validation here, deliberately: validations are AND-ed across every
+  // policy a user holds, and this one is held by everybody — a finance upload
+  // into the invoice folder would fail it. Where the file may land is enforced
+  // by migration 388 instead (no folder → quarantine; never straight into the
+  // public folder).
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
 
   console.log(`  ✓ Member permissions set`)
@@ -2106,12 +2337,17 @@ async function main() {
       ],
     },
   }
+  /** TEAM_FK_I_LEAD on an ACTIVE team — for writes (audit 2026-09-28, F44).
+   *  The coach/TR junctions are cloned, not moved, on rollover, so the plain
+   *  shape keeps matching every past season's team; reads that are history
+   *  (referee fees) stay on TEAM_FK_I_LEAD. */
+  const TEAM_FK_I_LEAD_ACTIVE = { team: { active: { _eq: true }, ...TEAM_FK_I_LEAD.team } }
   /** A referee fee of a team I lead that the season-end run has NOT yet
    *  reimbursed (migration 363). Once `payout` is set the row is the basis of
    *  a finance_payouts record and is frozen for leaders; finance corrects it. */
-  const REFEREE_EXPENSE_I_LEAD_UNPAID = { _and: [TEAM_FK_I_LEAD, { payout: { _null: true } }] }
+  const REFEREE_EXPENSE_I_LEAD_UNPAID = { _and: [TEAM_FK_I_LEAD_ACTIVE, { payout: { _null: true } }] }
   /** `_nnull` keeps a null-team poll from matching the relational branch. */
-  const POLL_OF_TEAM_I_LEAD = { _and: [{ team: { _nnull: true } }, TEAM_FK_I_LEAD] }
+  const POLL_OF_TEAM_I_LEAD = { _and: [{ team: { _nnull: true } }, TEAM_FK_I_LEAD_ACTIVE] }
   /** `hall_slots` has no team column; teams hang off the `teams` M2M alias. */
   const SLOT_OF_TEAM_I_LEAD = {
     teams: {
@@ -2258,13 +2494,39 @@ async function main() {
   // active=true: a coach/TR keeps READ access to an archived team (history) but
   // cannot mutate it. Coach/TR junctions are cloned (not moved) on rollover, so
   // without this gate a coach retains write access to every past season's team.
+  //
+  // FIELD-scoped since 2026-09-28 (audit F23). The grant took the `['*']`
+  // default, so a coach could PATCH their team's sync keys (`team_id` — the
+  // Volleymanager id, `bb_source_id` — Basketplan's), `sport`, `active`,
+  // `duty_credit`, `clubdesk_group`, `season` and the VM-owned name/league:
+  // re-keying a team steers the next sync's writes onto it, and `active`/`sport`
+  // are what every scope in this file and the hooks key on. TEAM_WRITE_FIELDS is
+  // exactly what the coach UIs write (RosterEditor settings + photo + roles,
+  // TeamDetail photo position, MemberRow / ManageStaffModal staff lists,
+  // CoachDashboard / GameCoachDashboard prefs). `duty_credit` is written only by
+  // ScorerAssignPage, which is AdminRoute — Sport Admin keeps `*` (§9).
+  // ⚠ A new teams column a coach must write MUST be added here or their PATCH
+  // 403s ("You don't have permission to access field").
+  const TEAM_WRITE_FIELDS = [
+    'team_picture', 'team_picture_pos',
+    // Leadership: `captain` is an M2O; `coach` / `team_responsible` are the M2M
+    // aliases MemberRow / ManageStaffModal save (junction rows are hook-guarded
+    // on create and key-immutable on update — migration 389).
+    'captain', 'coach', 'team_responsible',
+    // RosterEditor → team settings.
+    'features_enabled', 'open_for_players', 'open_for_girls', 'open_for_boys',
+    'recruiting_positions', 'show_guests_on_website',
+    'social_url', 'facebook_url', 'tiktok_url',
+    // Coach dashboard prefs (LEADER_TEAM_DASHBOARD_FIELDS).
+    ...LEADER_TEAM_DASHBOARD_FIELDS,
+  ]
   await setPerm(LEADER_POLICY, 'teams', 'update', {
     active: { _eq: true },
     _or: [
       { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
       { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
     ],
-  })
+  }, TEAM_WRITE_FIELDS)
 
   // Games — update scoped to coach/TR of the game's `kscw_team`.
   // 2026-05-12 audit: previously unfiltered — every coach in the club could
@@ -2325,6 +2587,17 @@ async function main() {
   // Hoisted to a const because `participations` read reuses it verbatim below
   // (migration 333) — a leader reads the RSVPs of any event they can see, and
   // the two rules must not drift apart.
+  // `events` write field list for every non-admin policy (LEADER here, Sport
+  // Admin in §9). `signup_form_slug` (migration 385) binds an event to the
+  // OpnForm form whose responses EventSignupsModal shows as the event's
+  // sign-ups; only POST /kscw/events/:id/signup-form may set it (raw knex under
+  // the `kscw.signup_slug_write` GUC). Letting an items-API client write it would
+  // point an event at somebody else's form and read that form's answers. The
+  // 385 trigger already discards such a write and kscw-hooks strips it — this is
+  // the third layer (audit 2026-09-28 F15). Reads are unaffected.
+  const EVENT_ENDPOINT_OWNED_FIELDS = ['signup_form_slug']
+  const EVENT_WRITE_FIELDS = (await liveFieldNames('events'))
+    .filter((f) => !EVENT_ENDPOINT_OWNED_FIELDS.includes(f))
   const LEADER_EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
@@ -2337,7 +2610,11 @@ async function main() {
     ],
   }
   await setPermRead(LEADER_POLICY, 'events', LEADER_EVENTS_VISIBLE)
-  await setPerm(LEADER_POLICY, 'events', 'create')
+  // Write field list = every live `events` field EXCEPT the endpoint-owned ones
+  // (EVENT_ENDPOINT_OWNED_FIELDS — `signup_form_slug`, migration 385). Computed
+  // from the live schema so a new column still reaches coaches by default, like
+  // the '*' it replaces.
+  await setPerm(LEADER_POLICY, 'events', 'create', null, EVENT_WRITE_FIELDS)
   // 2026-05-12 audit: update was unfiltered; scope to creator OR coach/TR of
   // an invited team (mirrors the delete filter below).
   await setPerm(LEADER_POLICY, 'events', 'update', {
@@ -2346,7 +2623,7 @@ async function main() {
       { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
       { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
     ],
-  })
+  }, EVENT_WRITE_FIELDS)
   await setPerm(LEADER_POLICY, 'events', 'delete', {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
@@ -2368,11 +2645,15 @@ async function main() {
   // plus read club-wide forms + forms they created. Mirrors the events block
   // above with the coach/TR M2M traversal. update/delete scoped to creator or
   // coach/TR of an attached team. They read submissions of forms in their scope.
+  // `active: true` on the team branches (audit 2026-09-28, F44): the coach/TR
+  // junctions are cloned on rollover, so without it an ex-coach keeps managing
+  // — and reading the submissions of — every form of every team they ever led.
+  // The creator branch is unaffected.
   const FORMS_LEADER_SCOPE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
-      { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
-      { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { teams: { teams_id: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { teams: { teams_id: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
     ],
   }
   await setPermRead(LEADER_POLICY, 'forms', {
@@ -2411,10 +2692,14 @@ async function main() {
   await setPerm(LEADER_POLICY, 'sponsors', 'update', SPONSORS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'sponsors', 'delete', SPONSORS_LEADER_SCOPE)
   await setPermRead(LEADER_POLICY, 'teams_sponsors')
-  // teams_sponsors — create gated by the kscw-hooks guard; update/delete
-  // scoped to your own teams' links (security audit 2026-09-28).
+  // teams_sponsors — create gated by the kscw-hooks guard; delete scoped to
+  // your own teams' links (security audit 2026-09-28). NO update grant (F07):
+  // the row filter checks the pre-update row, so `PATCH {sponsors_id: <any>}`
+  // on your own link took over a sponsor shown on kscw.ch. Nothing in the app
+  // updates this junction — TeamSponsorsEditor creates a sponsor with its
+  // `teams` link nested and never edits the link — so there is no field list
+  // to keep. Key columns are also DB-immutable (migration 389).
   await setPerm(LEADER_POLICY, 'teams_sponsors', 'create')
-  await setPerm(LEADER_POLICY, 'teams_sponsors', 'update', JUNCTION_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'teams_sponsors', 'delete', JUNCTION_OF_TEAM_I_LEAD)
 
   // Participations — read + update scoped to members on teams I coach/TR
@@ -2526,10 +2811,16 @@ async function main() {
       },
     },
   }
+  // NO update grant (security audit 2026-09-28, F32). The row filter checks the
+  // pre-update row, and the create-only hook + the INSERT/DELETE triggers never
+  // saw an UPDATE: create an invite on your own game, then PATCH `game` (or
+  // `team` / `member`) elsewhere and the participation_visibility reconcile
+  // hands you another team's RSVPs — repeatable club-wide. GameGuestSection
+  // only ever creates and removes; there is no edit. Keys are also
+  // DB-immutable (migration 389). Sport Admin keeps full CRUD (§9).
   for (const coll of ['game_guests', 'game_guest_teams']) {
     await setPermRead(LEADER_POLICY, coll)
     await setPerm(LEADER_POLICY, coll, 'create')
-    await setPerm(LEADER_POLICY, coll, 'update', COACH_OR_TR_OF_GUEST_GAME)
     await setPerm(LEADER_POLICY, coll, 'delete', COACH_OR_TR_OF_GUEST_GAME)
   }
 
@@ -2539,6 +2830,12 @@ async function main() {
   // a coach may only edit rosters for teams they lead. The grants stay unfiltered
   // here because Directus can't row-filter a CREATE and the delete filter keys on
   // the junction id, not the team — the hooks are the real scope gate.
+  // ⚠ Which MEMBER may be added is not gated at all (audit 2026-09-28, F24):
+  // RosterEditor lets a coach add any active club member by design, and a
+  // roster row hands the coach that member's contact fields
+  // (LEADER_TEAM_MEMBER_FIELDS) plus RSVP writes. No permission row can express
+  // "only members who asked / who are not already elsewhere" — that belongs in
+  // the member_teams create hook, not here.
   await setPermRead(LEADER_POLICY, 'member_teams')
   await setPerm(LEADER_POLICY, 'member_teams', 'create')
   await setPerm(LEADER_POLICY, 'member_teams', 'update')
@@ -2587,8 +2884,16 @@ async function main() {
   // Create/update are additionally checked by the kscw-hooks referee_expenses
   // guard (team you lead, that team's game, payer on the team, amount capped,
   // `payout` finance-owned, `recorded_by` stamped) — security audit 2026-09-28.
-  await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
-  await setPerm(LEADER_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_I_LEAD_UNPAID)
+  // Field-scoped as well (F10): exactly RefereeExpenseSection's payload. The
+  // hook strips `payout` / `recorded_by` before Directus checks fields (filter
+  // hooks run first), so `recorded_by` must stay listed for that payload to
+  // pass; `payout` is out, so the finance link cannot be forged even if the
+  // hook is bypassed.
+  const REFEREE_EXPENSE_LEADER_FIELDS = [
+    'game', 'team', 'paid_by_member', 'paid_by_other', 'amount', 'currency', 'notes', 'recorded_by',
+  ]
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'create', null, REFEREE_EXPENSE_LEADER_FIELDS)
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_I_LEAD_UNPAID, REFEREE_EXPENSE_LEADER_FIELDS)
 
   // Polls — CRUD
   // polls — create unfiltered (no row yet); update/delete scoped to polls
@@ -2610,6 +2915,9 @@ async function main() {
     poll: {
       anonymous: { _eq: false },
       team: {
+        // active: true (audit 2026-09-28, F44) — an ex-coach does not keep
+        // reading who voted what on a past season's team.
+        active: { _eq: true },
         _or: [
           { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
           { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
@@ -2622,8 +2930,10 @@ async function main() {
   // only writable field (security audit 2026-09-28: read/update were
   // unfiltered with fields '*', so a coach could re-target other teams'
   // requests).
-  await setPermRead(LEADER_POLICY, 'team_requests', TEAM_FK_I_LEAD)
-  await setPerm(LEADER_POLICY, 'team_requests', 'update', TEAM_FK_I_LEAD, ['status'])
+  // Active-gated (F44): a join request to an archived team is dead, and its
+  // requester's name is not an ex-coach's business.
+  await setPermRead(LEADER_POLICY, 'team_requests', TEAM_FK_I_LEAD_ACTIVE)
+  await setPerm(LEADER_POLICY, 'team_requests', 'update', TEAM_FK_I_LEAD_ACTIVE, ['status'])
 
   // Absences — read + CUD scoped to members on teams I coach/TR.
   // 2026-05-12 audit: read was unfiltered → full-club absence dump including
@@ -2760,14 +3070,25 @@ async function main() {
       { event: { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
+  // TR branch added 2026-09-28 (F19): the `events` update grant already lets a
+  // team responsible edit their team's events, and EventForm saves the invited
+  // members as nested links — without it that save 403'd on the junction.
   const EVENTS_MEMBERS_LEADER_SCOPE = {
     _or: [
       { events_id: { created_by: { user: { _eq: '$CURRENT_USER' } } } },
       { events_id: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { events_id: { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
   await setPerm(LEADER_POLICY, 'event_sessions', 'update', EVENT_SESSIONS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'event_sessions', 'delete', EVENT_SESSIONS_LEADER_SCOPE)
+  // ⚠ The filter on this CREATE row is NOT enforced (see the setPerm note —
+  // Directus has no row to match on create). A coach can POST
+  // `{ events_id: <any private event>, members_id: <self> }` and then read that
+  // event and its roster through EVENTS_VISIBLE's invited-members branch
+  // (audit 2026-09-28, F19). The gate has to be a BLOCKING
+  // `events_members.items.create` hook (actor manages the event), like
+  // events_teams / forms_teams — it cannot be expressed here.
   await setPerm(LEADER_POLICY, 'events_members', 'create', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'update', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'delete', EVENTS_MEMBERS_LEADER_SCOPE)
@@ -2783,6 +3104,20 @@ async function main() {
   // `DELETE` of another team's junction row plus a fresh `POST` was a takeover of
   // the club's most contested resource. Directus CAN filter update/delete here —
   // the row exists and carries `teams_id` — so only create needs the hook.
+  //
+  // ⚠ Why these junction UPDATE rows keep their key columns (audit 2026-09-28,
+  // F08). The row filter is checked against the PRE-update row, so
+  // `PATCH {teams_id: <other team>}` on your own link re-pointed it — coach of
+  // any team. Dropping `teams_id` / `members_id` / `hall_slots_id` / `events_id`
+  // / `forms_id` from the field list would close that here, but it would also
+  // 403 every legitimate save: the M2M editors (EventForm, FormBuilder,
+  // SlotEditor, MemberRow, ManageStaffModal) send kept links as
+  // `{ id, <related> }` (m2mUpdatePayload), and Directus upserts each one WITH
+  // the parent FK added, so an unchanged link is an update of both key columns.
+  // The re-point is refused instead by the kscw-hooks IMMUTABLE_ON_UPDATE filter
+  // (items API) and by migration 389's trigger (every writer). If
+  // m2mUpdatePayload ever sends kept links as bare junction ids (Directus then
+  // skips them), these update rows can go entirely.
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'create')
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'update', JUNCTION_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'delete', JUNCTION_OF_TEAM_I_LEAD)
@@ -2804,6 +3139,14 @@ async function main() {
   await setPerm(LEADER_POLICY, 'teams_responsibles', 'delete', JUNCTION_OF_TEAM_I_LEAD)
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
+  // ⚠ NO read of the Form uploads folder (audit 2026-09-28 F01). A club-wide
+  // stopgap row lived here for one review pass; it is gone. Coaches/TRs open a
+  // form file answer through `GET /kscw/forms/:formId/files/:fileId`, which
+  // checks the caller manages THAT form and that the file is one of its answers
+  // before streaming it (FormResponsesModal → formFileUrl). A file row has no
+  // link to the submission that names it (answers are JSON), so no permission
+  // filter can express "a form I manage" — do not re-add a folder read here.
+  // Their own fresh uploads come back via the Member "own uploads" branch.
 
   console.log(`  ✓ Team Responsible permissions set`)
 
@@ -2812,8 +3155,10 @@ async function main() {
   console.log('\n8. Vorstand permissions...')
 
   // Vorstand gets read-all on everything (overrides member's filtered reads)
+  // ⚠ `members` is NOT in this list since 2026-09-28 — it is granted below with
+  // a computed field list (audit F05).
   const VORSTAND_READ_ALL = [
-    'members', 'member_teams', 'participations', 'absences',
+    'member_teams', 'participations', 'absences',
     'game_guests', 'game_guest_teams',
     'notifications', 'scorer_delegations', 'team_invites',
     'user_logs', 'feedback',
@@ -2878,6 +3223,35 @@ async function main() {
   // Registration documents (ID scans, licence/declaration docs) — board reviews
   // Anmeldungen, so it needs the private registration folder via /assets too.
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: REGISTRATION_FILES_FOLDER } })
+  // Form file answers (migration 387) — the board has full forms management
+  // (below: CRUD on forms + every form_submissions row club-wide), so reading
+  // the files those answers name is no widening. The app itself no longer
+  // opens them via /assets (FormResponsesModal uses the form-scoped
+  // GET /kscw/forms/:formId/files/:fileId since 2026-09-28); this row stays for
+  // direct /assets links of an answer the board can already read.
+  await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FORM_UPLOADS_FOLDER } })
+
+  // Members — everything EXCEPT the AHV number and three secrets (audit
+  // 2026-09-28, F05). Was `fields: '*'`.
+  //   ahv_nummer — the members read-privacy hook already nulls it for the board
+  //     on every read it sees (self, full admins and a sport admin's own section
+  //     only), so the grant bought nothing but a bypass: relational reads
+  //     (`member_teams?fields=member.ahv_nummer`) never pass that hook, and a
+  //     `filter[ahv_nummer][_starts_with]=756.12` oracle never returns a value
+  //     for a hook to null. Out of the grant, both are closed. Explorer queries
+  //     that list the column still work: the own-row Member rule keeps the field
+  //     known, so Directus returns NULL for other rows instead of a 403.
+  //   ical_token — a bearer for the member's private calendar feed.
+  //   e2ee_private_key + e2ee_kdf_salt — the password-wrapped identity-document
+  //     key and its salt: together, an offline guessing target for the member's
+  //     password. The club "genuinely cannot read" those documents only as long
+  //     as nobody below admin can take these two home.
+  // `iban` stays: the board's finance members tab (FinanceMemberExplorer) shows
+  // it. The list is computed from the live schema (liveFieldNames), so a column
+  // a migration adds reaches the board on the next deploy like it did under '*'.
+  const VORSTAND_MEMBER_READ_FIELDS = (await liveFieldNames('members'))
+    .filter((f) => !['ahv_nummer', ...MEMBER_SECRET_FIELDS].includes(f))
+  await setPermRead(VORSTAND_POLICY, 'members', null, VORSTAND_MEMBER_READ_FIELDS)
   // Narrow ClubDesk register read — same field-scoped grant as Sport Admin, so
   // the board's read-only explorer grid shows the passive/honorary/former and
   // officials-licence columns.
@@ -2907,7 +3281,10 @@ async function main() {
   // members.delete or teams.delete (migration 027 — full admin only,
   // club-wide blast radius).
   const SPORT_ADMIN_FULL_CRUD = [
-    'games', 'trainings', 'events', 'event_sessions', 'events_teams',
+    // ⚠ `events` is NOT here since 2026-09-28 — granted right below the loop
+    // with EVENT_WRITE_FIELDS on create/update (endpoint-owned
+    // `signup_form_slug` excluded). Do not re-add it.
+    'games', 'trainings', 'event_sessions', 'events_teams',
     'member_teams', 'participations', 'absences',
     // Guest invitations (migration 271) — club-wide, so a sport admin can open or
     // close a game for a coach who is away.
@@ -2973,11 +3350,38 @@ async function main() {
     // VB referee → team duty map (migration 200) — club-wide CRUD; the
     // /admin/vb-referees page is UI-scoped to VB admins (full admins bypass).
     'vb_referee_duty',
-    'directus_files',
+    // ⚠ `directus_files` left this list 2026-09-28 (audit F26) — scoped grants
+    // right below the loop. Do not re-add it.
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
+  // `events` — club-wide CRUD like the list above, but create/update exclude the
+  // endpoint-owned `signup_form_slug` (see EVENT_WRITE_FIELDS in §7).
+  await setPerm(SPORT_ADMIN_POLICY, 'events', 'create', null, EVENT_WRITE_FIELDS)
+  await setPermRead(SPORT_ADMIN_POLICY, 'events')
+  await setPerm(SPORT_ADMIN_POLICY, 'events', 'update', null, EVENT_WRITE_FIELDS)
+  await setPerm(SPORT_ADMIN_POLICY, 'events', 'delete')
+  // `directus_files` — was unfiltered CRUD with fields '*' (audit 2026-09-28,
+  // F26), i.e. every private folder: `PATCH {folder: null}` published an ID
+  // scan, and a DELETE destroyed E2EE ciphertext or a receipt that backs a
+  // payout. Now exactly what the sport-admin surfaces use:
+  //   read   — public images, registration docs (AnmeldungenPage, the explorer's
+  //            reg-files cell, wadmin's download-then-delete), feedback
+  //            screenshots (feedback triage), form uploads (forms managed
+  //            club-wide). Their own fresh uploads come via the Member branch.
+  //            Receipts, scorer sheets and identity documents are served by
+  //            their endpoints; finance PDFs belong to finance + board.
+  //   update — public images only, metadata only (FILE_METADATA_UPDATE_FIELDS:
+  //            no `folder`, no `filename_disk` / `storage`).
+  //   delete — public images, registration docs (wadmin deletes a rejected or
+  //            downloaded applicant's ID scans), feedback, form uploads. Not
+  //            receipts, identity ciphertext, scorer sheets or finance PDFs.
+  const SPORT_ADMIN_FILE_READ = { folder: { _in: [PUBLIC_IMAGES_FOLDER, REGISTRATION_FILES_FOLDER, FEEDBACK_FOLDER, FORM_UPLOADS_FOLDER] } }
+  await setPerm(SPORT_ADMIN_POLICY, 'directus_files', 'create')
+  await setPermRead(SPORT_ADMIN_POLICY, 'directus_files', SPORT_ADMIN_FILE_READ)
+  await setPerm(SPORT_ADMIN_POLICY, 'directus_files', 'update', { folder: { _eq: PUBLIC_IMAGES_FOLDER } }, FILE_METADATA_UPDATE_FIELDS)
+  await setPerm(SPORT_ADMIN_POLICY, 'directus_files', 'delete', SPORT_ADMIN_FILE_READ)
   // `referee_expenses` — club-wide read + create, but update/delete ONLY while
   // the row is unpaid (`payout IS NULL`, migration 363). A reimbursed fee is
   // the basis of a finance_payouts record; editing its amount after the
@@ -3053,10 +3457,28 @@ async function main() {
   // see MEMBER_STAFF_ONLY_FIELDS above. Anything added to `members` becomes
   // Sport-Admin readable AND writable here by default; if a future column must
   // NOT be, this loop is where it has to be field-scoped.
+  //
+  // members READ is everything EXCEPT the three credential columns
+  // (MEMBER_SECRET_FIELDS — audit 2026-09-28, F05), computed from the live
+  // schema so a new column still arrives by default. `ahv_nummer` and `iban`
+  // STAY: the Data Explorer shows and filters them, and the read-privacy hook
+  // limits AHV to the sport admin's own section on root and (since 2026-09-28)
+  // relational reads. What a policy row cannot do is stop a `filter[ahv_nummer]`
+  // oracle across sections — one policy serves vb_admin and bb_admin alike.
+  // Closing that needs the explorer to fetch AHV through an audited,
+  // sport-scoped endpoint, after which `ahv_nummer` leaves this list too.
+  // The same list bounds UPDATE: writing a known `ical_token` onto someone is
+  // reading their calendar, and overwriting `e2ee_*` destroys their documents.
+  // The explorer marks all three read-only and never sends them.
+  const SPORT_ADMIN_MEMBER_FIELDS = (await liveFieldNames('members'))
+    .filter((f) => !MEMBER_SECRET_FIELDS.includes(f))
   for (const col of ['members', 'teams']) {
-    await setPerm(SPORT_ADMIN_POLICY, col, 'create')
-    await setPermRead(SPORT_ADMIN_POLICY, col)
-    await setPerm(SPORT_ADMIN_POLICY, col, 'update')
+    const fields = col === 'members' ? SPORT_ADMIN_MEMBER_FIELDS : null
+    // CREATE too: a new row carrying a chosen `ical_token` / `e2ee_*` is the same
+    // write as the update below (2026-09-28 review of F05).
+    await setPerm(SPORT_ADMIN_POLICY, col, 'create', null, fields)
+    await setPermRead(SPORT_ADMIN_POLICY, col, null, fields)
+    await setPerm(SPORT_ADMIN_POLICY, col, 'update', null, fields)
   }
   // members.delete — deliberately NOT granted (withheld since migration 027,
   // and it stays withheld). The Data Explorer's danger zone (/admin/explore →
@@ -3289,9 +3711,19 @@ async function main() {
 
   console.log('\n10. Backfilling user-level LEADER access for coaches/TRs...')
 
+  // ACTIVE teams only (audit 2026-09-28, F30). The coach/TR junctions are
+  // cloned, not moved, on rollover, so counting every row kept LEADER on
+  // ex-coaches of archived teams for good (members 5, 93, 104, 356 on prod) —
+  // and the stale-revoke below could never fire for them. The team-scoped
+  // LEADER write filters are active-gated already, so this loses no legitimate
+  // write; it ends the lingering reads (trainings, forms, fines history). A coach whose team is re-activated gets the policy back
+  // from the role-sync hook or, at the latest, the next deploy.
+  // The ROLE half of F30 (the `Team Responsible` role carries LEADER at role
+  // level) is §10a below + the rollover/archive re-sync in game-scheduling.js.
   const leaderUserIds = new Set()
-  const coachJunctions = await api('GET', '/items/teams_coaches?fields=members_id.user&limit=-1')
-  const trJunctions = await api('GET', '/items/teams_responsibles?fields=members_id.user&limit=-1')
+  const ACTIVE_TEAM = 'filter[teams_id][active][_eq]=true'
+  const coachJunctions = await api('GET', `/items/teams_coaches?fields=members_id.user&${ACTIVE_TEAM}&limit=-1`)
+  const trJunctions = await api('GET', `/items/teams_responsibles?fields=members_id.user&${ACTIVE_TEAM}&limit=-1`)
   for (const j of [...coachJunctions, ...trJunctions]) {
     const uid = j?.members_id?.user
     if (uid) leaderUserIds.add(uid)
@@ -3329,6 +3761,76 @@ async function main() {
     }
   }
   if (stale.length > 0) console.log(`  ✓ Revoked LEADER policy from ${stale.length} ex-coach/TR user(s)`)
+
+  // ── 10a. Reconcile the Team Responsible ROLE against ACTIVE staff ───
+  //
+  // The other half of F30 (audit 2026-09-28). §10 fixed the per-user LEADER
+  // row, but the `Team Responsible` ROLE also carries LEADER at role level, and
+  // the only thing that sets directus_users.role is the kscw-hooks role sync,
+  // which fires on junction/members edits — never on a raw-knex teams.active
+  // flip (season rollover / archive). So an ex-coach stayed on the role until
+  // someone touched their junctions. This pass applies the same rule as
+  // `resolveDirectusRole` (`hasActiveStaffRow`: a coach/TR row on an ACTIVE
+  // team) as a deploy-time reconcile:
+  //   - it moves users ONLY between Team Responsible / Vorstand / Member. Any
+  //     other role (Administrator, Superuser, Sport Admin, Website Admin …) is
+  //     left alone, and a member whose members.role says superuser/admin or
+  //     vb_admin/bb_admin is skipped — raising someone is the hook's job;
+  //   - it honours --reconcile-dry-run and a blast-radius cap
+  //     (ROLE_RECONCILE_MAX_CHANGES, default 25) like §3b.
+  // `leaderUserIds` (above) is already the active-team staff set.
+  // ⚠ Keep in step with resolveDirectusRole (kscw-hooks) and
+  //   expectedStaffTierRole (kscw-endpoints/game-scheduling.js).
+  console.log(`\n10a. Reconciling Team Responsible role against active staff${RECONCILE_DRY_RUN ? ' (DRY RUN)' : ''}...`)
+  try {
+    const TIER = ['Team Responsible', 'Vorstand', 'Member']
+    const tierIdToName = Object.fromEntries(TIER.filter(n => roleMap[n]).map(n => [roleMap[n], n]))
+    const tierIds = Object.keys(tierIdToName)
+    if (tierIds.length !== TIER.length) {
+      console.warn('  ⚠ a staff-tier role is missing — skipping')
+    } else {
+      const tierUsers = await api('GET', `/users?filter[role][_in]=${tierIds.map(encodeURIComponent).join(',')}&fields=id,role&limit=-1`) || []
+      const tierMembers = await api('GET', '/items/members?filter[user][_nnull]=true&fields=id,user,role&limit=-1') || []
+      const memberByUser = Object.fromEntries(tierMembers.map(m => [m.user, m]))
+      const changes = []
+      for (const u of tierUsers) {
+        const m = memberByUser[u.id]
+        if (!m) continue // no member row → nothing to derive a tier from
+        // A non-array members.role (masked by a restricted token, or null) says
+        // nothing — never demote a Vorstand to Member on missing data.
+        if (!Array.isArray(m.role)) continue
+        const appRoles = m.role
+        if (appRoles.some(r => ['superuser', 'admin', 'vb_admin', 'bb_admin'].includes(r))) continue
+        const want = leaderUserIds.has(u.id) ? 'Team Responsible'
+          : appRoles.includes('vorstand') ? 'Vorstand' : 'Member'
+        const have = tierIdToName[u.role]
+        if (have !== want) changes.push({ userId: u.id, memberId: m.id, have, want })
+      }
+      const ROLE_RECONCILE_MAX_CHANGES = Number(process.env.ROLE_RECONCILE_MAX_CHANGES || 25)
+      for (const c of changes) console.log(`  · member ${c.memberId}: ${c.have} → ${c.want}`)
+      if (changes.length === 0) {
+        console.log('  ✓ Every staff-tier user is on the role their active teams imply')
+      } else if (RECONCILE_DRY_RUN) {
+        console.log(`  (dry run) would change ${changes.length} user role(s)`)
+      } else if (changes.length > ROLE_RECONCILE_MAX_CHANGES) {
+        console.warn(`  ⚠ ${changes.length} role changes exceed ROLE_RECONCILE_MAX_CHANGES=${ROLE_RECONCILE_MAX_CHANGES} — skipped. Review the list, then re-run with a higher cap.`)
+      } else {
+        let changed = 0
+        for (const c of changes) {
+          try {
+            await api('PATCH', `/users/${c.userId}`, { role: roleMap[c.want] })
+            changed++
+          } catch (e) {
+            console.warn(`  ⚠ set role of member ${c.memberId}: ${String(e.message).slice(0, 100)}`)
+          }
+        }
+        console.log(`  ✓ Changed ${changed} user role(s)`)
+      }
+    }
+  } catch (e) {
+    // A reconcile failing must not stop the permission deploy (same rule as §3c).
+    console.warn(`  ⚠ Role reconcile failed (non-fatal): ${String(e.message).slice(0, 200)}`)
+  }
 
   // ── 10b. Retire the legacy "KSCW Coach" policy ────────────────
   // Its unique grants were folded into Team Responsible above; the LEADER

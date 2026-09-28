@@ -41,7 +41,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -1019,12 +1019,21 @@ const newsTypeIcons: Record<string, React.ReactNode> = {
   deadline_reminder: <AlertTriangle className="h-4 w-4" />,
   result_available: <Trophy className="h-4 w-4" />,
   carpool_update: <Car className="h-4 w-4" />,
+  team_added: <UserPlus className="h-4 w-4" />,
 }
 
 function getNotificationPath(n: Notification): string {
   if (n.type === 'duty_delegation_request' || n.activity_type === 'scorer_duty') return '/scorer'
   if (n.type === 'carpool_update' && n.activity_id && ['game', 'training', 'event'].includes(n.activity_type)) {
     return `/carpool/${n.activity_type}/${n.activity_id}`
+  }
+  // activity_id is the team ID; /teams/:teamSlug resolves by name (body.team).
+  if (n.type === 'team_added') {
+    try {
+      const team = n.body ? (JSON.parse(n.body) as { team?: unknown }).team : null
+      if (typeof team === 'string' && team) return `/teams/${encodeURIComponent(team)}`
+    } catch { /* malformed body */ }
+    return '/teams'
   }
   switch (n.activity_type) {
     case 'game': return '/games'

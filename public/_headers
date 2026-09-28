@@ -19,7 +19,10 @@
 #   blob: URL — without it Chrome blocks the frame and the previewer shows an
 #   empty box. Safe because those blobs are re-wrapped with the mime type WE
 #   classified on, so a mislabelled upload lands in the PDF viewer rather than
-#   executing as same-origin HTML. Remote framing stays limited to Turnstile.
+#   executing as same-origin HTML. SVG is never stamped as an image (it is a
+#   scriptable document on the blob's inherited origin) — it becomes
+#   octet-stream, download-only (src/utils/filePreviewKind.ts, audit F67).
+#   Remote framing stays limited to Turnstile.
 # - report-uri/report-to surface violations (early injection signal) to the
 #   client-error collector on the Directus host.
 /*

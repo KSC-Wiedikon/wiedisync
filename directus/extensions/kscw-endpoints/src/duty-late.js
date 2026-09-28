@@ -96,6 +96,21 @@ function inWindow(startMs, arrivalMin) {
   return now >= startMs - arrivalMin * 60 * 1000 && now <= startMs + GRACE_MS
 }
 
+/**
+ * The contact a coach may see for a flagged official: hide_phone / hide_email
+ * honoured server-side (the one place both GET and POST go through — the POST
+ * used to hand back the raw row and re-opened 2026-08-08 #26; audit
+ * 2026-09-28 F22). The flags themselves are returned so the UI can say why.
+ */
+export function revealContact(r) {
+  return {
+    phone: r.hide_phone ? null : (r.phone || null),
+    email: r.hide_email ? null : (r.email || null),
+    hide_phone: !!r.hide_phone,
+    hide_email: !!r.hide_email,
+  }
+}
+
 function parseLate(raw) {
   if (!raw) return {}
   if (typeof raw === 'object') return raw
@@ -209,12 +224,7 @@ export function registerDutyLate(router, ctx) {
       // Opt-out honoured server-side — same reasoning as scorer-contacts.js.
       // This file's own header claimed the flags "are honoured"; until
       // 2026-08-10 they were not (audit 2026-08-08, finding 26).
-      if (r) out[role] = {
-        phone: r.hide_phone ? null : (r.phone || null),
-        email: r.hide_email ? null : (r.email || null),
-        hide_phone: !!r.hide_phone,
-        hide_email: !!r.hide_email,
-      }
+      if (r) out[role] = revealContact(r)
     }
     return out
   }
@@ -479,12 +489,7 @@ export function registerDutyLate(router, ctx) {
       const rep = late[role]
       res.json({
         report: { at: rep.at, by_name: rep.by_name },
-        contact: {
-          phone: official.phone || null,
-          email: official.email || null,
-          hide_phone: !!official.hide_phone,
-          hide_email: !!official.hide_email,
-        },
+        contact: revealContact(official),
       })
     } catch (err) { fail(res, err, req) }
   })

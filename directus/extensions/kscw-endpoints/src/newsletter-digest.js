@@ -8,6 +8,7 @@
 
 import crypto from 'crypto';
 import { buildEmailLayout, formatDateCH, FRONTEND_URL, escHtml } from './email-template.js';
+import { publicEventsScope } from './public-events.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY || '';
@@ -360,8 +361,12 @@ export function registerNewsletterDigest(router, { database, logger, services, g
         .limit(20)
         .select('date', 'time', 'home_team', 'away_team', 'kscw_team', 'type', 'league');
 
-      // Fetch events
-      const events = await database('events')
+      // Fetch events — ONLY the publicly visible ones (2026-09-28 audit F36). The
+      // digest goes to anonymous subscribers and its titles go into the LLM prompt, so
+      // it uses the same scope as kscw.ch + the iCal feed: no team/member/role-targeted
+      // events, no friendlies / training weekends / meetings, nothing cancelled.
+      const events = await publicEventsScope(database)
+        .where('cancelled', false)
         .where('start_date', '>=', agoISO)
         .where('start_date', '<=', futureISO)
         .orderBy('start_date', 'asc')

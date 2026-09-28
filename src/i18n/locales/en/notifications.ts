@@ -13,10 +13,13 @@ export default {
   resultAvailable: 'Result',
   dutyDelegation: 'Scorer duty',
   memberJoinRequest: 'Join request',
+  teamAdded: 'Added to team',
   expenseStatus: 'Expense',
   announcement: 'Club news',
   eventInvite: 'Event invitation',
   member_join_request: '{{memberName}} wants to join {{teamName}}',
+  team_added: '{{by}} added you to {{team}}',
+  team_added_no_by: 'You were added to {{team}}',
   expense_paid: 'Your expense of {{amount}} has been paid.',
   expense_rejected: 'Your expense of {{amount}} was rejected.',
   // Delegation notification messages

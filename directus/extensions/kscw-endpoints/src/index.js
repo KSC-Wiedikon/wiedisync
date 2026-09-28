@@ -1202,15 +1202,21 @@ export default {
       // Both of these scripts drive the ONE shared Volleymanager account, and
       // `childSyncRunning` is keyed per SOURCE — so it never stopped vm_sync and
       // svrz_sync running at once, nor either racing the crons in kscw-hooks.
+      //
+      // Every early return below must hand the claim back: an unreleased claim
+      // blocks every VM job (crons included) for the whole 20-min lease (audit
+      // 2026-09-28 F61). Cheap checks run before the claim; after it, each exit
+      // path releases until the child owns it (then `finish` does).
+      if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
+        return { started: false, reason: 'vm-credentials-missing' }
+      }
       const releaseVm = claimVmAccount(`endpoint:${source}`)
       if (!releaseVm) {
         return { started: false, reason: 'already-running', holder: vmAccountHeldBy() }
       }
-      if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
-        return { started: false, reason: 'vm-credentials-missing' }
-      }
-      const token = await mintSyncToken()
-      if (!token) return { started: false, reason: 'sync-credentials-missing' }
+      let token = null
+      try { token = await mintSyncToken() } catch { token = null }
+      if (!token) { releaseVm(); return { started: false, reason: 'sync-credentials-missing' } }
       childSyncRunning.add(source)
       const startedAt = Date.now()
       const env = {
@@ -1222,7 +1228,14 @@ export default {
         DIRECTUS_TOKEN: token,
         ...extraEnv,
       }
-      const child = spawn('node', [script], { env })
+      let child
+      try {
+        child = spawn('node', [script], { env })
+      } catch (e) {
+        childSyncRunning.delete(source)
+        releaseVm()
+        throw e
+      }
       let stderr = ''
       child.stderr.on('data', (c) => { stderr += c.toString() })
       const timer = setTimeout(() => child.kill('SIGKILL'), 900_000)
@@ -1321,26 +1334,39 @@ export default {
         if (!member) return res.status(404).json({ error: 'Member not found' })
         if (!member.shell) return res.status(400).json({ error: 'Not a shell account' })
 
-        // Permission: admin or coach/TR of member's team
+        // Permission: admin or coach/TR of one of the member's ACTIVE teams.
+        // Was the member's first member_teams row (no ORDER BY, archived teams
+        // included) — both a wrong answer for a multi-team shell and a grant
+        // that outlived the season (audit 2026-09-28 F31).
         const userId = req.accountability.user
         if (!req.accountability.admin) {
-          const memberTeam = await database('member_teams').where('member', member_id).select('team').first()
-          if (!memberTeam) return res.status(403).json({ error: 'Not authorized' })
-          const teamId = memberTeam.team
-          const isCoach = await database('teams_coaches')
-            .where('teams_id', teamId).where('members_id', function () {
-              this.select('id').from('members').where('user', userId)
-            }).first()
-          const isTR = await database('teams_responsibles')
-            .where('teams_id', teamId).where('members_id', function () {
-              this.select('id').from('members').where('user', userId)
-            }).first()
-          if (!isCoach && !isTR) return res.status(403).json({ error: 'Not authorized' })
+          const myMember = database('members').where('user', userId).select('id')
+          const led = await database('member_teams as mt')
+            .join('teams as t', 't.id', 'mt.team')
+            .where('mt.member', member_id)
+            .where('t.active', true)
+            .where((q) => q
+              .whereExists(function () {
+                this.select(1).from('teams_coaches as tc')
+                  .whereRaw('tc.teams_id = mt.team').whereIn('tc.members_id', myMember.clone())
+              })
+              .orWhereExists(function () {
+                this.select(1).from('teams_responsibles as tr')
+                  .whereRaw('tr.teams_id = mt.team').whereIn('tr.members_id', myMember.clone())
+              }))
+            .first('mt.team')
+          if (!led) return res.status(403).json({ error: 'Not authorized' })
         }
 
         const newExpiry = addDays(new Date(), 30).toISOString()
         await database('members').where('id', member_id).update({
           shell_expires: newExpiry, kscw_membership_active: true, shell_reminder_sent: false,
+        })
+        // Actor capture — raw knex bypasses the items audit trail (audit
+        // 2026-09-28 F55).
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'update', collection: 'members',
+          recordId: member_id, data: { shell_expires: newExpiry, via: 'team-invites/extend' },
         })
 
         res.json({ success: true, member_id, shell_expires: newExpiry })
@@ -2675,7 +2701,7 @@ export default {
     registerCarpools(router, ctx)
     registerNominationPush(router, ctx)
     registerIdentityDocument(router, ctx)
-    registerChangePassword(router, ctx)
+    registerChangePassword(router, ctx, { validatePassword })
     registerImpersonate(router, ctx)
     registerHousehold(router, ctx)
     registerJsExport(router, ctx)

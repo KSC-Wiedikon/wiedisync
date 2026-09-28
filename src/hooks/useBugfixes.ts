@@ -129,20 +129,41 @@ export function useBugfixStatus(hash: string | null, startedAt: string | null) {
   })
 }
 
+/**
+ * Trigger an AI fix. Pass `{ hash, acknowledgeUntrusted: true }` only after a
+ * human reviewed error text the server refused as instruction-shaped (422
+ * `suspicious_content`, audit 2026-09-28 F35) — see bugfixErrorInfo().
+ */
 export function useTriggerFix() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (error_hash: string) =>
-      kscwApi('/bugfixes/fix', { method: 'POST', body: { error_hash } }),
+    mutationFn: (vars: string | { hash: string; acknowledgeUntrusted?: boolean }) => {
+      const hash = typeof vars === 'string' ? vars : vars.hash
+      const ack = typeof vars === 'object' && vars.acknowledgeUntrusted === true
+      return kscwApi('/bugfixes/fix', {
+        method: 'POST',
+        body: ack ? { error_hash: hash, acknowledge_untrusted: true } : { error_hash: hash },
+      })
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bugfixes'] }),
   })
+}
+
+/**
+ * Body of POST /bugfixes/deploy/:hash. `reviewed: true` is the superuser's
+ * statement that they read the PR diff (audit 2026-09-28 F35) — the endpoint
+ * answers 422 review_required without it. The dashboard's deploy confirm says
+ * so in words, and this is only ever sent from that confirm.
+ */
+export function deployFixBody(target: 'dev' | 'prod'): { target: 'dev' | 'prod'; reviewed: true } {
+  return { target, reviewed: true }
 }
 
 export function useDeployFix() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ hash, target }: { hash: string; target: string }) =>
-      kscwApi(`/bugfixes/deploy/${hash}`, { method: 'POST', body: { target } }),
+    mutationFn: ({ hash, target }: { hash: string; target: 'dev' | 'prod' }) =>
+      kscwApi(`/bugfixes/deploy/${hash}`, { method: 'POST', body: deployFixBody(target) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bugfixes'] }),
   })
 }
@@ -171,4 +192,26 @@ export function usePublicStatus() {
     queryFn: () => kscwApi<{ data: PublicStatus[] }>('/bugfixes/public'),
     staleTime: 5 * 60_000,
   })
+}
+
+/** The structured part of a refused bugfix call (kscwApi attaches `code` + `body`). */
+export interface BugfixErrorInfo {
+  code: string | null
+  /** Server's human message, falling back to the raw error string. */
+  message: string
+  /** 422 suspicious_content: which heuristics fired. */
+  signals: string[]
+  /** 422 protected_paths: the protected files the PR touches. */
+  files: string[]
+}
+
+export function bugfixErrorInfo(err: unknown): BugfixErrorInfo {
+  const e = err as { code?: unknown; body?: { error?: unknown; signals?: unknown; files?: unknown } } | null
+  const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+  return {
+    code: typeof e?.code === 'string' ? e.code : null,
+    message: typeof e?.body?.error === 'string' ? e.body.error : String(err),
+    signals: strings(e?.body?.signals),
+    files: strings(e?.body?.files),
+  }
 }

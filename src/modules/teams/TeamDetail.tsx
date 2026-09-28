@@ -37,6 +37,7 @@ import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalen
 import TeamCalendar from '../calendar/TeamCalendar'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
+import { rosterAddErrorKey } from './rosterAddError'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'identity' | 'role'
@@ -328,8 +329,9 @@ export default function TeamDetail() {
       await updateRecord('members', member.id, { coach_approved_team: true })
       logActivity('update', 'members', member.id, { coach_approved_team: true })
       refetchPending()
-    } catch {
-      toast.error(t('common:errorSaving'))
+    } catch (err) {
+      const key = rosterAddErrorKey(err)
+      toast.error(key ? t(key) : t('common:errorSaving'))
     } finally {
       inFlightApprove.current.delete(String(member.id))
     }
@@ -395,8 +397,9 @@ export default function TeamDetail() {
       }
       await updateRecord('team_requests', request.id, { status: 'approved' })
       refetchTeamRequests()
-    } catch {
-      toast.error(t('common:errorSaving'))
+    } catch (err) {
+      const key = rosterAddErrorKey(err)
+      toast.error(key ? t(key) : t('common:errorSaving'))
     } finally {
       inFlightApproveReq.current.delete(String(request.id))
     }

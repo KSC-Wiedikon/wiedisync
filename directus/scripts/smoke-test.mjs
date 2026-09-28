@@ -168,6 +168,65 @@ async function main() {
   await check('announcements (published)', () => api('GET', '/items/announcements?limit=10'))
   await check('user_logs (own)', () => api('GET', `/items/user_logs?limit=10`))
 
+  // 3b. Negative self-scope UPDATE assertions (security audit 2026-09-28, F06).
+  //
+  // The Member update grants on these collections filter `member.user =
+  // $CURRENT_USER` against the PRE-update row, so the policy alone let a member
+  // re-point their OWN row at somebody else (auto-decline a victim's RSVPs via
+  // an absence, redirect their pushes, forge votes). The kscw-hooks
+  // IMMUTABLE_ON_UPDATE filter must refuse that with a 403.
+  //
+  // ⚠ Non-mutating by construction: the probe targets a member id that does not
+  // exist. With the guard in place → 403 and nothing is written. With the guard
+  // MISSING → the members FK refuses the write (4xx) and still nothing is
+  // written — but that is reported as a FAILURE, because only the 403 proves
+  // the guard. A real teammate id is never used here, on any environment.
+  // Skipped per collection when the token has no own row to probe (and when
+  // `memberId` is unresolved — dev's /items reads are licence-restricted).
+  console.log('\n[smoke] Self-scope update guards (negative):')
+  const NONEXISTENT_MEMBER = 2147483000
+  for (const coll of ['participations', 'absences', 'push_subscriptions', 'notifications', 'poll_votes']) {
+    const label = `${coll}: re-pointing own row's member refused (must 403)`
+    if (!Number.isInteger(memberId)) { console.log(`  ${label} … (skipped — no member id)`); continue }
+    const own = await api('GET', `/items/${coll}?filter[member][_eq]=${memberId}&fields=id&limit=1`)
+    const rowId = own.json?.data?.[0]?.id
+    if (rowId == null) { console.log(`  ${label} … (skipped — no own row)`); continue }
+    await check(label, async () => {
+      const r = await api('PATCH', `/items/${coll}/${rowId}`, { member: NONEXISTENT_MEMBER })
+      return r.status === 403
+        ? { ...r, status: 200, ok: true }
+        : { ...r, status: 500, ok: false, text: `expected 403 from the immutability guard, got ${r.status} ${(r.text || '').slice(0, 120)}` }
+    })
+  }
+
+  // 3c. Files are an allow-list (audit 2026-09-28, F01/F25). An ANONYMOUS
+  // listing may return only the public images folder, plus an anonymous upload
+  // in its 2-minute read-back window (setup-permissions.mjs §5). A folder-less
+  // row, or any other folder, means receipts / form answers are public again.
+  // A 401/403 (listing refused outright — e.g. dev's keyless licence) is safe.
+  await check('directus_files: anonymous listing is public-folder only', async () => {
+    const PUBLIC_IMAGES_FOLDER = '0e1a0387-0000-4000-8000-000000000003'
+    const ANON_WINDOW_FOLDERS = new Set([
+      '0e1a0387-0000-4000-8000-000000000004', // upload quarantine
+      '0e1a0387-0000-4000-8000-000000000002', // form uploads
+    ])
+    // Ask for the NON-public rows only — an unfiltered first page would hide a
+    // leak behind 200 public images. `_neq` alone drops NULL-folder rows in SQL,
+    // hence the explicit `_null` arm.
+    const nonPublic = `filter[_or][0][folder][_null]=true&filter[_or][1][folder][_neq]=${PUBLIC_IMAGES_FOLDER}`
+    const res = await fetch(`${URL}/files?${nonPublic}&fields=id,folder,uploaded_by&limit=200`)
+    if (res.status === 401 || res.status === 403) return { status: 200, ok: true }
+    const text = await res.text()
+    if (!res.ok) return { status: res.status, ok: false, text }
+    let rows = []
+    try { rows = JSON.parse(text)?.data || [] } catch { /* */ }
+    const leaked = rows.filter((f) => f.folder !== PUBLIC_IMAGES_FOLDER
+      && !(ANON_WINDOW_FOLDERS.has(f.folder) && f.uploaded_by == null))
+    return leaked.length
+      ? { status: 500, ok: false, text: `${leaked.length} non-public file(s) anonymously listable, e.g. ${leaked[0].id} (folder ${leaked[0].folder ?? 'NULL'})` }
+      : { status: 200, ok: true }
+  })
+
   // 4. Custom endpoint sanity
   await check('kscw/web-push/vapid-public-key', () => api('GET', '/kscw/web-push/vapid-public-key'))
   // My finances (migration 363): the member page reads invoices AND the
@@ -305,6 +364,57 @@ async function main() {
         return r.status === 403
           ? { ...r, status: 200, ok: true }
           : { ...r, status: 500, ok: false, text: `expected 403, got ${r.status}` }
+      })
+    }
+
+    // 4b.3b — form file answers (audit 2026-09-28 F01). The club-wide LEADER read
+    // of the Form uploads folder is gone; a coach opens an answer only through
+    // GET /kscw/forms/:formId/files/:fileId. Listing that folder may return the
+    // coach's OWN uploads (Member read-back branch) and nothing else. Skipped for
+    // a coach who is also board / sport admin (they read the folder by design).
+    // A 401/403 on the listing (dev's keyless licence) is safe.
+    if (!coachIsWider) {
+      await check('directus_files: coach sees no foreign form uploads', async () => {
+        const FORM_UPLOADS_FOLDER = '0e1a0387-0000-4000-8000-000000000002'
+        const r = await api('GET', `/files?filter[folder][_eq]=${FORM_UPLOADS_FOLDER}&fields=id,uploaded_by&limit=200`)
+        if (r.status === 401 || r.status === 403) return { ...r, status: 200, ok: true }
+        if (r.status >= 400) return r
+        const coachUserId = cme.json?.data?.id
+        const foreign = (r.json?.data || []).filter((f) => !coachUserId || f.uploaded_by !== coachUserId)
+        return foreign.length
+          ? { ...r, status: 500, ok: false, text: `${foreign.length} foreign form-upload file(s) readable by a coach, e.g. ${foreign[0].id}` }
+          : { ...r, status: 200, ok: true }
+      })
+    }
+
+    // 4b.4 — junction re-point (security audit 2026-09-28, F08). The coach's
+    // OWN teams_coaches / teams_responsibles row passes the LEADER update filter
+    // (checked on the pre-update row); moving it to another team must still be
+    // refused — by the kscw-hooks IMMUTABLE_ON_UPDATE filter (403), with
+    // migration 389's trigger behind it. Non-mutating: the target team id does
+    // not exist, so a missing guard still fails on the FK (400
+    // INVALID_FOREIGN_KEY — reported as a failure).
+    // ⚠ Deploy order: `deploy:*` runs this smoke (db:deploy) BEFORE ext:deploy
+    // ships the hooks, so on the first deploy of 389 only the trigger answers.
+    // Its check_violation is not a Directus error class → 500
+    // INTERNAL_SERVER_ERROR (message hidden on prod). That is accepted as the
+    // trigger's refusal; demanding 403 there would stop the && chain before the
+    // hooks ever deploy. A 2xx or an FK 400 still fails.
+    for (const coll of ['teams_coaches', 'teams_responsibles']) {
+      const label = `${coll}: re-pointing own staff row refused (must 403)`
+      if (!coachMemberId) { console.log(`  ${label} … (skipped — no coach member id)`); continue }
+      const own = await api('GET', `/items/${coll}?filter[members_id][_eq]=${coachMemberId}&fields=id&limit=1`)
+      const rowId = own.json?.data?.[0]?.id
+      if (rowId == null) { console.log(`  ${label} … (skipped — no own row)`); continue }
+      await check(label, async () => {
+        const r = await api('PATCH', `/items/${coll}/${rowId}`, { teams_id: 2147483000 })
+        const body = r.text || ''
+        const refused = r.status === 403
+          || /cannot be changed after creation|IMMUTABLE_FIELD/.test(body)
+          || (r.status >= 500 && /INTERNAL_SERVER_ERROR/.test(body))
+        return refused
+          ? { ...r, status: 200, ok: true }
+          : { ...r, status: 500, ok: false, text: `expected 403 (hook) or the 389 trigger refusal, got ${r.status} ${body.slice(0, 120)}` }
       })
     }
 

@@ -27,16 +27,7 @@ import {
 } from './ui/dialog'
 import { sanitizeUrl } from '../utils/sanitizeUrl'
 import { captureApiError } from '../lib/sentry'
-
-type PreviewKind = 'image' | 'pdf' | 'other'
-
-/** Classify by mime type. Anything we can't render inline is 'other'. */
-function classify(mime: string | null | undefined): PreviewKind {
-  const type = (mime || '').split(';')[0].trim().toLowerCase()
-  if (type.startsWith('image/')) return 'image'
-  if (type === 'application/pdf') return 'pdf'
-  return 'other'
-}
+import { classify, safeBlobType, type PreviewKind } from '../utils/filePreviewKind'
 
 /** Extension for the download name when the caller's filename has none. */
 function extFor(mime: string, kind: PreviewKind): string {
@@ -96,9 +87,9 @@ export function FilePreview({
       // whose stored mimetype lies (an .html uploaded as a PDF) then lands in the
       // PDF viewer and fails there instead of executing as same-origin HTML in
       // the iframe. These are user-uploaded documents.
-      objectUrl = URL.createObjectURL(
-        new Blob([bytes], { type: kind === 'other' ? 'application/octet-stream' : (mime as string) }),
-      )
+      // Same for images: only a vetted raster type is ever stamped (SVG becomes
+      // octet-stream — see filePreviewKind.ts, audit F67).
+      objectUrl = URL.createObjectURL(new Blob([bytes], { type: safeBlobType(mime) }))
       if (cancelled) {
         URL.revokeObjectURL(objectUrl)
         return

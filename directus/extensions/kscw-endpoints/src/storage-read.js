@@ -64,6 +64,15 @@ export async function readManagedFile(fileId, { services, getSchema, database },
   return { file, bytes: Buffer.concat(chunks) }
 }
 
+/** PDF + raster images: the only types a user upload is ever served inline as. */
+export const INLINE_SAFE_TYPE = /^(application\/pdf|image\/(png|jpe?g|gif|webp|heic|heif|avif))$/i
+
+/** A header-safe Content-Disposition value (ASCII-only quoted filename). */
+export function contentDisposition(kind, filename) {
+  const safeName = String(filename || 'file').replace(/[^\w.\- ]/g, '_').slice(0, 150) || 'file'
+  return `${kind === 'inline' ? 'inline' : 'attachment'}; filename="${safeName}"`
+}
+
 /**
  * Stream a managed file straight to an Express response. Preferred over readManagedFile()
  * when the bytes are only being forwarded to the client (no OCR, no attachment) — it keeps
@@ -80,20 +89,21 @@ export async function streamManagedFile(fileId, { services, getSchema, database 
 
   const { stream, file } = await assets.getAsset(fileId, null)
 
-  const contentType = type || file.type || 'application/octet-stream'
+  // These are USER-uploaded files served on the API origin. Only a PDF or a raster
+  // image is ever served inline under its own type: Chrome's PDF viewer refuses to
+  // render inside a CSP sandbox, and a raster image cannot execute anything.
+  // Everything else — SVG, HTML, XML, text, a client-mislabelled type — goes out as
+  // application/octet-stream with `attachment` (never rendered on
+  // directus.kscw.ch), still sandboxed + nosniff as defence in depth (audit
+  // 2026-09-28). Callers that fetch the bytes as a blob (identity ciphertext,
+  // FilePreview) are unaffected by the disposition.
+  const declared = String(type || file.type || '').toLowerCase().trim()
+  const safe = INLINE_SAFE_TYPE.test(declared)
+  const contentType = safe ? declared : 'application/octet-stream'
   res.setHeader('Content-Type', contentType)
-  // These are USER-uploaded files served inline on the API origin. nosniff stops a
-  // browser from upgrading a mislabelled upload to HTML/script; anything that is
-  // not a PDF or a raster image is additionally sandboxed (opaque origin, no
-  // script), so an uploaded SVG/HTML cannot run as directus.kscw.ch. PDFs and
-  // raster images are exempt: Chrome's PDF viewer refuses to render inside a
-  // CSP sandbox, and a raster image cannot execute anything.
   res.setHeader('X-Content-Type-Options', 'nosniff')
-  if (!/^(application\/pdf|image\/(png|jpe?g|gif|webp|heic|heif|avif))\b/i.test(contentType)) {
-    res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'")
-  }
-  const safeName = String(filename || file.filename_download || 'file').replace(/[^\w.\- ]/g, '_')
-  res.setHeader('Content-Disposition', `inline; filename="${safeName}"`)
+  if (!safe) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'")
+  res.setHeader('Content-Disposition', contentDisposition(safe ? 'inline' : 'attachment', filename || file.filename_download))
 
   return new Promise((resolve, reject) => {
     stream.on('error', reject)

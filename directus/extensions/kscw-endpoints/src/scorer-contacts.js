@@ -23,6 +23,8 @@
  * they don't need this endpoint; a caller with no led teams gets {}.
  */
 
+import { revealContact } from './duty-late.js'
+
 // Per-role duty-team FK + assigned-member FK columns on `games`.
 const VB_ROLES = [
   { duty: 'scorer_duty_team', member: 'scorer_member' },
@@ -162,15 +164,10 @@ export function registerScorerContacts(router, { database, logger }) {
       // /items/members at all (audit 2026-08-08, finding 26). A flag the client
       // is expected to honour is not a privacy control.
       // The flags stay in the response so the UI can explain the absence.
+      // One implementation of the mask for every official-contact reveal
+      // (duty-late.js revealContact, audit 2026-09-28 F22/F62).
       const data = {}
-      for (const r of rows) {
-        data[String(r.id)] = {
-          phone: r.hide_phone ? null : (r.phone || null),
-          email: r.hide_email ? null : (r.email || null),
-          hide_phone: !!r.hide_phone,
-          hide_email: !!r.hide_email,
-        }
-      }
+      for (const r of rows) data[String(r.id)] = revealContact(r)
       res.json({ data })
     } catch (err) {
       log.error({

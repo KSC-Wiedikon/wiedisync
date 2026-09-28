@@ -22,6 +22,7 @@ import type { Event, EventSession, Team } from '../../types'
 import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import { createRecord, deleteRecord, updateRecord, kscwApi, m2mUpdatePayload } from '../../lib/api'
+import { hasApiErrorCode } from '../../lib/apiErrorCode'
 import { toast } from 'sonner'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
@@ -547,12 +548,22 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         void kscwApi(`/events/${eventId}/notify`, {
           method: 'POST',
           body: { send_email: sendEmailInvite },
-        }).catch(() => toast.error(t('inviteFailed')))
+        }).catch((err: { code?: string }) => {
+          // Non-privileged creators are capped server-side (audit 2026-09-28
+          // F17): a club-wide audience or a burst of sends is refused outright
+          // with a code — say which, instead of the generic failure.
+          const code = err?.code
+          if (code === 'audience_too_large' || code === 'email_audience_too_large') toast.error(t('inviteAudienceTooLarge'))
+          else if (code === 'notify_rate_limited' || code === 'email_rate_limited') toast.error(t('inviteRateLimited'))
+          else toast.error(t('inviteFailed'))
+        })
       }
 
       onSave()
-    } catch {
-      setError(tc('errorSaving'))
+    } catch (err) {
+      // kscw-hooks events_members guard (audit 2026-09-28 F19): a personal
+      // invitation on an event the caller does not manage is refused.
+      setError(hasApiErrorCode(err, 'NOT_EVENT_MANAGER') ? t('notEventManager') : tc('errorSaving'))
     } finally {
       setSubmitting(false)
     }

@@ -189,6 +189,14 @@ const invRows = inv.rows.filter((r) => {
 })
 const invDupCount = inv.rows.length - invRows.length
 
+// ⚠ Dev target: recipient_email is a SEND target and the one PII column this
+// importer writes — map it exactly like refresh-dev-scrub.sql does (audit
+// 2026-09-28, F14 remainder), so a dev finance sync-down neither re-imports
+// real addresses nor lets a dev "send invoice" reach a member. Loaded only for
+// dev: on prod the identity is used and the emitted SQL is unchanged.
+const recipientEmail = envName === 'dev'
+  ? (await import('./import-clubdesk-dev-scrub.mjs')).createDevScrubber().email
+  : (e) => e
 const invoiceValues = invRows.map(r => {
   const v = (n) => g(inv, r, n)
   // clubdesk_id is the invoice Nummer; the recipient's [Id] rides along as
@@ -199,7 +207,7 @@ const invoiceValues = invRows.map(r => {
     `${sql(amount(v('Offener Betrag')))}, ${sql(amount(v('Überbezahlt Betrag')))}, ${sql(amount(v('Abgeschrieben Betrag')))}, ` +
     `${sql(clean(v('Zahlungsart')))}, ${sql(clean(v('Referenznummer')))}, ${sql(clean(v('Beitragskategorie')))}, ` +
     `${sql(date(v('Abgeschlossen am')))}, ${sql(datetime(v('Erstellt am')))}, ${sql(datetime(v('Geändert am')))}, ` +
-    `${sql(clean(v('Empfänger')))}, ${sql(clean(v('E-Mail')))}, ${sql(clean(v('Benutzer-Id')))}, ` +
+    `${sql(clean(v('Empfänger')))}, ${sql(recipientEmail(clean(v('E-Mail'))))}, ${sql(clean(v('Benutzer-Id')))}, ` +
     `${sql(clean(v('[Id]')))})`
 }).join(',\n  ')
 

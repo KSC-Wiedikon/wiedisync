@@ -13,8 +13,10 @@ import {
   useDeployFix,
   useDismissFix,
   useReopenFix,
+  bugfixErrorInfo,
   type BugfixIssue,
 } from '../../hooks/useBugfixes'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertDialog,
@@ -142,27 +144,63 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
   const deployFix = useDeployFix()
   const dismissFix = useDismissFix()
   const reopenFix = useReopenFix()
+  const confirm = useConfirm()
 
   const status = issue.annotation?.status === 'solved'
     ? 'dismissed'
     : issue.fix_status ?? 'new'
 
+  // 422 suspicious_content (audit 2026-09-28 F35): the error text looks like
+  // instructions to the AI. Show which heuristics fired and resend only after an
+  // explicit, danger-styled "I reviewed this text".
+  async function onFixError(err: unknown) {
+    const info = bugfixErrorInfo(err)
+    if (info.code !== 'suspicious_content') { toast.error(info.message); return }
+    const ok = await confirm({
+      title: t('suspiciousTitle'),
+      message: t('suspiciousMessage', { signals: info.signals.join(', ') || '—' }),
+      confirmLabel: t('suspiciousConfirm'),
+      danger: true,
+    })
+    if (!ok) return
+    triggerFix.mutate(
+      { hash: issue.hash, acknowledgeUntrusted: true },
+      { onError: (e) => toast.error(bugfixErrorInfo(e).message) },
+    )
+  }
+  // 422 protected_paths / pr_too_large: one-click merge is refused on purpose —
+  // point the admin at the PR for a manual review + merge on GitHub.
+  function onDeployError(err: unknown) {
+    const info = bugfixErrorInfo(err)
+    const prUrl = sanitizeUrl(issue.pr_url || '')
+    const action = prUrl ? { label: t('openPr'), onClick: () => window.open(prUrl, '_blank', 'noopener,noreferrer') } : undefined
+    if (info.code === 'protected_paths') {
+      toast.error(t('deployProtectedPaths', { files: info.files.join(', ') || '—' }), { action, duration: 15_000 })
+    } else if (info.code === 'pr_too_large') {
+      toast.error(t('deployPrTooLarge'), { action, duration: 15_000 })
+    } else if (info.code === 'review_required') {
+      // The deploy was sent without `reviewed: true` — read the diff first.
+      toast.error(t('deployReviewRequired'), { action, duration: 15_000 })
+    } else {
+      toast.error(info.message)
+    }
+  }
   function handleFix() {
     setConfirmAction({
       message: t('confirmFix'),
-      onConfirm: () => triggerFix.mutate(issue.hash, { onError: (err) => toast.error(String(err)) }),
+      onConfirm: () => triggerFix.mutate(issue.hash, { onError: (err) => { void onFixError(err) } }),
     })
   }
   function handleDeployDev() {
     setConfirmAction({
       message: t('confirmDeployDev'),
-      onConfirm: () => deployFix.mutate({ hash: issue.hash, target: 'dev' }, { onError: (err) => toast.error(String(err)) }),
+      onConfirm: () => deployFix.mutate({ hash: issue.hash, target: 'dev' }, { onError: onDeployError }),
     })
   }
   function handleDeployProd() {
     setConfirmAction({
       message: t('confirmDeployProd'),
-      onConfirm: () => deployFix.mutate({ hash: issue.hash, target: 'prod' }, { onError: (err) => toast.error(String(err)) }),
+      onConfirm: () => deployFix.mutate({ hash: issue.hash, target: 'prod' }, { onError: onDeployError }),
     })
   }
   function handleDismiss() {

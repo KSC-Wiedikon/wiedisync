@@ -245,4 +245,5 @@ export default {
   householdNotSetUp: 'Das Profil isch no nöd igrichtet — du bisch wieder uf dim eigete Konto',
   householdNotWhileActing: 'Nöd verfüegbar, solang du es anders Konto bruchsch',
   householdSwitchTo: 'Wächsle zu {{names}}',
+  fileNotYours: 'Du chasch nur es Bild bruuche, wo du sälber ufeglade häsch',
 }

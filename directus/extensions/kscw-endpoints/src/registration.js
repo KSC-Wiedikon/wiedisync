@@ -1778,6 +1778,14 @@ export function registerRegistration(router, { database, logger, services, getSc
       // until a reviewer opened one (REG-2026-4844). The dropped prefix was never written
       // anywhere — unrecoverable; five registrants had to re-upload.
       //
+      // Everything that awaits happens BEFORE the pipe starts (2026-09-28 audit F16):
+      // an async gap between `req.pipe()` and the consumer is exactly when an early
+      // stream error has nobody listening. Same pattern as scorer-exam.js.
+      const { FilesService } = services
+      const schema = await getSchema()
+      const filesService = new FilesService({ schema, knex: database })
+      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
+
       // A Transform COUNTS AND FORWARDS each chunk, so the bytes reach uploadOne intact
       // while the cap still fires mid-stream (no need to buffer the whole body first).
       let bytes = 0
@@ -1791,22 +1799,39 @@ export function registerRegistration(router, { database, logger, services, getSc
           cb(null, chunk)
         },
       })
+      // ⚠⚠ NOT OPTIONAL: a stream 'error' with no listener is an uncaught exception that
+      // kills the Directus process (client abort, oversize body). Attach it at creation,
+      // before the first chunk can flow; capture so the real 413 reaches the client.
+      let streamError = null
+      capped.on('error', (err) => { streamError = err })
       req.on('error', (err) => capped.destroy(err))
       req.pipe(capped)
 
-      const { FilesService } = services
-      const schema = await getSchema()
-      const filesService = new FilesService({ schema, knex: database })
-      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
-      const newFileId = await filesService.uploadOne(capped, {
-        storage,
-        filename_download: filename,
-        type,
-        folder: REGISTRATION_FILES_FOLDER,
-      })
+      let newFileId
+      try {
+        newFileId = await filesService.uploadOne(capped, {
+          storage,
+          filename_download: filename,
+          type,
+          folder: REGISTRATION_FILES_FOLDER,
+        })
+      } catch (err) {
+        throw streamError || err
+      }
+      // A rejected stream that still resolved would otherwise store a truncated file.
+      if (streamError) {
+        // uploadOne resolved on a truncated body — drop the partial file row + bytes.
+        try { await filesService.deleteOne(newFileId) } catch (e) {
+          log.warn({ msg: 'registration upload: could not purge truncated file', file: newFileId, error: e?.message })
+        }
+        throw streamError
+      }
       log.info({ msg: 'Registration document uploaded', file: newFileId, type, bytes })
       return res.json({ id: newFileId })
     } catch (err) {
+      if (err?.status === 413) {
+        return res.status(413).json({ error: 'File too large (max 10 MB).' })
+      }
       log.error({
         msg: `registration upload: ${err.message}`,
         endpoint: 'registration/upload',

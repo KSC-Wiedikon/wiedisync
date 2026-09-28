@@ -34,6 +34,11 @@
  * time, so they can open it for any team in the same pre-kickoff window a coach could. This
  * does NOT retroactively unlock documents uploaded before this change — their envelope sets
  * were fixed at upload time and cannot be widened without the owner re-uploading.
+ * ⚠ Until the 2026-09-28 audit (F12) that sentence was false: the repair path
+ * (`/identity/gaps*` → `/identity/envelopes`) used the same `recipientsFor()` list, so a
+ * coach's "Repair access" or the owner's "team leader" banner quietly wrapped OLDER documents
+ * to every superadmin. The repair now excludes superadmin-only recipients
+ * (`{ superadmins: false }`) — only a fresh upload, the owner's own act, adds them.
  *
  * THE TIME WINDOW IS NOT A CRYPTOGRAPHIC BOUNDARY. A hall has no signal, so the coach must
  * be able to pre-load before they travel; that means the key reaches their device early, and
@@ -53,9 +58,35 @@ import { streamManagedFile } from './storage-read.js'
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 
+// Per-login cap on ciphertext uploaded but not (yet) bound to an identity_documents row
+// (2026-09-28 audit F34). The client uploads and binds back to back, so a legitimate member
+// never holds more than one pending file; unbound files older than the grace period are
+// abandoned attempts and are swept (bytes included) the next time that login uploads.
+const MAX_PENDING_UPLOADS = 3
+const PENDING_GRACE_MS = 60 * 60 * 1000
+// Uploads still streaming, per login. A file only counts as pending once `uploaded_by` is
+// stamped after uploadOne, so without this a parallel burst would all pass the cap. One
+// Directus process, so a module Map is the whole picture.
+const inFlightUploads = new Map()
+
 // Fixed in migration 212. Ciphertext only ever lands here, and the Member file-read policy
 // excludes it — so it is never reachable via /assets, only through this endpoint.
 const IDENTITY_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
+
+// The plaintext type the uploading browser declares for the ciphertext. It is only
+// ever used to label the decrypted blob client-side, but a stored value should not
+// be attacker-chosen (an `image/svg+xml` or `text/html` label would make a viewer
+// render a script). Anything outside the photo / PDF set is stored as
+// application/octet-stream (audit 2026-09-28).
+const IDENTITY_MIME_ALLOW = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf',
+])
+export function safeIdentityMime(mime) {
+  const m = String(mime ?? '').toLowerCase().split(';')[0].trim()
+  if (!m) return null
+  if (m === 'image/jpg') return 'image/jpeg'
+  return IDENTITY_MIME_ALLOW.has(m) ? m : 'application/octet-stream'
+}
 
 // The server releases key + bytes this far ahead so the coach can pre-load while they still
 // have a connection. The 45-minute DISPLAY window is enforced by the client (see above).
@@ -87,6 +118,43 @@ function gameStartMs(game) {
   const guess = Date.UTC(y, mo - 1, d, Number(hh), Number(mm))
   const corrected = guess - zurichOffsetMs(guess)
   return guess - zurichOffsetMs(corrected)
+}
+
+/**
+ * Remove identity-folder files (row AND bytes) through FilesService. Used for superseded
+ * ciphertext — a replaced, deleted or re-keyed document — and for abandoned uploads
+ * (2026-09-28 audit F34: they were never removed, so an ID a member deleted stayed on disk).
+ * Never throws: the caller's own write has already committed, and a leftover blob is a
+ * retention gap, not a reason to fail the member's request. Only ever passed ids read from
+ * our own tables and re-checked against IDENTITY_FOLDER here.
+ */
+async function purgeIdentityFiles(ctx, fileIds, log) {
+  const ids = [...new Set((fileIds || []).filter(Boolean).map(String))]
+  if (!ids.length) return 0
+  try {
+    const { database } = ctx
+    // Never a file still referenced by a document, never one outside the identity folder.
+    const rows = await database('directus_files as f')
+      .whereIn('f.id', ids)
+      .where('f.folder', IDENTITY_FOLDER)
+      .whereNotExists(function () {
+        this.select(database.raw('1')).from('identity_documents as d').whereRaw('d.file = f.id')
+      })
+      .select('f.id')
+    if (!rows.length) return 0
+    const { FilesService } = ctx.services
+    const filesService = new FilesService({ schema: await ctx.getSchema(), knex: database })
+    let removed = 0
+    for (const r of rows) {
+      try { await filesService.deleteOne(r.id); removed++ } catch (err) {
+        log.warn({ msg: `identity file purge failed: ${err.message}`, file: r.id })
+      }
+    }
+    return removed
+  } catch (err) {
+    log.warn({ msg: `identity file purge failed: ${err.message}` })
+    return 0
+  }
 }
 
 /** Caller → their members row. */
@@ -222,7 +290,7 @@ async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
  * would wrap a member's passport to a stranger who happens to share that number. Same class
  * of bug as the 2026-05-12 ghost roster, with a much worse blast radius.
  */
-async function recipientsFor(database, memberId) {
+async function recipientsFor(database, memberId, { superadmins = true } = {}) {
   const teamIds = await memberTeamIds(database, memberId)
   const sharedTeamIds = await sharedGameTeamIds(database, memberId, teamIds)
   const allTeamIds = [...new Set([...teamIds, ...sharedTeamIds])]
@@ -236,7 +304,10 @@ async function recipientsFor(database, memberId) {
     staff = [...coaches, ...responsibles].map((r) => Number(r.members_id))
   }
 
-  const superIds = await superadminIds(database)
+  // Superadmins ride along only on a fresh upload (the owner's own act). The repair paths
+  // pass `superadmins: false` — see the header (2026-09-28 audit F12). A superadmin who is
+  // also staff of one of the member's teams is still in `staff` above.
+  const superIds = superadmins ? await superadminIds(database) : []
 
   const ids = [...new Set([Number(memberId), ...staff, ...superIds])].filter(Number.isInteger)
 
@@ -436,8 +507,11 @@ export function registerIdentityDocument(router, ctx) {
 
       let orphanedDocs = 0
       let orphanedEnvelopes = 0
+      let orphanedFiles = []
       await database.transaction(async (trx) => {
         if (replacing) {
+          orphanedFiles = (await trx('identity_documents').where('member', me.id).select('file'))
+            .map((r) => r.file)
           orphanedDocs = await trx('identity_documents').where('member', me.id).del()
           orphanedEnvelopes = await trx('identity_document_keys').where('recipient', me.id).del()
         }
@@ -448,6 +522,9 @@ export function registerIdentityDocument(router, ctx) {
           e2ee_key_created: new Date(),
         })
       })
+
+      // The re-keyed document is unreadable by construction — drop its ciphertext too (F34).
+      if (orphanedFiles.length) await purgeIdentityFiles(ctx, orphanedFiles, log)
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
@@ -501,6 +578,7 @@ export function registerIdentityDocument(router, ctx) {
   // Raw body, not multipart: the payload is already-encrypted bytes, so there is nothing to
   // parse. Stream straight into FilesService.
   router.post('/identity/upload', async (req, res) => {
+    let inFlightClaimed = false
     try {
       const me = await callerMember(database, req)
       const isAdmin = req.accountability?.admin === true
@@ -509,6 +587,37 @@ export function registerIdentityDocument(router, ctx) {
       if (Number(req.headers['content-length'] || 0) > UPLOAD_MAX_BYTES) {
         return res.status(413).json({ error: 'File too large', code: 'too_large' })
       }
+
+      // Per-login cap (2026-09-28 audit F34). Sweep this login's abandoned uploads first,
+      // then refuse while too many fresh ones are still unbound — a loop of uploads that
+      // never bind cannot fill the disk.
+      const uploader = req.accountability?.user ?? null
+      if (uploader) {
+        const pending = await database('directus_files as f')
+          .where('f.folder', IDENTITY_FOLDER)
+          .where('f.uploaded_by', uploader)
+          .whereNotExists(function () {
+            this.select(database.raw('1')).from('identity_documents as d').whereRaw('d.file = f.id')
+          })
+          .select('f.id', 'f.uploaded_on')
+        const cutoff = Date.now() - PENDING_GRACE_MS
+        const stale = pending.filter((f) => f.uploaded_on && new Date(f.uploaded_on).getTime() < cutoff)
+        if (stale.length) await purgeIdentityFiles(ctx, stale.map((f) => f.id), log)
+        if (pending.length - stale.length + (inFlightUploads.get(uploader) || 0) >= MAX_PENDING_UPLOADS) {
+          return res.status(429).json({ error: 'Too many pending uploads', code: 'too_many_pending' })
+        }
+        // Claimed synchronously after the check (no await in between), released in the
+        // finally below once the file is stamped or the upload failed.
+        inFlightUploads.set(uploader, (inFlightUploads.get(uploader) || 0) + 1)
+        inFlightClaimed = true
+      }
+
+      // Everything that awaits happens BEFORE the pipe starts (2026-09-28 audit F16): an
+      // async gap between `req.pipe()` and the consumer is exactly when an early stream
+      // error has nobody listening. Same pattern as scorer-exam.js.
+      const { FilesService } = ctx.services
+      const filesService = new FilesService({ schema: await ctx.getSchema(), knex: database })
+      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
 
       // ⚠ The byte counter MUST sit INSIDE the pipeline, never in a `req.on('data')`
       // listener. Attaching a 'data' listener switches the request into flowing mode
@@ -529,18 +638,35 @@ export function registerIdentityDocument(router, ctx) {
           cb(null, chunk)
         },
       })
+      // ⚠⚠ NOT OPTIONAL: a stream 'error' with no listener is an uncaught exception that
+      // kills the Directus process (client abort, oversize body). Attach it at creation,
+      // before the first chunk can flow; capture so the real 413 reaches the client.
+      let streamError = null
+      capped.on('error', (err) => { streamError = err })
       req.on('error', (err) => capped.destroy(err))
       req.pipe(capped)
 
-      const { FilesService } = ctx.services
-      const filesService = new FilesService({ schema: await ctx.getSchema(), knex: database })
-      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
-      const fileId = await filesService.uploadOne(capped, {
-        storage,
-        filename_download: 'identity.enc',
-        type: 'application/octet-stream',
-        folder: IDENTITY_FOLDER,
-      })
+      let fileId
+      try {
+        fileId = await filesService.uploadOne(capped, {
+          storage,
+          filename_download: 'identity.enc',
+          type: 'application/octet-stream',
+          folder: IDENTITY_FOLDER,
+        })
+      } catch (err) {
+        throw streamError || err
+      }
+      if (streamError) {
+        // Never keep a truncated blob: ciphertext cannot be checked for integrity later.
+        await purgeIdentityFiles(ctx, [fileId], log)
+        throw streamError
+      }
+      // FilesService ran without accountability, so it stamped no uploader. Record the login
+      // ourselves — it is what the pending-upload cap above counts on.
+      if (uploader) {
+        await database('directus_files').where('id', fileId).update({ uploaded_by: uploader })
+      }
 
       res.json({ data: { id: fileId, bytes } })
     } catch (err) {
@@ -548,6 +674,13 @@ export function registerIdentityDocument(router, ctx) {
       log.error({ msg: `POST identity/upload: ${err.message}`, stack: err.stack })
       if (!res.headersSent) {
         res.status(status).json({ error: status === 413 ? 'File too large' : 'Internal error' })
+      }
+    } finally {
+      if (inFlightClaimed) {
+        const uploader = req.accountability?.user
+        const n = (inFlightUploads.get(uploader) || 1) - 1
+        if (n > 0) inFlightUploads.set(uploader, n)
+        else inFlightUploads.delete(uploader)
       }
     }
   })
@@ -570,8 +703,11 @@ export function registerIdentityDocument(router, ctx) {
 
       // The file must be the ciphertext we just took in, in the private folder — not an
       // arbitrary uuid pointed at someone else's asset.
-      const fileRow = await database('directus_files').where('id', file).first('id', 'folder')
-      if (!fileRow || String(fileRow.folder) !== IDENTITY_FOLDER) {
+      // A non-admin may only bind a file their own login uploaded — not another login's
+      // pending ciphertext they learned the uuid of.
+      const fileRow = await database('directus_files').where('id', file).first('id', 'folder', 'uploaded_by')
+      if (!fileRow || String(fileRow.folder) !== IDENTITY_FOLDER
+        || (!isAdmin && String(fileRow.uploaded_by ?? '') !== String(req.accountability?.user ?? ''))) {
         return res.status(400).json({ error: 'File is not an identity document', code: 'bad_file' })
       }
 
@@ -590,16 +726,28 @@ export function registerIdentityDocument(router, ctx) {
         return res.status(400).json({ error: 'No envelope for the member', code: 'no_self_envelope' })
       }
 
+      // The file must not already back someone's document (re-binding another member's
+      // ciphertext id would let the replace below purge it).
+      // Checked inside the transaction, under a row lock on the file, so two concurrent
+      // binds of the same id cannot both pass.
+      let supersededFile = null
+      let fileTaken = false
       await database.transaction(async (trx) => {
+        await trx('directus_files').where('id', file).forUpdate().first('id')
+        const inUse = await trx('identity_documents').where('file', file).whereNot('member', target).first('id')
+        if (inUse) { fileTaken = true; return }
+
         // One document per member: replacing drops the old ciphertext row (and, by cascade,
-        // its envelopes).
+        // its envelopes). The old ciphertext file itself is purged after commit (F34).
+        const prev = await trx('identity_documents').where('member', target).first('file')
+        if (prev?.file && String(prev.file) !== String(file)) supersededFile = prev.file
         await trx('identity_documents').where('member', target).del()
 
         const [doc] = await trx('identity_documents').insert({
           member: target,
           file,
           iv,
-          mime: mime ?? null,
+          mime: safeIdentityMime(mime),
           size: Number.isInteger(Number(size)) ? Number(size) : null,
           uploaded_by: me ? Number(me.id) : null,
           uploaded_by_self: !!me && Number(me.id) === target,
@@ -618,6 +766,7 @@ export function registerIdentityDocument(router, ctx) {
           date_created: new Date(),
         })))
       })
+      if (fileTaken) return res.status(400).json({ error: 'File is not an identity document', code: 'bad_file' })
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
@@ -632,6 +781,8 @@ export function registerIdentityDocument(router, ctx) {
           rejected_recipients: rejected,
         },
       })
+
+      if (supersededFile) await purgeIdentityFiles(ctx, [supersededFile], log)
 
       res.json({ data: { ok: true, recipients: accepted.length, rejected } })
     } catch (err) {
@@ -799,7 +950,7 @@ export function registerIdentityDocument(router, ctx) {
   // conflating the two produces a banner nobody can action.
   async function missingFor(database, ownerId, docId) {
     const [allowed, held] = await Promise.all([
-      recipientsFor(database, ownerId),
+      recipientsFor(database, ownerId, { superadmins: false }),
       database('identity_document_keys').where('document', docId).select('recipient'),
     ])
     const haveIt = new Set(held.map((r) => Number(r.recipient)))
@@ -912,7 +1063,10 @@ export function registerIdentityDocument(router, ctx) {
         if (!mine) return res.status(403).json({ error: 'No key for you', code: 'no_envelope' })
       }
 
-      const allowed = await recipientsFor(database, target)
+      // Repair never widens to superadmins (2026-09-28 audit F12): the banner and the team
+      // repair both present the gap as "team leaders", so neither is the owner's informed
+      // consent to hand a key to someone outside their teams' staff.
+      const allowed = await recipientsFor(database, target, { superadmins: false })
       const allowedById = new Map(allowed.map((r) => [r.member, r]))
       const accepted = envelopes
         .filter((e) => e && allowedById.has(Number(e.recipient)))
@@ -1114,14 +1268,18 @@ export function registerIdentityDocument(router, ctx) {
         return res.status(403).json({ error: 'Not your document', code: 'not_owner' })
       }
 
+      const files = (await database('identity_documents').where('member', target).select('file'))
+        .map((r) => r.file)
       const removed = await database('identity_documents').where('member', target).del()
+      // "Delete my ID" must delete the bytes, not just the pointer (2026-09-28 audit F34).
+      const purged = await purgeIdentityFiles(ctx, files, log)
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'delete',
         collection: 'identity_documents',
         recordId: String(target),
-        data: { what: 'identity_document_delete', member: target, removed },
+        data: { what: 'identity_document_delete', member: target, removed, purged_files: purged },
       })
 
       res.json({ data: { ok: true, removed } })

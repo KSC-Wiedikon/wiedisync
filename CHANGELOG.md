@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.22.2 — 2026-09-28
+
+### Security
+
+- **Receipts and form uploads are private.** Expense receipts and files attached to form answers can now only be opened by you and the people who handle them (finance, the form's organisers). New uploads stay private until they are used as a public picture, such as a team photo or sponsor logo.
+- **Safer team and event invitations.** *Roster, Events.* Only active club members can be added to a team, and only the people who manage an event can invite others to it. When something is refused, the app now says why instead of showing a generic error.
+- **You get a notification when you are added to a team.** *Notifications.* Tapping it opens the team.
+- **Password rules when you change your password.** *Profile → Change password.* At least 8 characters, with a letter and a number or special character, and no common passwords.
+- **Safer file previews.** Only pictures and PDFs open directly in the app; other file types are downloaded instead.
+- **Registering an opponent team for game scheduling works again.** *Public scheduling page.* After you register, the page confirms that your access link was sent by email.
+
 ## v2.22.1 — 2026-09-28
 
 ### Security

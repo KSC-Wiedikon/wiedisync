@@ -18,6 +18,7 @@
  */
 
 import { authorize } from './wadmin.js'
+import { writeUserLog } from './activity-log.js'
 
 const SECTION = 'site_text'
 
@@ -128,14 +129,27 @@ export function registerSiteText(router, { database, logger }) {
       // table's CHECK would refuse it, and an admin who clears both fields means
       // "use the original". Deleting keeps "has an override" a truthful flag.
       if (de.value === null && en.value === null) {
-        await database('site_text').where({ key }).del()
+        const before = await database('site_text').where({ key }).first('de', 'en')
+        const removed = await database('site_text').where({ key }).del()
+        // Actor capture — a revert leaves no row to carry `updated_by` (2026-09-28 audit F55).
+        if (removed) {
+          await writeUserLog(database, log, {
+            accountability: req.accountability, action: 'delete', collection: 'site_text',
+            recordId: key, data: { what: 'site_text_revert', key, before: before ?? null },
+          })
+        }
         return res.json({ data: null })
       }
 
+      const before = await database('site_text').where({ key }).first('de', 'en')
       await database('site_text')
         .insert({ key, de: de.value, en: en.value, updated_by: userId, date_updated: database.fn.now() })
         .onConflict('key')
         .merge({ de: de.value, en: en.value, updated_by: userId, date_updated: database.fn.now() })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: before ? 'update' : 'create', collection: 'site_text',
+        recordId: key, data: { what: 'site_text_edit', key, before: before ?? null, after: { de: de.value, en: en.value } },
+      })
 
       res.json({ data: { de: de.value, en: en.value } })
     } catch (err) {
@@ -148,10 +162,16 @@ export function registerSiteText(router, { database, logger }) {
     if (!(await guard(req, res))) return
     const key = readKey(req, res); if (!key) return
     try {
+      const before = await database('site_text').where({ key }).first('de', 'en')
       const removed = await database('site_text').where({ key }).del()
       // 404 tells the admin UI the key was already at its original wording, which
       // is the state Revert was asking for — it treats it as success.
       if (!removed) return res.status(404).json({ error: 'not_overridden' })
+      // Actor capture — the deleted row took its `updated_by` with it (2026-09-28 audit F55).
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'delete', collection: 'site_text',
+        recordId: key, data: { what: 'site_text_revert', key, before: before ?? null },
+      })
       res.json({ data: null })
     } catch (err) {
       log.error?.({ msg: `site-text delete ${key}: ${err.message}`, endpoint: 'site-text', stack: err.stack })

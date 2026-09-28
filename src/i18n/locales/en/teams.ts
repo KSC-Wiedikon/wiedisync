@@ -247,4 +247,6 @@ export default {
   staffRemoved: '{{name}} removed',
   removeStaffTitle: 'Remove role',
   removeStaffMessage: 'Remove {{name}} ({{role}})?',
+  rosterAddRateLimited: 'Too many roster additions in the last hour. Try again later or ask an admin',
+  rosterAddMemberInactive: 'This member is no longer active in the club',
 } as const

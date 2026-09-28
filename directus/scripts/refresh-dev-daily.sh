@@ -11,9 +11,19 @@
 #     MINUS the migrate reconcile.
 #
 # Canonical source: repo  directus/scripts/refresh-dev-daily.sh
-# Deploy to VPS:     npm run scripts:deploy:dev   (-> /opt/directus-kscw-dev/scripts/)
+# Deploy to VPS:     npm run scripts:deploy:dev   (-> /opt/kscw-root/dev/, root:root 0700,
+#                    next to refresh-dev-scrub.sql; the bind-mount copy in
+#                    /opt/directus-kscw-dev/scripts/ is NOT the one cron runs)
 # Root crontab (UTC):
-#   0 3 * * * bash /opt/directus-kscw-dev/scripts/refresh-dev-daily.sh >> /data/backups/refresh-dev-daily.log 2>&1
+#   0 3 * * * bash /opt/kscw-root/dev/refresh-dev-daily.sh >> /data/backups/refresh-dev-daily.log 2>&1
+#
+# ⚠⚠ Never point root's crontab back at /opt/directus-kscw-dev/scripts/. That
+# directory is a rw bind mount of the internet-facing dev container (uid 1000
+# owns it), so anything able to run code in dev Directus could rewrite what
+# root runs at 03:00 — and this script and its scrub SQL run as psql superuser
+# on the host that also holds PROD. The script refuses to start from a
+# location that is not root-owned and closed to group/other (audit 2026-09-28,
+# F72).
 #
 # Why no migrate reconcile: the prod clone carries prod's COMPLETE, consistent
 # schema + its kscw_migrations tracker, so post-clone dev == prod (fully
@@ -22,14 +32,29 @@
 # daily wipe anyway. During active schema dev, either pause this cron or re-run
 # `npm run db:deploy:dev` after a nightly sync.
 #
-# Safety: a dev safety-dump is taken FIRST (7-day local retention). On an empty
-# dump, a failed row-count gate, or a failed PII scrub, the script restores dev
-# from that safety dump and restarts it (so dev stays online on prior-day data
-# and unscrubbed prod PII is never served). If even the restore fails, dev is
-# left STOPPED and the run exits non-zero — check this log.
+# Safety: a dev safety-dump is taken FIRST (7-day local retention). On a failed
+# row-count gate, scrub or prod-equality guard, the script restores dev from
+# that safety dump, re-scrubs it, and restarts it (so dev stays online on
+# prior-day data and unscrubbed prod data is never served). If the restore or
+# its re-scrub fails, dev is left STOPPED and the run exits non-zero — check
+# this log.
+#
+# Scrub (audit 2026-09-28, F13 + F14): the SQL lives in refresh-dev-scrub.sql
+# next to this file — the ONE copy both refresh scripts run. It nulls every
+# cloned credential (tokens, password hashes, TOTP seeds) and the PII dev does
+# not need (AHV, IBAN, street, ClubDesk phones; birthdates shifted within the
+# year so minor/adult status is unchanged). After the re-pin, a prod-equality
+# guard nulls any dev token still identical to prod's, and any password hash
+# still identical to prod's except on the allowlisted dev logins (accepted
+# residual, see [1b/7]).
 #
 set -uo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:${PATH:-}
+# Everything this run writes — captured dev creds, the safety dump — is
+# root-only. The scratch files live in a private mktemp dir that is removed on
+# EVERY exit path, failures included (audit 2026-09-28, F71: a failed run used
+# to leave the captured password hashes + tokens in a world-readable /tmp file).
+umask 077
 
 PGC=kscw-postgres
 PROD_DB=postgres
@@ -40,20 +65,67 @@ RETENTION_DAYS=7
 
 TS=$(date +%F_%H%M%S)
 BACKUP="$BACKUP_DIR/kscw_dev_pre-refresh_${TS}.sql.gz"
-CREDS="/tmp/refresh_devcreds_${TS}.txt"
-SCRUB="/tmp/refresh_scrub_${TS}.sql"
-REPIN="/tmp/refresh_repin_${TS}.sql"
-RLOG="/tmp/refresh_restore_${TS}.log"
+SELF="$(readlink -f "$0")"
+SELF_DIR="$(dirname "$SELF")"
+SCRUB_SQL="$SELF_DIR/refresh-dev-scrub.sql"
 
 log(){ echo "[$(date -u +%F_%H:%M:%SZ)] $*"; }
+
+# Root-only location check (F72, see header). Checked for the directory, this
+# file and the scrub SQL: a writable directory alone lets someone swap either.
+for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL"; do
+  [ -e "$f" ] || continue          # a missing scrub file is reported below
+  read -r own mode < <(stat -c '%u %a' "$f")
+  if [ "$own" != 0 ] || (( 8#$mode & 8#022 )); then
+    log "!! $f is owned by uid $own, mode $mode — refusing to run as root from a"
+    log "   location a non-root user can write. Deploy with npm run scripts:deploy:dev"
+    log "   and point root's crontab at /opt/kscw-root/dev/refresh-dev-daily.sh (dev untouched)."
+    exit 1
+  fi
+done
+
+# Pre-refresh dumps and this log hold prod-derived data; runs before F71
+# created them 0644. Tighten whatever is already there on every run.
+chmod 600 "$BACKUP_DIR"/kscw_dev_pre-refresh_*.sql.gz \
+  "$BACKUP_DIR/refresh-dev-daily.log" 2>/dev/null || true
+
+# The restore log can hold whole rows (COPY error CONTEXT lines). Only error
+# lines go to the cron log, with quoted values masked and length capped.
+restore_log_tail(){
+  grep -E 'ERROR|FATAL' "$RLOG" 2>/dev/null | sed -E "s/\"[^\"]*\"/\"…\"/g; s/'[^']*'/'…'/g" \
+    | cut -c1-200 | tail -n 20 | sed 's/^/      /'
+}
+
+WORK=$(mktemp -d /tmp/refresh-dev.XXXXXX) || { log "!! mktemp failed — aborting (dev untouched)."; exit 1; }
+trap 'rm -rf "$WORK"' EXIT
+CREDS="$WORK/devcreds.txt"
+REPIN="$WORK/repin.sql"
+PGUARD="$WORK/prod-guard.sql"
+RLOG="$WORK/restore.log"
 
 # Emails kept REAL after scrub (admin/cron logins + OAuth accounts). Used both
 # as the scrub allowlist and as the re-pin filter. Keep in sync with
 # refresh-dev-from-prod.sh.
 ALLOW_SQL="'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com','cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'"
+# The same list with its quotes doubled, for use INSIDE a SQL string literal
+# (the prod-equality guard below builds its UPDATEs as text on prod).
+ALLOW_SQL_LIT=${ALLOW_SQL//\'/\'\'}
+
+# Scrub → re-pin → prod-equality guard: what turns a database into something
+# dev may serve. Run on the fresh clone AND on a rolled-back safety dump.
+scrub(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -v scrub_pii=1 -q < "$SCRUB_SQL"; }
+repin(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$REPIN"; }
+pguard(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 < "$PGUARD" 2>&1 | sed 's/^/      /'; }
 
 # Restore dev from the safety dump + restart it. Used on any post-wipe failure
 # so an unattended run never leaves dev down (or serving unscrubbed PII).
+#
+# ⚠ The safety dump is YESTERDAY's dev, and the ones taken before the F13/F14
+# scrub shipped still hold prod's static tokens, password hashes and real PII.
+# So the restored DB goes through the same scrub + re-pin + guard as a fresh
+# clone before dev is started. If the full scrub fails (the likely reason the
+# rollback is happening), fall back to the credential minimum — guard + TOTP /
+# OAuth data — and if even that fails, dev stays STOPPED.
 rollback(){
   log "ROLLBACK: restoring dev from safety dump $BACKUP"
   if [ ! -s "$BACKUP" ]; then
@@ -62,13 +134,27 @@ rollback(){
   fi
   docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 </dev/null \
     -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO supabase_admin; GRANT USAGE ON SCHEMA public TO anon, authenticated;" >/dev/null 2>&1
-  if zcat "$BACKUP" | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q >/dev/null 2>&1; then
-    docker start "$DEV_CONTAINER" >/dev/null </dev/null 2>&1 || true
-    log "ROLLBACK OK: dev restored to prior-day data + restarted."
-    return 0
+  if ! zcat "$BACKUP" | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q >/dev/null 2>&1; then
+    log "ROLLBACK FAILED: dev left STOPPED. Safety dump: $BACKUP"
+    return 1
   fi
-  log "ROLLBACK FAILED: dev left STOPPED. Safety dump: $BACKUP"
-  return 1
+  if scrub; then
+    repin || log "   (warning: some re-pins failed after rollback)"
+  else
+    log "   rollback: full scrub failed on the restored dump — credential minimum only"
+    if ! docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q </dev/null \
+         -c "UPDATE directus_users SET tfa_secret = NULL, auth_data = NULL; DELETE FROM directus_sessions;"; then
+      log "ROLLBACK: could not clear credentials on the restored dump — dev left STOPPED. Safety dump: $BACKUP"
+      return 1
+    fi
+  fi
+  if ! pguard; then
+    log "ROLLBACK: prod-equality guard failed on the restored dump — dev left STOPPED. Safety dump: $BACKUP"
+    return 1
+  fi
+  docker start "$DEV_CONTAINER" >/dev/null </dev/null 2>&1 || true
+  log "ROLLBACK OK: dev restored to prior-day data (credentials re-checked) + restarted."
+  return 0
 }
 
 log "===== refresh-dev-daily START (prod=$PROD_DB -> dev=$DEV_DB) ====="
@@ -81,11 +167,66 @@ docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A -F'|' </dev/null \
   -c "SELECT id, email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
   > "$CREDS" 2>/dev/null || true
 
+# Built now (not after the clone) because the rollback path needs it too.
+# Fields: $1=id  $2=email  $3=password  $4=token.
+# Key on id (not email) so member tokens survive the email scrub. Passwords are
+# re-pinned for allowlist service accounts only; tokens for every captured row
+# (allowlist service tokens + member smoke tokens alike).
+awk -F'|' '
+  BEGIN{
+    a["admin@kscw.ch"]=1;a["cron-service@kscw.ch"]=1;a["luca.canepa@gmail.com"]=1;
+    a["aniish.k@hotmail.com"]=1;a["anja_jimenez@hotmail.com"]=1;a["thamayanth.kanagalingam@uzh.ch"]=1;
+  }
+  function q(s){ gsub(/\047/,"\047\047",s); return "\047" s "\047" }
+  ($1!=""){
+    s="";
+    if((tolower($2) in a) && $3!=""){ s="password=" q($3) }
+    if($4!=""){ if(s!="") s=s", "; s=s "token=" q($4) }
+    if(s!="") printf "UPDATE directus_users SET %s WHERE id=%s;\n", s, q($1)
+  }
+' "$CREDS" > "$REPIN"
+
+# Everything the scrub needs is checked BEFORE dev is touched: a missing scrub
+# file or guard would otherwise only surface after the wipe.
+if [ ! -s "$SCRUB_SQL" ]; then
+  log "!! $SCRUB_SQL missing/empty — aborting BEFORE touching dev (dev untouched)."
+  log "   It ships with this script: npm run scripts:deploy:dev"
+  exit 1
+fi
+
+log "[1b/7] Fingerprinting prod credentials (prod-equality guard)"
+# One UPDATE per credential kind, listing md5() of every PROD token / password
+# hash. Run on dev after the re-pin, it nulls whatever dev still shares with
+# prod: the re-pin restores what DEV had before the clone, and until the prod
+# tokens were rotated that WAS prod's (audit 2026-09-28, F13 — 7 of 8 static
+# tokens identical, 3 of them Administrator). Only fingerprints are written.
+#
+# ⚠ ACCEPTED RESIDUAL — allowlist PASSWORDS are exempt from the guard. The
+# allowlisted logins (ALLOW_SQL: the operator's own admin login, cron-service,
+# the OAuth dev accounts) are how dev is administered; nulling their password
+# every night because it still equals prod's would lock the operator out of dev
+# admin with no way back in except a manual psql reset. So for THOSE accounts a
+# password hash identical to prod's may survive on dev. What that leaves: an
+# argon2 hash (not a usable credential; offline cracking only) of up to six
+# known accounts, readable only by someone who can already read dev's
+# directus_users. Close it by setting a dev-only password on each allowlisted
+# login once — the re-pin then carries that one forward. TOKENS get no
+# exemption: a token is a bearer credential, so one equal to prod is always
+# nulled, allowlist or not.
+# ⚠ Keep identical to refresh-dev-from-prod.sh.
+docker exec "$PGC" psql -U supabase_admin -d "$PROD_DB" -t -A -v ON_ERROR_STOP=1 </dev/null \
+  -c "SELECT 'UPDATE directus_users SET token = NULL WHERE token IS NOT NULL AND md5(token) IN (' || coalesce(string_agg(DISTINCT quote_literal(md5(token)), ','), 'NULL') || ');' FROM directus_users WHERE token IS NOT NULL UNION ALL SELECT 'UPDATE directus_users SET password = NULL WHERE password IS NOT NULL AND (email IS NULL OR lower(email) NOT IN ($ALLOW_SQL_LIT)) AND md5(password) IN (' || coalesce(string_agg(DISTINCT quote_literal(md5(password)), ','), 'NULL') || ');' FROM directus_users WHERE password IS NOT NULL;" \
+  > "$PGUARD" 2>/dev/null || true
+if [ "$(grep -c '^UPDATE directus_users SET ' "$PGUARD")" -ne 2 ]; then
+  log "!! Could not fingerprint prod credentials — aborting BEFORE touching dev (dev untouched)."
+  exit 1
+fi
+
 log "[2/7] Safety snapshot of dev -> $BACKUP"
 docker exec "$PGC" pg_dump -U supabase_admin -d "$DEV_DB" --no-owner --no-acl </dev/null | gzip > "$BACKUP"
 if [ ! -s "$BACKUP" ]; then
   log "!! Safety dump failed/empty — aborting BEFORE touching dev (dev untouched)."
-  rm -f "$CREDS"; exit 1
+  exit 1
 fi
 log "      $(ls -lh "$BACKUP" | awk '{print $5}')"
 
@@ -138,9 +279,9 @@ for chk in members:400 teams:25 trainings:400 games:300; do
   if [ "$c" = X ] || ! [ "$c" -ge "$min" ] 2>/dev/null; then fail=1; fi
 done
 if [ "$fail" -eq 1 ]; then
-  log "!! Restore verification FAILED — rolling back."
+  log "!! Restore verification FAILED — rolling back. Restore errors (values masked):"
+  restore_log_tail
   rollback || true
-  rm -f "$SCRUB" "$REPIN" "$CREDS"
   exit 1
 fi
 
@@ -156,93 +297,33 @@ log "[5b/7] Clearing cloned license (dev runs keyless / Core grace)"
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
   -c "UPDATE directus_settings SET license_key=NULL, license_token=NULL;" >/dev/null 2>&1 || true
 
-log "[6/7] Scrubbing PII"
-cat > "$SCRUB" <<'SQL'
-BEGIN;
-
--- Members (real player PII)
-UPDATE members SET email    = 'member_' || id || '@devsink.invalid' WHERE email IS NOT NULL AND email <> '';
-UPDATE members SET vm_email = NULL WHERE vm_email IS NOT NULL;
-UPDATE members SET phone    = NULL WHERE phone IS NOT NULL;
-
--- Directus login accounts (keep admin/dev logins on the allowlist)
-UPDATE directus_users
-   SET email = 'user_' || id || '@devsink.invalid'
- WHERE email IS NOT NULL
-   -- Household shadow logins (synthetic, no PII): scrubbing them would
-   -- fire migration 377's revoke trigger and unlink every household on dev.
-   AND lower(email) NOT LIKE '%@managed.wiedisync.kscw.ch'
-   AND lower(email) NOT IN (
-     'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com',
-     'cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'
-   );
-
--- ClubDesk: {basketball,people,volleyball} are VIEWS over clubdesk_export — scrub the base only
-UPDATE clubdesk_export SET
-  email            = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
-  email_alternativ = CASE WHEN email_alternativ IS NOT NULL AND email_alternativ<>'' THEN 'scrub_'||substr(md5(email_alternativ),1,16)||'@devsink.invalid' ELSE email_alternativ END;
-
--- Other contact tables
-UPDATE event_signups             SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE feedback                  SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE game_scheduling_opponents SET contact_email = 'scrub_'||substr(md5(contact_email),1,16)||'@devsink.invalid' WHERE contact_email IS NOT NULL AND contact_email<>'';
-UPDATE newsletter_subscribers    SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE registrations             SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE sv_vm_check               SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
-UPDATE svrz_spielplaner_contacts SET contact_email = CASE WHEN contact_email IS NOT NULL AND contact_email<>'' THEN 'scrub_'||substr(md5(contact_email),1,16)||'@devsink.invalid' ELSE contact_email END,
-                                     contact_phone = NULL;
-UPDATE vm_vb_spielplan_contact   SET "Email"       = 'scrub_'||substr(md5("Email"),1,16)||'@devsink.invalid'       WHERE "Email" IS NOT NULL AND "Email"<>'';
-
--- Mailbox credentials (Emails Garage, migration 326).
--- ⚠⚠ The INVENTORY is useful on dev; the CIPHERTEXT is not. Without this, a
--- clone hands dev every club mailbox password, and the only thing standing
--- between dev and plaintext is EMAIL_VAULT_KEY differing between the two
--- containers — a one-line env mistake away from being the same key. Null the
--- column instead so the question cannot arise: dev's page lists the accounts
--- and honestly reports "no password stored".
--- ⚠ Keep in sync with refresh-dev-from-prod.sh, which carries the same block.
-UPDATE email_accounts SET password_enc = NULL WHERE password_enc IS NOT NULL;
-
--- Devices / transient state
-TRUNCATE push_subscriptions;
-DELETE FROM email_verifications;
-DELETE FROM directus_sessions;
-
-COMMIT;
-SQL
-if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$SCRUB"; then
+log "[6/7] Scrubbing credentials + PII ($(basename "$SCRUB_SQL"))"
+if ! scrub; then
   log "!! Scrub FAILED — rolling back (unscrubbed prod data must NOT be served)."
   rollback || true
-  rm -f "$SCRUB" "$REPIN" "$CREDS" "$RLOG"
   exit 1
 fi
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
   -c "UPDATE directus_settings SET project_url='https://wiedisync.pages.dev' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
 
 log "[7/7] Re-pinning dev creds by id (allowlist passwords + all captured tokens)"
-# Fields: $1=id  $2=email  $3=password  $4=token.
-# Key on id (not email) so member tokens survive the email scrub. Passwords are
-# re-pinned for allowlist service accounts only; tokens for every captured row
-# (allowlist service tokens + member smoke tokens alike).
-awk -F'|' '
-  BEGIN{
-    a["admin@kscw.ch"]=1;a["cron-service@kscw.ch"]=1;a["luca.canepa@gmail.com"]=1;
-    a["aniish.k@hotmail.com"]=1;a["anja_jimenez@hotmail.com"]=1;a["thamayanth.kanagalingam@uzh.ch"]=1;
-  }
-  function q(s){ gsub(/\047/,"\047\047",s); return "\047" s "\047" }
-  ($1!=""){
-    s="";
-    if((tolower($2) in a) && $3!=""){ s="password=" q($3) }
-    if($4!=""){ if(s!="") s=s", "; s=s "token=" q($4) }
-    if(s!="") printf "UPDATE directus_users SET %s WHERE id=%s;\n", s, q($1)
-  }
-' "$CREDS" > "$REPIN"
-if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$REPIN"; then
+if ! repin; then
   log "   (warning: some re-pins failed; admin/cron login on dev may need attention)"
 fi
 
+log "[7b/7] Prod-equality guard (null any dev token / non-allowlist password hash identical to prod)"
+# Prints "UPDATE <n>" per kind. A non-zero n means a dev test credential was
+# still a prod credential and is now gone: mint a dev-only token / set a
+# dev-only password on dev — the next run's re-pin keeps it, because it no
+# longer matches prod. If the guard itself fails, dev must not come back up
+# holding prod credentials: roll back to the prior-day dump instead.
+if ! pguard; then
+  log "!! Prod-equality guard FAILED — rolling back."
+  rollback || true
+  exit 1
+fi
+
 docker start "$DEV_CONTAINER" >/dev/null </dev/null
-rm -f "$SCRUB" "$REPIN" "$CREDS" "$RLOG"
 
 # Retention: keep only the last RETENTION_DAYS of pre-refresh safety dumps.
 find "$BACKUP_DIR" -name 'kscw_dev_pre-refresh_*.sql.gz' -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true

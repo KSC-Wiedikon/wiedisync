@@ -104,6 +104,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
         games: opp.games,
       }))
       setDrafts((prev) => [...imported, ...prev])
+      if (preview.vm_busy) toast.info(t('svrzImportVmBusy'))
       if (imported.length === 0) toast.info(t('svrzImportEmpty'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))

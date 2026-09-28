@@ -247,4 +247,5 @@ export default {
   householdNotSetUp: 'Questo profilo non è ancora configurato — sei tornato al tuo account',
   householdNotWhileActing: 'Non disponibile mentre usi un altro account',
   householdSwitchTo: 'Passa a {{names}}',
+  fileNotYours: 'Puoi usare solo un\'immagine che hai caricato tu',
 }

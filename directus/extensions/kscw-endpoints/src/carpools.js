@@ -14,10 +14,11 @@
  *
  * :type ∈ game | training | event.
  *
- * WHO MAY SEE A BOARD: whoever may read the activity. Answered by reading the
- * activity through ItemsService with the caller's own accountability, so the
- * games/trainings/events read policies decide — no second copy of them here to
- * drift (see migration 378's header). Everything after that check is raw knex.
+ * WHO MAY SEE A BOARD: whoever may read the activity AND is in its scope
+ * (below). Readability is answered by reading the activity through ItemsService
+ * with the caller's own accountability, so the games/trainings/events read
+ * policies decide — no second copy of them here to drift (see migration 378's
+ * header). Everything after that check is raw knex.
  *
  * WHO MAY WRITE: any member who can see the activity, on their OWN rows only
  * (`carpools.member` / `carpool_passengers.passenger` = the acting member). The
@@ -28,10 +29,13 @@
  *
  * SCOPE (migration 379): a shared game/event can be opened to chosen teams
  * only (`carpool_teams`, a jsonb id list on the activity; empty = everyone who
- * can see it). Scoped out = not a team player/coach/TR of any listed team and
- * no ride of your own on it — the board then reads as empty (`in_scope: false`)
- * and every write 403s `carpool_not_in_scope`. Having a ride already keeps you
- * in, so narrowing the scope never strands a passenger.
+ * can see it — except a GAME, which everyone can see: its empty scope means
+ * the game's own team + guest teams + individually invited guests, audit
+ * 2026-09-28 F21). Scoped out = not a player/coach/TR of any listed ACTIVE
+ * team and no ride of your own on it — the board then reads as empty
+ * (`in_scope: false`) and every write, `/take` included, 403s
+ * `carpool_not_in_scope`. Having a ride already keeps you in, so narrowing the
+ * scope never strands a passenger.
  *
  * PER-OFFER TEAMS + RETURN TIME (migration 380): a driver can offer a ride to
  * some of the invited teams only (`carpools.teams`, empty = all). Such an offer
@@ -186,6 +190,22 @@ export function scopeAllows(scope, myTeamIds) {
   if (!scope?.length) return true
   const mine = new Set([...(myTeamIds ?? [])].map(Number))
   return scope.some((t) => mine.has(Number(t)))
+}
+
+/**
+ * The teams a board is for, or null = everyone who can read the activity.
+ * An explicit `carpool_teams` scope wins; an unscoped GAME falls back to its
+ * own team + guest teams, because `games` is readable club-wide (audit
+ * 2026-09-28 F21). An unscoped TRAINING falls back to its team: the trainings
+ * read policy lets a coach/TR seat on an ARCHIVED team read that team's old
+ * sessions (COACH_OR_TR_OF_TEAM has no active filter), and `teamsOf` is
+ * active-gated, so this cuts the residue seat out. Events: their read policy
+ * is the audience.
+ */
+export function effectiveScope(type, scope, activityTeams = []) {
+  if (scope?.length) return scope
+  if ((type === 'game' || type === 'training') && activityTeams?.length) return activityTeams
+  return null
 }
 
 /**
@@ -363,12 +383,16 @@ export function registerCarpools(router, { services, database, logger, getSchema
     return m
   }
 
-  /** Team ids a member belongs to for scoping: active rosters + coach + TR. */
+  /**
+   * Team ids a member belongs to for scoping: active rosters + coach + TR.
+   * Every leg is gated on `teams.active` — a coach/TR seat on an archived team
+   * is residue, not a current audience (audit 2026-09-28 F31).
+   */
   async function teamsOf(memberId) {
     const [playTeams, coachTeams, trTeams] = await Promise.all([
       database('member_teams as mt').join('teams as t', 't.id', 'mt.team').where('mt.member', memberId).where('t.active', true).pluck('mt.team'),
-      database('teams_coaches').where('members_id', memberId).pluck('teams_id'),
-      database('teams_responsibles').where('members_id', memberId).pluck('teams_id'),
+      database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id').where('tc.members_id', memberId).where('t.active', true).pluck('tc.teams_id'),
+      database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id').where('tr.members_id', memberId).where('t.active', true).pluck('tr.teams_id'),
     ])
     return [...new Set([...playTeams, ...coachTeams, ...trTeams].filter((x) => x != null).map(Number))]
   }
@@ -384,11 +408,37 @@ export function registerCarpools(router, { services, database, logger, getSchema
     return !!row
   }
 
-  /** Scope check (migration 379). Admins and unscoped boards pass. */
+  /**
+   * The implicit audience of an UNSCOPED game/training board (audit 2026-09-28
+   * F21): a game's own team + its guest teams, a training's team. `games` is
+   * readable club-wide, so "whoever may read the activity" made every away
+   * game's board — minors' pickup points and notes included — readable and
+   * writable by any member; the trainings policy still admits a stale
+   * coach/TR seat on an archived team. Events need no such step: their read
+   * policy is already audience-scoped. Empty (no team) = open, as before.
+   */
+  async function audienceTeams(act) {
+    if (act.type === 'training') return act.teamId != null ? [Number(act.teamId)] : []
+    if (act.type !== 'game') return []
+    const guests = await database('game_guest_teams').where('game', act.id).pluck('team')
+    return [...new Set([act.teamId, ...guests].filter((x) => x != null).map(Number))]
+  }
+
+  /**
+   * Scope check (migration 379). Admins pass. A scoped board is for its teams;
+   * an unscoped game board for the game's teams + individually invited guests
+   * (`game_guests`); an unscoped training board for its (active) team;
+   * anything else for whoever can read it. Having a ride on
+   * the activity already always keeps you in.
+   */
   async function inScope(req, act, me) {
-    if (req.accountability?.admin === true || !act.info.scope.length) return true
+    if (req.accountability?.admin === true) return true
+    const teams = effectiveScope(act.type, act.info.scope, act.info.scope.length ? [] : await audienceTeams(act))
+    if (!teams) return true
     if (!me) return false
-    if (scopeAllows(act.info.scope, await teamsOf(me.id))) return true
+    if (scopeAllows(teams, await teamsOf(me.id))) return true
+    if (act.type === 'game' && !act.info.scope.length
+      && (await database('game_guests').where({ game: act.id, member: me.id }).first('id'))) return true
     return isInvolved(act.type, act.id, me.id)
   }
 

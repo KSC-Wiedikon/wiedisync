@@ -245,4 +245,6 @@ export default {
   sponsorSaveError: 'Impossibile salvare lo sponsor',
   sponsorDeleteError: 'Impossibile rimuovere lo sponsor',
   sponsorUpdateError: 'Impossibile aggiornare lo sponsor',
+  rosterAddRateLimited: 'Troppe aggiunte alla rosa nell\'ultima ora. Riprova più tardi o chiedi a un admin',
+  rosterAddMemberInactive: 'Questo membro non è più attivo nel club',
 } as const

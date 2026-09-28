@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { kscwApi } from '../../lib/api'
 import { rewrapPrivateKey } from '../../lib/e2ee'
 import { useIdentityKeys } from '../../hooks/useIdentityKeys'
+import { checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '../../lib/passwordRules'
 
 interface ChangePasswordModalProps {
   onClose: () => void
@@ -42,7 +43,11 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
   const submit = async () => {
     setError(null)
     if (next !== confirm) { setError(t('passwordMismatch')); return }
-    if (next.length < 8) { setError(t('pwTooShort')); return }
+    // Same rules the server enforces (length + letter and digit/special), caught
+    // here while the field is on screen. The common-password list stays
+    // server-side — it comes back as the `password_too_common` code below.
+    const issue = checkPassword(next)
+    if (issue) { setError(issue === 'password_too_short' ? t('pwTooShort') : t(passwordIssueKey(issue))); return }
 
     setBusy(true)
     try {
@@ -63,6 +68,10 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
       onClose()
     } catch (err) {
       const code = (err as Error & { code?: string }).code
+      // A rule the server refused (password_too_short / password_weak /
+      // password_too_common) gets its own message instead of the generic one.
+      const passwordKey = passwordErrorKeyFromCode(code)
+      if (passwordKey) { setError(t(passwordKey)); return }
       // A wrong current password surfaces either as our local unwrap failing or as the
       // server's own check — both mean the same thing to the person typing.
       setError(code === 'bad_password' || !code ? t('pwWrongCurrent') : t('errorSaving'))

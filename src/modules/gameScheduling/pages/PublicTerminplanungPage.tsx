@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,7 @@ import { useReportPageLoading } from '../../../hooks/usePageReady'
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 
 export default function PublicTerminplanungPage() {
-  const { t } = useTranslation('gameScheduling')
-  const navigate = useNavigate()
+  const { t, i18n } = useTranslation('gameScheduling')
   const [searchParams] = useSearchParams()
 
   const [teams, setTeams] = useState<Team[]>([])
@@ -25,6 +24,9 @@ export default function PublicTerminplanungPage() {
   const [loading, setLoading] = useState(false)
   const [seasonOpen, setSeasonOpen] = useState<boolean | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Address the access link was mailed to — set on success, switches the page
+  // to the "check your email" confirmation.
+  const [sentTo, setSentTo] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
 
   // Fetch teams and check season status
@@ -81,21 +83,33 @@ export default function PublicTerminplanungPage() {
 
     setLoading(true)
     try {
-      const resp = await kscwApi<{ token: string }>('/terminplanung/register', {
+      // The endpoint never returns the access token (EP-SCH-2): it mails the
+      // link to contact_email, so only the owner of that inbox can open the
+      // opponent view. Same answer whether the address was new or already
+      // registered — no enumeration.
+      const email = contactEmail.trim()
+      await kscwApi<{ success: boolean; expires_at?: string }>('/terminplanung/register', {
         method: 'POST',
         anonymous: true,
         body: {
-          kscw_team_id: selectedTeamId,
-          club_name: clubName.trim(),
+          kscw_team: selectedTeamId,
+          team_name: clubName.trim(),
           contact_name: contactName.trim(),
-          contact_email: contactEmail.trim(),
+          contact_email: email,
           turnstile_token: turnstileToken,
+          language: (i18n.language || '').split('-')[0].toLowerCase(),
         },
       })
-
-      navigate(`/terminplanung/${resp.token}`)
+      setSentTo(email)
+      // Single-use token, already spent — the remounted widget issues a new one.
+      setTurnstileToken('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('registrationError'))
+      const e = err as { code?: string; status?: number }
+      setError(
+        e?.code === 'registration_closed' ? t('registrationClosed')
+          : e?.status === 429 ? t('registrationRateLimited')
+          : t('registrationError'),
+      )
       turnstileRef.current?.reset()
       setTurnstileToken('')
     } finally {
@@ -112,6 +126,20 @@ export default function PublicTerminplanungPage() {
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('publicSubtitle')}</p>
         </div>
 
+        {sentTo ? (
+          <div role="status" className="space-y-4 text-center">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('registrationCheckEmailTitle')}</h2>
+            <p className="break-words text-sm text-gray-600 dark:text-gray-400">{t('registrationCheckEmail', { email: sentTo })}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => { setSentTo(null); setSelectedTeamId(''); setError('') }}
+            >
+              {t('registerAnother')}
+            </Button>
+          </div>
+        ) : (<>
         {seasonOpen === false && (
           <div className="mb-4 rounded-md bg-yellow-50 p-4 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
             {t('seasonNotOpen')}
@@ -211,6 +239,7 @@ export default function PublicTerminplanungPage() {
             {loading ? t('registering') : t('register')}
           </Button>
         </form>
+        </>)}
       </div>
     </div>
   )

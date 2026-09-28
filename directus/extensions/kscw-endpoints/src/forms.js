@@ -4,6 +4,8 @@
  *   GET  /kscw/forms/:id/stats   — { targeted, responded, nonResponders[] }
  *   POST /kscw/forms/:id/remind  — push + in-app nudge to everyone who hasn't
  *                                  responded yet. Author-scoped.
+ *   GET  /kscw/forms/:id/files/:fileId — stream one file answer to someone who
+ *                                  manages the form (see authorizeFormFile).
  *
  * Runs in the extension DB context (knex) so it can resolve the targeted
  * audience + non-responders without tripping the member-read RLS that a
@@ -15,6 +17,10 @@
  */
 
 import { FRONTEND_URL } from './email-template.js'
+import { streamManagedFile } from './storage-read.js'
+import {
+  FORM_UPLOADS_FOLDER, UPLOAD_QUARANTINE_FOLDER, UUID_RE, answerFileIds,
+} from './upload-folders.js'
 
 // Per-(user, form) reminder rate limit — 1 fan-out per form per 10 min per caller.
 const remindRateLimit = new Map()
@@ -94,7 +100,104 @@ async function authorizeManage(db, req, form) {
   return false
 }
 
-export function registerForms(router, { database, logger }, helpers) {
+const parseRoles = (raw) => (Array.isArray(raw)
+  ? raw
+  : (raw ? (() => { try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] } })() : []))
+
+const SPORT_ADMIN_ROLES = { vb_admin: 'volleyball', bb_admin: 'basketball' }
+
+/**
+ * May the caller read the answers (and so the file answers) of this form?
+ * Mirrors who can read form_submissions in setup-permissions.mjs:
+ *   - a full Directus admin, app roles admin / superuser / vorstand (club-wide CRUD);
+ *   - a Sport Admin for a form linked to a team of their sport, or a form with no
+ *     team at all (club-wide / public — their policy reads those club-wide too);
+ *   - FORMS_LEADER_SCOPE: the form's creator, or a coach / TR of a linked team
+ *     that is still ACTIVE (a past season's coach no longer reads it).
+ */
+export async function canReadFormAnswers(db, accountability, form) {
+  if (accountability?.admin === true) return true
+  if (!accountability?.user) return false
+  const caller = await db('members').where('user', accountability.user).first('id', 'role')
+  if (!caller) return false
+  const roles = parseRoles(caller.role)
+  if (roles.some((r) => r === 'admin' || r === 'superuser' || r === 'vorstand')) return true
+  if (form.created_by != null && String(form.created_by) === String(caller.id)) return true
+
+  const teamRows = await db('forms_teams').where('forms_id', form.id).select('teams_id')
+  const teamIds = [...new Set(teamRows.map((r) => r.teams_id).filter((v) => v != null))]
+  const adminSports = roles.map((r) => SPORT_ADMIN_ROLES[r]).filter(Boolean)
+  if (adminSports.length && teamIds.length === 0) return true
+  if (teamIds.length === 0) return false
+
+  const teams = await db('teams').whereIn('id', teamIds).select('id', 'sport', 'active')
+  if (adminSports.length && teams.some((t) => adminSports.includes(t.sport))) return true
+  const activeIds = teams.filter((t) => t.active === true).map((t) => t.id)
+  if (activeIds.length === 0) return false
+  const [coach, tr] = await Promise.all([
+    db('teams_coaches').whereIn('teams_id', activeIds).where('members_id', caller.id).first('id'),
+    db('teams_responsibles').whereIn('teams_id', activeIds).where('members_id', caller.id).first('id'),
+  ])
+  return !!(coach || tr)
+}
+
+/**
+ * Resolve a form file answer the caller may stream, or explain why not.
+ * Returns { ok: true, file } or { ok: false, status }.
+ *
+ * Answers are client-written JSON, so "the id appears in an answer" alone would let
+ * anyone who manages SOME form name any file id in a submission to it and read the
+ * file back. The file is therefore bound to its FIRST referencing submission:
+ *   - that submission (lowest id whose answers mention the file) must belong to
+ *     THIS form, and the id must sit in one of its `file`-type fields;
+ *   - the file must be a form upload: in Form uploads, or still unfiled (root /
+ *     quarantine — legacy rows and a submit whose filing move failed). Never any
+ *     other folder (receipts, registration scans, identity docs, public images);
+ *   - an uploader-stamped file must have been uploaded by that submission's
+ *     member. A submission without a member (anonymous / public form) may only
+ *     carry anonymous uploads — or, once filed into Form uploads by the endpoint
+ *     that checked the uploader, the signed-in submitter's own.
+ * Misses are 404, never 403, so the route is no existence oracle.
+ */
+export async function authorizeFormFile(db, accountability, formId, fileId) {
+  if (!accountability?.user && accountability?.admin !== true) return { ok: false, status: 401 }
+  const fid = Number(formId)
+  if (!Number.isInteger(fid) || fid <= 0 || !UUID_RE.test(String(fileId || ''))) return { ok: false, status: 404 }
+  const form = await db('forms').where('id', fid).first('id', 'fields', 'created_by', 'audience')
+  if (!form) return { ok: false, status: 404 }
+  if (!(await canReadFormAnswers(db, accountability, form))) return { ok: false, status: 404 }
+
+  const id = String(fileId).toLowerCase()
+  // The uuid is validated above, so it carries no LIKE wildcards.
+  const first = await db('form_submissions')
+    .whereRaw('answers::text ILIKE ?', [`%${id}%`])
+    .orderBy('id', 'asc')
+    .first('id', 'form', 'member', 'answers')
+  if (!first || Number(first.form) !== fid) return { ok: false, status: 404 }
+  if (!answerFileIds(form.fields, first.answers).map((x) => x.toLowerCase()).includes(id)) {
+    return { ok: false, status: 404 }
+  }
+
+  const file = await db('directus_files').where('id', id)
+    .first('id', 'folder', 'uploaded_by', 'type', 'filename_download', 'filename_disk')
+  if (!file || !file.filename_disk) return { ok: false, status: 404 }
+  const folder = file.folder == null ? null : String(file.folder)
+  const filed = folder === FORM_UPLOADS_FOLDER
+  if (!(filed || folder === null || folder === UPLOAD_QUARANTINE_FOLDER)) return { ok: false, status: 404 }
+
+  if (file.uploaded_by != null) {
+    let submitterUser = null
+    if (first.member != null) {
+      const m = await db('members').where('id', first.member).first('user')
+      submitterUser = m?.user ?? null
+    }
+    const own = submitterUser != null && String(submitterUser) === String(file.uploaded_by)
+    if (!own && !(first.member == null && filed)) return { ok: false, status: 404 }
+  }
+  return { ok: true, file }
+}
+
+export function registerForms(router, { database, logger, services, getSchema }, helpers) {
   const { logEndpointError, requireAuth } = helpers
   const log = logger.child({ endpoint: 'forms' })
 
@@ -132,6 +235,25 @@ export function registerForms(router, { database, logger }, helpers) {
     } catch (err) {
       logEndpointError(log, 'forms/stats', err, req)
       res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+    }
+  })
+
+  // Stream one file answer (audit 2026-09-28 F01/F25). Form uploads are private
+  // (Form uploads folder); coaches/TRs who manage a team form have no folder read,
+  // so FormResponsesModal previews through here instead of /assets/<id>.
+  router.get('/forms/:id/files/:fileId', async (req, res) => {
+    try {
+      requireAuth(req, log)
+      const r = await authorizeFormFile(database, req.accountability, req.params.id, req.params.fileId)
+      if (!r.ok) return res.status(r.status).json({ error: r.status === 401 ? 'Authentication required' : 'Not found' })
+      res.setHeader('Cache-Control', 'private, no-store')
+      await streamManagedFile(r.file.id, { services, getSchema, database }, res, {
+        filename: r.file.filename_download || 'file',
+        type: r.file.type,
+      })
+    } catch (err) {
+      logEndpointError(log, 'forms/files', err, req)
+      if (!res.headersSent) res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
     }
   })
 

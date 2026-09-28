@@ -192,12 +192,23 @@ const csvEscape = (s) => {
   if (s == null || s === '') return ''
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
-const outLines = dataRows.map(row =>
-  TARGET_COLS.map(tc => {
+// ⚠ Dev target: the refresh's PII scrub runs on every row BEFORE it is staged
+// (audit 2026-09-28, F14 remainder) — without it a dev sync-down put the live
+// register's AHV / IBAN / phones / streets / birthdates back into dev until the
+// next 03:00 refresh. Same transforms as refresh-dev-scrub.sql, see
+// import-clubdesk-dev-scrub.mjs. Loaded only for dev: the prod path is unchanged.
+const devScrub = envName === 'dev'
+  ? (await import('./import-clubdesk-dev-scrub.mjs')).createDevScrubber()
+  : null
+if (devScrub) console.error('→ dev target: scrubbing PII (AHV, IBAN, phones, street, DoB, emails) before staging')
+const outLines = dataRows.map(row => {
+  const values = TARGET_COLS.map(tc => {
     const srcIx = targetToSourceIx[tc]
-    return srcIx == null ? '' : csvEscape(row[srcIx] || '')
-  }).join(';')
-)
+    return srcIx == null ? '' : (row[srcIx] || '')
+  })
+  if (devScrub) devScrub.clubdeskExportRow(TARGET_COLS, values)
+  return values.map(csvEscape).join(';')
+})
 
 // ── 5. Send to psql via SSH ─────────────────────────────────────────
 const fileTag = basename(csvPath).replace(/'/g, "''")

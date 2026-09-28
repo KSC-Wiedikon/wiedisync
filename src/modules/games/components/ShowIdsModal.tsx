@@ -10,6 +10,7 @@ import { cacheDocument, clearCachedDocuments, loadCachedDocuments } from '../../
 import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
 import { formatDateZurich, formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
+import { safeBlobType } from '../../../utils/filePreviewKind'
 
 /**
  * The document is only DISPLAYED in this window. See the honesty note below.
@@ -69,7 +70,7 @@ interface Card {
 async function watermarkedUrl(plain: Uint8Array, mime: string, label: string): Promise<string | null> {
   let srcUrl: string | null = null
   try {
-    srcUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: mime }))
+    srcUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(mime) }))
     const img = new Image()
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve()
@@ -268,7 +269,8 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             name,
             is_captain: r.is_captain,
             is_libero: r.is_libero,
-            url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: c.mime ?? 'image/jpeg' })),
+            // The declared mime is the uploader's claim — stamp only a vetted type.
+            url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
             burned: burned != null,
             isPdf: burned == null && c.mime === 'application/pdf',
           })

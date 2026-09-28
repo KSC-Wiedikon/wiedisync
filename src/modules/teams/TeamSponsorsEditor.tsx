@@ -14,6 +14,7 @@ import ConfirmDialog from '../../components/ConfirmDialog'
 import EmptyState from '../../components/EmptyState'
 import type { Team, Sponsor } from '../../types'
 import { createRecord, deleteRecord, fetchAllItems, updateRecord, uploadFile } from '../../lib/api'
+import { hasApiErrorCode } from '../../lib/apiErrorCode'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 export default function TeamSponsorsEditor({ team }: { team: Team }) {
@@ -108,8 +109,8 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
       toast.success(t('sponsorSaved'))
       resetForm()
       fetchSponsors()
-    } catch {
-      toast.error(t('sponsorSaveError'))
+    } catch (err) {
+      toast.error(hasApiErrorCode(err, 'FILE_NOT_YOURS') ? t('common:fileNotYours') : t('sponsorSaveError'))
     }
   }
 

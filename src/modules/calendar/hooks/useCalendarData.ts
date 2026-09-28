@@ -483,10 +483,20 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
   // `birthdate_visibility === 'full'` gate is applied client-side in the util
   // (mirrors the roster gate — this ships no more than the roster already does).
   const fetchBirthdays = enabled && authed && wantBirthdays && hasTeamFilter
+  //
+  // The visibility gate is ALSO in the query (audit 2026-09-28 F05): the
+  // members privacy read hook nulls a hidden birthdate only on ROOT member
+  // reads, not through this relational `member.birthdate` expansion — so
+  // without the filter every hidden/year-only teammate's full date of birth
+  // shipped to the browser and was merely not drawn. `member` is an M2O here,
+  // so this is a single-level walk, not the deep-M2M policy trap.
   const { data: birthdayLinksRaw } = useCollection<MemberTeam & { member?: Member | string }>('member_teams', {
     enabled: fetchBirthdays && isAuthenticated(),
     filter: hasTeamFilter
-      ? { team: { _in: filters.selectedTeamIds } }
+      ? { _and: [
+          { team: { _in: filters.selectedTeamIds } },
+          { member: { birthdate_visibility: { _eq: 'full' } } },
+        ] }
       : { id: { _eq: -1 } },
     fields: ['member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'member.birthdate', 'member.birthdate_visibility'],
     all: true,

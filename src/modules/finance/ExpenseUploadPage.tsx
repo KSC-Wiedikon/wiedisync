@@ -12,6 +12,7 @@ import { FormInput, FormTextarea } from '@/components/FormField'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '../../hooks/useAuth'
 import { kscwApi, uploadFile } from '../../lib/api'
+import { EXPENSE_RECEIPTS_FOLDER } from '../../lib/privateFolders'
 import { isValidIban, normalizeIban } from '../../utils/iban'
 import { formatAmountCH, parseAmount } from '../../utils/amount'
 import { CURRENCY_OPTIONS } from '../../utils/currencies'
@@ -144,7 +145,9 @@ export default function ExpenseUploadPage() {
     setScanFailed(false)
     setStep('uploading')
     try {
-      const { id, name } = await uploadFile(file)
+      // Private folder: a receipt must never sit in the quarantine / root where
+      // the 388 publish trigger or an old allow-list could reach it (audit F01).
+      const { id, name } = await uploadFile(file, EXPENSE_RECEIPTS_FOLDER)
       setFileId(id)
       setFileName(name)
       setStep('scanning')

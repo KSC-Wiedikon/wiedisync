@@ -110,6 +110,8 @@ export default {
   signupFormFailed: 'Non è stato possibile creare il modulo di iscrizione',
   inviteSending: 'Gli inviti vengono inviati in background',
   inviteFailed: 'Non è stato possibile inviare gli inviti',
+  inviteAudienceTooLarge: 'Troppe persone da notificare — chiedi a un admin di inviare l\'invito',
+  inviteRateLimited: 'Troppi inviti inviati di recente — riprova più tardi',
   signupFormReplaceConfirm: 'Questo evento ha già un modulo di iscrizione. Crearne uno nuovo e collegare quello? Il modulo precedente e le sue voci vengono mantenuti.',
   signupFormUnlinkConfirm: 'Rimuovere il link di iscrizione da questo evento? Il modulo e le sue voci vengono mantenuti.',
   signupLinkTitle: 'Link di iscrizione per gli ospiti',
@@ -140,4 +142,5 @@ export default {
   signupsUpstreamError: 'Non è stato possibile caricare le iscrizioni degli ospiti al momento.',
   signupsLoadFailed: 'Non è stato possibile caricare le iscrizioni',
   signupsExport: 'Esporta CSV',
+  notEventManager: 'Puoi invitare persone solo a un evento che gestisci',
 } as const
