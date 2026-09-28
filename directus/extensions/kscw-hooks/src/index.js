@@ -41,6 +41,7 @@ import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
+import { createCorsCredentialsMiddleware } from './cors-credentials.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
@@ -281,6 +282,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // then validate in filter hooks for public item creation.
 
   init('middlewares.before', ({ app }) => {
+    // Registered before Directus's own CORS middleware (app.js: middlewares.before
+    // → cors), so it can drop the credentials header for non-app origins (F43).
+    app.use(createCorsCredentialsMiddleware())
     app.use((req, _res, next) => {
       const token = req.headers['x-turnstile-token'] || ''
       turnstileStore.run({ turnstileToken: token }, next)

@@ -22,15 +22,17 @@ export { isSessionExpired } from './sessionError'
 
 // ── Config ──────────────────────────────────────────────────────────
 
-// Cookie-session auth (2026-06-18): the access + refresh token live in an
-// httpOnly cookie scoped to `.kscw.ch` (set by Directus), unreadable from JS.
-// We keep a NON-sensitive boolean "hint" in a readable cookie ALSO scoped to
-// `.kscw.ch` so the app can (a) synchronously decide whether a session likely
-// exists — gating the session-restore spinner, the 401-retry guard, realtime/
-// activity-log gating — and (b) SHARE that knowledge across the member +
-// scheduling subdomains (localStorage is per-origin and would break SSO; a
-// `.kscw.ch` cookie is shared, exactly like the real session cookie). The
-// cookie remains the only actual credential; the hint carries no secret.
+// Cookie-session auth (2026-06-18; host-only since 2026-09-28): the access +
+// refresh token live in an httpOnly cookie that is host-only on
+// directus[-dev].kscw.ch (name `kscw_session` / `kscw_session_dev`), unreadable
+// from JS. The member + scheduling apps are same-site with that host, so their
+// credentialed fetches still carry it (SSO). We keep a NON-sensitive boolean
+// "hint" in a readable cookie scoped to `.kscw.ch` so the app can
+// (a) synchronously decide whether a session likely exists — gating the
+// session-restore spinner, the 401-retry guard, realtime/activity-log gating —
+// and (b) SHARE that knowledge across the member + scheduling subdomains
+// (localStorage is per-origin and would break SSO). The session cookie remains
+// the only actual credential; the hint carries no secret.
 function authHintKey(): string {
   // Distinct per backend env so a dev login and a prod login can coexist in one
   // browser without the hint (or the real session cookie) colliding on .kscw.ch.
@@ -70,11 +72,11 @@ const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host.endsWit
 // stay same-origin (no CORS preflight) and the proxy does the heavy lift.
 const useProdProxy = isLocalhost && import.meta.env.VITE_PROD_DATA === '1'
 // `npm run dev:login` sets VITE_DEV_PROXY=1 → the same reverse-proxy trick aimed
-// at DEV Directus, for a different reason: the dev session cookie is
-// `Domain=.kscw.ch; SameSite=Lax`, which no localhost/pages.dev origin can hold —
-// so a real browser login against dev only works when every request is
-// same-origin through the vite proxy (which strips the cookie's Domain so it
-// sticks to the vite origin). Guarded by import.meta.env.DEV: false in builds,
+// at DEV Directus, for a different reason: the dev session cookie is host-only
+// on directus-dev.kscw.ch with SameSite=Lax, so no localhost/pages.dev origin
+// (cross-site) ever gets it sent — a real browser login against dev only works
+// when every request is same-origin through the vite proxy (which rewrites the
+// cookie so it sticks to the vite origin). Guarded by import.meta.env.DEV: false in builds,
 // so the flag can never leak into a deployed bundle. Use via http://localhost
 // (SSH tunnel) — the E2EE screens need the secure-context crypto.subtle.
 const useDevProxy = import.meta.env.DEV && import.meta.env.VITE_DEV_PROXY === '1'
@@ -115,9 +117,10 @@ export const SCHEDULING_ORIGIN: string =
 // ── Client ──────────────────────────────────────────────────────────
 
 // Cookie session mode (2026-06-18): the access + refresh token live in an
-// httpOnly, Secure, SameSite=Lax cookie scoped to `.kscw.ch` (Directus
-// SESSION_COOKIE_*), shared across the member + scheduling subdomains (SSO) and
-// unreadable from JS — this CLOSES the former localStorage-token accepted risk.
+// httpOnly, Secure, SameSite=Lax cookie, host-only on directus[-dev].kscw.ch
+// (`kscw_session` / `kscw_session_dev`, Directus SESSION_COOKIE_*). The member
+// + scheduling subdomains are same-site with it (SSO), and it is unreadable
+// from JS — this CLOSES the former localStorage-token accepted risk.
 // Every request must carry the cookie → `credentials: 'include'` on both the
 // auth composable (login/refresh) and rest (data). The browser persists the
 // cookie per its TTL, so this also removes the old iOS-PWA sessionStorage hack.
