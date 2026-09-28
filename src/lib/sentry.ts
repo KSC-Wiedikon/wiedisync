@@ -457,7 +457,10 @@ export function captureAuthError(
   // refresh token outlived its TTL and the user simply has to log in again.
   // Not a bug; capturing it spams Sentry (regressed as WIEDISYNC-F on
   // 2026-05-12 with 100+ hits/day). Log to console but skip remote capture.
-  if (context.action === 'token_refresh' && /token expired/i.test(err.message)) {
+  // Same for "The refresh token is required in either the payload or cookie":
+  // the browser simply holds no session cookie any more (cleared, expired, or
+  // the cookie was renamed server-side) — the user logs in again.
+  if (context.action === 'token_refresh' && /token expired|refresh token is required/i.test(err.message)) {
     console.info('[Auth] Refresh token expired — user must re-authenticate')
     return
   }

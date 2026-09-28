@@ -19,6 +19,7 @@ import {
 // Pure predicate, kept in its own module so it is unit-testable without mocking
 // this one. Re-exported so existing `from './api'` call sites keep working.
 export { isSessionExpired } from './sessionError'
+import { isRefreshRejected } from './sessionError'
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -303,6 +304,15 @@ export async function refreshAuth() {
   if (_refreshPromise) return _refreshPromise
   _refreshPromise = client.refresh()
     .catch((err) => {
+      // Directus said the session is gone (refresh cookie missing/expired —
+      // e.g. every browser after the 2026-09-28 session-cookie rename). Drop the
+      // hint NOW, before the caller rethrows: otherwise every in-flight query of
+      // the ~350-request boot saw `isAuthenticated()` still true, re-ran this
+      // refresh through withAuthRetry and logged its own denial as a real error
+      // (prod 2026-09-28: 135 refresh + ~140 "no permission" entries from 7
+      // browsers). With the hint gone those queries fall into the logged-out
+      // carve-outs and AuthProvider/AuthRoute send the user to /login.
+      if (isRefreshRejected(err)) setAuthHint(false)
       captureAuthError(err, { action: 'token_refresh' })
       throw err
     })

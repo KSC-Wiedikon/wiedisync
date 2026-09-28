@@ -36,3 +36,28 @@ export function isSessionExpired(err: unknown): boolean {
     (x) => x?.extensions?.code === 'TOKEN_EXPIRED' || x?.extensions?.code === 'INVALID_CREDENTIALS',
   )
 }
+
+/**
+ * True when Directus itself REJECTED a `/auth/refresh` — the refresh cookie is
+ * missing (`INVALID_PAYLOAD`: "The refresh token is required in either the
+ * payload or cookie"), unknown or expired. The session is gone for good and no
+ * retry can bring it back.
+ *
+ * ⚠ Only definitive answers count. A statusless reject (dropped signal, edge
+ * block rendered via CORS) or a 5xx (Directus restarting) says nothing about the
+ * session, and treating those as dead would sign a member out over a blip —
+ * the same rule `isSessionExpired` and AuthProvider's restore path follow.
+ */
+export function isRefreshRejected(err: unknown): boolean {
+  if (isSessionExpired(err)) return true
+  const e = err as {
+    status?: number
+    response?: { status?: number }
+    errors?: Array<{ extensions?: { code?: string } } | null> | null
+  } | null
+  const status = e?.status ?? e?.response?.status
+  if (status != null && status >= 500) return false
+  return (e?.errors ?? []).some(
+    (x) => x?.extensions?.code === 'INVALID_PAYLOAD' || x?.extensions?.code === 'INVALID_TOKEN',
+  )
+}

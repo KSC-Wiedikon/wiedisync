@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isSessionExpired } from '../sessionError'
+import { isSessionExpired, isRefreshRejected } from '../sessionError'
 
 /**
  * The 401-vs-403 distinction, pinned.
@@ -51,5 +51,20 @@ describe('isSessionExpired', () => {
       expect(() => isSessionExpired(bad)).not.toThrow()
       expect(isSessionExpired(bad)).toBe(false)
     }
+  })
+})
+
+describe('isRefreshRejected', () => {
+  it('accepts a missing refresh cookie and an invalid token', () => {
+    expect(isRefreshRejected({ response: { status: 400 }, errors: [{ extensions: { code: 'INVALID_PAYLOAD' } }] })).toBe(true)
+    expect(isRefreshRejected({ errors: [{ extensions: { code: 'INVALID_TOKEN' } }] })).toBe(true)
+    expect(isRefreshRejected({ status: 401 })).toBe(true)
+  })
+
+  it('rejects anything that says nothing about the session', () => {
+    expect(isRefreshRejected(new TypeError('Failed to fetch'))).toBe(false)
+    expect(isRefreshRejected({ response: { status: 503 }, errors: [{ extensions: { code: 'INVALID_PAYLOAD' } }] })).toBe(false)
+    expect(isRefreshRejected({ status: 403 })).toBe(false)
+    expect(isRefreshRejected(null)).toBe(false)
   })
 })
