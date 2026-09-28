@@ -68,12 +68,13 @@ BACKUP="$BACKUP_DIR/kscw_dev_pre-refresh_${TS}.sql.gz"
 SELF="$(readlink -f "$0")"
 SELF_DIR="$(dirname "$SELF")"
 SCRUB_SQL="$SELF_DIR/refresh-dev-scrub.sql"
+ROLE_SQL="$SELF_DIR/directus-db-role.sql"
 
 log(){ echo "[$(date -u +%F_%H:%M:%SZ)] $*"; }
 
 # Root-only location check (F72, see header). Checked for the directory, this
 # file and the scrub SQL: a writable directory alone lets someone swap either.
-for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL"; do
+for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL" "$ROLE_SQL"; do
   [ -e "$f" ] || continue          # a missing scrub file is reported below
   read -r own mode < <(stat -c '%u %a' "$f")
   if [ "$own" != 0 ] || (( 8#$mode & 8#022 )); then
@@ -116,6 +117,11 @@ ALLOW_SQL_LIT=${ALLOW_SQL//\'/\'\'}
 scrub(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -v scrub_pii=1 -q < "$SCRUB_SQL"; }
 repin(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$REPIN"; }
 pguard(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 < "$PGUARD" 2>&1 | sed 's/^/      /'; }
+# F29: dev Directus logs in as directus_dev, not the superuser. The clone (and a
+# rolled-back dump) re-creates `public` as supabase_admin, so hand it back —
+# otherwise dev cannot alter its tables and reads ZERO rows from every table
+# that still carries Supabase-era RLS. A no-op until the role exists.
+ownrole(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -X -v ON_ERROR_STOP=1 -v role=directus_dev -q < "$ROLE_SQL"; }
 
 # Restore dev from the safety dump + restart it. Used on any post-wipe failure
 # so an unattended run never leaves dev down (or serving unscrubbed PII).
@@ -152,6 +158,7 @@ rollback(){
     log "ROLLBACK: prod-equality guard failed on the restored dump — dev left STOPPED. Safety dump: $BACKUP"
     return 1
   fi
+  ownrole || log "   WARN rollback: directus_dev ownership step failed — dev may read empty tables"
   docker start "$DEV_CONTAINER" >/dev/null </dev/null 2>&1 || true
   log "ROLLBACK OK: dev restored to prior-day data (credentials re-checked) + restarted."
   return 0
@@ -188,11 +195,13 @@ awk -F'|' '
 
 # Everything the scrub needs is checked BEFORE dev is touched: a missing scrub
 # file or guard would otherwise only surface after the wipe.
-if [ ! -s "$SCRUB_SQL" ]; then
-  log "!! $SCRUB_SQL missing/empty — aborting BEFORE touching dev (dev untouched)."
-  log "   It ships with this script: npm run scripts:deploy:dev"
-  exit 1
-fi
+for req in "$SCRUB_SQL" "$ROLE_SQL"; do
+  if [ ! -s "$req" ]; then
+    log "!! $req missing/empty — aborting BEFORE touching dev (dev untouched)."
+    log "   It ships with this script: npm run scripts:deploy:dev"
+    exit 1
+  fi
+done
 
 log "[1b/7] Fingerprinting prod credentials (prod-equality guard)"
 # One UPDATE per credential kind, listing md5() of every PROD token / password
@@ -319,6 +328,13 @@ log "[7b/7] Prod-equality guard (null any dev token / non-allowlist password has
 # holding prod credentials: roll back to the prior-day dump instead.
 if ! pguard; then
   log "!! Prod-equality guard FAILED — rolling back."
+  rollback || true
+  exit 1
+fi
+
+log "[7c/7] Handing the public schema to directus_dev (F29)"
+if ! ownrole; then
+  log "!! directus_dev ownership step FAILED — dev would read empty tables; rolling back."
   rollback || true
   exit 1
 fi

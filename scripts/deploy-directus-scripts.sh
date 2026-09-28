@@ -34,7 +34,7 @@ TARGET="${1:-}"
 case "$TARGET" in
   # ROOT_RUN: "<file>:<mode>" — executables 0700, data 0600.
   dev)  DEST=/opt/directus-kscw-dev/scripts/
-        ROOT_RUN="refresh-dev-daily.sh:0700 refresh-dev-scrub.sql:0600" ;;
+        ROOT_RUN="refresh-dev-daily.sh:0700 refresh-dev-scrub.sql:0600 directus-db-role.sql:0600" ;;
   prod) DEST=/opt/directus-kscw/scripts/
         ROOT_RUN="postgres-autopatch.sh:0700 svrz-sync-verify.mjs:0600" ;;
   *) echo "usage: scripts/deploy-directus-scripts.sh <dev|prod>" >&2; exit 1 ;;

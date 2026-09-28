@@ -46,6 +46,9 @@ const ENVS = {
   },
 }
 
+// Each env's Directus login role (F29, see directus-db-role.sql).
+const DIRECTUS_ROLE = { dev: 'directus_dev', prod: 'directus_prod' }
+
 const args = process.argv.slice(2)
 const envName = args[0]
 const flag = args[1] || ''
@@ -186,6 +189,15 @@ async function main() {
     }
   }
   console.log(`\n[migrate] ✓ Applied ${applied_n} new migration(s).`)
+  // Migrations run as supabase_admin, so anything they create is owned by it.
+  // Hand it to this env's Directus login role (F29): Directus must own a table
+  // to alter it, and a non-owner reads ZERO rows from the RLS-enabled tables.
+  // A no-op (NOTICE) until the role exists.
+  if (applied_n) {
+    const roleSql = readFileSync(join(SCRIPTS_DIR, 'directus-db-role.sql'), 'utf-8')
+    psqlApply(`\\set role ${DIRECTUS_ROLE[envName]}\n${roleSql}`, 'directus-db-role.sql')
+    console.log(`[migrate] ✓ public schema owned by ${DIRECTUS_ROLE[envName]}`)
+  }
   console.log(`[migrate] Reminder: permissions are NOT in migrations — run \`npm run db:setup-perms:${envName}\` afterwards if any permissions changed.`)
 }
 

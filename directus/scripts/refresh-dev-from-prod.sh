@@ -51,6 +51,10 @@ cd "$(dirname "$0")/../.."
 SCRUB_FILE=directus/scripts/refresh-dev-scrub.sql
 [ -s "$SCRUB_FILE" ] || { echo "Missing $SCRUB_FILE" >&2; exit 1; }
 SCRUB_B64=$(base64 -w0 "$SCRUB_FILE")
+# F29: hands the restored public schema to directus_dev (see directus-db-role.sql).
+ROLE_FILE=directus/scripts/directus-db-role.sql
+[ -s "$ROLE_FILE" ] || { echo "Missing $ROLE_FILE" >&2; exit 1; }
+ROLE_B64=$(base64 -w0 "$ROLE_FILE")
 
 SSH_HOST=hetzner
 PGC=kscw-postgres
@@ -98,7 +102,7 @@ echo "==> Running clone + scrub on the VPS (this can take a minute) ..."
 # Quoted heredoc => nothing is expanded locally; config is passed as positional
 # args to the remote bash. Every `docker exec` that is NOT a file/pipe redirect
 # gets </dev/null so it can't swallow the script stream.
-ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER $SCRUB_B64" <<'REMOTE'
+ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER $SCRUB_B64 $ROLE_B64" <<'REMOTE'
 set -uo pipefail
 DO_SCRUB="$1"; PGC="$2"; PROD_DB="$3"; DEV_DB="$4"; DEV_CONTAINER="$5"
 # Root-only output (captured creds, safety dump), scratch in a private dir that
@@ -264,6 +268,14 @@ echo "[7b/7] Prod-equality guard (null any dev token / non-allowlist password ha
 # dev and the next refresh's re-pin keeps it.
 if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 < "$PGUARD" 2>&1 | sed 's/^/      /'; then
   echo "!! Prod-equality guard FAILED — dev left STOPPED (it may still hold prod credentials)."
+  echo "   Safety backup: $BACKUP"
+  exit 1
+fi
+
+ROLE_SQL="$WORK/directus-db-role.sql"
+printf '%s' "$7" | base64 -d > "$ROLE_SQL" 2>/dev/null
+if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -X -v ON_ERROR_STOP=1 -v role=directus_dev -q < "$ROLE_SQL"; then
+  echo "!! directus_dev ownership step FAILED — dev left STOPPED (it would read empty tables)."
   echo "   Safety backup: $BACKUP"
   exit 1
 fi

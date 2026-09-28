@@ -115,7 +115,7 @@ test('the nightly script refuses to run from a location a non-root user can writ
   assert.match(daily, /8#\$mode & 8#022/)
   const deploy = readFileSync(resolve(HERE, '..', '..', '..', 'scripts', 'deploy-directus-scripts.sh'), 'utf-8')
   // What root's crontab runs is installed root-owned OUTSIDE the container's bind mount.
-  assert.match(deploy, /ROOT_RUN="refresh-dev-daily\.sh:0700 refresh-dev-scrub\.sql:0600"/)
+  assert.match(deploy, /ROOT_RUN="refresh-dev-daily\.sh:0700 refresh-dev-scrub\.sql:0600 directus-db-role\.sql:0600"/)
   assert.match(deploy, /install -o root -g root -m \$mode/)
 })
 
@@ -123,10 +123,22 @@ test('a rollback re-scrubs the restored safety dump before dev starts', () => {
   const rb = daily.slice(daily.indexOf('rollback(){'), daily.indexOf('\n}\n', daily.indexOf('rollback(){')))
   const startAt = rb.indexOf('docker start')
   assert.ok(startAt > 0, 'rollback no longer starts dev?')
-  for (const step of ['if scrub; then', 'repin', 'if ! pguard; then']) {
+  for (const step of ['if scrub; then', 'repin', 'if ! pguard; then', 'ownrole']) {
     const at = rb.indexOf(step)
     assert.ok(at > 0 && at < startAt, `rollback must run "${step}" before docker start`)
   }
+})
+
+test('dev is handed back to directus_dev before it starts (F29)', () => {
+  // The clone re-creates `public` as supabase_admin; without this step dev
+  // Directus (directus_dev) cannot alter its tables and reads ZERO rows from
+  // every RLS-enabled table.
+  const own = daily.indexOf('if ! ownrole; then')
+  const lastStart = daily.lastIndexOf('docker start "$DEV_CONTAINER" >/dev/null </dev/null')
+  assert.ok(own > 0 && own < lastStart, 'ownrole must run before the final docker start')
+  assert.match(daily, /for req in "\$SCRUB_SQL" "\$ROLE_SQL"; do/)
+  const role = readFileSync(resolve(HERE, '..', 'directus-db-role.sql'), 'utf-8')
+  assert.match(role, /IF r NOT IN \('directus_prod', 'directus_dev'\)/)
 })
 
 // ── Prod-equality guard: allowlist password exemption (round 2) ─────────────
