@@ -527,6 +527,34 @@ export interface Game extends BaseRecord {
   /** Teams the board is open to (migration 379): playing and/or guest teams. Empty/null = all. */
   carpool_teams?: (string | number)[] | null
 
+  /** Provisional result (migration 395) — entered by our team or read from the
+   *  opponent's VolleyManager report before the official SV feed delivers it.
+   *  Endpoint-owned (`/kscw/game-result`), read-only in the UI. Once `status` is
+   *  'completed' the official columns win; these stay as history. */
+  provisional_sets_json?: Array<{ home: number; away: number }> | null
+  provisional_home_score?: number | null
+  provisional_away_score?: number | null
+  /** own = our team entered it; opponent = the opponent's VM report, unconfirmed;
+   *  confirmed = our report equals the opponent's; vm_official = VM holds an
+   *  official result the SV feed has not delivered yet. */
+  provisional_source?: 'own' | 'opponent' | 'confirmed' | 'vm_official' | null
+  provisional_by_name?: string | null
+  provisional_at?: string | null
+  /** VolleyManager result-report push journal — written by the push worker. */
+  vm_result_status?: 'pending' | 'reported' | 'confirmed' | 'conflict' | 'failed' | 'skipped' | null
+  vm_result_error?: string | null
+  vm_result_pushed_at?: string | null
+  vm_result_claimed_at?: string | null
+  vm_result_report_id?: string | null
+  vm_opponent_report?: {
+    sets: Array<{ home: number; away: number }>
+    home: number
+    away: number
+    reported_at?: string | null
+    party?: string | null
+  } | null
+  vm_result_checked_at?: string | null
+
 }
 
 /**

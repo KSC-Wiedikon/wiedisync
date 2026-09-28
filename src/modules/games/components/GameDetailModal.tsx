@@ -23,7 +23,7 @@ import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
 import { useMutation } from '../../../hooks/useMutation'
 import { fetchItem, kscwApi } from '../../../lib/api'
-import { invalidateForCollection, useCollection } from '../../../lib/query'
+import { invalidateForCollection, queryClient, useCollection } from '../../../lib/query'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
@@ -39,6 +39,8 @@ import CancelActivityButton from '../../../components/CancelActivityButton'
 import { Switch } from '@/components/ui/switch'
 import CarpoolPanel from '../../carpool/CarpoolPanel'
 import LiveScoringEntry from '../../live/LiveScoringEntry'
+import GameResultPanel, { ProvisionalPill } from './GameResultPanel'
+import { displayResult, parseSets } from '../../../utils/gameResult'
 import { useCarpoolActions } from '../../carpool/carpoolApi'
 import CarpoolScopePicker from '../../carpool/CarpoolScopePicker'
 import type { TeamPickerOption } from '@/components/ui/TeamPicker'
@@ -93,14 +95,6 @@ type ExpandedGame = Game & {
   bb_scorer_duty_team: (Team & BaseRecord) | string
   bb_timekeeper_duty_team: (Team & BaseRecord) | string
   bb_24s_duty_team: (Team & BaseRecord) | string
-}
-
-function parseSets(json: unknown): Array<{ home: number; away: number }> {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (s): s is { home: number; away: number } =>
-      typeof s === 'object' && s !== null && 'home' in s && 'away' in s,
-  )
 }
 
 const dateFormatOptions: Intl.DateTimeFormatOptions = {
@@ -406,7 +400,15 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const kscwFullLabel = kscwTeamObj?.full_name || (rawKscwTeam ? `KSC Wiedikon ${rawKscwTeam}` : '')
   const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
   const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
-  const sets = parseSets(game.sets_json)
+  // Official score once sv-sync completes the game, else the provisional one (our
+  // report / the opponent's VM report, migration 395). fullGame first: it is what a
+  // result save re-reads. A live game keeps its running score.
+  const resultGame = fullGame ?? game
+  const result = displayResult(resultGame)
+  const provisional = result.kind === 'provisional'
+  const sets = result.kind === 'none' ? parseSets(game.sets_json) : result.sets
+  const shownHome = result.kind === 'none' ? game.home_score : result.home
+  const shownAway = result.kind === 'none' ? game.away_score : result.away
   // Long date with weekday/month NAMES — follow the active UI language. The
   // strict de-CH rule (CLAUDE.md) applies to numeric dd.mm.yyyy dates only.
   const dateStr = game.date ? new Intl.DateTimeFormat(currentLocale(), dateFormatOptions).format(new Date(game.date)) : ''
@@ -512,6 +514,20 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     }
   }
 
+  // A saved result is stored provisional at once — re-read so the score block shows it.
+  // The Results tab's cards come from the combined activities query, under its own
+  // key, which the 'games' invalidation does not reach.
+  async function reloadAfterResult() {
+    invalidateForCollection('games')
+    queryClient.invalidateQueries({ queryKey: ['activities-with-participations'] })
+    try {
+      const fresh = await fetchItem<Game>('games', gameId, {
+        fields: ['*', ...GAME_EXPAND.split(',').map((r) => `${r}.*`)],
+      })
+      setFullGame(fresh)
+    } catch { /* the list refetch still lands */ }
+  }
+
   // Manual retry after a failed push. The endpoint spawns the same worker the T-60
   // cron uses and flips the game back to `pending`, so we refetch to show that.
   async function pushNominationNow() {
@@ -542,8 +558,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     lateLoading,
     onReport: reportLate,
   })
-  const homeWon = Number(game.home_score) > Number(game.away_score)
-  const awayWon = Number(game.away_score) > Number(game.home_score)
+  const homeWon = Number(shownHome) > Number(shownAway)
+  const awayWon = Number(shownAway) > Number(shownHome)
   const kscwWon = game.type === 'home' ? homeWon : awayWon
   const kscwLost = game.type === 'home' ? awayWon : homeWon
   const scoreColor = kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-foreground'
@@ -637,12 +653,15 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             </div>
 
             <div className="shrink-0 text-center">
-              {game.status === 'completed' || game.status === 'live' ? (
-                <div className="font-mono text-3xl font-bold">
-                  <span className={game.type === 'home' ? scoreColor : 'text-muted-foreground'}>{game.home_score}</span>
-                  <span className="mx-1 text-muted-foreground/80">:</span>
-                  <span className={game.type === 'away' ? scoreColor : 'text-muted-foreground'}>{game.away_score}</span>
-                </div>
+              {result.kind !== 'none' || game.status === 'live' ? (
+                <>
+                  <div className="font-mono text-3xl font-bold tabular-nums">
+                    <span className={game.type === 'home' ? scoreColor : 'text-muted-foreground'}>{shownHome}</span>
+                    <span className="mx-1 text-muted-foreground/80">:</span>
+                    <span className={game.type === 'away' ? scoreColor : 'text-muted-foreground'}>{shownAway}</span>
+                  </div>
+                  {provisional && <ProvisionalPill className="mt-1" />}
+                </>
               ) : (
                 <div className="text-base font-normal text-muted-foreground/80">vs</div>
               )}
@@ -654,6 +673,19 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               </p>
             </div>
           </div>
+
+          {provisional && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {result.source === 'own'
+                ? (resultGame.provisional_by_name
+                  ? t('live:result_source_own', { name: resultGame.provisional_by_name })
+                  : t('live:result_source_ownTeam'))
+                : result.source === 'opponent' ? t('live:result_source_opponent')
+                  : result.source === 'confirmed' ? t('live:result_source_confirmed')
+                    : result.source === 'vm_official' ? t('live:result_source_vm_official')
+                      : null}
+            </p>
+          )}
 
           {/* Sets breakdown */}
           {sets.length > 0 && (
@@ -816,6 +848,18 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             window, for basketball, or for someone who may neither score nor watch. */}
         <div className="border-t border-hairline px-6 py-3 empty:hidden">
           <LiveScoringEntry gameId={String(game.id)} date={game.date} time={game.time} sport={kscwSport} />
+        </div>
+
+        {/* Result entry + VolleyManager report (migration 395) — renders nothing outside
+            kickoff +3 h … +14 d, for basketball, or for someone not on the game. */}
+        <div className="border-t border-hairline px-6 py-3 empty:hidden">
+          <GameResultPanel
+            game={resultGame}
+            sport={kscwSport}
+            homeLabel={homeLabel}
+            awayLabel={awayLabel}
+            onSaved={reloadAfterResult}
+          />
         </div>
 
         {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}

@@ -11,18 +11,29 @@ import { getPromotionColor, promotionBorderColors } from '../../../utils/leagueP
 import { formatNumberSwiss } from '../../../utils/formatNumber'
 import { useCollection } from '../../../lib/query'
 import { formatDateCompact, formatTime } from '../../../utils/dateHelpers'
+import { applyProvisionalToRankings, type RankingRow } from '../../../utils/gameResult'
+import { ProvisionalPill } from './GameResultPanel'
 
 interface RankingsTableProps {
   league: string
   rankings: Ranking[]
   /** Hide sets/points/quotient columns (homepage sidebar) */
   compact?: boolean
+  /** Played KSCW games with a provisional result (migration 395), not yet official.
+   *  Counted into the standings and marked, until the SV feed catches up. */
+  provisionalGames?: Game[]
 }
 
-export default function RankingsTable({ league, rankings, compact }: RankingsTableProps) {
+export default function RankingsTable({ league, rankings, compact, provisionalGames }: RankingsTableProps) {
   const { t } = useTranslation('games')
+  const { t: tl } = useTranslation('live')
   const navigate = useNavigate()
-  const sorted = [...rankings].sort((a, b) => a.rank - b.rank)
+  const rows: RankingRow[] = useMemo(
+    () => (provisionalGames?.length ? applyProvisionalToRankings(rankings, provisionalGames) : rankings),
+    [rankings, provisionalGames],
+  )
+  const hasProvisional = rows.some((r) => r.provisional)
+  const sorted = [...rows].sort((a, b) => a.rank - b.rank)
   const isBasketball = rankings.some((r) => r.team_id.startsWith('bb_'))
   const totalTeams = sorted.length
   const [breakdown, setBreakdown] = useState<{ row: Ranking; mode: 'win' | 'loss' } | null>(null)
@@ -106,6 +117,9 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
       <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
         <div className="border-b border-border/60 bg-surface-sunken px-4 py-3">
           <h3 className="text-sm font-semibold text-foreground">{league}</h3>
+          {hasProvisional && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{tl('result_rankingsNote')}</p>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
@@ -161,6 +175,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                               {row.team_name || `Team ${row.team_id}`}
                             </span>
                           )}
+                          {row.provisional && <ProvisionalPill className="shrink-0" />}
                           {!compact && <ChevronDown className={`ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground/80 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />}
                         </div>
                       </td>

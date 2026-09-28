@@ -55,10 +55,8 @@ function TeamPanel({
   const serving = state.serving_team === (side === 'a' ? 'left' : 'right')
   const won = closedWinner(state) === side
   return (
-    <div
-      className="flex min-w-0 flex-1 flex-col rounded-xl border-2 bg-card p-2 sm:p-3"
-      style={{ borderColor: color }}
-    >
+    // svrz card; the team colour stays on the dot and the score button (data colours).
+    <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-hairline bg-card p-2 shadow-card sm:p-3">
       <div className="flex min-h-11 items-start gap-1.5">
         <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
         {/* Primary name: wraps, never truncated. */}
@@ -68,7 +66,7 @@ function TeamPanel({
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
         <span>{side === 'a' ? t('home') : t('away')}</span>
-        <span className="font-semibold text-foreground">{t('sets')} {sets}</span>
+        <span className="font-semibold tabular-nums text-foreground">{t('sets')} {sets}</span>
       </div>
 
       <button
@@ -77,7 +75,7 @@ function TeamPanel({
         disabled={disabled}
         aria-label={t('addPointFor', { team: name || (side === 'a' ? t('home') : t('away')) })}
         className={cn(
-          'relative mt-2 flex min-h-[40vh] flex-1 flex-col items-center justify-center rounded-lg text-white transition-transform active:scale-[0.98] disabled:opacity-50',
+          'relative mt-2 flex min-h-[40vh] flex-1 flex-col items-center justify-center rounded-xl text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50',
           won && 'ring-4 ring-amber-400',
         )}
         style={{ backgroundColor: color }}
@@ -87,7 +85,7 @@ function TeamPanel({
             {t('serving')}
           </span>
         )}
-        <span className="text-7xl font-extrabold tabular-nums leading-none sm:text-8xl">{points}</span>
+        <span className="text-7xl font-bold tabular-nums leading-none sm:text-8xl">{points}</span>
         <Plus className="mt-3 h-8 w-8 opacity-80" />
       </button>
 
@@ -142,8 +140,8 @@ export default function ScorePage() {
   if (meta && !canScore) {
     return (
       <div className="mx-auto w-full max-w-md p-4">
-        <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
-          <p className="text-base font-semibold text-foreground">{t('cannotScoreTitle')}</p>
+        <div className="rounded-2xl border border-hairline bg-card p-8 text-center shadow-card">
+          <p className="text-sm font-semibold text-foreground">{t('cannotScoreTitle')}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t(`cannotScore_${meta.code ?? 'not_participant'}`, t('cannotScore_not_participant'))}</p>
           <Button asChild variant="outline" className="mt-4">
             <Link to={`/live?channel=${meta.channel}`}>{t('watchLive')}</Link>
@@ -174,11 +172,11 @@ export default function ScorePage() {
       {/* Set strip: finished sets as pills, then the set being played. */}
       <div className="mb-3 flex min-h-8 flex-wrap items-center gap-1.5">
         {state.set_results.map((r, i) => (
-          <span key={i} className="rounded-full border bg-card px-2.5 py-1 text-xs font-semibold tabular-nums text-foreground">
+          <span key={i} className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-semibold tabular-nums text-foreground">
             {r.a}:{r.b}
           </span>
         ))}
-        <span className="ml-auto rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
+        <span className="ml-auto rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
           {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
         </span>
       </div>
@@ -199,8 +197,8 @@ export default function ScorePage() {
       {/* Set / match end prompt — not modal, like point-hub: a mis-scored rally can
           still be corrected with "−" before moving on. */}
       {closed && !isFinal && (
-        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-center dark:border-amber-700 dark:bg-amber-950/40">
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-center dark:border-amber-900/60 dark:bg-amber-950/40">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
             {over ? t('eventMatchEnd') : t('eventSetEnd')}
           </p>
           <Button className="mt-2 w-full" onClick={() => apply(over ? finish : nextSet)}>

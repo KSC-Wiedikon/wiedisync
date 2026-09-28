@@ -19,6 +19,7 @@
  *   - HOME games only: the assigned duty members (Schreiber, Täfeler, both-in-one).
  *     An away game's scorer duty is the opponent's, and our members on it are none.
  *   Window: kickoff −60 min … +4 h. Full admins bypass everything.
+ *   The check itself lives in game-participant.js, shared with result entry.
  *
  * TWO PHONES AT ONCE. Two teammates will both open it. Every write carries the `ts` of
  * the row it was built from and the UPDATE is conditional on it, so a write built on
@@ -33,15 +34,17 @@
  */
 
 import { writeUserLog } from './activity-log.js'
-import { gameStartMs, gameSheetMemberIds, isTeamLeader, isGuestTeamLeader } from './scorer-roster.js'
+import { authorizeGameParticipant } from './game-participant.js'
 
 const WINDOW_BEFORE_MS = 60 * 60 * 1000
 const WINDOW_AFTER_MS = 4 * 60 * 60 * 1000
-// Home-game duty seats that may score. Volleyball only for now; the BB seats are
-// listed so switching basketball on later is a sport check, not a hunt for columns.
-const DUTY_COLS = ['scorer_member', 'scoreboard_member', 'scorer_scoreboard_member',
-  'bb_scorer_member', 'bb_timekeeper_member', 'bb_24s_official']
-const ELIGIBLE_TTL_MS = 10 * 60 * 1000
+// The refusal texts live scoring has always sent; the codes are shared.
+const MESSAGES = {
+  sport: 'Live scoring is volleyball only',
+  no_member: 'Only club members can score',
+  outside_window: 'Live scoring is not open at this time',
+  not_participant: 'Only the players, staff and duty of this game can score it',
+}
 
 export const channelFor = (gameId) => `game-${gameId}`
 
@@ -104,8 +107,8 @@ export function cleanState(state) {
 
 export function registerLiveScoring(router, { database, logger }) {
   const log = logger.child({ endpoint: 'live-scoring' })
-  // `${gameId}:${memberId}` → expiry. Positive answers only: the check can read
-  // Volleymanager, and a scorer taps every rally.
+  // Eligibility answers (game-participant.js): a yes for 10 min, a no for 2 — the
+  // check can read Volleymanager, and a scorer taps every rally.
   const eligible = new Map()
   // channel → member id of the last writer, to log a hand-over once.
   const lastWriter = new Map()
@@ -117,45 +120,13 @@ export function registerLiveScoring(router, { database, logger }) {
   }
 
   /**
-   * → { game, member, isAdmin } or { status, error, code }.
+   * → { game, member, isAdmin } or { status, error, code }. Who may score and when:
+   * game-participant.js (shared with result entry), window −60 min … +4 h.
    */
-  async function authorize(req) {
-    const isAdmin = req.accountability?.admin === true
-    const userId = req.accountability?.user
-    if (!userId && !isAdmin) return { status: 401, error: 'Authentication required', code: 'auth' }
-
-    const game = await database('games').where('id', req.params.gameId).first('*')
-    if (!game) return { status: 404, error: 'Game not found', code: 'not_found' }
-    if (game.kscw_team == null) return { status: 422, error: 'Game has no KSCW team', code: 'no_team' }
-    const team = await database('teams').where('id', game.kscw_team).first('sport')
-    if (team?.sport !== 'volleyball') return { status: 422, error: 'Live scoring is volleyball only', code: 'sport' }
-    if (game.status === 'cancelled' || game.status === 'postponed') {
-      return { status: 422, error: 'Game is not being played', code: 'not_played' }
-    }
-
-    const member = userId ? await database('members').where('user', userId).first('id', 'first_name', 'last_name') : null
-    if (isAdmin) return { game, member, isAdmin }
-    if (!member) return { status: 403, error: 'Only club members can score', code: 'no_member' }
-
-    const startMs = gameStartMs(game)
-    if (startMs == null) return { status: 403, error: 'Game has no scheduled time', code: 'no_time' }
-    const now = Date.now()
-    if (now < startMs - WINDOW_BEFORE_MS || now > startMs + WINDOW_AFTER_MS) {
-      return { status: 403, error: 'Live scoring is not open at this time', code: 'outside_window' }
-    }
-
-    const memberId = Number(member.id)
-    const key = `${game.id}:${memberId}`
-    if ((eligible.get(key) ?? 0) > now) return { game, member, isAdmin }
-
-    const onDuty = game.type === 'home' && DUTY_COLS.some((c) => game[c] != null && Number(game[c]) === memberId)
-    const ok = onDuty
-      || await isTeamLeader(database, memberId, game.kscw_team)
-      || await isGuestTeamLeader(database, memberId, game.id)
-      || (await gameSheetMemberIds(database, log, game)).has(memberId)
-    if (!ok) return { status: 403, error: 'Only the players, staff and duty of this game can score it', code: 'not_participant' }
-    eligible.set(key, now + ELIGIBLE_TTL_MS)
-    return { game, member, isAdmin }
+  function authorize(req) {
+    return authorizeGameParticipant(database, log, req, {
+      beforeMs: WINDOW_BEFORE_MS, afterMs: WINDOW_AFTER_MS, cache: eligible, vmOnlyForSquad: true, messages: MESSAGES,
+    })
   }
 
   router.get('/live-scoring/game/:gameId', async (req, res) => {

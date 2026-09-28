@@ -27,6 +27,9 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
+import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
+import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result.js'
+import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
@@ -8448,6 +8451,239 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           child.once('exit', () => { if (--outstanding === 0) releaseVmAccount() })
         }
       }
+    }
+  })
+
+  // ── VolleyManager game result — read-only opponent-report sweep (:35 hourly) ──
+  //
+  // From kickoff + 3 h until the official result arrives (sv-sync → status
+  // 'completed'), hard stop at + 14 d, read what VolleyManager holds for the game and
+  // store it so every surface shows a score early:
+  //   - the opponent's report → vm_opponent_report, and as a PROVISIONAL score
+  //     (source 'opponent') when nobody on our side has entered one;
+  //   - an official result VM already derived but the SV feed has not delivered →
+  //     provisional source 'vm_official'.
+  //
+  // ⚠⚠ READ ONLY. It never files, never confirms. Confirming in VM makes the result
+  // OFFICIAL (in a 'bothteams' league the second equal report does it), and nobody may
+  // attest a score unseen — that is always a member's tap in GameResultPanel, which
+  // spawns vm-push-result.mjs. Rows a member already entered ('own' / 'confirmed') are
+  // not candidates at all.
+  //
+  // Shared VM account: claims 'vm_result_sweep' for the run. The reads go through
+  // readVmGameResult(), which takes the SAME globalThis claim itself ('vm-result:read')
+  // and never waits — so per game the sweep hands the account over and takes it straight
+  // back. The hand-over is synchronous on both ends (release → the reader's claim runs
+  // before its first await; its finally → our re-claim in the continuation microtask),
+  // so no timer or request can slip in between: the account is never observably free.
+  //
+  // Windows (INFRA.md → "The shared VolleyManager account", mirrored in svrz_rc's
+  // infrastructure.md): skipped 22:00–00:59 UTC (svrz_rc games sync at 23:00/00:00 UTC)
+  // and inside the svrz_rc refresh windows :05–:30 at 10/11/14/15 UTC (summer + winter)
+  // — isSvrzRcBlackout, the one definition game-result.js uses too.
+  //
+  // QUEUED PUSHES. A result submitted inside one of those windows is stored and left
+  // 'pending' / 'queued_window' with no lease (game-result.js). Each run outside a
+  // window sends up to 5 of them first, one worker at a time, through the endpoint's
+  // own spawnResultPush (account claim, row lease, detached spawn, release on exit).
+  const VM_RESULT_OPEN_MS = 3 * 3600 * 1000
+  const VM_RESULT_CLOSE_MS = 14 * 86400 * 1000
+  const VM_RESULT_SWEEP_MAX = 15
+  const VM_RESULT_QUEUE_MAX = 5
+  // A read is 2 VM GETs at 8 s each plus maybe a login; past this, VM is not answering.
+  const VM_RESULT_READ_TIMEOUT_MS = 30 * 1000
+  let vmResultSweepRunning = false
+  const vmSetsWon = (sets) => (Array.isArray(sets) ? sets : []).reduce((acc, s) => {
+    if (Number(s?.home) > Number(s?.away)) acc.home += 1
+    else if (Number(s?.away) > Number(s?.home)) acc.away += 1
+    return acc
+  }, { home: 0, away: 0 })
+
+  schedule('35 * * * *', async () => {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    if (vmResultSweepRunning) return
+    const startedAt = Date.now()
+
+    // ── Stale-lease reclaim — DB only, so it runs even inside a blackout window ──
+    //
+    // POST /kscw/game-result sets 'pending' + vm_result_claimed_at and spawns the
+    // worker; the worker's finish() clears the lease. A worker lost to a restart or a
+    // crash before finish() would leave the row 'pending' for ever — and 'pending'
+    // hides the member's Retry (it only renders on 'failed'). Resolve it to 'failed'.
+    // 15 min is well past any real run (seconds) and past the endpoint's 10-min lease.
+    // A QUEUED push is 'pending' with no lease on purpose — it is waiting for the
+    // dispatch below, not lost; only a lease-less row that is not queued counts.
+    try {
+      const reclaimed = await database('games')
+        .where('vm_result_status', 'pending')
+        .whereRaw("(vm_result_claimed_at < now() - interval '15 minutes'"
+          + " OR (vm_result_claimed_at IS NULL AND vm_result_error IS DISTINCT FROM 'queued_window'))")
+        .update({ vm_result_status: 'failed', vm_result_error: 'worker_lost', vm_result_claimed_at: null })
+      if (reclaimed) {
+        log.warn({
+          msg: `[vm-result] ${reclaimed} stale result push(es) reset to 'failed' (worker_lost)`,
+          event: 'vm_result_claim_reclaimed', count: reclaimed,
+        })
+      }
+    } catch (err) {
+      log.error({ msg: `[vm-result] stale-lease reclaim failed: ${err.message}`, event: 'vm_result_reclaim_failed' })
+    }
+
+    if (isSvrzRcBlackout(new Date())) {
+      log.info({ msg: '[vm-result] sweep skipped: svrz_rc VM window', event: 'vm_result_sweep_window' })
+      return
+    }
+
+    // ── Queued pushes first: a member is waiting for these, the reads can wait ──
+    // Before the sweep's own claim — each worker takes the account itself and gives
+    // it back on exit, and the dispatcher waits for that before the next.
+    vmResultSweepRunning = true
+    try {
+      const q = await dispatchQueuedResultPushes({ database, log, max: VM_RESULT_QUEUE_MAX })
+      if (q.queued) {
+        log.info({
+          msg: `[vm-result] dispatched ${q.dispatched} of ${q.queued} queued result push(es)`,
+          event: 'vm_result_queue_dispatched', ...q,
+        })
+      }
+    } catch (err) {
+      log.error({ msg: `[vm-result] queued push dispatch failed: ${err.message}`, event: 'vm_result_queue_failed', stack: err.stack })
+    } finally {
+      vmResultSweepRunning = false
+    }
+    // The dispatch can take minutes; re-check before the reads.
+    if (isSvrzRcBlackout(new Date())) return
+
+    let releaseVmAccount = claimVmAccount('vm_result_sweep')
+    if (!releaseVmAccount) {
+      // A deliberate skip, not a failure — the next hour reads it.
+      log.warn({
+        msg: `[vm-result] sweep skipped: the shared Volleymanager account is busy (${vmAccountHeldBy()})`,
+        event: 'vm_result_account_busy', holder: vmAccountHeldBy(),
+      })
+      return
+    }
+    vmResultSweepRunning = true
+    let read = 0
+    let written = 0
+    try {
+      // Cheap filters in SQL, kickoff in JS (games.date + games.time are DST-naive —
+      // gameStartMs() is the one place that turns them into an instant).
+      // Derbies are left out: both reports would be ours, there is no opponent to read.
+      const today = new Date()
+      const rows = await database('games as g')
+        // Text comparison, not `::int` — Postgres may evaluate the join before the LIKE,
+        // and a cast of a non-numeric game_id would fail the whole query.
+        .joinRaw('JOIN svrz_games s ON s.svrz_number::text = substring(g.game_id from 4)')
+        .whereRaw("g.game_id LIKE 'vb\\_%'")
+        .whereNotNull('g.kscw_team')
+        .whereNotNull('g.time')
+        .where('g.status', 'scheduled')
+        .whereRaw("(g.provisional_source IS NULL OR g.provisional_source = 'opponent')")
+        .whereRaw("(g.vm_result_checked_at IS NULL OR g.vm_result_checked_at < now() - interval '2 hours')")
+        .whereRaw('NOT EXISTS (SELECT 1 FROM games g2 WHERE g2.game_id = g.game_id AND g2.id <> g.id)')
+        .whereBetween('g.date', [
+          new Date(today.getTime() - VM_RESULT_CLOSE_MS - 86400000).toISOString().slice(0, 10),
+          today.toISOString().slice(0, 10),
+        ])
+        .orderByRaw('g.vm_result_checked_at ASC NULLS FIRST, g.date DESC')
+        .limit(200)
+        .select('g.id', 'g.date', 'g.time', 'g.type', 's.svrz_persistence_id as uuid')
+
+      const now = Date.now()
+      const due = rows.filter((g) => {
+        const kickoff = gameStartMs(g)
+        return kickoff != null && now >= kickoff + VM_RESULT_OPEN_MS && now <= kickoff + VM_RESULT_CLOSE_MS
+      }).slice(0, VM_RESULT_SWEEP_MAX)
+
+      for (const g of due) {
+        // Hand the account to the reader and take it straight back (see above).
+        releaseVmAccount()
+        let res = null
+        let timer
+        try {
+          // Bounded: a read that hangs past its own 8 s timeouts (a stuck login) must
+          // not pin the whole run. It counts as a failed read; the reader keeps its
+          // own claim until it settles, so the re-claim below fails and we stop.
+          res = await Promise.race([
+            readVmGameResult(g.uuid, log),
+            new Promise((resolve) => { timer = setTimeout(() => resolve(null), VM_RESULT_READ_TIMEOUT_MS) }),
+          ])
+        } catch {
+          res = null
+        } finally {
+          clearTimeout(timer)
+          releaseVmAccount = claimVmAccount('vm_result_sweep')
+        }
+        if (!res) {
+          // VM is busy or down — the rest of the list would fail the same way. Stamp
+          // this game anyway: otherwise a game VM keeps failing on sorts first (NULLS
+          // FIRST / oldest check) every hour and starves the others.
+          await database('games').where('id', g.id).update({ vm_result_checked_at: database.fn.now() })
+          log.warn({ msg: `[vm-result] sweep stopped: no answer for game ${g.id}`, event: 'vm_result_read_failed', game: g.id })
+          break
+        }
+        if (!releaseVmAccount) {
+          log.warn({ msg: `[vm-result] sweep stopped: account taken by ${vmAccountHeldBy()}`, event: 'vm_result_account_lost' })
+          break
+        }
+        read += 1
+
+        // Which party is the opponent: VM tells us who WE are; fall back to our own
+        // home/away only when it does not.
+        const ownParty = res.own_party || (g.type === 'home' ? 'hometeam' : g.type === 'away' ? 'awayteam' : null)
+        const opp = (res.reports ?? []).find((r) =>
+          (r.party === 'hometeam' || r.party === 'awayteam') && r.party !== ownParty && r.sets?.length) ?? null
+        const oppJson = opp ? {
+          sets: opp.sets,
+          home: opp.home ?? vmSetsWon(opp.sets).home,
+          away: opp.away ?? vmSetsWon(opp.sets).away,
+          reported_at: opp.updated_at ?? null,
+          party: opp.party,
+        } : null
+
+        await database('games').where('id', g.id).update({
+          vm_opponent_report: oppJson ? JSON.stringify(oppJson) : null,
+          vm_result_checked_at: database.fn.now(),
+        })
+
+        // Provisional — VM's official result beats the opponent's word. Re-guarded on
+        // the source in the UPDATE itself: a member may have entered theirs since the
+        // SELECT, and their score must never be overwritten by a read.
+        const off = res.official?.sets?.length ? res.official : null
+        const src = off ? { source: 'vm_official', sets: off.sets, home: off.home, away: off.away }
+          : oppJson ? { source: 'opponent', sets: oppJson.sets, home: oppJson.home, away: oppJson.away }
+            : null
+        if (src) {
+          const won = vmSetsWon(src.sets)
+          const n = await database('games')
+            .where('id', g.id)
+            .where('status', 'scheduled')
+            .whereRaw("(provisional_source IS NULL OR provisional_source = 'opponent')")
+            .update({
+              provisional_sets_json: JSON.stringify(src.sets),
+              provisional_home_score: src.home ?? won.home,
+              provisional_away_score: src.away ?? won.away,
+              provisional_source: src.source,
+              provisional_by_name: null,
+              provisional_at: database.fn.now(),
+            })
+          written += n
+        }
+      }
+      log.info({
+        msg: `[vm-result] sweep read ${read} of ${due.length} due, ${written} provisional score(s) written`,
+        event: 'vm_result_sweep_done', read, written,
+      })
+      await logCronRun(database, 'vm_result_sweep', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: written })
+    } catch (err) {
+      log.error({ msg: `[vm-result] sweep failed: ${err.message}`, event: 'vm_result_sweep_failed', stack: err.stack })
+      logCronError('vm_result_sweep', err)
+      await logCronRun(database, 'vm_result_sweep', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    } finally {
+      vmResultSweepRunning = false
+      // In-process reads, not a spawned worker — nothing outlives this tick.
+      releaseVmAccount?.()
     }
   })
 

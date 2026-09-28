@@ -555,6 +555,9 @@ const KEEP_AS_NUMBER = new Set([
   // Besammlung offset (migration 340). Stringified it would break the
   // `start - offset` arithmetic that derives the displayed clock time.
   'meeting_offset_minutes',
+  // Provisional result (migration 395) — sets won, compared and summed in
+  // gameResult.ts; a string would concatenate in the rankings delta.
+  'provisional_home_score', 'provisional_away_score',
 ])
 
 /** Coerce Directus integer IDs/FKs to strings for frontend compat. */
@@ -1026,6 +1029,16 @@ const EXPECTED_ERROR_CODES = new Set([
   'carpool_offer_other_teams',
   'carpool_invalid_teams',
   'missing_location',
+  // Game result entry (game-result.js): the opponent's VM report differs, the
+  // official result landed first, the shared VM account / the row's push is
+  // busy, the sets fail the rules, or the member is not on the sheet
+  // (`outside_window` is already listed above). Each is an inline panel state.
+  'conflict',
+  'already_official',
+  'vm_account_busy',
+  'push_running',
+  'invalid_sets',
+  'not_participant',
 ])
 
 /**

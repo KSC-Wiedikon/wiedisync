@@ -31,6 +31,7 @@ import { registerScorerRoster } from './scorer-roster.js'
 import { registerGameRecordings } from './game-recordings.js'
 import { registerCarpools } from './carpools.js'
 import { registerLiveScoring } from './live-scoring.js'
+import { registerGameResult } from './game-result.js'
 import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
@@ -2759,6 +2760,7 @@ export default {
     registerGameRecordings(router, ctx)
     registerCarpools(router, ctx)
     registerLiveScoring(router, ctx)
+    registerGameResult(router, ctx)
     registerNominationPush(router, ctx)
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx, { validatePassword })
