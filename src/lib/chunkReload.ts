@@ -77,6 +77,9 @@ export function stripCacheBustParam(): void {
 // also lets a *later* deploy recover while the assets are still propagating.
 function reloadOnce(): boolean {
   if (typeof window === 'undefined') return false
+  // Offline, a reload cannot fetch a fresh bundle — it only swaps the running
+  // app for the browser's offline page (fatal for a coach in a hall with no signal).
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
   const now = Date.now()
   const last = Number(sessionStorage.getItem(RELOAD_COOLDOWN_KEY) || 0)
   if (now - last < COOLDOWN_MS) return false // reload-loop guard
@@ -94,9 +97,26 @@ export function maybeReloadOnStaleChunk(error: unknown): boolean {
   return reloadOnce()
 }
 
+// Callers that handle their OWN lazy-import failure (pdfRaster.ts: pdf.js in a
+// hall with no signal falls back in-place) hold this while their import runs.
+// A counter, not event cancellation: listener order at the window target is
+// engine-dependent, so a capture listener cannot reliably pre-empt main.tsx's.
+let staleReloadHolds = 0
+
+export async function withStaleChunkReloadHeld<T>(fn: () => Promise<T>): Promise<T> {
+  staleReloadHolds++
+  try {
+    return await fn()
+  } finally {
+    staleReloadHolds--
+  }
+}
+
 // `vite:preloadError` is, by definition, a chunk-load failure — reload
-// unconditionally (its `payload` message doesn't always match the regex above).
+// unconditionally (its `payload` message doesn't always match the regex above),
+// unless a caller holds the reload because it recovers from the failure itself.
 export function forceReloadOnStaleChunk(): boolean {
+  if (staleReloadHolds > 0) return false
   return reloadOnce()
 }
 

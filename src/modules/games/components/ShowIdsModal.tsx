@@ -11,6 +11,8 @@ import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
 import { formatDateZurich, formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
 import { safeBlobType } from '../../../utils/filePreviewKind'
+import { burnWatermark, canvasToObjectUrl } from '../../../lib/idWatermark'
+import { PdfRasterSession, warmPdfRaster } from '../../../lib/pdfRaster'
 
 /**
  * The document is only DISPLAYED in this window. See the honesty note below.
@@ -53,21 +55,38 @@ interface Card {
   missing?: boolean
   /** Watermark baked into the pixels; false → the CSS overlay carries it instead. */
   burned?: boolean
-  /** PDF scans can't go through <img> — they need the native viewer in a frame. */
+  /** Last resort only: a PDF pdf.js could not rasterise goes to the native viewer in a frame. */
   isPdf?: boolean
+  /** A rasterised PDF: shown at full width and scrolled, never shrunk to fit — a stacked A4 would be unreadable. */
+  scroll?: boolean
 }
 
 /**
- * Burn a use-restriction watermark INTO the decrypted image, on a canvas, before
+ * Burn a use-restriction watermark INTO the decrypted document, on a canvas, before
  * anything reaches the screen. A screenshot (or a saved blob) then carries
  * "club · purpose · who · when" in the pixels — it spoils reuse of the document
  * elsewhere and ties any leaked copy back to the audit-logged open. A CSS
  * overlay would look identical but dies the moment someone opens the blob URL
- * directly. Returns null for formats a canvas cannot draw (e.g. PDF) — the
- * caller falls back to the plain blob plus a CSS overlay, so the label is
- * always at least visually present.
+ * directly.
+ *
+ * Photos are drawn from an <img>; PDFs are rasterised on-device with pdf.js
+ * (every page, stacked into one image) and get the same burn per page — an
+ * installed PWA on a phone cannot show a PDF in a frame, which is how a coach
+ * once stood at the table with a "blocked" box instead of the ID. Returns null
+ * only when neither works; the caller then falls back to the plain blob plus a
+ * CSS overlay, so the label is always at least visually present.
  */
-async function watermarkedUrl(plain: Uint8Array, mime: string, label: string): Promise<string | null> {
+async function watermarkedUrl(plain: Uint8Array, mime: string, label: string, pdf: () => PdfRasterSession): Promise<string | null> {
+  if (mime === 'application/pdf') {
+    try {
+      const { canvas, omitted } = await pdf().rasterise(plain, (ctx, rect) => burnWatermark(ctx, rect, label))
+      if (omitted > 0) console.warn(`[ids] PDF has ${omitted} page(s) beyond the display cap`)
+      // Opaque scan on a white fill: JPEG encodes far faster than PNG on a phone.
+      return await canvasToObjectUrl(canvas, 'image/jpeg', 0.9)
+    } catch {
+      return null
+    }
+  }
   let srcUrl: string | null = null
   try {
     srcUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(mime) }))
@@ -86,26 +105,8 @@ async function watermarkedUrl(plain: Uint8Array, mime: string, label: string): P
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
     ctx.drawImage(img, 0, 0)
-
-    // Diagonal, repeated, light-on-dark-stroked — readable on any document
-    // without making the document itself unreadable to the referee.
-    const fs = Math.max(16, Math.round(Math.max(w, h) / 24))
-    ctx.translate(w / 2, h / 2)
-    ctx.rotate(-Math.PI / 9)
-    ctx.font = `bold ${fs}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.lineWidth = Math.max(1, fs / 12)
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
-    const diag = Math.hypot(w, h)
-    for (let y = -diag / 2; y <= diag / 2; y += fs * 3.5) {
-      ctx.strokeText(label, 0, y, diag)
-      ctx.fillText(label, 0, y, diag)
-    }
-
-    const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-    return out ? URL.createObjectURL(out) : null
+    burnWatermark(ctx, { x: 0, y: 0, w, h }, label)
+    return await canvasToObjectUrl(canvas)
   } catch {
     return null
   } finally {
@@ -186,7 +187,13 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   // How much is already on this device?
   useEffect(() => {
     let cancelled = false
-    loadCachedDocuments(gameId).then((d) => { if (!cancelled) setCachedCount(d.length) })
+    loadCachedDocuments(gameId).then((d) => {
+      if (cancelled) return
+      setCachedCount(d.length)
+      // PDFs render through pdf.js, which is lazy-loaded. Pull it (and its worker)
+      // into memory now, while this may still be online — the hall has no signal.
+      if (d.some((c) => c.mime === 'application/pdf')) void warmPdfRaster()
+    })
     return () => { cancelled = true }
   }, [gameId])
 
@@ -201,6 +208,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     let ok = 0
     // Entitled, but never wrapped a key — see `blocked` handling below.
     let blocked = 0
+    let hasPdf = false
     try {
       for (const r of roster) {
         if (r.member == null) continue
@@ -219,6 +227,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             envelope: meta.data.envelope,
           })
           ok++
+          if (meta.data.mime === 'application/pdf') hasPdf = true
         } catch (err) {
           // A player with no document is simply absent from the deck — not a failure of the
           // whole download. But `no_envelope` is NOT that: it means this coach is entitled
@@ -228,8 +237,12 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
           if ((err as { code?: string }).code === 'no_envelope') blocked += 1
         }
       }
+      // "Ready offline" must include the renderer: load pdf.js + its worker into
+      // memory now, while there is signal (the SW does no caching — see pdfRaster.ts).
+      const pdfReady = !hasPdf || await warmPdfRaster()
       setCachedCount(ok)
       toast.success(t('idsDownloaded', { count: ok }))
+      if (!pdfReady) toast.warning(t('idsPdfViewerNotReady'), { duration: 10000 })
       if (blocked > 0) toast.warning(t('idsNoEnvelope', { count: blocked }), { duration: 10000 })
     } finally {
       setBusy(false)
@@ -245,40 +258,48 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
       const byMember = new Map(cached.map((c) => [c.memberId, c]))
 
       const built: Card[] = []
-      for (const r of roster) {
-        if (r.member == null) continue
-        const name = `${r.last_name}${r.first_initial ? `, ${r.first_initial}` : ''}`
-        const c = byMember.get(r.member)
-        if (!c) {
-          built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
-          continue
+      // One pdf.js worker for every PDF in the squad, created on the first one.
+      let pdfSession: PdfRasterSession | null = null
+      const pdf = () => (pdfSession ??= new PdfRasterSession())
+      try {
+        for (const r of roster) {
+          if (r.member == null) continue
+          const name = `${r.last_name}${r.first_initial ? `, ${r.first_initial}` : ''}`
+          const c = byMember.get(r.member)
+          if (!c) {
+            built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
+            continue
+          }
+          try {
+            const key = await unwrapContentKey(c.envelope, privateKey)
+            const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
+            // Not localized on purpose: a screenshot travels, and the label must
+            // stay legible wherever it lands.
+            const viewer = [viewerFirstName, viewerLastName].filter(Boolean).join(' ')
+            const nowIso = new Date().toISOString()
+            const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
+              `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
+            const burned = await watermarkedUrl(plain, c.mime ?? 'image/jpeg', label, pdf)
+            built.push({
+              member: r.member,
+              number: r.number,
+              name,
+              is_captain: r.is_captain,
+              is_libero: r.is_libero,
+              // The declared mime is the uploader's claim — stamp only a vetted type.
+              url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
+              burned: burned != null,
+              isPdf: burned == null && c.mime === 'application/pdf',
+              scroll: burned != null && c.mime === 'application/pdf',
+            })
+          } catch {
+            // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
+            // than showing a broken image to a referee.
+            built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
+          }
         }
-        try {
-          const key = await unwrapContentKey(c.envelope, privateKey)
-          const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
-          // Not localized on purpose: a screenshot travels, and the label must
-          // stay legible wherever it lands.
-          const viewer = [viewerFirstName, viewerLastName].filter(Boolean).join(' ')
-          const nowIso = new Date().toISOString()
-          const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
-            `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
-          const burned = await watermarkedUrl(plain, c.mime ?? 'image/jpeg', label)
-          built.push({
-            member: r.member,
-            number: r.number,
-            name,
-            is_captain: r.is_captain,
-            is_libero: r.is_libero,
-            // The declared mime is the uploader's claim — stamp only a vetted type.
-            url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
-            burned: burned != null,
-            isPdf: burned == null && c.mime === 'application/pdf',
-          })
-        } catch {
-          // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
-          // than showing a broken image to a referee.
-          built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
-        }
+      } finally {
+        (pdfSession as PdfRasterSession | null)?.close()
       }
       setCards(built)
       setIdx(0)
@@ -405,6 +426,12 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     title={card.name}
                     className="h-[55vh] w-full rounded-lg border bg-white"
                   />
+                ) : card.scroll ? (
+                  // Full width, scrolled: object-contain would squeeze a stacked
+                  // multi-page scan into a ~129px-wide strip on a phone.
+                  <div className="max-h-[55vh] overflow-y-auto rounded-lg border bg-white">
+                    <img src={card.url ?? ''} alt={card.name} className="block h-auto w-full" />
+                  </div>
                 ) : (
                   <img
                     src={card.url ?? ''}
@@ -412,7 +439,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
                   />
                 )}
-                {/* Fallback overlay for formats the canvas could not draw (PDF):
+                {/* Fallback overlay for anything the canvas could not draw (e.g. a PDF pdf.js rejected):
                     weaker than the burned-in mark, but the label is never absent. */}
                 {!card.burned && (
                   <div

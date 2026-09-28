@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.23.1 — 2026-09-29
+
+### Fixed
+
+- **ID documents saved as PDF now show on phones.** *Games → game → Show IDs.* A PDF ID used to appear as a blocked box in the installed app on a phone. It is now shown as a picture with the same watermark as a photo, also offline in the hall. Press *Download for offline* while you still have signal.
+
 ## v2.23.0 — 2026-09-28
 
 ### New

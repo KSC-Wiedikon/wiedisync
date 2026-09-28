@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.23.0'
+const APP_VERSION = '2.23.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.23.1',
+    date: '29.09.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          "ID documents saved as PDF now show on phones. *Games → game → Show IDs.* A PDF ID used to appear as a blocked box in the installed app on a phone. It is now shown as a picture with the same watermark as a photo, also offline in the hall. Press *Download for offline* while you still have signal.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.23.0',
     date: '28.09.2026',
