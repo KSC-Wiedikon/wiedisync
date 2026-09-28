@@ -45,6 +45,7 @@ import { createCorsCredentialsMiddleware } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
 import { forbiddenError } from './directus-error.js'
 import { approvedFeeCategory } from './fee-category.js'
+import { registerFilesGuard } from './files-guard.js'
 import { sweepFolderOrphans, referencedByFormAnswers, referencedByRegistrationDocs } from './orphan-sweep.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
@@ -303,6 +304,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   init('middlewares.after', ({ app }) => {
     app.use(createActingMemberMiddleware(database, log))
   })
+
+  // Anonymous callers may read a file by id but not LIST directus_files
+  // (website audit 2026-09-28, F-03) — see files-guard.js.
+  registerFilesGuard(filter)
 
   // Block unauthenticated members.create / feedback.create / event_signups.create / mixed_tournament_signups.create without valid Turnstile
   filter('items.create', async (payload, meta, context) => {
