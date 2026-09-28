@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.23.0 — 2026-09-28
+
+### New
+
+- **Live scoring from your phone.** *Games → game → Live scoring.* From an hour before kickoff until four hours after, the players on a volleyball game's match sheet, its coaches and — for home games — the scorer and scoreboard duty can keep the score live from their phone: a big Home and Away button, sets counted automatically (25, 15 in the fifth, by two), Undo and Next set. Everyone else follows along with Watch live. Two phones can score at once; if they clash, the app shows the current score instead of overwriting it.
+
 ## v2.22.2 — 2026-09-28
 
 ### Security

@@ -424,7 +424,7 @@ async function officialPoolIds(database, teamId, gameId) {
   return new Set([...roster, ...guests, ...coaches, ...trs].filter((x) => x != null).map(Number))
 }
 
-async function isTeamLeader(database, memberId, teamId) {
+export async function isTeamLeader(database, memberId, teamId) {
   if (memberId == null || teamId == null) return false
   // Active teams only (audit 2026-09-28 F31) — a seat left on an archived
   // team is not a coach of anything playing now.
@@ -442,13 +442,41 @@ async function isTeamLeader(database, memberId, teamId) {
  * (migration 271)? Deliberately checks EVERY opening on the game, not just one — a game
  * opened to two teams at once puts three staffs at the same check-in.
  */
-async function isGuestTeamLeader(database, memberId, gameId) {
+export async function isGuestTeamLeader(database, memberId, gameId) {
   if (memberId == null || gameId == null) return false
   const openings = await database('game_guest_teams').where('game', gameId).select('team')
   for (const o of openings) {
     if (await isTeamLeader(database, memberId, o.team)) return true
   }
   return false
+}
+
+/**
+ * Member ids on this game's playing sheet — the same three sources, in the same order,
+ * as the match sheet itself: the coach's saved snapshot (minus dropped players), else
+ * the Einsatzliste filed in Volleymanager, else confirmed RSVPs. Officials are left
+ * out on purpose; callers that want the staff check isTeamLeader themselves.
+ *
+ * Exported for live scoring (live-scoring.js): "a participant of the game" must mean
+ * the people the scorer's sheet would list, not a second definition that drifts.
+ * VM is read through fetchOwnNominationList, which caches a real answer for a minute
+ * and never waits on the shared VM account (busy → RSVP fallback).
+ */
+export async function gameSheetMemberIds(database, log, game) {
+  const saved = await loadSavedSheet(database, game.id)
+  if (saved) {
+    return new Set(saved.roster.filter((r) => !r.dropped && r.member != null).map((r) => r.member))
+  }
+  const vm = await loadVmRoster(database, log, game, null).catch(() => null)
+  if (vm && vm.roster.length) {
+    return new Set(vm.roster.filter((r) => r.member != null).map((r) => r.member))
+  }
+  const rows = await database('participations')
+    .where('activity_type', 'game')
+    .where('activity_id', String(game.id))
+    .where('status', 'confirmed')
+    .pluck('member')
+  return new Set(rows.filter((x) => x != null).map(Number))
 }
 
 export function registerScorerRoster(router, { database, logger }) {

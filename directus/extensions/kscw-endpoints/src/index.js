@@ -30,6 +30,7 @@ import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerGameRecordings } from './game-recordings.js'
 import { registerCarpools } from './carpools.js'
+import { registerLiveScoring } from './live-scoring.js'
 import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
@@ -2757,6 +2758,7 @@ export default {
     registerScorerRoster(router, ctx)
     registerGameRecordings(router, ctx)
     registerCarpools(router, ctx)
+    registerLiveScoring(router, ctx)
     registerNominationPush(router, ctx)
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx, { validatePassword })

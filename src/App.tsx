@@ -84,6 +84,7 @@ import { consumeChunkReloadNotice, maybeReloadOnStaleChunk, reloadNow } from './
 import NotFoundPage from '@/modules/common/NotFoundPage'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
+const ScorePage = lazy(() => import('./modules/live/ScorePage'))
 const HallenfinderPage = lazy(() => import('./modules/hallenfinder/HallenfinderPage'))
 const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
 const AdminMailboxPage = lazy(() => import('./modules/admin/AdminMailboxPage'))
@@ -220,6 +221,8 @@ export default function App() {
             {/* Public spectator page — no AuthRoute. Most viewers in the hall are
                 not logged in, and `live_scores` is granted to the Public policy. */}
             <Route path="live" element={<LivePage />} />
+            {/* Phone live scoring for one game (migration 394) — the endpoint decides who may. */}
+            <Route path="live/score/:gameId" element={<AuthRoute><Suspense fallback={null}><ScorePage /></Suspense></AuthRoute>} />
             <Route path="trainings" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="trainings/:trainingId" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="absences" element={<AuthRoute><AbsencesPage /></AuthRoute>} />

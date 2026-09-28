@@ -38,6 +38,7 @@ import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/re
 import CancelActivityButton from '../../../components/CancelActivityButton'
 import { Switch } from '@/components/ui/switch'
 import CarpoolPanel from '../../carpool/CarpoolPanel'
+import LiveScoringEntry from '../../live/LiveScoringEntry'
 import { useCarpoolActions } from '../../carpool/carpoolApi'
 import CarpoolScopePicker from '../../carpool/CarpoolScopePicker'
 import type { TeamPickerOption } from '@/components/ui/TeamPicker'
@@ -810,6 +811,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             )}
           </div>
         )}
+
+        {/* Phone live scoring (migration 394) — renders nothing outside the scoring
+            window, for basketball, or for someone who may neither score nor watch. */}
+        <div className="border-t px-6 py-3 empty:hidden dark:border-gray-700">
+          <LiveScoringEntry gameId={String(game.id)} date={game.date} time={game.time} sport={kscwSport} />
+        </div>
 
         {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}
         <div className="border-t px-6 py-3 empty:hidden dark:border-gray-700">

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.22.2'
+const APP_VERSION = '2.23.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.23.0',
+    date: '28.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Live scoring from your phone. *Games → game → Live scoring.* From an hour before kickoff until four hours after, the players on a volleyball game's match sheet, its coaches and — for home games — the scorer and scoreboard duty can keep the score live from their phone: a big Home and Away button, sets counted automatically (25, 15 in the fifth, by two), Undo and Next set. Everyone else follows along with Watch live. Two phones can score at once; if they clash, the app shows the current score instead of overwriting it.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.22.2',
     date: '28.09.2026',

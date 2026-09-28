@@ -1011,6 +1011,9 @@ const EXPECTED_ERROR_CODES = new Set([
   // Car pooling (carpools.js). The capacity trigger's refusals (someone took the
   // last seat first, an offer shrunk below its riders) and the board's closed/
   // off/duplicate states are all designed 409s the panel renders as a toast.
+  // Phone live scoring (live-scoring.js): another phone published first — the page
+  // adopts the current score and says so. Designed, not a bug.
+  'stale',
   'carpool_full',
   'carpool_seats_below_taken',
   'carpool_duplicate',
