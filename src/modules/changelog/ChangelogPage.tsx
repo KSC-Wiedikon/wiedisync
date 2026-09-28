@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.23.1'
+const APP_VERSION = '2.24.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.24.0',
+    date: '29.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "A new look. The app now uses a calmer, cleaner design: a new typeface, softer cards on a warm background, clearer buttons, tabs and forms, and a quieter menu and login screen. Colours, dark mode and where everything is stay the same.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.23.1',
     date: '29.09.2026',
