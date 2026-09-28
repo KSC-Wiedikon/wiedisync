@@ -114,6 +114,29 @@ export async function loadCachedDocuments(gameId: string): Promise<CachedDoc[]> 
 }
 
 /**
+ * True when ANY cached identity document on this device is a PDF — the app-boot
+ * hook uses it to decide whether pdf.js must be warmed for offline rendering.
+ * Walks a cursor over the store and only looks at `mime`.
+ */
+export async function hasCachedPdfDocuments(): Promise<boolean> {
+  try {
+    const db = await open()
+    return await new Promise<boolean>((resolve) => {
+      const req = db.transaction(DOCS, 'readonly').objectStore(DOCS).openCursor()
+      req.onsuccess = () => {
+        const cur = req.result
+        if (!cur) return resolve(false)
+        if ((cur.value as CachedDoc).mime === 'application/pdf') return resolve(true)
+        cur.continue()
+      }
+      req.onerror = () => resolve(false)
+    }).finally(() => db.close())
+  } catch {
+    return false
+  }
+}
+
+/**
  * Drop everything cached for a game. Called once the display window closes, so a squad's
  * identity documents do not sit on a coach's phone until the end of the season.
  */

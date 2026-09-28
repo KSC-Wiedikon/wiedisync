@@ -261,6 +261,7 @@ export default {
   idsDownloaded_other: '{{count}} documents téléchargés et disponibles hors ligne.',
   idsNoEnvelope_one: 'Vous ne pouvez pas ouvrir la pièce d\'identité de {{count}} joueur. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
   idsNoEnvelope_other: 'Vous ne pouvez pas ouvrir les pièces d\'identité de {{count}} joueurs. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
+  idsPdfViewerNotReady: 'Le lecteur PDF n\'a pas pu être chargé pour une utilisation hors ligne. Appuyez à nouveau sur Télécharger tant que vous avez du réseau.',
   idsReadyOffline_one: '{{count}} document disponible hors ligne.',
   idsReadyOffline_other: '{{count}} documents disponibles hors ligne.',
   idsShow: 'Afficher les documents d\'identité',

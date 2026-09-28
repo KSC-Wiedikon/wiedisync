@@ -18,7 +18,13 @@ stripCacheBustParam()
 // every Excel/PDF export, which lazy-loads exceljs/jspdf. Vite fires
 // `vite:preloadError` for these — reload once (shared cooldown guard) to pick up
 // the current bundle.
-window.addEventListener('vite:preloadError', () => { forceReloadOnStaleChunk() })
+// Never when a caller cancelled the event (pdfRaster.ts handles its own lazy
+// import failures) and never offline: a reload with no signal lands on the
+// browser's offline page and takes the app away from a coach in the hall.
+window.addEventListener('vite:preloadError', (e) => {
+  if (e.defaultPrevented || navigator.onLine === false) return
+  forceReloadOnStaleChunk()
+})
 
 initSentry()
 
@@ -45,6 +51,10 @@ async function bootstrap() {
         <App />
       </StrictMode>,
     )
+    // Identity-document PDFs render through lazy pdf.js; the app only runs
+    // offline inside a page lifetime that started online, so warm it now if this
+    // device holds a cached PDF ID (see pdfRaster.ts). Best effort, never blocks.
+    void import('./lib/pdfRaster').then((m) => m.armPdfRasterWarmup()).catch(() => {})
   }
 }
 
