@@ -62,6 +62,10 @@ allowlists = [
 regexTarget = "line"
 regexes = [
   '''^\s*key: '[a-z][a-z0-9_]+',\s*$''',
+  # Cloudflare Turnstile's DOCUMENTED always-pass/fail test secrets
+  # (developers.cloudflare.com/turnstile/troubleshooting/testing) — public
+  # constants, not credentials; used by kscw-hooks turnstile tests (2026-09-28).
+  '''['"][123]x0{20,}AA['"]''',
 ]
 paths = [
   '''(^|/)node_modules/''',
@@ -74,3 +78,4 @@ paths = [
   '''Cargo\.lock$''',
   '''uv\.lock$''',
 ]
+

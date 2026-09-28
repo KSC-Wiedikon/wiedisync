@@ -280,8 +280,15 @@ export function registerBugfixes(router, ctx) {
         }
       }
       const eligibleHashes = new Set()
+      // Per-hash provenance (F-13): how many occurrences came from an anonymous
+      // client report vs. an authenticated user or the server. The raw count is
+      // attacker-inflatable (/kscw/client-error is anonymous), so the triage view
+      // needs to see WHO produced an issue, not just how often it appeared.
+      const provenance = new Map() // hash → { anonymous, eligible }
       for (const entry of allEntries) {
-        if (isAiFixEligible(entry)) eligibleHashes.add(entry._hash)
+        const p = provenance.get(entry._hash) || { anonymous: 0, eligible: 0 }
+        if (isAiFixEligible(entry)) { eligibleHashes.add(entry._hash); p.eligible++ } else p.anonymous++
+        provenance.set(entry._hash, p)
       }
 
       // Deduplicate by hash — keep latest occurrence, sum counts
@@ -333,6 +340,11 @@ export function registerBugfixes(router, ctx) {
         responseBody: entry.responseBody || null,
         // False → every occurrence was an anonymous client report; POST /fix refuses it.
         ai_fix_eligible: eligibleHashes.has(entry._hash),
+        // Provenance, so an anonymous report is visibly one (F-13).
+        source: entry.source === 'frontend' ? 'frontend' : 'server',
+        project: typeof entry.project === 'string' ? entry.project : null,
+        anonymous_count: provenance.get(entry._hash)?.anonymous ?? 0,
+        eligible_count: provenance.get(entry._hash)?.eligible ?? 0,
         // Merged data
         job: jobMap[entry._hash] ? {
           status: jobMap[entry._hash].status,
@@ -349,8 +361,10 @@ export function registerBugfixes(router, ctx) {
         } : null,
       }))
 
-      // Sort by count descending (most frequent first)
-      issues.sort((a, b) => b.count - a.count)
+      // Rank by occurrences an attacker cannot mint (server-side or authenticated),
+      // then by raw count — so padding the anonymous collector cannot push an
+      // issue to the top of the Fix queue (F-13).
+      issues.sort((a, b) => b.eligible_count - a.eligible_count || b.count - a.count)
 
       res.json({ data: issues, total: issues.length })
     } catch (err) {

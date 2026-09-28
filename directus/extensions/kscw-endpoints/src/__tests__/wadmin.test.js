@@ -27,7 +27,11 @@ describe('wadmin core', () => {
   // site_text (page text for the kscw-website): every value is rendered as text on
   // a public page, so each one must pass the checks in site-text.js. The generic
   // CRUD would let a PATCH store anything the column accepts.
-  const CUSTOM_ROUTE_SECTIONS = ['site_text']
+  //
+  // mixed_turnier (audit 2026-09-28, F-10): its only mapping was the table migration
+  // 014 dropped. It reads through /wadmin/mixed_turnier/{participants,signups}, and
+  // members/participations must never be mapped here (RLS-bypassing CRUD = IDOR).
+  const CUSTOM_ROUTE_SECTIONS = ['site_text', 'mixed_turnier']
 
   it('contract covers exactly the 7 sections', () => {
     expect(ALL_SECTIONS).toEqual(
@@ -42,10 +46,9 @@ describe('wadmin core', () => {
     // Security audit 2026-05-31: 'participations' and 'members' were removed
     // from this section — the generic admin-accountability /wadmin CRUD routes
     // bypass RLS, so exposing those full collections to a Website Admin section
-    // was an IDOR / PII-disclosure hole. The mixed-tournament UI works through
-    // the signups collection itself.
-    expect(SECTION_COLLECTIONS.mixed_turnier).toEqual(
-      ['mixed_tournament_signups'])
+    // was an IDOR / PII-disclosure hole. 2026-09-28: the leftover
+    // mixed_tournament_signups mapping (a dropped table) is gone too.
+    expect(SECTION_COLLECTIONS.mixed_turnier).toBeUndefined()
     // scorer_courses also exposes the admin-owned attendance tracking table
     // (all-scalar; per-signup presence/exam/SV-licence/notes). See wadmin.js.
     expect(SECTION_COLLECTIONS.scorer_courses).toEqual(
@@ -162,7 +165,7 @@ describe('wadmin gate + scope', () => {
     // the mixed_turnier section (RLS-bypassing IDOR fix); only signups remain.
     expect(assertCollection('mixed_turnier', 'members')).toBe(false)
     expect(assertCollection('mixed_turnier', 'participations')).toBe(false)
-    expect(assertCollection('mixed_turnier', 'mixed_tournament_signups')).toBe(true)
+    expect(assertCollection('mixed_turnier', 'mixed_tournament_signups')).toBe(false)
     expect(assertCollection('scorer_courses', 'scorer_courses')).toBe(true)
     expect(assertCollection('scorer_courses', 'scorer_course_attendance')).toBe(true)
     expect(assertCollection('scorer_courses', 'members')).toBe(false)
@@ -346,5 +349,104 @@ describe('member address lookup helpers', () => {
     expect(plausibleOrt('BE')).toBe(false)
     expect(plausibleOrt('')).toBe(false)
     expect(plausibleOrt(null)).toBe(false)
+  })
+})
+
+import {
+  deniedFieldWrite, attendanceKeyProblem, applyFieldOverrides, collectAllPages,
+  mixedParticipantRow, assertScalarBody, MAX_SUBMISSION_PAGES,
+} from '../wadmin.js'
+
+describe('assertScalarBody (#1 relational-write guard)', () => {
+  const rejects = (b) => { try { assertScalarBody(b); return false } catch (e) { return e.status === 400 } }
+  it('allows scalars, null and arrays of scalars', () => {
+    expect(rejects({ title: 'x', n: 1, ok: true, none: null, tags: ['a', 'b'], ids: [1, 2] })).toBe(false)
+    expect(rejects(null)).toBe(false)
+  })
+  it('rejects nested objects and arrays containing objects', () => {
+    expect(rejects({ invited_members: { create: [{ members_id: { id: 8 } }] } })).toBe(true)
+    expect(rejects({ invited_members: [{ members_id: 8 }] })).toBe(true)
+    expect(rejects({ author: { id: 1 } })).toBe(true)
+  })
+})
+
+describe('deniedFieldWrite (audit 2026-09-28, F-04 / F-05)', () => {
+  it('exam file columns are denied for everyone, even as null', () => {
+    for (const f of ['exam_file', 'exam_file_corrected', 'exam_file_corrected_by', 'exam_file_corrected_on']) {
+      expect(deniedFieldWrite('scorer_course_attendance', { [f]: null }, { isSuperuser: true })).toBe(f)
+      expect(deniedFieldWrite('scorer_course_attendance', { [f]: 'x' }, { isSuperuser: false })).toBe(f)
+    }
+    expect(deniedFieldWrite('scorer_course_attendance', { present: true, notes: 'x' })).toBeNull()
+  })
+  it('form slugs: superuser free; others only unchanged (or empty on create)', () => {
+    const current = { form_slug_de: 'a', form_slug_en: null }
+    expect(deniedFieldWrite('scorer_courses', { form_slug_de: 'b' }, { isSuperuser: true, current })).toBeNull()
+    expect(deniedFieldWrite('scorer_courses', { form_slug_de: 'b' }, { current })).toBe('form_slug_de')
+    expect(deniedFieldWrite('scorer_courses', { form_slug_de: 'a', form_slug_en: '' }, { current })).toBeNull()
+    expect(deniedFieldWrite('scorer_courses', { form_slug_en: 'x' }, { current: null })).toBe('form_slug_en')
+    expect(deniedFieldWrite('scorer_courses', { form_slug_en: null, title_de: 't' }, { current: null })).toBeNull()
+  })
+  it('attendance keys: settable on create, frozen afterwards for non-superusers', () => {
+    const body = { sub_key: 's:1', form_slug: 's', submission_id: '1' }
+    expect(deniedFieldWrite('scorer_course_attendance', body, { current: null })).toBeNull()
+    expect(deniedFieldWrite('scorer_course_attendance', { sub_key: 's:2' }, { current: body })).toBe('sub_key')
+    expect(deniedFieldWrite('scorer_course_attendance', { sub_key: 's:1' }, { current: body })).toBeNull()
+  })
+  it('collections without a policy are untouched', () => {
+    expect(deniedFieldWrite('news', { exam_file: 'x', form_slug_de: 'y' })).toBeNull()
+  })
+})
+
+describe('attendanceKeyProblem', () => {
+  it('accepts the two shapes /admin creates', () => {
+    expect(attendanceKeyProblem({ sub_key: 'scorer-de:12', form_slug: 'scorer-de', submission_id: '12' })).toBeNull()
+    expect(attendanceKeyProblem({ sub_key: 'scorer-de:manual-lx3-ab12', form_slug: 'scorer-de', submission_id: 'manual-lx3-ab12' })).toBeNull()
+  })
+  it('refuses inconsistent or malformed keys', () => {
+    expect(attendanceKeyProblem({ sub_key: 'scorer-de:13', form_slug: 'scorer-de', submission_id: '12' })).toBe('invalid_attendance_key')
+    expect(attendanceKeyProblem({ sub_key: 'x y:1', form_slug: 'x y', submission_id: '1' })).toBe('invalid_attendance_key')
+    expect(attendanceKeyProblem({ sub_key: 's:abc', form_slug: 's', submission_id: 'abc' })).toBe('invalid_attendance_key')
+    expect(attendanceKeyProblem({})).toBe('invalid_attendance_key')
+  })
+})
+
+describe('applyFieldOverrides (F-17)', () => {
+  it('lays string corrections over the answers', () => {
+    expect(applyFieldOverrides({ a: 'old', b: 'keep' }, '{"a":"new"}')).toEqual({ a: 'new', b: 'keep' })
+  })
+  it('ignores junk overrides', () => {
+    expect(applyFieldOverrides({ a: 'x' }, 'not json')).toEqual({ a: 'x' })
+    expect(applyFieldOverrides({ a: 'x' }, '[1]')).toEqual({ a: 'x' })
+    expect(applyFieldOverrides({ a: 'x' }, '{"a":{"nested":1}}')).toEqual({ a: 'x' })
+    expect(applyFieldOverrides(null, null)).toEqual({})
+  })
+})
+
+describe('collectAllPages (F-24)', () => {
+  it('walks every page', async () => {
+    const got = await collectAllPages(async (p) => ({ fields: ['f'], data: [p], last_page: 3 }))
+    expect(got.data).toEqual([1, 2, 3])
+    expect(got.fields).toEqual(['f'])
+    expect(got.truncated).toBe(false)
+  })
+  it('stops at the cap and says so', async () => {
+    let calls = 0
+    const got = await collectAllPages(async (p) => { calls++; return { data: [p], last_page: 999 } })
+    expect(calls).toBe(MAX_SUBMISSION_PAGES)
+    expect(got.truncated).toBe(true)
+  })
+})
+
+describe('mixedParticipantRow (F-10)', () => {
+  it('prefers the position columns and exposes only name/sex/positions', () => {
+    const row = mixedParticipantRow(
+      { member: 1, status: 'confirmed', position_1: 'Libero', note: 'A > B', date_created: '2026-05-01T08:00:00Z' },
+      { first_name: 'Anna', last_name: 'A', sex: 'weiblich', email: 'x@y', ahv_nummer: '756' },
+    )
+    expect(row).toEqual({ name: 'Anna A', sex: 'weiblich', positions: ['Libero'], status: 'confirmed', date: '2026-05-01', source: 'wiedisync' })
+  })
+  it('falls back to the legacy note and to a member number', () => {
+    expect(mixedParticipantRow({ member: 9, note: 'A > B > C > D' }, null))
+      .toMatchObject({ name: 'Member #9', positions: ['A', 'B', 'C'] })
   })
 })

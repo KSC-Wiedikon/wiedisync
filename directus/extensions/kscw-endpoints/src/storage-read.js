@@ -77,8 +77,12 @@ export function contentDisposition(kind, filename) {
  * Stream a managed file straight to an Express response. Preferred over readManagedFile()
  * when the bytes are only being forwarded to the client (no OCR, no attachment) — it keeps
  * large PDFs off the heap.
+ *
+ * `disposition: 'attachment'` forces a download of an inline-safe type (PDF /
+ * raster image); any other value keeps the default. A type that is not inline-safe
+ * is ALWAYS an attachment, whatever the caller asks for.
  */
-export async function streamManagedFile(fileId, { services, getSchema, database }, res, { filename, type } = {}) {
+export async function streamManagedFile(fileId, { services, getSchema, database }, res, { filename, type, disposition } = {}) {
   const { AssetsService } = services
 
   const assets = new AssetsService({
@@ -103,7 +107,10 @@ export async function streamManagedFile(fileId, { services, getSchema, database 
   res.setHeader('Content-Type', contentType)
   res.setHeader('X-Content-Type-Options', 'nosniff')
   if (!safe) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'")
-  res.setHeader('Content-Disposition', contentDisposition(safe ? 'inline' : 'attachment', filename || file.filename_download))
+  // `disposition: 'attachment'` lets a caller force a download of a safe type
+  // (wadmin `?download=1`); it can never make an unsafe type inline.
+  const dispo = safe && disposition !== 'attachment' ? 'inline' : 'attachment'
+  res.setHeader('Content-Disposition', contentDisposition(dispo, filename || file.filename_download))
 
   return new Promise((resolve, reject) => {
     stream.on('error', reject)

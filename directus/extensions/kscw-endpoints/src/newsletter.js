@@ -90,12 +90,17 @@ export function registerNewsletter(router, { database, logger, services, getSche
       const loc = validLocales.includes(locale) ? locale : 'de';
       const cats = Array.isArray(categories) ? categories.filter(c => ['volleyball', 'basketball', 'club'].includes(c)) : ['volleyball', 'basketball', 'club'];
 
+      // One answer for every outcome, sent BEFORE the lookup and the mail (F-59).
+      // `already_subscribed: true` for a verified address — and the missing mail
+      // send's shorter response time — told anyone with a Turnstile solve whether a
+      // given address is a confirmed subscriber. The website shows the same "check
+      // your inbox" either way; a verified subscriber simply receives nothing new.
+      res.json({ success: true });
+
       // Check existing
       const existing = await database('newsletter_subscribers').where('email', email.toLowerCase()).first();
       if (existing) {
-        if (existing.verified) {
-          return res.json({ success: true, already_subscribed: true });
-        }
+        if (existing.verified) return;
         // Resend verification
         const schema = await getSchema();
         const { MailService } = services;
@@ -112,7 +117,7 @@ export function registerNewsletter(router, { database, logger, services, getSche
             ? `Bitte bestätige dein Newsletter-Abo: ${verifyUrl}`
             : `Please confirm your newsletter subscription: ${verifyUrl}`,
         });
-        return res.json({ success: true });
+        return;
       }
 
       const verifyToken = crypto.randomBytes(32).toString('hex');
@@ -142,11 +147,10 @@ export function registerNewsletter(router, { database, logger, services, getSche
           : `Please confirm your newsletter subscription: ${verifyUrl}`,
       });
 
-      log.info(`Newsletter subscribe: ${email}`);
-      res.json({ success: true });
+      log.info('Newsletter subscribe: verification mail sent');
     } catch (err) {
       log.error({ msg: `newsletter/subscribe: ${err.message}`, stack: err.stack });
-      res.status(500).json({ error: 'Internal error' });
+      if (!res.headersSent) res.status(500).json({ error: 'Internal error' });
     }
   });
 
@@ -154,7 +158,7 @@ export function registerNewsletter(router, { database, logger, services, getSche
   router.post('/newsletter/verify', async (req, res) => {
     try {
       const { token } = req.body;
-      if (!token) return res.status(400).json({ error: 'token required' });
+      if (!token || typeof token !== 'string') return res.status(400).json({ error: 'token required' });
 
       const updated = await database('newsletter_subscribers')
         .where('verify_token', token)
@@ -175,7 +179,7 @@ export function registerNewsletter(router, { database, logger, services, getSche
   router.post('/newsletter/unsubscribe', async (req, res) => {
     try {
       const { token } = req.body;
-      if (!token) return res.status(400).json({ error: 'token required' });
+      if (!token || typeof token !== 'string') return res.status(400).json({ error: 'token required' });
 
       const deleted = await database('newsletter_subscribers')
         .where('unsubscribe_token', token)

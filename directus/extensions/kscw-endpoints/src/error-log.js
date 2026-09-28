@@ -53,6 +53,14 @@ const MAX_LINE_BYTES = 16 * 1024
 const MAX_FILE_BYTES = 64 * 1024 * 1024
 
 /**
+ * The share of a day-file ANONYMOUS-reachable frontend reports may fill. Past it,
+ * `source: 'frontend'` entries are dropped while server-side entries keep landing
+ * until MAX_FILE_BYTES — so padding /kscw/client-error can no longer blind the log
+ * to the backend's own errors for the rest of the day (2026-09-28 audit, F-34).
+ */
+const MAX_FRONTEND_FILE_BYTES = 48 * 1024 * 1024
+
+/**
  * Append a structured error entry to the JSONL log file.
  * Non-blocking — errors in logging itself are silently ignored.
  *
@@ -95,8 +103,9 @@ export function writeErrorLog(entry) {
     }
 
     const logPath = getLogPath()
+    const ceiling = entry?.source === 'frontend' ? MAX_FRONTEND_FILE_BYTES : MAX_FILE_BYTES
     try {
-      if (fs.statSync(logPath).size > MAX_FILE_BYTES) return
+      if (fs.statSync(logPath).size > ceiling) return
     } catch { /* file does not exist yet — nothing to check */ }
 
     fs.appendFile(logPath, line, () => {})
@@ -118,9 +127,11 @@ export function logErrorToFile(endpoint, err, req) {
     isAdmin: req?.accountability?.admin || false,
     method: req?.method || null,
     status,
-    body: req?.body ? scrubPii(req.body) : undefined,
-    params: req?.params ? scrubPii(req.params) : undefined,
-    query: req?.query ? scrubPii(req.query) : undefined,
+    // Bounded: params and query are caller-chosen on anonymous routes, and a
+    // padded one was a cheap way to spend the day-file budget (F-34).
+    body: req?.body ? capLogged(scrubPii(req.body), 2000) : undefined,
+    params: req?.params ? capLogged(scrubPii(req.params), 300) : undefined,
+    query: req?.query ? capLogged(scrubPii(req.query), 500) : undefined,
     error: err.message,
     stack: err.stack,
   })
@@ -261,6 +272,17 @@ export function cleanOldLogs() {
       }
     }
   } catch { /* ignore */ }
+}
+
+/**
+ * An object as-is when its JSON fits in `max` chars, otherwise a truncated preview.
+ * Pure; exported for the unit test.
+ */
+export function capLogged(obj, max) {
+  let json
+  try { json = JSON.stringify(obj) } catch { return { _unserializable: true } }
+  if (json === undefined || json.length <= max) return obj
+  return { _truncated: true, _bytes: json.length, preview: json.slice(0, max) }
 }
 
 // ── PII scrubbing ──────────────────────────────────────────────

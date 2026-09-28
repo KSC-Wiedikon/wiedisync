@@ -42,6 +42,10 @@ import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 import { createCorsCredentialsMiddleware } from './cors-credentials.js'
+import { verifyTurnstileToken } from './turnstile.js'
+import { forbiddenError } from './directus-error.js'
+import { approvedFeeCategory } from './fee-category.js'
+import { sweepFolderOrphans, referencedByFormAnswers, referencedByRegistrationDocs } from './orphan-sweep.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
@@ -235,16 +239,15 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 const turnstileStore = new AsyncLocalStorage()
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
+// Fail-closed since 2026-09-28 (audit F-27): no secret → reject, exactly like
+// every /kscw endpoint. This used to `return true` without a secret ("skip in
+// dev"), so a container recreated without TURNSTILE_SECRET silently accepted
+// anonymous creates with no captcha. The shared verifier also pins the solving
+// hostname — see turnstile.js.
 async function verifyTurnstile(token) {
-  if (!TURNSTILE_SECRET) return true // skip in dev
-  if (!token) return false
-  const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token }).toString(),
-  })
-  const data = await resp.json()
-  return data.success === true
+  const { ok, reason } = await verifyTurnstileToken(token, { secret: TURNSTILE_SECRET })
+  if (!ok && reason === 'no_secret') console.error('[kscw-hooks] TURNSTILE_SECRET not configured — rejecting anonymous create (fail-closed)')
+  return ok
 }
 
 // Why password auth instead of a static admin token:
@@ -308,10 +311,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
     // Skip for authenticated users (admins creating members, logged-in feedback)
     if (context.accountability?.user) return payload
+    // Internal (sudo) creates carry no accountability — an endpoint that already
+    // verified its own captcha (e.g. /kscw/public/feedback) writes through
+    // ItemsService with none. Only a request-scoped anonymous caller is gated.
+    if (!context.accountability) return payload
 
-    // Skip in dev (no secret configured)
-    if (!TURNSTILE_SECRET) return payload
-
+    // No "skip without a secret" any more — verifyTurnstile fails closed (F-27).
     const store = turnstileStore.getStore()
     const token = store?.turnstileToken
     if (!(await verifyTurnstile(token))) {
@@ -321,9 +326,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         event: 'captcha_failed',
       })
       logWarning('captcha_failed', 'Turnstile verification failed', { collection })
-      const err = new Error('Captcha verification failed')
-      err.status = 403
-      throw err
+      // DirectusError-shaped so the client gets the 403 + message; a plain Error
+      // with `.status` is rendered by Directus as an opaque 500.
+      throw forbiddenError('Captcha verification failed')
     }
     return payload
   })
@@ -5965,7 +5970,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Mitgliederbeitrag along), and it is what stops the next sync-down from
       // reverting the edit (push-pending members are skipped). The superadmin
       // still sees old → new in the sync modal before anything is pushed.
-      const regKategorie = String(reg.beitragskategorie || '').trim()
+      //
+      // Server-side allowlist (2026-09-28, audit F-32): the value came from a
+      // public form and was never checked. A category the fee engine does not
+      // know, or one of the other sport, is NOT copied — the admin sets it by hand.
+      const regKategorieRaw = String(reg.beitragskategorie || '').trim()
+      const regKategorie = approvedFeeCategory(regKategorieRaw, reg.membership_type) || ''
+      if (regKategorieRaw && !regKategorie) {
+        log.warn({ msg: 'Registration fee category not in the allowlist for its sport — not copied onto the member', registrationId: reg.id, memberId, membershipType: reg.membership_type, beitragskategorie: regKategorieRaw })
+      }
       const curKategorie = String(existingMember.beitragskategorie || '').trim()
       if (regKategorie && regKategorie !== curKategorie) {
         updates.beitragskategorie = regKategorie
@@ -6003,6 +6016,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // ISO code away and left the member with free text only.
       const natCodes = await registrationNatCodes(db, reg)
       const sex = normalizeSex(reg.geschlecht)
+      if (String(reg.beitragskategorie || '').trim() && !approvedFeeCategory(reg.beitragskategorie, reg.membership_type)) {
+        log.warn({ msg: 'Registration fee category not in the allowlist for its sport — new member created without it', registrationId: reg.id, membershipType: reg.membership_type, beitragskategorie: reg.beitragskategorie })
+      }
 
       const [member] = await db('members').insert({
         first_name: reg.vorname,
@@ -6031,7 +6047,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // typed it themselves.
         iban: reg.iban || null,
         iban_confirmed: !!reg.iban,
-        beitragskategorie: reg.beitragskategorie || null,
+        // Allowlisted (audit F-32) — see the linked-member branch above.
+        beitragskategorie: approvedFeeCategory(reg.beitragskategorie, reg.membership_type),
         // Discount granted at registration review (migration 367) — copied
         // onto the member ONLY here, on a brand-new shell. A re-registration
         // that links to an EXISTING member (the branch above) never touches
@@ -6338,39 +6355,47 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     throw kscwScopeError('The audit log is a record and cannot be deleted.', 403, 'READ_ONLY')
   })
 
-  // ── Cron: registration-document orphan sweep (04:30 UTC) ────────
-  // The eager-upload form puts files into the private registration folder
-  // BEFORE the registration exists, so abandoned forms and re-picked files
-  // leave orphans behind. Delete folder files older than 7 days that no
-  // registrations doc column references. Scoped strictly to the registration
-  // folder — folder-less files are the public site's images, never touched.
+  // ── Cron: orphan sweeps of the pick-time upload folders (04:30 / 04:40 UTC) ──
+  // The eager-upload registration form and the form pages (anonymous /f/:slug and
+  // the member fill modal, both via POST /files into Form uploads) put files into their
+  // private folder when the file is PICKED, before the row that references it
+  // exists — so abandoned forms and re-picked files leave orphans behind. Delete
+  // folder files older than 24 h that nothing references (was 7 days for
+  // registrations; shortened in the 2026-09-28 audit because both upload routes
+  // are anonymous). Every safety condition lives in orphan-sweep.js: strictly one
+  // folder by UUID (folder-less public images and other folders are never
+  // candidates), the folder's own reference check, every Directus-registered file
+  // relation, and a re-read right before the delete; any error aborts the run.
+  async function deleteSweptFiles(ids) {
+    const { FilesService } = services
+    const schema = await getSchema()
+    const filesService = new FilesService({ schema, knex: database })
+    await filesService.deleteMany(ids)
+  }
   schedule('30 4 * * *', async () => {
     try {
-      const rows = await database('directus_files')
-        .where('folder', REGISTRATION_FILES_FOLDER)
-        .where('uploaded_on', '<', database.raw("now() - interval '7 days'"))
-        .whereNotExists(function () {
-          this.select(database.raw('1')).from('registrations').whereRaw(
-            `registrations.id_upload_front = directus_files.id
-             OR registrations.id_upload_back = directus_files.id
-             OR registrations.bb_doc_lizenz = directus_files.id
-             OR registrations.bb_doc_freibrief = directus_files.id
-             OR registrations.bb_doc_selfdecl = directus_files.id
-             OR registrations.bb_doc_natdecl = directus_files.id
-             OR registrations.bb_doc_u18parents = directus_files.id
-             OR registrations.bb_doc_schoolcert = directus_files.id`,
-          )
-        })
-        .select('id')
-      if (!rows.length) return
-      const { FilesService } = services
-      const schema = await getSchema()
-      const filesService = new FilesService({ schema, knex: database })
-      await filesService.deleteMany(rows.map((r) => r.id))
-      log.info(`Registration-doc orphan sweep: deleted ${rows.length} unreferenced file(s)`)
+      const deleted = await sweepFolderOrphans(database, {
+        folder: REGISTRATION_FILES_FOLDER,
+        isReferenced: referencedByRegistrationDocs(REGISTRATION_FILE_COLS),
+        deleteFiles: deleteSweptFiles,
+      })
+      if (deleted.length) log.info(`Registration-doc orphan sweep: deleted ${deleted.length} unreferenced file(s)`)
     } catch (err) {
       log.error({ msg: `Registration-doc orphan sweep: ${err.message}`, event: 'cron.registration_doc_sweep', stack: err.stack })
       logCronError('registration_doc_sweep', err)
+    }
+  })
+  schedule('40 4 * * *', async () => {
+    try {
+      const deleted = await sweepFolderOrphans(database, {
+        folder: FORM_UPLOADS_FOLDER,
+        isReferenced: referencedByFormAnswers,
+        deleteFiles: deleteSweptFiles,
+      })
+      if (deleted.length) log.info(`Form-upload orphan sweep: deleted ${deleted.length} unreferenced file(s)`)
+    } catch (err) {
+      log.error({ msg: `Form-upload orphan sweep: ${err.message}`, event: 'cron.form_upload_sweep', stack: err.stack })
+      logCronError('form_upload_sweep', err)
     }
   })
 

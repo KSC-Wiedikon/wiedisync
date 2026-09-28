@@ -7,6 +7,7 @@
  */
 
 import { writeUserLog } from './activity-log.js'
+import { clientIp } from './client-ip.js'
 
 const OPNFORM_BASE = (process.env.OPNFORM_BASE_URL || 'https://forms.kscw.ch').replace(/\/$/, '')
 const COUNT_CACHE_TTL_MS = 60_000
@@ -16,6 +17,21 @@ const countCache = new Map()  // slug → { value, expiresAt }
 const formMetaCache = new Map() // slug → { properties, title, expiresAt }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/i
+
+/** Sliding per-IP counter (same shape as index.js ipRateLimit). */
+function countRateLimit(map, req, max, windowMs) {
+  const ip = clientIp(req)
+  const now = Date.now()
+  const e = map.get(ip)
+  if (e && now < e.resetAt) {
+    if (e.count >= max) return false
+    e.count++
+  } else {
+    map.set(ip, { count: 1, resetAt: now + windowMs })
+  }
+  if (map.size > 1000) for (const [k, v] of map) if (now > v.resetAt) map.delete(k)
+  return true
+}
 
 export function badSlug(slug) {
   return !slug || !SLUG_RE.test(slug)
@@ -78,14 +94,48 @@ async function getFormMeta(slug) {
   return meta
 }
 
+// Misses are cached too (F-60). The count route is public and takes any slug, so
+// without a negative cache every random slug was a fresh authenticated call to
+// OpnForm with the club-wide PAT — an anonymous amplifier against our own form
+// server. Bounded, because the key space is attacker-chosen.
+const NOT_FOUND_TTL_MS = 10 * 60_000
+const COUNT_CACHE_MAX = 500
+
+function pruneCountCache(now) {
+  if (countCache.size <= COUNT_CACHE_MAX) return
+  for (const [k, v] of countCache) if (v.expiresAt <= now) countCache.delete(k)
+  // Still full of live entries (a burst of distinct slugs): drop the oldest.
+  for (const k of countCache.keys()) {
+    if (countCache.size <= COUNT_CACHE_MAX) break
+    countCache.delete(k)
+  }
+}
+
 export async function getCount(slug) {
+  const now = Date.now()
   const cached = countCache.get(slug)
-  if (cached && cached.expiresAt > Date.now()) return { count: cached.value, cached: true }
-  const json = await opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=1`)
+  if (cached && cached.expiresAt > now) {
+    if (cached.notFound) throw Object.assign(new Error('OpnForm 404 (cached)'), { status: 404 })
+    return { count: cached.value, cached: true }
+  }
+  let json
+  try {
+    json = await opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=1`)
+  } catch (err) {
+    if (err.status === 404) {
+      countCache.set(slug, { notFound: true, expiresAt: now + NOT_FOUND_TTL_MS })
+      pruneCountCache(now)
+    }
+    throw err
+  }
   const total = Number(json?.meta?.total ?? 0) || 0
-  countCache.set(slug, { value: total, expiresAt: Date.now() + COUNT_CACHE_TTL_MS })
+  countCache.set(slug, { value: total, expiresAt: now + COUNT_CACHE_TTL_MS })
+  pruneCountCache(now)
   return { count: total, cached: false }
 }
+
+/** For tests. */
+export function _resetCountCache() { countCache.clear() }
 
 export async function listSubmissions(slug, { page = 1, perPage = 100 } = {}) {
   const pp = Math.min(100, Math.max(1, Number(perPage) || 100))
@@ -404,9 +454,13 @@ export function registerOpnform(router, { logger, database }) {
   const log = logger.child({ endpoint: 'opnform' })
 
   // ── Public: submission count ────────────────────────────────────
+  // Per-IP limited (F-60). The website asks for a handful of slugs per page view,
+  // all cached for a minute, so 60 a minute is far above any real visitor.
+  const countIp = new Map()
   router.get('/opnform/forms/:slug/count', async (req, res) => {
     const { slug } = req.params
     if (badSlug(slug)) return res.status(400).json({ error: 'Invalid slug' })
+    if (!countRateLimit(countIp, req, 60, 60_000)) return res.status(429).json({ error: 'Too many requests' })
 
     try {
       const r = await getCount(slug)

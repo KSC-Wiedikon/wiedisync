@@ -20,6 +20,9 @@ import { FRONTEND_URL } from './email-template.js'
 // i.e. a full-privilege bearer credential), so a leaked link can only reset a
 // password, never act as an API credential.
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+// Outstanding (unexpired, unused) links per account. Matches the per-email limiter
+// (3/hour), so a legitimate retry never invalidates the link already in the inbox.
+const MAX_LIVE_TOKENS = 3
 
 function hashResetToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
@@ -154,6 +157,28 @@ export function registerPasswordReset(router, { database, logger, services, getS
         for (const [k, v] of pwResetEmail) { if (now > v.resetAt) pwResetEmail.delete(k) }
       }
 
+      // Answer NOW, before the account lookup and the mail send. Answering after
+      // them made "account exists" measurably slower (a DB write plus an SES round
+      // trip) than "no account" — an existence oracle through timing, on a route
+      // whose every response is otherwise a deliberate, identical 204 (F-37).
+      res.status(204).end()
+      await sendResetLink(normalizedEmail)
+    } catch (err) {
+      log.error({
+        msg: `password-request: ${err.message}`,
+        endpoint: 'password-request',
+        userId: null,
+        method: req.method,
+        stack: err.stack,
+      })
+      // Always 204 to not leak info
+      if (!res.headersSent) res.status(204).end()
+    }
+  })
+
+  /** Everything after the response: resolve the account, store a token, send the mail. */
+  async function sendResetLink(normalizedEmail) {
+    try {
       // Find directus user by their login email.
       let user = await database('directus_users')
         .where('email', normalizedEmail)
@@ -181,7 +206,7 @@ export function registerPasswordReset(router, { database, logger, services, getS
       }
 
       // Always return 204 (don't reveal if email exists)
-      if (!user) return res.status(204).end()
+      if (!user) return
 
       // Find linked member for language
       const member = await database('members')
@@ -204,15 +229,35 @@ export function registerPasswordReset(router, { database, logger, services, getS
       const tokenHash = hashResetToken(token)
       const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString()
 
-      // Invalidate any previous outstanding tokens for this user, then store
-      // the new hash. Single active token per user keeps the flow single-use.
-      await database('password_reset_tokens').where('user', user.id).delete()
-      await database('password_reset_tokens').insert({
+      // Keep the newest few outstanding links instead of deleting them all. Deleting
+      // every earlier token let ANYONE who knows an address cancel that member's
+      // pending reset by requesting another one (F-37). Each token stays single-use
+      // (set-password claims it with DELETE … RETURNING) and a successful reset
+      // deletes the rest; the per-email limiter above bounds how many can exist.
+      await database('password_reset_tokens').where('user', user.id)
+        .where('expires_at', '<', new Date().toISOString()).delete()
+      const live = await database('password_reset_tokens').where('user', user.id)
+        .orderBy('created_at', 'desc').select('id')
+      if (live.length >= MAX_LIVE_TOKENS) {
+        await database('password_reset_tokens')
+          .whereIn('id', live.slice(MAX_LIVE_TOKENS - 1).map((r) => r.id)).delete()
+      }
+      const tokenRow = {
         user: user.id,
         token_hash: tokenHash,
         expires_at: expiresAt,
         created_at: new Date().toISOString(),
-      })
+      }
+      try {
+        await database('password_reset_tokens').insert(tokenRow)
+      } catch (err) {
+        // `password_reset_tokens_user_unique` (one row per user) predates F-37 and is
+        // dropped by migration 392. Until that has run, fall back to the old
+        // replace-the-token behaviour rather than failing to send a reset at all.
+        if (err?.code !== '23505') throw err
+        await database('password_reset_tokens').where('user', user.id).delete()
+        await database('password_reset_tokens').insert(tokenRow)
+      }
 
       // Build reset URL pointing to frontend
       const resetUrl = `${FRONTEND_URL}/set-password?token=${token}`
@@ -226,17 +271,13 @@ export function registerPasswordReset(router, { database, logger, services, getS
       })
 
       log.info(`Password reset email sent to user ${user.id} (${lang})`)
-      res.status(204).end()
     } catch (err) {
       log.error({
-        msg: `password-request: ${err.message}`,
+        msg: `password-request (send): ${err.message}`,
         endpoint: 'password-request',
         userId: null,
-        method: req.method,
         stack: err.stack,
       })
-      // Always 204 to not leak info
-      res.status(204).end()
     }
-  })
+  }
 }

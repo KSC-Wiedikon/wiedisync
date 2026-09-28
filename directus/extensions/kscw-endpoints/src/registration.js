@@ -15,10 +15,13 @@ import {
   buildMergeDiff, buildMergePatch, mapLicences,
 } from './registration-duplicates.js'
 import { feeBreakdown, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
+import { approvedFeeCategory } from './fee-category.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
 import { Transform } from 'node:stream'
+import { signTicket, verifyTicket } from './scorer-exam.js'
+import { sniffUpload, safeFilename, createLimiter, overDailyBudget } from './public-upload.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -110,6 +113,19 @@ export function normalizeFederation(raw) {
   const v = String(raw ?? '').trim().toUpperCase()
   if (v === 'NONE') return 'CH'
   return /^[A-Z]{2}$/.test(v) ? v : null
+}
+
+/**
+ * True when a submitted fee category must be refused (F-32): anything that is not
+ * a string, or a non-empty value that approvedFeeCategory() does not accept for
+ * the registration's sport. Missing/empty passes — it claims no category and is
+ * stored as null (see the call site).
+ */
+export function feeCategoryRejected(raw, membershipType) {
+  if (raw == null) return false
+  if (typeof raw !== 'string') return true
+  if (!raw.trim()) return false
+  return approvedFeeCategory(raw, membershipType) === null
 }
 
 /** A volleyball licence needs an explicit federation-of-origin answer — a
@@ -643,6 +659,26 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 
 // ── Endpoint ────────────────────────────────────────────────────
 
+/** Trimmed string capped at `max`, or null. Non-strings (objects, arrays) → null. */
+export function capText(v, max) {
+  if (v == null) return null
+  if (typeof v !== 'string' && typeof v !== 'number') return null
+  const s = String(v).trim()
+  return s ? s.slice(0, max) : null
+}
+
+/**
+ * A person's name as typed on the form: present, bounded, and carrying no link or
+ * markup — it is echoed into a mail sent to an unverified address (F-33). Pure;
+ * exported for the unit test.
+ */
+export function registrationNameOk(v) {
+  if (typeof v !== 'string') return false
+  const s = v.trim()
+  if (!s || s.length > 80) return false
+  return !/(:\/\/|www\.|[<>@\u0000-\u001f]|\.[a-z]{2,}\/)/i.test(s)
+}
+
 // directus_files primary keys are UUIDs — reject anything else so the public
 // file-attach route can't point a registration's file columns at an arbitrary
 // string value.
@@ -651,9 +687,47 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Private quarantine folder for registration documents (migration 169; same
 // UUID on every environment). Files uploaded via /registration/upload are born
 // in here — never folder-less, never anonymous-readable via /assets.
-const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
+// Exported: wadmin.js serves / deletes these files for the registrations grant.
+export const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
 const UPLOAD_ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+// Rolling-24h byte budgets for the whole registration folder (F-09). The busiest real
+// day (season start) is a few hundred MB; the ticketed budget leaves ample headroom.
+// ⚠ Both budgets are compared against EVERYTHING stored in the folder that day, and
+// until the website sends tickets every real upload is unticketed — so the
+// unticketed ceiling must still clear a busy season-start day on its own, or real
+// families get a 503. 1 GB is ~3x that day; tighten it once tickets are required.
+const UPLOAD_DAILY_BYTES = Number(process.env.REGISTRATION_UPLOAD_DAILY_BYTES) || 2 * 1024 * 1024 * 1024
+const UPLOAD_DAILY_BYTES_UNTICKETED = Number(process.env.REGISTRATION_UPLOAD_DAILY_BYTES_UNTICKETED) || 1024 * 1024 * 1024
+// End state is `true`: flip it once kscw-website sends a ticket on every upload.
+const UPLOAD_REQUIRE_TICKET = process.env.REGISTRATION_UPLOAD_REQUIRE_TICKET === 'true'
+export const UPLOAD_TICKET_TTL_MS = 2 * 60 * 60 * 1000 // a long form, filled slowly
+export const UPLOAD_TICKET_MAX_USES = 20               // 8 document slots + re-picks
+
+/** A signed, expiring upload ticket (same HMAC as scorer-exam's). null when unsigned. */
+export function mintUploadTicket(now = Date.now(), secret) {
+  if (!(secret ?? (process.env.SECRET || process.env.KEY))) return null
+  return signTicket({ p: 'reg-upload', n: crypto.randomBytes(12).toString('base64url'), exp: now + UPLOAD_TICKET_TTL_MS }, secret)
+}
+
+/**
+ * → the ticket payload (and counts one use), 'exhausted' when it has been spent, or
+ * null when absent/forged/expired/not a registration-upload ticket. Exported for tests.
+ */
+export function checkUploadTicket(raw, uses, now = Date.now(), secret) {
+  if (!raw) return null
+  const claim = verifyTicket(String(raw), secret, now)
+  if (!claim || claim.p !== 'reg-upload' || typeof claim.n !== 'string') return null
+  const used = uses.get(claim.n) || 0
+  if (used >= UPLOAD_TICKET_MAX_USES) return 'exhausted'
+  uses.set(claim.n, used + 1)
+  if (uses.size > 5000) {
+    // Nonces are opaque, so prune by dropping the oldest insertions; an evicted nonce
+    // only regains its budget, it never becomes valid past its signed expiry.
+    for (const k of uses.keys()) { uses.delete(k); if (uses.size <= 4000) break }
+  }
+  return claim
+}
 // The registration document columns a member is allowed to view for their own
 // (post-approval) registration. Mirrors REGISTRATION_FILE_COLS in kscw-hooks.
 const SELF_DOC_FIELDS = [
@@ -874,6 +948,32 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'Invalid membership_type' })
       }
 
+      // Fee category (F-32). The signup select lists the allowed options, but the
+      // value is copied onto the member at approval and decides the invoice, so a
+      // crafted POST must not be able to pick another sport's category, the
+      // non-member bucket, or free text. Same rule as the approval hook
+      // (fee-category.js). An EMPTY value is not refused: it claims nothing, is
+      // stored as null and the admin sets it in review; the form requires it
+      // anyway (data-conditional-required), and passive falls back to
+      // 'Passivmitglied' client-side.
+      if (feeCategoryRejected(body.beitragskategorie, body.membership_type)) {
+        return res.status(400).json({
+          error: isEn ? 'Please choose a valid membership fee category.' : 'Bitte wähle eine gültige Beitragskategorie.',
+          code: 'invalid_fee_category',
+        })
+      }
+
+      // The confirmation mail goes to the UNVERIFIED address the sender typed, from
+      // the club's domain, greeting them by the name they typed (F-33). A name that
+      // carries a link or markup turns that mail into a phishing relay, so it is
+      // refused here; every other free-text column is length-capped at insert.
+      if (!registrationNameOk(body.vorname) || !registrationNameOk(body.nachname)) {
+        return res.status(400).json({
+          error: isEn ? 'Please enter a valid name.' : 'Bitte gib einen gültigen Namen ein.',
+          code: 'invalid_name',
+        })
+      }
+
       // A guest (funktion "Guest" on a VB/BB registration — see the signup form's
       // "Gast (Guest)" option) trains with a team but is not licensed to play
       // league games, so they skip the licence apparatus: no AHV requirement and
@@ -1053,35 +1153,35 @@ export function registerRegistration(router, { database, logger, services, getSc
       const id = await itemsService.createOne({
         status: 'pending',
         membership_type: body.membership_type,
-        anrede: body.anrede || null,
+        anrede: capText(body.anrede, 30),
         // Title-case names + address so lazy all-lowercase entry ("janina vanha",
         // "rosengartenstrasse 33", "zürich") is stored — and shown in the
         // confirmation / admin emails and the /admin list — properly capitalized.
-        vorname: titleCaseName(body.vorname),
-        nachname: titleCaseName(body.nachname),
+        vorname: titleCaseName(capText(body.vorname, 80)),
+        nachname: titleCaseName(capText(body.nachname, 80)),
         email: emailNorm.value,
         telefon_mobil: phoneNorm.value,
-        adresse: titleCaseName(body.adresse),
-        plz: body.plz || null,
-        ort: titleCaseName(body.ort),
+        adresse: titleCaseName(capText(body.adresse, 200)),
+        plz: capText(body.plz, 12),
+        ort: titleCaseName(capText(body.ort, 100)),
         geburtsdatum: body.geburtsdatum || null,
-        nationalitaet: body.nationalitaet || null,
+        nationalitaet: capText(body.nationalitaet, 200),
         // Multi-nationality (migration 223): the ordered code list is the new
         // source of truth, the singular code stays as its FIRST entry — the
         // basketball document gate and the ClubDesk push both key off one code.
         nationalitaet_codes: natCodes,
         nationalitaet_code: primaryNatCode,
         federation_of_origin: federationOfOrigin,
-        geschlecht: body.geschlecht || null,
+        geschlecht: capText(body.geschlecht, 30),
         ahv_nummer: ahvNorm.value,
         iban: ibanNorm.value,
-        team: Array.isArray(body.team) ? body.team.join(', ') : (body.team || null),
-        beitragskategorie: body.beitragskategorie || null,
-        kantonsschule: body.kantonsschule || null,
-        rolle: body.rolle || null,
-        lizenz: body.lizenz || null,
-        schiedsrichter_stufe: body.schiedsrichter_stufe || null,
-        bemerkungen: body.bemerkungen || null,
+        team: capText(Array.isArray(body.team) ? body.team.join(', ') : body.team, 255),
+        beitragskategorie: approvedFeeCategory(body.beitragskategorie, body.membership_type),
+        kantonsschule: capText(body.kantonsschule, 200),
+        rolle: capText(body.rolle, 100),
+        lizenz: capText(body.lizenz, 100),
+        schiedsrichter_stufe: capText(body.schiedsrichter_stufe, 100),
+        bemerkungen: capText(body.bemerkungen, 5000),
         locale: body.locale === 'en' ? 'en' : 'de',
         reference_number,
         submitted_at: new Date().toISOString(),
@@ -1382,6 +1482,9 @@ export function registerRegistration(router, { database, logger, services, getSc
         reference_number: reg.reference_number,
         membership_type: reg.membership_type,
         status: reg.status,
+        // ref+email is this page's proof, so it earns the same bounded upload ticket
+        // the registration form gets for a Turnstile (F-09).
+        upload_ticket: mintUploadTicket(),
         required,
         docs: {
           id_upload_front: !!reg.id_upload_front,
@@ -1725,45 +1828,64 @@ export function registerRegistration(router, { database, logger, services, getSc
     }
   })
 
-  // POST /kscw/registration/upload?filename=… — public single-file upload for
-  // registration documents. Replaces the anonymous core POST /files for this
-  // flow: the file is created INSIDE the private registration folder
-  // (migration 169) instead of folder-less/anon-readable, and MIME + size are
-  // enforced server-side. The browser sends the raw File as the request body
-  // (fetch body: file → Content-Type = the file's own type; no multipart
-  // parsing needed). Orphans (abandoned forms, re-picks) are swept nightly by
-  // the kscw-hooks registration-docs cron. Per-IP limited.
-  const uploadIp = new Map() // ip → { count, resetAt }
+  // POST /kscw/registration/upload?filename=…&ticket=… — public single-file upload
+  // for registration documents. Replaces the anonymous core POST /files for this
+  // flow: the file is created INSIDE the private registration folder (migration
+  // 169) instead of folder-less/anon-readable. The browser sends the raw File as
+  // the request body (fetch body: file), so there is no multipart to parse.
+  // Orphans (abandoned forms, re-picks) are swept by the kscw-hooks
+  // registration-docs cron.
+  //
+  // 2026-09-28 website audit (F-09) — this was the last anonymous disk-fill channel:
+  // no captcha, a per-/128 limiter an IPv6 sender rotates past for free, and the
+  // STORED type was the client's Content-Type, so HTML labelled application/pdf
+  // landed in the folder admins open ID scans from. Now:
+  //   - the type is SNIFFED from the bytes (`sniffUpload`), the header is ignored;
+  //   - a rolling-24h byte budget caps the whole folder, whoever is sending;
+  //   - per-IP limits key on the IPv6 /64;
+  //   - an HMAC upload ticket (minted by /registration/upload-ticket after a
+  //     Turnstile check, or by doc-status after ref+email) authorizes a bounded
+  //     number of uploads. Until every client sends one, an unticketed upload is
+  //     still accepted — but only against a much smaller budget — unless
+  //     REGISTRATION_UPLOAD_REQUIRE_TICKET=true, which is the end state.
+  const uploadIp = createLimiter(30, 10 * 60 * 1000)                 // requests / 10 min / IP
+  const uploadIpBytes = createLimiter(150 * 1024 * 1024, 24 * 60 * 60 * 1000) // bytes / day / IP
+  const ticketIp = createLimiter(10, 60 * 60 * 1000)                 // tickets / hour / IP
+  const ticketUses = new Map()                                        // nonce → uploads used
+
+  router.post('/registration/upload-ticket', async (req, res) => {
+    try {
+      if (!ticketIp.take(req)) return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+      const token = req.body?.turnstile_token
+      if (!token || !(await verifyTurnstile(token))) {
+        return res.status(400).json({ error: 'Captcha verification failed' })
+      }
+      const ticket = mintUploadTicket()
+      if (!ticket) return res.status(500).json({ error: 'Internal error' })
+      return res.json({ ticket, max_uploads: UPLOAD_TICKET_MAX_USES, expires_in: UPLOAD_TICKET_TTL_MS / 1000 })
+    } catch (err) {
+      log.error({ msg: `registration upload-ticket: ${err.message}`, endpoint: 'registration/upload-ticket', stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   router.post('/registration/upload', async (req, res) => {
     try {
-      const xff = req.headers['x-forwarded-for']
-      const ip = req.headers['cf-connecting-ip']
-        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
-        || req.ip || 'unknown'
-      const now = Date.now()
-      const entry = uploadIp.get(ip)
-      if (entry && now < entry.resetAt) {
-        if (entry.count >= 30) return res.status(429).json({ error: 'Too many uploads. Please try again later.' })
-        entry.count++
-      } else {
-        uploadIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 })
-      }
-      if (uploadIp.size > 1000) {
-        for (const [k, v] of uploadIp) { if (now > v.resetAt) uploadIp.delete(k) }
+      if (!uploadIp.take(req)) return res.status(429).json({ error: 'Too many uploads. Please try again later.' })
+
+      const claim = checkUploadTicket(req.query?.ticket, ticketUses)
+      if (claim === 'exhausted') return res.status(429).json({ error: 'Too many uploads. Please try again later.', code: 'ticket_exhausted' })
+      if (!claim && UPLOAD_REQUIRE_TICKET) {
+        return res.status(403).json({ error: 'Upload ticket required', code: 'ticket_required' })
       }
 
-      const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
-      if (!UPLOAD_ALLOWED_MIME.has(type)) {
-        return res.status(400).json({ error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF, PDF.' })
-      }
       if (Number(req.headers['content-length'] || 0) > UPLOAD_MAX_BYTES) {
         return res.status(413).json({ error: 'File too large (max 10 MB).' })
       }
 
-      const rawName = String(req.query.filename || 'document')
-      const filename = rawName.replace(/[\\/\u0000-\u001f]/g, '').slice(0, 200) || 'document'
-
-      // Hard cap while streaming — Content-Length alone is client-controlled.
+      // Streamed, never buffered — and everything that awaits happens BEFORE the pipe
+      // starts (2026-09-28 deep audit F16): an async gap between `req.pipe()` and the
+      // consumer is exactly when an early stream error has nobody listening.
       //
       // ⚠ The counter MUST sit INSIDE the pipeline, never in a `req.on('data')` listener.
       // Attaching a 'data' listener switches the request into flowing mode IMMEDIATELY:
@@ -1777,10 +1899,6 @@ export function registerRegistration(router, { database, logger, services, getSc
       // (%%EOF) and a plausible filesize but lost the %PDF header, so nothing looked wrong
       // until a reviewer opened one (REG-2026-4844). The dropped prefix was never written
       // anywhere — unrecoverable; five registrants had to re-upload.
-      //
-      // Everything that awaits happens BEFORE the pipe starts (2026-09-28 audit F16):
-      // an async gap between `req.pipe()` and the consumer is exactly when an early
-      // stream error has nobody listening. Same pattern as scorer-exam.js.
       const { FilesService } = services
       const schema = await getSchema()
       const filesService = new FilesService({ schema, knex: database })
@@ -1788,7 +1906,12 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       // A Transform COUNTS AND FORWARDS each chunk, so the bytes reach uploadOne intact
       // while the cap still fires mid-stream (no need to buffer the whole body first).
+      // It also keeps the first KB for the type sniff (2026-09-28 website audit, F-09):
+      // the STORED type comes from the bytes, never from the client's Content-Type.
+      // The sniff runs at the end of the body, so an oversize upload still reports 413.
       let bytes = 0
+      let head = Buffer.alloc(0)
+      let sniffed = null
       const capped = new Transform({
         transform(chunk, _enc, cb) {
           bytes += chunk.length
@@ -1796,7 +1919,16 @@ export function registerRegistration(router, { database, logger, services, getSc
             cb(Object.assign(new Error('File too large (max 10 MB).'), { status: 413 }))
             return
           }
+          if (head.length < 1024) head = Buffer.concat([head, chunk]).subarray(0, 1024)
           cb(null, chunk)
+        },
+        flush(cb) {
+          sniffed = sniffUpload(head)
+          if (!sniffed || !UPLOAD_ALLOWED_MIME.has(sniffed)) {
+            cb(Object.assign(new Error('unsupported_type'), { status: 415 }))
+            return
+          }
+          cb()
         },
       })
       // ⚠⚠ NOT OPTIONAL: a stream 'error' with no listener is an uncaught exception that
@@ -1811,33 +1943,62 @@ export function registerRegistration(router, { database, logger, services, getSc
       try {
         newFileId = await filesService.uploadOne(capped, {
           storage,
-          filename_download: filename,
-          type,
-          folder: REGISTRATION_FILES_FOLDER,
+          // Provisional — the real type is only known once the bytes have flowed.
+          filename_download: safeFilename(req.query?.filename, null, 'document'),
+          type: 'application/octet-stream',
+          folder: REGISTRATION_FILES_FOLDER, // ⚠ never null — see header
         })
       } catch (err) {
         throw streamError || err
       }
+      // Drop the stored row + bytes whenever this upload must not stand.
+      const purge = async (why) => {
+        try { await filesService.deleteOne(newFileId) } catch (e) {
+          log.warn({ msg: `registration upload: could not purge ${why} file`, file: newFileId, error: e?.message })
+        }
+      }
       // A rejected stream that still resolved would otherwise store a truncated file.
       if (streamError) {
-        // uploadOne resolved on a truncated body — drop the partial file row + bytes.
-        try { await filesService.deleteOne(newFileId) } catch (e) {
-          log.warn({ msg: 'registration upload: could not purge truncated file', file: newFileId, error: e?.message })
-        }
+        await purge('truncated')
         throw streamError
       }
-      log.info({ msg: 'Registration document uploaded', file: newFileId, type, bytes })
+
+      // Per-IP bytes and the folder's rolling-24h budget are counted on what was
+      // actually stored (Content-Length is client-controlled and may be absent). The
+      // budget sum includes this file, so an upload that tips the folder over is
+      // removed again.
+      const budget = claim ? UPLOAD_DAILY_BYTES : UPLOAD_DAILY_BYTES_UNTICKETED
+      if (!uploadIpBytes.take(req, bytes)) {
+        await purge('over-limit')
+        return res.status(429).json({ error: 'Too many uploads. Please try again later.' })
+      }
+      if (await overDailyBudget(database, REGISTRATION_FILES_FOLDER, 0, budget)) {
+        await purge('over-budget')
+        log.warn({ msg: 'registration upload daily byte budget exhausted', ticketed: !!claim, bytes })
+        return res.status(503).json({ error: 'Upload temporarily unavailable. Please try again later.', code: 'upload_budget_exhausted' })
+      }
+
+      // Correct the provisional row to the SNIFFED type, with a filename whose
+      // extension matches it (a download never presents `x.html` for a PNG).
+      await database('directus_files').where('id', newFileId).update({
+        type: sniffed,
+        filename_download: safeFilename(req.query?.filename, sniffed, 'document'),
+      })
+      log.info({ msg: 'Registration document uploaded', file: newFileId, type: sniffed, bytes, ticketed: !!claim })
       return res.json({ id: newFileId })
     } catch (err) {
       if (err?.status === 413) {
         return res.status(413).json({ error: 'File too large (max 10 MB).' })
+      }
+      if (err?.status === 415) {
+        return res.status(400).json({ error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF, PDF.' })
       }
       log.error({
         msg: `registration upload: ${err.message}`,
         endpoint: 'registration/upload',
         stack: err.stack,
       })
-      res.status(500).json({ error: 'Upload failed' })
+      if (!res.headersSent) res.status(500).json({ error: 'Upload failed' })
     }
   })
 

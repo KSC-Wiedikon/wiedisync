@@ -143,6 +143,9 @@ export function zurichToday(now = new Date()) {
 
 export const normalizeEmail = (v) => String(v ?? '').trim().toLowerCase()
 
+/** Has an admin recorded a verdict on this attendance row? Pure; exported for tests. */
+export const isGraded = (row) => !!(row && typeof row.exam_result === 'string' && row.exam_result.trim())
+
 /**
  * Sniff the real type from the leading bytes. The client-supplied Content-Type and the
  * filename extension are both attacker-chosen, so neither may decide what we store: a
@@ -584,7 +587,7 @@ export function registerScorerExam(router, ctx) {
 
       const row = await database('scorer_course_attendance')
         .where('sub_key', claim.k)
-        .first('exam_date', 'exam_file', 'sv_license')
+        .first('exam_date', 'exam_file', 'sv_license', 'exam_result')
       // Best-effort: the greeting and the "licence on file" hint are conveniences, and a
       // dead OpnForm must not block an upload the ticket already authorizes.
       let who = null
@@ -603,6 +606,10 @@ export function registerScorerExam(router, ctx) {
           // field is left empty. A licence typed into the signup form is not — counting
           // it here would hide the field and then 422 the upload as licence_required.
           licence_on_file: !!normalizeLicence(row && row.sv_license),
+          // Once an admin has recorded a verdict, /upload answers 409 already_graded
+          // (2026-09-28 website audit, F-14) — the page can say so up-front instead
+          // of after a 10 MB transfer.
+          graded: isGraded(row),
           expires_at: new Date(claim.exp).toISOString(),
         },
       })
@@ -650,7 +657,15 @@ export function registerScorerExam(router, ctx) {
       // Checked BEFORE the bytes: rejecting a 10 MB upload after the fact is rude.
       const prevRow = await database('scorer_course_attendance')
         .where('sub_key', claim.k)
-        .first('id', 'exam_file', 'sv_license')
+        .first('id', 'exam_file', 'sv_license', 'exam_result')
+      // A graded exam is closed (2026-09-28 website audit, F-14). The ticket is a
+      // bearer credential (a forwarded mail, a shared screen), and a re-upload
+      // re-points exam_file and re-dates exam_date — it would swap the sheet an
+      // admin reviewed for one nobody has, under a verdict that no longer describes
+      // it, with no re-flag. A correction after grading goes through the club.
+      if (isGraded(prevRow)) {
+        return res.status(409).json({ error: 'already_graded' })
+      }
       const licence = normalizeLicence(req.query?.licence)
       const knownLicence = normalizeLicence(prevRow && prevRow.sv_license)
       const typedSomething = String(req.query?.licence ?? '').trim() !== ''

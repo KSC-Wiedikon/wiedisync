@@ -43,10 +43,11 @@ import { registerSchedulingMailbox } from './scheduling-mailbox.js'
 import { registerSesNotify } from './ses-notify.js'
 import { registerContactForm } from './contact-form.js'
 import { registerVolleyFeedback } from './volley-feedback.js'
+import { registerPublicFeedback } from './public-feedback.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
-import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii } from './error-log.js'
+import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii, capLogged } from './error-log.js'
 import { registerStats } from './stats.js'
 import { registerHallenfinder } from './hallenfinder.js'
 import { registerRegistration } from './registration.js'
@@ -188,8 +189,9 @@ function logEndpointError(log, endpoint, err, req) {
     method: req?.method,
     body: req?.body ? scrubBody(req.body) : undefined,
     // Path/query params carry bearer tokens on the public share routes.
-    params: req?.params ? scrubPii(req.params) : undefined,
-    query: req?.query ? scrubPii(req.query) : undefined,
+    // Capped: both are caller-chosen on anonymous routes (F-34).
+    params: req?.params ? capLogged(scrubPii(req.params), 300) : undefined,
+    query: req?.query ? capLogged(scrubPii(req.query), 500) : undefined,
     stack: err.stack,
   })
   // Also write to persistent file
@@ -292,6 +294,37 @@ function ipRateLimit(map, req, maxAttempts, windowMs) {
     for (const [k, v] of map) { if (now > v.resetAt) map.delete(k) }
   }
   return true
+}
+
+/**
+ * The `teams` columns GET /public/team/:id may return — what kscw-website's
+ * team-page.js and src/lib/fetch/teamDetail.ts read, plus the recruiting / waitlist
+ * fields the team cards use. A new column is private until it is added here.
+ */
+export const PUBLIC_TEAM_DETAIL_FIELDS = [
+  'id', 'team_id', 'name', 'full_name', 'sport', 'league', 'season', 'color', 'active',
+  'team_picture', 'team_picture_pos', 'social_url', 'facebook_url', 'tiktok_url',
+  'open_for_players', 'open_for_girls', 'open_for_boys', 'recruiting_positions',
+  'waitlist_url', 'waitlist_label', 'show_guests_on_website',
+]
+
+/** Pure; exported for the unit test. */
+export function pickPublicTeam(team) {
+  const out = {}
+  for (const k of PUBLIC_TEAM_DETAIL_FIELDS) if (team && k in team) out[k] = team[k]
+  return out
+}
+
+/**
+ * An official's public name, with the same website name-privacy transform as the
+ * roster: opted-in members show as "Anna M.". Pure; exported for the unit test.
+ */
+export function publicMemberName(m) {
+  if (!m) return null
+  const last = m.website_name_private
+    ? (String(m.last_name || '').trim() ? String(m.last_name).trim().charAt(0).toUpperCase() + '.' : '')
+    : m.last_name
+  return [m.first_name, last].filter(Boolean).join(' ') || null
 }
 
 export { logEndpointError, scrubBody, capPayload, ipRateLimit }
@@ -763,7 +796,13 @@ export default {
 
     router.get('/public/team/:id', async (req, res) => {
       try {
-        let team = await database('teams').where('id', req.params.id).first()
+        // A non-integer id used to reach Postgres, which answered 22P02 → a 500,
+        // an error-log entry (with the padded path) and a Sentry event per request:
+        // an anonymous way to fill the day's log budget and the Sentry quota
+        // (2026-09-28 audit, F-34). Reject it before any query.
+        const teamIdParam = String(req.params.id || '')
+        if (!/^\d{1,9}$/.test(teamIdParam)) return res.status(400).json({ error: 'Invalid team id' })
+        let team = await database('teams').where('id', Number(teamIdParam)).first()
         if (!team) return res.status(404).json({ error: 'Team not found' })
 
         // Season-rollover follow-through: the public site (kscw-website) hardcodes
@@ -884,9 +923,15 @@ export default {
         // strip raw birthdate / visibility flag from the public payload. Photo is
         // gated server-side by website_visible (default false = opt-in) so opted-out
         // members never expose a photo id — the website renders the club logo instead.
+        // `show_guests_on_website=false` is a coach's privacy choice for the guest
+        // players, so it is enforced HERE; the website's own filter was the only
+        // gate, and the full guest list still went out in the JSON (F-35).
+        const hideGuests = team.show_guests_on_website === false
         const rosterPublic = isUnderageTeam(team.name)
           ? []
-          : roster.filter((m) => !isMinor(m.birthdate)).map((m) => ({
+          : roster.filter((m) => !isMinor(m.birthdate))
+            .filter((m) => !(hideGuests && (m.guest_level || 0) > 0))
+            .map((m) => ({
           id: m.id,
           first_name: m.first_name,
           last_name: m.website_name_private ? lastInitial(m.last_name) : m.last_name,
@@ -927,7 +972,7 @@ export default {
         const [memberRows, teamRows] = await Promise.all([
           memberIds.size
             ? database('members').whereIn('id', [...memberIds])
-                .select('id', 'first_name', 'last_name', 'birthdate')
+                .select('id', 'first_name', 'last_name', 'birthdate', 'website_name_private')
             : Promise.resolve([]),
           teamIds.size
             ? database('teams').whereIn('id', [...teamIds]).select('id', 'name')
@@ -941,7 +986,10 @@ export default {
           // (e.g. a youth scorer on a youth game). Missing birthdate = treated
           // as a minor and suppressed, same rule as the roster above.
           if (!m || isMinor(m.birthdate)) return null
-          return [m.first_name, m.last_name].filter(Boolean).join(' ') || null
+          // Name-privacy applies to officials exactly as to the roster: a member
+          // who opted in is "Anna M." on the team page, so a scorer/timekeeper
+          // duty must not publish "Anna Muster" beside it (2026-09-28 audit, F-06).
+          return publicMemberName(m)
         }
 
         const splitName = (full) => {
@@ -1026,30 +1074,34 @@ export default {
                 .map((h) => [h.id, h])
             )
           : new Map()
-        const enrichTraining = (t) => {
+        // ALLOW-list, never a spread (F-36) — same reasoning as enrichGame above.
+        // `trainings` carries coach-only free text (`notes`, `cancel_reason`), RSVP
+        // config and FKs; kscw-website's team-page.js / teamDetail.ts read exactly
+        // the fields below. `notes` is published for TRIAL trainings only: it is
+        // what the Probetraining box renders ("bring indoor shoes"), written by the
+        // coach for that public box — a regular training's note is internal.
+        const enrichTraining = (t, { withNotes = false } = {}) => {
           const h = t.hall != null ? hallById.get(t.hall) : null
           return {
-            ...t,
+            id: t.id,
+            date: t.date,
+            start_time: t.start_time,
+            end_time: t.end_time,
+            cancelled: t.cancelled,
+            is_trial: t.is_trial,
             hall_name: t.hall_name || (h?.name ?? null),
-            hall_address: t.hall_address || (h?.address ?? null),
+            hall_address: h?.address ?? null,
+            ...(withNotes ? { notes: t.notes ?? null } : {}),
           }
         }
-        const trainingsPublic = trainings.map(enrichTraining)
-        const trialTrainingsPublic = trialTrainings.map(enrichTraining)
+        const trainingsPublic = trainings.map((t) => enrichTraining(t))
+        const trialTrainingsPublic = trialTrainings.map((t) => enrichTraining(t, { withNotes: true }))
 
-        // Strip internal/config columns before spreading the raw teams row into
-        // the public payload. These are coach-dashboard prefs, feature toggles,
-        // internal source IDs and member FKs that the public website never needs
-        // (mirrors the PUBLIC_TEAM_FIELDS allowlist used by /public/teams).
-        const {
-          features_enabled,
-          dashboard_range_from,
-          dashboard_range_to,
-          dashboard_league_only,
-          bb_source_id,
-          captain,
-          ...publicTeam
-        } = team
+        // Only the team columns the public website renders (PUBLIC_TEAM_DETAIL_FIELDS).
+        // This was a strip-list of six columns, which silently published every
+        // column added since — clubdesk_group, duty_credit, … — and would have
+        // published the next one too (2026-09-28 audit, F-36).
+        const publicTeam = pickPublicTeam(team)
 
         res.json({
           data: {
@@ -1764,6 +1816,12 @@ export default {
 
         await adminUsersService.updateOne(userId, { password })
         await database('members').where('user', userId).update({ wiedisync_active: true })
+        // /password-request now lets a few links be valid at once (so a third party
+        // requesting a reset cannot cancel the owner's pending one — F-37). Once a
+        // password HAS been set — by any of the three modes — every other
+        // outstanding link for the account dies, so a link mailed before a
+        // logged-in password change cannot be used to undo it.
+        await database('password_reset_tokens').where('user', userId).delete()
 
         res.json({ success: true, member_id: memberId ? String(memberId) : undefined })
       } catch (err) {
@@ -2712,6 +2770,7 @@ export default {
     registerSesNotify(router, ctx)
     registerContactForm(router, ctx)
     registerVolleyFeedback(router, ctx)
+    registerPublicFeedback(router, ctx)
     registerWebPush(router, ctx)
     registerStats(router, ctx)
     registerRegistration(router, ctx)

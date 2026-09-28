@@ -1033,21 +1033,10 @@ const GAME_WRITE_FIELDS = [
   // missing here 403s their ENTIRE PATCH, not just that field.
 ]
 
-/**
- * Public fields for events — the kscw-website homepage + /weiteres/kalender
- * read these unauthenticated. Only the event record itself (non-PII).
- * The RSVP data (participations / events_teams) stays NON-public — migration
- * 035 locked those down for privacy and they remain removed below.
- */
-const PUBLIC_EVENT_FIELDS = [
-  'id', 'title', 'event_type', 'start_date', 'end_date', 'all_day',
-  'location', 'description', 'signup_url', 'cancelled',
-]
-
 /** Public fields for news — kscw-website homepage + /news read these. */
 const PUBLIC_NEWS_FIELDS = [
   'id', 'title', 'title_en', 'slug', 'excerpt', 'body', 'category',
-  'author', 'published_at', 'image', 'date_created',
+  'author', 'published_at', 'image', 'date_created', 'is_published',
 ]
 
 /**
@@ -1185,6 +1174,30 @@ const OWN_UPLOAD_READBACK_FOLDERS = [
   EXPENSE_RECEIPTS_FOLDER,
   FORM_UPLOADS_FOLDER,
   FEEDBACK_FOLDER,
+]
+
+/** The directus_files columns the anonymous tier may read. `/assets/<id>` needs
+ *  only these to serve a public image: the controller reads `id`,
+ *  `filename_download`, `type` and `modified_on`, and the service adds `type` +
+ *  `filesize` back itself (services/assets.ts `sanitizeFields`). The website asks
+ *  for nothing beyond the bare id of `image` / `logo` / `photo` — it never expands
+ *  a file relation. `uploaded_by`, `title`, `description`, `location`, `tags` and
+ *  `metadata` (EXIF, including GPS) stay off (website audit 2026-09-28, F-03).
+ *  Applied to BOTH Public rows — the Public images folder and the 2-minute
+ *  anonymous read-back window; POST /files reads back `id` + `filename_download`. */
+const PUBLIC_FILE_FIELDS = ['id', 'type', 'filesize', 'width', 'height', 'filename_download', 'modified_on']
+
+/** Public hall fields (audit 2026-09-28, F-61). The website's youth page and
+ *  calendar, and the no-login /games page in the app, read name/address/city and
+ *  the maps link. `notes` is free text staff write for each other, and the VM /
+ *  SV ids are integration plumbing. */
+const PUBLIC_HALL_FIELDS = ['id', 'name', 'address', 'city', 'maps_url']
+/** Public hall-slot fields: exactly what `youthBasketball.ts` selects, filters
+ *  (`sport`, `slot_type`) and sorts on — a filter on an unreadable field 403s the
+ *  whole query, so those two are not optional. `notes` stays off. */
+const PUBLIC_HALL_SLOT_FIELDS = [
+  'id', 'day_of_week', 'start_time', 'end_time', 'slot_type', 'sport', 'label',
+  'hall', 'extra_halls', 'valid_from', 'valid_until', 'indefinite', 'recurring', 'teams',
 ]
 
 /** Folders an ANONYMOUS upload may land in, and — for 2 minutes — be read back
@@ -1536,10 +1549,24 @@ async function main() {
     // (Note: a club-wide-TYPE event that is ALSO team-scoped via events_teams is
     // still filtered out by the /public/events endpoint, which the website uses;
     // this row filter closes the direct-collection-read leak for the type axis.)
-    await setPermRead(PUBLIC_POLICY, 'events', { event_type: { _in: ['verein', 'tournament'] } }, PUBLIC_EVENT_FIELDS)
+    //
+    // 2026-09-28 (audit F-38): the row is GONE. The type filter above let a
+    // team-scoped `verein`/`tournament` event through, and nothing anonymous reads
+    // /items/events any more — the website's homepage, calendar and build all go
+    // through /kscw/public/events (knex, with the team-scope check), and the app's
+    // guest page through /kscw/public/events/:token. Mirroring the endpoint's
+    // team-scope rule here would be a second copy of it to keep in step; not
+    // granting the collection at all is the version that cannot drift.
+    //
+    // News (audit F-07): `is_published` joins the filter. "Archive" in /admin
+    // PATCHes `is_published:false` and leaves `published_at` in the past, and a
+    // draft saved with the toggle off gets `published_at = today` — both stayed
+    // public on the homepage, /news, the ?news= modal and /feed.xml. The column is
+    // also readable now, because the website sends the same filter as a second line
+    // of defence and a filter on an unreadable field 403s the whole query.
     await setPermRead(
       PUBLIC_POLICY, 'news',
-      { _and: [{ published_at: { _nnull: true } }, { published_at: { _lte: '$NOW' } }] },
+      { _and: [{ is_published: { _eq: true } }, { published_at: { _nnull: true } }, { published_at: { _lte: '$NOW' } }] },
       PUBLIC_NEWS_FIELDS,
     )
 
@@ -1570,11 +1597,13 @@ async function main() {
     // (every RSVP across the club was anonymously readable) — those stay
     // removed; only the event record itself is public (granted above).
     // Migration 032 removed `trainings` (per-team schedule, members-only).
-    await setPermRead(PUBLIC_POLICY, 'hall_slots')
+    // 2026-09-28 (website audit F-61): hall_slots + halls are field-scoped — both carry a
+    // free-text `notes` column staff write for each other.
+    await setPermRead(PUBLIC_POLICY, 'hall_slots', null, PUBLIC_HALL_SLOT_FIELDS)
     await setPermRead(PUBLIC_POLICY, 'hall_slots_teams')  // M2M junction
     await setPermRead(PUBLIC_POLICY, 'hall_closures')
     await setPermRead(PUBLIC_POLICY, 'hall_events')
-    await setPermRead(PUBLIC_POLICY, 'halls')
+    await setPermRead(PUBLIC_POLICY, 'halls', null, PUBLIC_HALL_FIELDS)
 
     // Feedback — public create (kscw-website form, validated by Turnstile hook).
     // `screenshots` (migration 166) must be whitelisted too, else an anon multi-file
@@ -1601,14 +1630,19 @@ async function main() {
     //     as the caller and answers 204 with no id when it cannot — the feedback
     //     page and public forms would get a success and nothing to attach. Two
     //     minutes kills hosting (F25) without breaking the read-back.
-    await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _eq: PUBLIC_IMAGES_FOLDER } })
+    //   • both rows are field-scoped to PUBLIC_FILE_FIELDS (website audit
+    //     2026-09-28, F-03): GET /files lists the Public images folder to anyone,
+    //     and `uploaded_by`, `title`, `description`, `location`, `tags` and
+    //     `metadata` (EXIF, incl. GPS) are not the public's business. The upload
+    //     read-back needs only `id` + `filename_download`.
+    await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _eq: PUBLIC_IMAGES_FOLDER } }, PUBLIC_FILE_FIELDS)
     await setPermRead(PUBLIC_POLICY, 'directus_files', {
       _and: [
         { folder: { _in: ANON_UPLOAD_FOLDERS } },
         { uploaded_by: { _null: true } },
         { uploaded_on: { _gte: '$NOW(-2 minutes)' } },
       ],
-    })
+    }, PUBLIC_FILE_FIELDS)
     // Anonymous CREATE stays: two real flows need it (FeedbackPage sends no
     // session for any visitor, PublicFormPage file answers). Narrowed (F25):
     //   fields     — exactly what a multipart upload writes; `folder` is the only

@@ -16,6 +16,7 @@
 import { Transform } from 'node:stream'
 import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses, createSubmission } from './opnform.js'
 import { streamManagedFile, readManagedFile } from './storage-read.js'
+import { REGISTRATION_FILES_FOLDER } from './registration.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
 import { SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
@@ -39,17 +40,177 @@ export const SECTION_COLLECTIONS = {
   // rows carry only submission ids + booleans + a licence number they can
   // already see via the signups — acceptable for this low-sensitivity data.
   scorer_courses: ['scorer_courses', 'scorer_course_attendance'],
-  // Only the signups collection itself. members/participations were removed:
-  // the generic admin-accountability CRUD routes bypass RLS, so exposing them
-  // here let a mixed_turnier-only Website Admin read/modify/delete any member
-  // (full PII) or any participation club-wide (IDOR / privilege escalation).
-  mixed_turnier: ['mixed_tournament_signups'],
+  // mixed_turnier has NO entry (audit 2026-09-28, F-10). It used to map to
+  // mixed_tournament_signups, which migration 014 dropped — so the only thing the
+  // mapping still did was turn every read into a 500 the admin tab rendered as
+  // "0 signups". members/participations must NOT come back here either: the generic
+  // admin-accountability CRUD bypasses RLS, and exposing them let a
+  // mixed_turnier-only Website Admin read/modify/delete any member (full PII) or any
+  // participation club-wide. The tab reads through the two narrow, server-built
+  // routes /wadmin/mixed_turnier/{participants,signups} instead.
   // site_text has NO entry on purpose, so the generic /items/:collection CRUD
   // refuses it (`resource_out_of_scope`). Its values are rendered as page text on
   // every visitor's browser, so each one has to pass the checks in site-text.js —
   // a generic PATCH would bypass them. The section still belongs in ALL_SECTIONS
   // above: that is what authorize() and the grant grid enumerate.
 }
+
+// ── field write policy for the generic CRUD (audit 2026-09-28, F-04 / F-05) ──
+//
+// assertScalarBody stops relational writes, but every scalar column of a granted
+// collection was still writable — and some scalar columns are capabilities, not data:
+//
+//   scorer_course_attendance.exam_file / exam_file_corrected are file ids that the
+//     exam-result mail ATTACHES and the scoresheet upload DELETES, both with sudo
+//     file access. Pointing one at a registration ID scan mailed that scan to an
+//     address of the caller's choosing; pointing it at any file deleted that file
+//     (with its identity_documents / finance rows cascading). The _by / _on pair is
+//     the attribution the upload route resolves from the session — writable, it is a
+//     forgery rather than a record. Only the dedicated upload route sets these, for
+//     EVERYONE, superusers included: there is no admin workflow that needs to type a
+//     file id by hand.
+//
+//   scorer_courses.form_slug_de / form_slug_en are guardScorer's allowlist. A
+//     scorer-only admin who could rewrite them could point the club-wide OpnForm PAT
+//     at any form in the workspace (an event's non-member signups, with phones and
+//     birthdates), then put the slug back. Superuser-only; a non-superuser may still
+//     SEND them unchanged, because the course edit form round-trips every field.
+export const FIELD_WRITE_DENY = {
+  scorer_course_attendance: ['exam_file', 'exam_file_corrected', 'exam_file_corrected_by', 'exam_file_corrected_on'],
+}
+export const FIELD_WRITE_SUPER_ONLY = {
+  scorer_courses: ['form_slug_de', 'form_slug_en'],
+  // The row's identity. Re-keying an existing row would move its exam sheets onto
+  // another person's signup (and so into their result mail). Set once, on create.
+  scorer_course_attendance: ['sub_key', 'form_slug', 'submission_id'],
+}
+// Fields a non-superuser may set on CREATE despite FIELD_WRITE_SUPER_ONLY — the
+// attendance keys have to be written once, and are then validated separately
+// (attendanceKeyProblem + the scorer slug allowlist).
+const SUPER_ONLY_EXEMPT_ON_CREATE = {
+  scorer_course_attendance: new Set(['sub_key', 'form_slug', 'submission_id']),
+}
+
+function sameValue(a, b) {
+  const n = (v) => (v === undefined || v === null || v === '' ? null : String(v))
+  return n(a) === n(b)
+}
+
+/**
+ * The first field of `body` the caller may not write, or null.
+ *
+ * `current` is the stored row for an update (null for a create). A super-only field
+ * sent with its stored value is a no-op and passes — the edit forms send every field
+ * back, and refusing an unchanged value would lock a scorer admin out of editing the
+ * course's date because its slug rode along.
+ */
+export function deniedFieldWrite(collection, body, { isSuperuser = false, current = null } = {}) {
+  if (!body || typeof body !== 'object') return null
+  const has = (f) => Object.prototype.hasOwnProperty.call(body, f)
+  for (const f of FIELD_WRITE_DENY[collection] || []) {
+    if (has(f)) return f
+  }
+  if (isSuperuser) return null
+  const exempt = current ? null : SUPER_ONLY_EXEMPT_ON_CREATE[collection]
+  for (const f of FIELD_WRITE_SUPER_ONLY[collection] || []) {
+    if (!has(f) || (exempt && exempt.has(f))) continue
+    if (!sameValue(body[f], current ? current[f] : null)) return f
+  }
+  return null
+}
+
+/**
+ * A new attendance row must be keyed the way every reader looks it up:
+ * sub_key = `${form_slug}:${submission_id}`. Returns an error code or null.
+ * (Readers join on sub_key; a row whose parts disagree would be found under one
+ * signup and mailed/exported under another.)
+ */
+export function attendanceKeyProblem(body) {
+  const slug = String(body?.form_slug ?? '')
+  const sub = String(body?.submission_id ?? '')
+  if (!slug || !sub || badSlug(slug)) return 'invalid_attendance_key'
+  if (!/^([0-9]+|manual-[a-z0-9-]{1,40})$/.test(sub)) return 'invalid_attendance_key'
+  if (String(body?.sub_key ?? '') !== `${slug}:${sub}`) return 'invalid_attendance_key'
+  return null
+}
+
+/**
+ * A submission's answers with the staff corrections from
+ * scorer_course_attendance.field_overrides laid over them (migration 332: a TEXT
+ * column holding a JSON object keyed by OpnForm field id). Unparseable or non-object
+ * overrides are ignored rather than trusted; only string/number values apply.
+ */
+export function applyFieldOverrides(answers, rawOverrides) {
+  const out = { ...(answers && typeof answers === 'object' ? answers : {}) }
+  let o = rawOverrides
+  if (typeof o === 'string') { try { o = JSON.parse(o) } catch { o = null } }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === 'string' || typeof v === 'number') out[k] = v
+  }
+  return out
+}
+
+// OpnForm pages at 100. Every per-slug route that has to see the WHOLE signup list
+// (address/licence lookups, finding one submission for the result mail) walks the
+// pages — a single page silently dropped signup #101 onwards (audit 2026-09-28, F-24).
+// Capped so a runaway last_page cannot turn one request into hundreds upstream.
+export const MAX_SUBMISSION_PAGES = 20
+export async function collectAllPages(fetchPage, maxPages = MAX_SUBMISSION_PAGES) {
+  const first = await fetchPage(1)
+  const data = [...(first.data || [])]
+  const last = Math.min(maxPages, Math.max(1, Number(first.last_page) || 1))
+  for (let p = 2; p <= last; p++) {
+    const next = await fetchPage(p)
+    data.push(...(next.data || []))
+  }
+  return { ...first, data, page: 1, last_page: Number(first.last_page) || 1, truncated: (Number(first.last_page) || 1) > last }
+}
+
+// ── registration documents (audit 2026-09-28, F-21) ─────────────────────────
+//
+// The folder constant is registration.js's own (migration 169), imported so the two
+// can never drift; re-exported for the route tests.
+export { REGISTRATION_FILES_FOLDER }
+// Every registrations column that holds a document file id. Mirrors
+// registration.js SELF_DOC_FIELDS / bb-docs.js parseWaivedDocs.
+export const REGISTRATION_FILE_COLUMNS = [
+  'id_upload_front', 'id_upload_back',
+  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
+]
+
+// ── Mixed-Turnier (audit 2026-09-28, F-10) ──────────────────────────────────
+// The event the 2026 Mixed-Turnier lives on — the same id migration 012 moved the
+// website signups onto (event_signups.event = 5) and admin.astro filtered on.
+export const MIXED_TURNIER_EVENT_ID = 5
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * One Wiedisync participation → the row the Mixed-Turnier tab shows. Only name, sex
+ * and positions leave the server: the tab needs nothing else, and member rows carry
+ * far more (address, AHV, IBAN) than an event organiser should be handed.
+ * Positions come from the position_1..3 columns, falling back to the older
+ * "A > B > C" note the app wrote before those columns existed.
+ */
+export function mixedParticipantRow(p, m) {
+  const cols = [p?.position_1, p?.position_2, p?.position_3].filter(Boolean).map(String)
+  const positions = cols.length ? cols : String(p?.note || '').split(' > ').map((s) => s.trim()).filter(Boolean).slice(0, 3)
+  const name = [m?.first_name, m?.last_name].filter(Boolean).join(' ').trim()
+  return {
+    name: name || `Member #${p?.member}`,
+    sex: m?.sex || '',
+    positions,
+    status: p?.status || null,
+    date: p?.date_created ? new Date(p.date_created).toISOString().slice(0, 10) : '',
+    source: 'wiedisync',
+  }
+}
+
+// Error codes a route may pass through to the client verbatim. Anything else is an
+// internal message (a path, an upstream body) and becomes a fixed code (F-66).
+const SAFE_ERROR_CODE = /^[a-z_]{2,40}(:[A-Za-z0-9_-]{1,64})?$/
 
 const MANAGER_ROLES = new Set(['superuser', 'administrator'])
 
@@ -399,6 +560,11 @@ export function registerWadmin(router, ctx) {
 
   function sendErr(res, e) {
     const status = typeof e?.status === 'number' ? e.status : 500
+    // Policy refusals raised by this file carry their own fixed code (+ the field),
+    // so /admin can say WHICH field it may not write instead of a bare "forbidden".
+    if (e?.wadminCode && (status === 403 || status === 400 || status === 404)) {
+      return res.status(status).json({ error: e.wadminCode, ...(e.field ? { field: e.field } : {}) })
+    }
     if (status === 403) return res.status(403).json({ error: 'forbidden' })
     if (status === 400) return res.status(400).json({ error: 'invalid_payload' })
     log.warn({ msg: 'wadmin items error', error: e?.message })
@@ -437,6 +603,56 @@ export function registerWadmin(router, ctx) {
     return req.wadminSuper ? req.body : assertScalarBody(req.body)
   }
 
+  function policyError(code, status, field) {
+    return Object.assign(new Error(code), { status, wadminCode: code, field })
+  }
+
+  // The scorer_courses slugs a non-superuser may reach — guardScorer's allowlist.
+  async function scorerSlugs() {
+    const rows = await database('scorer_courses').select('form_slug_de', 'form_slug_en')
+    const allowed = new Set()
+    for (const r of rows) {
+      if (r.form_slug_de) allowed.add(String(r.form_slug_de))
+      if (r.form_slug_en) allowed.add(String(r.form_slug_en))
+    }
+    return allowed
+  }
+
+  // F-04 / F-05: per-field write policy on top of writeBody. Throws a policyError;
+  // `id` is null for a create. Reads the stored row only when a super-only field is
+  // actually in the body, so ordinary edits cost no extra query.
+  async function enforceFieldPolicy(req, collection, body, id = null) {
+    const isSuperuser = req.wadminSuper === true
+    // One item per request, as a plain object. assertScalarBody passes arrays through
+    // untouched and ItemsService would merge `[{exam_file: …}]` into the row — so an
+    // array (or any non-object) body would skip every check below. Nothing in /admin
+    // sends one; refuse it for superusers too, since the deny-list applies to them.
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw policyError('invalid_payload', 400)
+    }
+    const guarded = FIELD_WRITE_SUPER_ONLY[collection] || []
+    const touches = body && typeof body === 'object' && guarded.some((f) => Object.prototype.hasOwnProperty.call(body, f))
+    let current = null
+    if (id != null && !isSuperuser && touches) {
+      current = await database(collection).where('id', id).first(...guarded)
+      if (!current) throw policyError('not_found', 404)
+    }
+    const field = deniedFieldWrite(collection, body, { isSuperuser, current })
+    if (field) {
+      log.warn({ msg: 'wadmin field write refused', collection, field, item: id, user: req.accountability?.user })
+      throw policyError('field_not_writable', 403, field)
+    }
+    // A new attendance row: keyed consistently, and (for a scorer-scoped admin) only
+    // on a form this section actually covers — the same binding guardScorer applies.
+    if (id == null && collection === 'scorer_course_attendance') {
+      const problem = attendanceKeyProblem(body)
+      if (problem) throw policyError(problem, 400)
+      if (!isSuperuser && !(await scorerSlugs()).has(String(body.form_slug))) {
+        throw policyError('form_out_of_scope', 403, 'form_slug')
+      }
+    }
+  }
+
   router.get('/wadmin/me', async (req, res) => {
     const userId = req.accountability?.user
     if (!userId) return res.status(401).json({ error: 'unauthenticated' })
@@ -463,7 +679,9 @@ export function registerWadmin(router, ctx) {
   router.post('/wadmin/:section/items/:collection', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
-      const id = await (await svc(c, req.accountability.user)).createOne(writeBody(req))
+      const body = writeBody(req)
+      await enforceFieldPolicy(req, c, body, null)
+      const id = await (await svc(c, req.accountability.user)).createOne(body)
       res.json({ data: { id } })
     } catch (e) { sendErr(res, e) }
   })
@@ -471,7 +689,9 @@ export function registerWadmin(router, ctx) {
   router.patch('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
-      await (await svc(c, req.accountability.user)).updateOne(req.params.id, writeBody(req))
+      const body = writeBody(req)
+      await enforceFieldPolicy(req, c, body, req.params.id)
+      await (await svc(c, req.accountability.user)).updateOne(req.params.id, body)
       res.json({ data: { id: req.params.id } })
     } catch (e) { sendErr(res, e) }
   })
@@ -479,9 +699,190 @@ export function registerWadmin(router, ctx) {
   router.delete('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
+      // F-22: an attendance row owns its exam sheets. Deleting the row (a hand-added
+      // "manual-…" signup is ONLY this row) must not strand the scans in storage.
+      let examFiles = []
+      if (c === 'scorer_course_attendance') {
+        const row = await database('scorer_course_attendance').where('id', req.params.id)
+          .first('exam_file', 'exam_file_corrected')
+        examFiles = [row?.exam_file, row?.exam_file_corrected]
+      }
       await (await svc(c, req.accountability.user)).deleteOne(req.params.id)
-      res.json({ ok: true })
+      const filesDeleted = examFiles.length ? await purgeExamFiles(examFiles) : 0
+      res.json({ ok: true, ...(c === 'scorer_course_attendance' ? { files_deleted: filesDeleted } : {}) })
     } catch (e) { sendErr(res, e) }
+  })
+
+  // Delete exam sheets that nothing references any more. Only ever files in
+  // SCORER_EXAM_FOLDER: the ids came out of an attendance row, and a row written
+  // before the F-04 deny-list could still point anywhere — this must never become
+  // "delete any file" again. Best-effort per file; returns how many went.
+  async function purgeExamFiles(ids) {
+    const unique = [...new Set(ids.filter(Boolean).map(String))]
+    if (!unique.length) return 0
+    const { FilesService } = services
+    const filesService = new FilesService({ schema: await getSchema(), knex: database })
+    let n = 0
+    for (const id of unique) {
+      try {
+        const still = await database('scorer_course_attendance')
+          .where('exam_file', id).orWhere('exam_file_corrected', id).first('id')
+        if (still) continue
+        const file = await database('directus_files').where('id', id).first('id', 'folder')
+        if (!file) continue
+        if (String(file.folder) !== SCORER_EXAM_FOLDER) {
+          log.warn({ msg: 'exam file purge refused — file outside the exam folder', file: id })
+          continue
+        }
+        await filesService.deleteOne(id)
+        n++
+      } catch (e) {
+        log.warn({ msg: 'could not delete exam file', file: id, error: e.message })
+      }
+    }
+    return n
+  }
+
+  // Resolve+authorize a fixed section for a custom route. Returns the authorize()
+  // result or null (response already sent).
+  async function guardSection(req, res, section) {
+    const userId = req.accountability?.user
+    if (!userId) { res.status(401).json({ error: 'unauthenticated' }); return null }
+    const a = await authorize(database, userId, section)
+    if (!a.ok) { res.status(a.status).json({ error: a.error, section }); return null }
+    return a
+  }
+
+  // ── Mixed-Turnier (F-10) ───────────────────────────────────────────────────
+  //
+  // The tab merges two lists: people who answered in the Wiedisync app
+  // (participations on the event) and people who used the website form
+  // (event_signups, where migration 012 moved the old mixed_tournament_signups).
+  // Both are built HERE, with the columns chosen server-side, because the only
+  // generic alternative is putting members/participations back into the RLS-bypassing
+  // CRUD — which is exactly the IDOR the 2026-05-31 audit removed.
+  //
+  // participants: declined answers are not signups and are left out. A member who
+  // ALSO filed the website form is left out too, so the merged list counts them once
+  // (their website row is the richer one — it carries teams and notes).
+  router.get('/wadmin/mixed_turnier/participants', async (req, res) => {
+    if (!(await guardSection(req, res, 'mixed_turnier'))) return
+    try {
+      const parts = await database('participations')
+        .where('activity_type', 'event')
+        .where('activity_id', String(MIXED_TURNIER_EVENT_ID))
+        .whereNot('status', 'declined')
+        .select('member', 'status', 'note', 'position_1', 'position_2', 'position_3', 'date_created')
+        .limit(2000)
+      const web = await database('event_signups').where('event', MIXED_TURNIER_EVENT_ID)
+        .whereNotNull('member').select('member')
+      const onWebsite = new Set(web.map((r) => String(r.member)))
+      const memberIds = [...new Set(parts.map((p) => p.member).filter((m) => m != null))]
+      const members = memberIds.length
+        ? await database('members').whereIn('id', memberIds).select('id', 'first_name', 'last_name', 'sex')
+        : []
+      const byId = new Map(members.map((m) => [String(m.id), m]))
+      const data = parts
+        .filter((p) => !onWebsite.has(String(p.member)))
+        .map((p) => mixedParticipantRow(p, byId.get(String(p.member))))
+      res.json({ data })
+    } catch (e) {
+      log.warn({ msg: 'mixed_turnier participants failed', error: e.message })
+      res.status(500).json({ error: 'internal' })
+    }
+  })
+
+  router.get('/wadmin/mixed_turnier/signups', async (req, res) => {
+    if (!(await guardSection(req, res, 'mixed_turnier'))) return
+    try {
+      const rows = await database('event_signups').where('event', MIXED_TURNIER_EVENT_ID)
+        .select('id', 'name', 'email', 'sex', 'is_member', 'form_data', 'date_created')
+        .orderBy('date_created', 'desc')
+        .limit(2000)
+      const data = rows.map((r) => {
+        let fd = r.form_data
+        if (typeof fd === 'string') { try { fd = JSON.parse(fd) } catch { fd = {} } }
+        fd = fd && typeof fd === 'object' ? fd : {}
+        return {
+          id: r.id,
+          name: r.name || '',
+          email: r.email || '',
+          sex: r.sex || '',
+          is_member: !!r.is_member,
+          teams: Array.isArray(fd.teams) ? fd.teams : [],
+          position_1: fd.position_1 || '',
+          position_2: fd.position_2 || '',
+          position_3: fd.position_3 || '',
+          notes: fd.notes || '',
+          date_created: r.date_created || null,
+          source: 'website',
+        }
+      })
+      res.json({ data })
+    } catch (e) {
+      log.warn({ msg: 'mixed_turnier signups failed', error: e.message })
+      res.status(500).json({ error: 'internal' })
+    }
+  })
+
+  // ── registration documents (F-21) ──────────────────────────────────────────
+  //
+  // /admin used to open these through /assets and delete them through /files with
+  // the admin's own token — which a granted Website Admin's role cannot do (the
+  // folder is private), so view/download 403'd and delete failed silently while the
+  // row was cleared anyway. These two routes are the registrations-section door.
+  //
+  // Same two-key rule as the scoresheet route: the id must be REFERENCED by a
+  // registrations document column AND the file must sit in the registration folder.
+  // Holding the registrations grant must never become "read/delete any file".
+  async function resolveRegistrationFile(req, res) {
+    if (!(await guardSection(req, res, 'registrations'))) return null
+    const id = String(req.params.id || '')
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: 'invalid_id' }); return null }
+    const q = database('registrations')
+    REGISTRATION_FILE_COLUMNS.forEach((col, i) => { if (i === 0) q.where(col, id); else q.orWhere(col, id) })
+    const reg = await q.first('id', ...REGISTRATION_FILE_COLUMNS)
+    if (!reg) { res.status(404).json({ error: 'not_found' }); return null }
+    const file = await database('directus_files').where('id', id)
+      .first('id', 'folder', 'filename_download', 'type')
+    if (!file || String(file.folder) !== REGISTRATION_FILES_FOLDER) {
+      log.warn({ msg: 'registration file refused — outside the registration folder', file: id, user: req.accountability?.user })
+      res.status(404).json({ error: 'not_found' }); return null
+    }
+    return { id, reg, file, columns: REGISTRATION_FILE_COLUMNS.filter((c) => String(reg[c] || '') === id) }
+  }
+
+  router.get('/wadmin/registrations/files/:id', async (req, res) => {
+    try {
+      const hit = await resolveRegistrationFile(req, res); if (!hit) return
+      // ID scans: never kept by a browser or proxy cache after the tab closes.
+      res.setHeader('Cache-Control', 'private, no-store')
+      await streamManagedFile(hit.id, { services, getSchema, database }, res, {
+        filename: hit.file.filename_download || hit.columns[0] || 'dokument',
+        type: hit.file.type || 'application/octet-stream',
+        disposition: String(req.query?.download || '') === '1' ? 'attachment' : 'inline',
+      })
+    } catch (e) {
+      log.warn({ msg: 'wadmin registration file read failed', file: req.params.id, error: e.message })
+      if (!res.headersSent) res.status(500).json({ error: 'internal' })
+    }
+  })
+
+  router.delete('/wadmin/registrations/files/:id', async (req, res) => {
+    try {
+      const hit = await resolveRegistrationFile(req, res); if (!hit) return
+      // File first: if that fails nothing has changed and a retry is clean. Then the
+      // column(s), through ItemsService so directus_activity records who did it.
+      const { FilesService } = services
+      await new FilesService({ schema: await getSchema(), knex: database }).deleteOne(hit.id)
+      const patch = Object.fromEntries(hit.columns.map((c) => [c, null]))
+      await (await svc('registrations', req.accountability.user)).updateOne(hit.reg.id, patch)
+      log.info({ msg: 'registration file deleted', registration: hit.reg.id, columns: hit.columns, user: req.accountability.user })
+      res.json({ ok: true, registration: hit.reg.id, cleared: hit.columns })
+    } catch (e) {
+      log.warn({ msg: 'wadmin registration file delete failed', file: req.params.id, error: e.message })
+      if (!res.headersSent) res.status(500).json({ error: 'internal' })
+    }
   })
 
   async function guardScorer(req, res) {
@@ -496,14 +897,10 @@ export function registerWadmin(router, ctx) {
     // PAT, so a scorer-scoped admin could read/DELETE submissions of ANY OpnForm
     // form by passing an arbitrary slug. For non-superuser callers, restrict to the
     // slugs actually configured on scorer_courses rows. Managers keep open access.
+    // (Those slugs are themselves only writable by a superuser — FIELD_WRITE_SUPER_ONLY,
+    // audit 2026-09-28 F-05 — or this allowlist could be repointed with one PATCH.)
     if (a.isSuperuser !== true) {
-      const rows = await database('scorer_courses').select('form_slug_de', 'form_slug_en')
-      const allowed = new Set()
-      for (const r of rows) {
-        if (r.form_slug_de) allowed.add(String(r.form_slug_de))
-        if (r.form_slug_en) allowed.add(String(r.form_slug_en))
-      }
-      if (!allowed.has(String(req.params.slug))) {
+      if (!(await scorerSlugs()).has(String(req.params.slug))) {
         res.status(403).json({ error: 'form_out_of_scope', slug: req.params.slug }); return false
       }
     }
@@ -569,13 +966,15 @@ export function registerWadmin(router, ctx) {
         return res.status(403).json({ error: 'OpnForm rejected the update — the OPNFORM_PAT likely lacks the forms-write ability' })
       }
       if (err.status === 422) {
+        // The upstream body stays in the log (F-66): it is OpnForm's internals, and
+        // /admin only ever needed to know the write was refused.
         log.warn({ msg: 'opnform closes_at rejected', slug: req.params.slug, detail: err.detail })
-        return res.status(422).json({ error: 'OpnForm rejected the form payload', detail: err.detail })
+        return res.status(422).json({ error: 'OpnForm rejected the form payload' })
       }
       // Includes the post-write verification failure — loud on purpose: it means a
       // live registration form may have been altered beyond its closes_at.
       log.error({ msg: 'wadmin opnform closes write failed', slug: req.params.slug, status: err.status, error: err.message })
-      res.status(err.status || 502).json({ error: err.message || 'Upstream error' })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
     }
   })
 
@@ -639,7 +1038,11 @@ export function registerWadmin(router, ctx) {
                     slug: req.params.slug, closes_at: err.closes_at, error: err.cause })
         return res.status(500).json({ error: 'form_left_open', closes_at: err.closes_at ?? null })
       }
-      if (err.status === 400) return res.status(400).json({ error: err.message })
+      // createSubmission's own refusals are fixed codes ("unknown_field:<id>"); only
+      // those pass through, anything else is a message and becomes a code (F-66).
+      if (err.status === 400) {
+        return res.status(400).json({ error: SAFE_ERROR_CODE.test(String(err.message)) ? err.message : 'invalid_body' })
+      }
       if (err.status === 403) {
         log.warn({ msg: 'OpnForm refused an admin-filed signup', slug: req.params.slug, detail: err.detail })
         return res.status(403).json({ error: 'OpnForm refused the submission' })
@@ -656,7 +1059,6 @@ export function registerWadmin(router, ctx) {
     }
     try {
       await deleteSubmission(req.params.slug, req.params.id)
-      res.json({ ok: true })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
       if (err.status === 401 || err.status === 403) {
@@ -664,8 +1066,28 @@ export function registerWadmin(router, ctx) {
         return res.status(403).json({ error: 'OpnForm rejected the delete — the OPNFORM_PAT likely lacks the forms-write ability' })
       }
       log.warn({ msg: 'wadmin opnform delete failed', slug: req.params.slug, status: err.status })
-      res.status(err.status || 502).json({ error: 'Upstream error' })
+      return res.status(err.status || 502).json({ error: 'Upstream error' })
     }
+    // F-22: the signup is gone, so its KSCW-side tracking goes with it — the
+    // attendance row (licence number, notes, corrections) and the exam sheets, which
+    // are personal data with no one left to belong to. After the upstream delete, so
+    // a refused delete strands nothing; best-effort, because the signup is already
+    // gone and the admin's click did what it said.
+    let attendance = false
+    let filesDeleted = 0
+    try {
+      const subKey = `${req.params.slug}:${req.params.id}`
+      const row = await database('scorer_course_attendance').where('sub_key', subKey)
+        .first('id', 'exam_file', 'exam_file_corrected')
+      if (row) {
+        await (await svc('scorer_course_attendance', req.accountability.user)).deleteOne(row.id)
+        attendance = true
+        filesDeleted = await purgeExamFiles([row.exam_file, row.exam_file_corrected])
+      }
+    } catch (e) {
+      log.warn({ msg: 'signup deleted but its attendance row could not be purged', slug: req.params.slug, id: req.params.id, error: e.message })
+    }
+    res.json({ ok: true, attendance_deleted: attendance, files_deleted: filesDeleted })
   })
 
   // ── postcode/town lookup for the SVRZ Teilnehmerliste ──────────────────────
@@ -684,10 +1106,17 @@ export function registerWadmin(router, ctx) {
   //     be used to enumerate members or to probe for an arbitrary person.
   // A scorer-scoped admin can already see these people's addresses on the signup itself;
   // this adds the postcode for a name they are holding, and nothing else.
+  //
+  // ⚠ What "only names on the caller's own list" does NOT stop (F-16, recorded rather
+  // than fixed): the caller can put a name on that list — the admin-filed-signup route
+  // above, or simply the public form — look it up, and delete it again. Recording
+  // admin-created ids would not close that, since the public form is open to them as
+  // to anyone. So the answer stays minimal (no member id) and every lookup is logged
+  // with who asked and how many names matched.
   router.get('/wadmin/scorer_courses/opnform/forms/:slug/member-addresses', async (req, res) => {
     if (!(await guardScorer(req, res))) return
     try {
-      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const listing = await collectAllPages((page) => listSubmissions(req.params.slug, { page, perPage: 100 }))
       const fields = listing.fields || []
       const idsOf = (re) => fields.filter((f) => re.test(String(f.name || ''))).map((f) => f.id)
       const firstIds = idsOf(/vorname|first\s*name/i)
@@ -721,6 +1150,8 @@ export function registerWadmin(router, ctx) {
         const hit = byName.get(key(pick(firstIds), pick(lastIds)))
         if (hit) out[String(row.id)] = hit
       }
+      log.info({ msg: 'member-addresses lookup', slug: req.params.slug, user: req.accountability?.user,
+                 signups: (listing.data || []).length, matched: Object.keys(out).length })
       res.json({ data: out })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
@@ -740,10 +1171,10 @@ export function registerWadmin(router, ctx) {
   // days. This route is what lets the box know.
   //
   // ⚠ Same narrow contract as member-addresses above, for the same reason: /admin
-  // cannot read `members` and must not start to. It returns ONLY the licence number
-  // and the member id, only for names ALREADY ON the caller's own signup list — so
-  // it cannot enumerate members or probe for an arbitrary person. No email, no
-  // birthdate, no address.
+  // cannot read `members` and must not start to. It returns ONLY the licence number,
+  // only for names ALREADY ON the caller's own signup list, and logs every lookup —
+  // see the F-16 note on member-addresses for what that does and does not prevent.
+  // No member id (nothing in /admin used it, F-16), no email, no birthdate, no address.
   //
   // ⚠ Surnames are matched as written AND with a parenthesised maiden name both
   // stripped and used on its own: member #202 is stored "Duc (Fölmli)" and signed
@@ -752,13 +1183,13 @@ export function registerWadmin(router, ctx) {
   router.get('/wadmin/scorer_courses/opnform/forms/:slug/member-licences', async (req, res) => {
     if (!(await guardScorer(req, res))) return
     try {
-      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const listing = await collectAllPages((page) => listSubmissions(req.params.slug, { page, perPage: 100 }))
       const fields = listing.fields || []
       const idsOf = (re) => fields.filter((f) => re.test(String(f.name || ''))).map((f) => f.id)
       const firstIds = idsOf(/vorname|first\s*name/i)
       const lastIds = idsOf(/nachname|last\s*name/i)
 
-      const rows = await database('members').select('id', 'first_name', 'last_name', 'license_nr')
+      const rows = await database('members').select('first_name', 'last_name', 'license_nr')
       const byName = new Map()
       const put = (k, v) => { if (byName.has(k)) byName.set(k, null); else byName.set(k, v) }
       for (const m of rows) {
@@ -778,8 +1209,10 @@ export function registerWadmin(router, ctx) {
         // A member with no licence on file still answers, with licence null — the
         // page needs to tell "we know them and they have none" apart from "we do
         // not know who this is", and only the first of those is safe to act on.
-        if (hit) out[String(row.id)] = { member_id: hit.id, licence: hit.license_nr || null }
+        if (hit) out[String(row.id)] = { licence: hit.license_nr || null }
       }
+      log.info({ msg: 'member-licences lookup', slug: req.params.slug, user: req.accountability?.user,
+                 signups: (listing.data || []).length, matched: Object.keys(out).length })
       res.json({ data: out })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
@@ -973,10 +1406,11 @@ export function registerWadmin(router, ctx) {
       // Replacing a correction drops the superseded bytes rather than orphaning them.
       // Best-effort: the new file is already linked, so a failure costs disk, not
       // correctness. Note this never touches exam_file — the participant's sheet stays.
+      // Through purgeExamFiles, NOT a bare deleteOne (F-04): the old id came out of a
+      // column that was once writable through the generic CRUD, so it is only deleted
+      // when it really is an exam sheet in SCORER_EXAM_FOLDER that nothing else uses.
       if (prev?.exam_file_corrected && prev.exam_file_corrected !== fileId) {
-        try { await filesService.deleteOne(prev.exam_file_corrected) } catch (e) {
-          log.warn({ msg: 'could not delete superseded correction', file: prev.exam_file_corrected, error: e.message })
-        }
+        await purgeExamFiles([prev.exam_file_corrected])
       }
 
       log.info({ msg: 'scoresheet uploaded by admin', slot, sub_key: subKey, bytes, type: sniffed, by: byName })
@@ -996,7 +1430,9 @@ export function registerWadmin(router, ctx) {
     } catch (err) {
       const status = err.status === 413 ? 413 : err.status === 415 ? 415 : 500
       if (status === 500) log.error({ msg: `correction upload failed: ${err.message}`, stack: err.stack })
-      if (!res.headersSent) res.status(status).json({ error: err.message || 'internal' })
+      // Fixed codes only (F-66) — a 500's message is a storage path or a SQL error.
+      const code = status === 413 ? 'too_large' : status === 415 ? 'unsupported_type' : 'internal'
+      if (!res.headersSent) res.status(status).json({ error: code })
     }
   })
 
@@ -1012,7 +1448,10 @@ export function registerWadmin(router, ctx) {
   router.post('/wadmin/scorer_courses/opnform/forms/:slug/submissions/:id/exam-result-email', async (req, res) => {
     if (!(await guardScorer(req, res))) return
     const subId = String(req.params.id || '')
-    if (!/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
+    // A hand-added signup ("manual-…", see admin.astro) has no OpnForm submission —
+    // its answers live only in the attendance row's field_overrides (F-17).
+    const manual = /^manual-[a-z0-9-]{1,40}$/.test(subId)
+    if (!manual && !/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
 
     // No default: a mail that says "passed" because a field was missing is the one
     // mistake this route must not make.
@@ -1022,20 +1461,43 @@ export function registerWadmin(router, ctx) {
     const note = String(req.body?.note || '').slice(0, 2000).trim()
 
     try {
-      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const att = await database('scorer_course_attendance')
+        .where('sub_key', `${req.params.slug}:${subId}`)
+        .first('exam_date', 'sv_license', 'exam_file_corrected', 'exam_result', 'exam_passed', 'field_overrides')
+
+      // F-18: the verdict in the mail must be the verdict on record. /admin saves the
+      // result and then asks for the mail; if that save failed, the participant would be
+      // told something the club's own list does not say. Refuse instead — the admin
+      // sees an error and can retry the save.
+      const stored = att?.exam_result || (att?.exam_passed ? 'passed' : '')
+      if (stored !== result) {
+        log.warn({ msg: 'exam-result mail refused — result not saved', slug: req.params.slug, submission: subId, result, stored: stored || null })
+        return res.status(409).json({ error: 'result_not_saved' })
+      }
+
+      // Every page, not the first 100 (F-24): signup #101 was a silent 404 here. A
+      // manual row needs only the field list, which comes with any page.
+      const listing = manual
+        ? await listSubmissions(req.params.slug, { page: 1, perPage: 1 })
+        : await collectAllPages((page) => listSubmissions(req.params.slug, { page, perPage: 100 }))
       const fields = listing.fields || []
       const idsOf = (re, typeMatch) => fields
         .filter((f) => (typeMatch && f.type === typeMatch) || re.test(String(f.name || '')))
         .map((f) => f.id)
       const emailIds = idsOf(/^e-?mail/i, 'email')
       const firstIds = idsOf(/vorname|first\s*name/i)
-      const row = (listing.data || []).find((r) => String(r.id) === subId)
-      if (!row) return res.status(404).json({ error: 'Submission not found' })
+      const row = manual ? null : (listing.data || []).find((r) => String(r.id) === subId)
+      if (!manual && !row) return res.status(404).json({ error: 'Submission not found' })
+      if (manual && !att) return res.status(404).json({ error: 'Submission not found' })
 
       // ⚠ Answers live in `row.data`, keyed by field id — never on the row itself.
       // Reading row[fieldId] yields undefined for everything and the mail silently gets
       // no recipient. Same shape admin.astro reads (var d = row.data).
-      const answers = (row && row.data) || row || {}
+      //
+      // Staff corrections (field_overrides) win over what the participant typed — the
+      // same precedence /admin displays. Without that, a corrected e-mail address was
+      // shown in the table while the verdict went to the mistyped one (F-17).
+      const answers = applyFieldOverrides(manual ? {} : ((row && row.data) || row || {}), att?.field_overrides)
       const pick = (ids) => { for (const i of ids) { const v = answers[i]; if (v != null && v !== '') return String(v) } return '' }
       const to = pick(emailIds).trim()
       if (!to || /[\r\n]/.test(to)) return res.status(422).json({ error: 'no_email_on_submission' })
@@ -1048,10 +1510,6 @@ export function registerWadmin(router, ctx) {
         .first('date_iso', 'form_slug_en')
       const en = course && String(course.form_slug_en || '') === String(req.params.slug)
 
-      const att = await database('scorer_course_attendance')
-        .where('sub_key', `${req.params.slug}:${subId}`)
-        .first('exam_date', 'sv_license', 'exam_file_corrected')
-
       // Attach the CORRECTED sheet when one exists — not the participant's own, which
       // they uploaded and already have. The correction is the new information.
       //
@@ -1062,8 +1520,19 @@ export function registerWadmin(router, ctx) {
       // Read BEFORE the body is built, so the mail can only mention an attachment that is
       // actually going to be on it. A failure here degrades to a mail with no attachment
       // and no mention of one — the result still has to reach the participant.
+      //
+      // ⚠ Folder check first (F-04), same rule as the scoresheet read route: the id is a
+      // column value, and readManagedFile reads with sudo. Anything outside
+      // SCORER_EXAM_FOLDER is not a scoresheet and is never attached — that is what kept
+      // a registration ID scan from being mailed out under the club's DKIM signature.
       let attachments = null
+      let attachable = false
       if (att?.exam_file_corrected) {
+        const f = await database('directus_files').where('id', att.exam_file_corrected).first('id', 'folder')
+        attachable = !!f && String(f.folder) === SCORER_EXAM_FOLDER
+        if (!attachable) log.warn({ msg: 'exam-result attachment refused — file outside the exam folder', file: att.exam_file_corrected })
+      }
+      if (attachable) {
         try {
           const { bytes } = await readManagedFile(att.exam_file_corrected, { services, getSchema, database })
           attachments = [{
