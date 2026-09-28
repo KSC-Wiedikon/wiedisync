@@ -4,6 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import path from 'path'
 
+// Both proxies below forward `/directus/*` to a Directus host. The repo also has
+// a real `directus/` folder that Vite serves at that same prefix: the `@bb-docs`
+// alias resolves into directus/extensions/kscw-endpoints/src/, so the browser
+// requests /directus/extensions/kscw-endpoints/src/bb-docs.js. A plain
+// '/directus' key sent that source file to Directus (404), the App chunk failed
+// to import, and main.tsx showed "A new version is available" on every load.
+// A key starting with ^ is a RegExp to Vite; exclude the repo's extension sources.
+const DIRECTUS_PROXY_PATH = '^/directus/(?!extensions/kscw-(endpoints|hooks)/)'
+
 export default defineConfig({
   plugins: [
     react(),
@@ -56,7 +65,7 @@ export default defineConfig({
     // this can't be forgotten.
     ...(process.env.VITE_PROD_DATA === '1' && {
       proxy: {
-        '/directus': {
+        [DIRECTUS_PROXY_PATH]: {
           target: 'https://directus.kscw.ch',
           changeOrigin: true,
           rewrite: (p: string) => p.replace(/^\/directus/, ''),
@@ -76,7 +85,7 @@ export default defineConfig({
     // both need a secure context, and localhost is one while a bare IP isn't.
     ...(process.env.VITE_DEV_PROXY === '1' && {
       proxy: {
-        '/directus': {
+        [DIRECTUS_PROXY_PATH]: {
           target: 'https://directus-dev.kscw.ch',
           changeOrigin: true,
           rewrite: (p: string) => p.replace(/^\/directus/, ''),
