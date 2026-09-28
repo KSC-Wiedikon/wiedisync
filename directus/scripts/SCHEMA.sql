@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-27T20:33:23.082Z
+-- Generated:   2026-09-28T22:28:21.454Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict FWl1wQU8MgZN9XdgCltCPPGbxImOioZfMt6J0XOLSSMqUEz7k57jzvzfQ3BnOJU
+\restrict eNnJ5sJAAtAZAJyEIyAHzdjKFIZpxGTOUpSaT2QrvPSJ2q3mPuS7m1BhPCrh6gF
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -261,6 +261,27 @@ COMMENT ON FUNCTION public.clubdesk_offliz_to_dx(offliz text) IS 'ClubDesk "Offi
 
 
 --
+-- Name: events_signup_form_slug_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_signup_form_slug_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF coalesce(current_setting('kscw.signup_slug_write', true), '') = 'on' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    NEW.signup_form_slug := NULL;
+  ELSE
+    NEW.signup_form_slug := OLD.signup_form_slug;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: finance_native_txn_lock(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -380,6 +401,22 @@ BEGIN
   ) THEN
     RETURN NULL;  -- BEFORE INSERT returning NULL = skip this row, keep the statement
   END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: game_roster_officials_forget_dob(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_roster_officials_forget_dob() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- The member behind this bench row is gone (ON DELETE SET NULL): the DoB has
+  -- no owner left to retain it for. The name stays — it is the sheet's record.
+  NEW.birthdate := NULL;
   RETURN NEW;
 END;
 $$;
@@ -705,6 +742,36 @@ COMMENT ON FUNCTION public.kscw_current_season_start() IS 'Sep 1 of the current 
 
 
 --
+-- Name: kscw_directus_files_folder_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_directus_files_folder_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  public_folder     constant uuid := '0e1a0387-0000-4000-8000-000000000003';
+  quarantine_folder constant uuid := '0e1a0387-0000-4000-8000-000000000004';
+BEGIN
+  IF NEW.folder IS NULL THEN
+    NEW.folder := quarantine_folder;
+    RETURN NEW;
+  END IF;
+  IF NEW.folder = public_folder
+     AND (TG_OP = 'INSERT' OR OLD.folder IS DISTINCT FROM public_folder)
+     AND coalesce(current_setting('kscw.publish_file', true), '') <> 'on' THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.folder := quarantine_folder;
+    ELSE
+      NEW.folder := coalesce(OLD.folder, quarantine_folder);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: kscw_fine_window_start(text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -739,6 +806,35 @@ $$;
 --
 
 COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month anchors to the 1st of the month; season anchors to the Jun 1 season rollover (migration 268 — NOT Sep 1, which is in the future for a third of the season and would drop every summer offense); rolling windows subtract N days from now. All wall-clock anchors are Europe/Zurich.';
+
+
+--
+-- Name: kscw_junction_keys_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_junction_keys_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  col text;
+  old_val text;
+  new_val text;
+BEGIN
+  IF coalesce(current_setting('kscw.allow_junction_repoint', true), '') = 'on' THEN
+    RETURN NEW;
+  END IF;
+  FOREACH col IN ARRAY TG_ARGV LOOP
+    EXECUTE format('SELECT ($1).%1$I::text, ($2).%1$I::text', col) USING OLD, NEW INTO old_val, new_val;
+    IF old_val IS DISTINCT FROM new_val THEN
+      RAISE EXCEPTION '%: % cannot be changed after creation (delete the link and create a new one)',
+        TG_TABLE_NAME, col
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END LOOP;
+  RETURN NEW;
+END;
+$_$;
 
 
 --
@@ -783,6 +879,39 @@ BEGIN
   END IF;
   RETURN '+' || cc;
 END $_$;
+
+
+--
+-- Name: kscw_publish_referenced_file(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_publish_referenced_file() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  public_folder     constant uuid := '0e1a0387-0000-4000-8000-000000000003';
+  quarantine_folder constant uuid := '0e1a0387-0000-4000-8000-000000000004';
+  file_id uuid;
+BEGIN
+  EXECUTE format('SELECT ($1).%I::uuid', TG_ARGV[0]) USING NEW INTO file_id;
+  IF file_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+  PERFORM set_config('kscw.publish_file', 'on', true);
+  UPDATE directus_files
+     SET folder = public_folder
+   WHERE id = file_id
+     AND folder = quarantine_folder
+     AND uploaded_by IS NOT NULL
+     AND uploaded_on >= now() - interval '24 hours'
+     AND lower(type) IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                         'image/avif', 'image/heic', 'image/heif')
+     AND NOT EXISTS (SELECT 1 FROM finance_expenses e WHERE e.file = file_id);
+  PERFORM set_config('kscw.publish_file', 'off', true);
+  RETURN NULL;
+END;
+$_$;
 
 
 --
@@ -929,17 +1058,29 @@ $$;
 CREATE FUNCTION public.members_stamp_deactivated_at() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  hatch boolean := coalesce(current_setting('kscw.allow_deactivated_at_edit', true), '') = 'on';
 BEGIN
-  -- Deactivated now: start the clock. COALESCE so a re-run of the same
-  -- transition (or a backfilled row being touched) never moves an existing stamp.
   IF NEW.kscw_membership_active IS DISTINCT FROM OLD.kscw_membership_active THEN
     IF NEW.kscw_membership_active IS FALSE THEN
-      NEW.deactivated_at := COALESCE(NEW.deactivated_at, now());
-    ELSIF NEW.kscw_membership_active IS TRUE THEN
-      -- Back in the club — no retention period is running.
-      NEW.deactivated_at := NULL;
+      -- Deactivated now: start the clock. From OLD, never NEW, so the caller
+      -- cannot hand in a backdated stamp with the deactivation itself.
+      IF hatch THEN
+        NEW.deactivated_at := COALESCE(NEW.deactivated_at, now());
+      ELSE
+        NEW.deactivated_at := COALESCE(OLD.deactivated_at, now());
+      END IF;
     END IF;
+  ELSIF NOT hatch THEN
+    -- No status change: the stored clock is not the caller's to move.
+    NEW.deactivated_at := OLD.deactivated_at;
   END IF;
+
+  -- Back in (or still in) the club — no retention period is running.
+  IF NEW.kscw_membership_active IS TRUE THEN
+    NEW.deactivated_at := NULL;
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -1246,6 +1387,9 @@ BEGIN
   IF NEW.kind <> OLD.kind THEN
     RAISE EXCEPTION 'carpool_kind_immutable' USING ERRCODE = 'check_violation';
   END IF;
+  IF NEW.direction <> OLD.direction THEN
+    RAISE EXCEPTION 'carpool_direction_immutable' USING ERRCODE = 'check_violation';
+  END IF;
   IF NEW.game IS DISTINCT FROM OLD.game
      OR NEW.training IS DISTINCT FROM OLD.training
      OR NEW.event IS DISTINCT FROM OLD.event THEN
@@ -1320,6 +1464,20 @@ BEGIN
       'location', v_location
     )::text;
   ELSIF TG_OP = 'UPDATE' THEN
+    -- Migration 381: only a change a member would care about is news. Every
+    -- other write (an RSVP-side bookkeeping column, a form re-saving the same
+    -- values, the carpool toggle) used to fan out another `event_updated`.
+    IF NEW.title       IS NOT DISTINCT FROM OLD.title
+       AND NEW.start_date  IS NOT DISTINCT FROM OLD.start_date
+       AND NEW.end_date    IS NOT DISTINCT FROM OLD.end_date
+       AND NEW.all_day     IS NOT DISTINCT FROM OLD.all_day
+       AND NEW.meeting_time IS NOT DISTINCT FROM OLD.meeting_time
+       AND NEW.location    IS NOT DISTINCT FROM OLD.location
+       AND NEW.hall        IS NOT DISTINCT FROM OLD.hall
+       AND NEW.description IS NOT DISTINCT FROM OLD.description
+       AND NEW.cancelled   IS NOT DISTINCT FROM OLD.cancelled THEN
+      RETURN NEW;
+    END IF;
     v_type := 'activity_change'; v_title_key := 'event_updated';
     v_body := json_build_object(
       'title', COALESCE(NEW.title, ''),
@@ -1602,6 +1760,30 @@ BEGIN
       PERFORM rebuild_member_guardians(NEW.household);
     END IF;
   END IF;
+  RETURN NULL;
+END $$;
+
+
+--
+-- Name: trg_member_guardians_unbind_push(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_member_guardians_unbind_push() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  -- Deferred to COMMIT: the grant may have been re-inserted by the same
+  -- rebuild that deleted it (any household) — then nothing ended.
+  IF EXISTS (
+    SELECT 1 FROM member_guardians
+     WHERE member = OLD.member AND guardian_user = OLD.guardian_user
+  ) THEN
+    RETURN NULL;
+  END IF;
+  DELETE FROM push_subscriptions
+   WHERE member = OLD.member
+     AND acting_guardian_user = OLD.guardian_user;
   RETURN NULL;
 END $$;
 
@@ -2043,6 +2225,19 @@ BEGIN
   ELSIF TG_OP = 'UPDATE' THEN
     v_team_id := NEW.team; v_id := NEW.id;
     IF v_team_id IS NULL THEN RETURN NEW; END IF;
+    -- Migration 381: only a change a member would care about is news (see
+    -- trg_events_notify). Auto-cancel / auto-shorten change cancelled / end_time
+    -- and still notify, as before.
+    IF NEW.date       IS NOT DISTINCT FROM OLD.date
+       AND NEW.start_time IS NOT DISTINCT FROM OLD.start_time
+       AND NEW.end_time   IS NOT DISTINCT FROM OLD.end_time
+       AND NEW.hall       IS NOT DISTINCT FROM OLD.hall
+       AND NEW.hall_name  IS NOT DISTINCT FROM OLD.hall_name
+       AND NEW.notes      IS NOT DISTINCT FROM OLD.notes
+       AND NEW.team       IS NOT DISTINCT FROM OLD.team
+       AND NEW.cancelled  IS NOT DISTINCT FROM OLD.cancelled THEN
+      RETURN NEW;
+    END IF;
     SELECT COALESCE(h.name, '') INTO v_hall FROM halls h WHERE h.id = NEW.hall;
     v_hall := COALESCE(v_hall, '');
     IF NEW.cancelled = true AND OLD.cancelled IS DISTINCT FROM true THEN
@@ -3666,7 +3861,7 @@ CREATE TABLE public.carpools (
     event integer,
     kind character varying(10) NOT NULL,
     member integer NOT NULL,
-    direction character varying(10) DEFAULT 'both'::character varying NOT NULL,
+    direction character varying(10) DEFAULT 'there'::character varying NOT NULL,
     seats smallint DEFAULT 1 NOT NULL,
     departure_time time without time zone,
     departure_location character varying(200),
@@ -3675,7 +3870,8 @@ CREATE TABLE public.carpools (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     teams jsonb,
     return_time time without time zone,
-    CONSTRAINT carpools_direction_check CHECK (((direction)::text = ANY ((ARRAY['there'::character varying, 'back'::character varying, 'both'::character varying])::text[]))),
+    departure_date date,
+    CONSTRAINT carpools_direction_check CHECK (((direction)::text = ANY ((ARRAY['there'::character varying, 'back'::character varying])::text[]))),
     CONSTRAINT carpools_kind_check CHECK (((kind)::text = ANY ((ARRAY['offer'::character varying, 'request'::character varying])::text[]))),
     CONSTRAINT carpools_one_activity CHECK ((num_nonnulls(game, training, event) = 1)),
     CONSTRAINT carpools_seats_range CHECK (((seats >= 1) AND (seats <= 8))),
@@ -3701,7 +3897,14 @@ COMMENT ON COLUMN public.carpools.teams IS 'Offer only: team ids this ride is fo
 -- Name: COLUMN carpools.return_time; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.carpools.return_time IS 'Departure time of the way back for a there-and-back ride. NULL = not set / not applicable. Migration 380.';
+COMMENT ON COLUMN public.carpools.return_time IS 'DEPRECATED (migration 393): a return is now its own ride row with direction = ''back''. Always NULL.';
+
+
+--
+-- Name: COLUMN carpools.departure_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpools.departure_date IS 'Day of departure for this ride (migration 393). Going: usually the activity''s first day; Return: its last. NULL = the activity''s day.';
 
 
 --
@@ -4860,6 +5063,7 @@ CREATE TABLE public.events (
     meeting_time time without time zone,
     carpool_enabled boolean DEFAULT false NOT NULL,
     carpool_teams jsonb,
+    signup_form_slug text,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
@@ -4912,6 +5116,13 @@ COMMENT ON COLUMN public.events.carpool_enabled IS 'Car pooling board shown on t
 --
 
 COMMENT ON COLUMN public.events.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to. NULL/[] = everyone who can see the event.';
+
+
+--
+-- Name: COLUMN events.signup_form_slug; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.signup_form_slug IS 'OpnForm slug bound by POST /kscw/events/:id/signup-form. Endpoint-owned: writes without the kscw.signup_slug_write GUC are ignored (trigger events_signup_form_slug_guard). Migration 385.';
 
 
 --
@@ -7856,6 +8067,7 @@ CREATE TABLE public.live_scores (
     serving_team character varying(8),
     set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
     date_updated timestamp with time zone,
+    game_id integer,
     CONSTRAINT live_scores_serving_check CHECK (((serving_team IS NULL) OR ((serving_team)::text = ANY ((ARRAY['left'::character varying, 'right'::character varying])::text[])))),
     CONSTRAINT live_scores_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[]))),
     CONSTRAINT live_scores_status_check CHECK (((status)::text = ANY ((ARRAY['idle'::character varying, 'live'::character varying, 'final'::character varying])::text[])))
@@ -7951,6 +8163,13 @@ COMMENT ON COLUMN public.live_scores.serving_team IS 'Volleyball/beach: which si
 --
 
 COMMENT ON COLUMN public.live_scores.set_results IS 'Completed sets, oldest first: [{"a":25,"b":20}, …]. Volleyball/beach only.';
+
+
+--
+-- Name: COLUMN live_scores.game_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.game_id IS 'The fixture a phone-scored row belongs to (channel game-<id>). NULL for a physical board''s row.';
 
 
 --
@@ -8654,7 +8873,7 @@ COMMENT ON COLUMN public.members.kantonsschule IS 'Which Zurich Kantonsschule th
 -- Name: COLUMN members.deactivated_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at); cleared on reactivation. The start of any retention period for an ex-member.';
+COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at): stamped on deactivation, cleared on reactivation, otherwise immutable (migration 390; psql repair via SET LOCAL kscw.allow_deactivated_at_edit = ''on''). The start of any retention period for an ex-member.';
 
 
 --
@@ -9140,8 +9359,16 @@ CREATE TABLE public.push_subscriptions (
     keys_auth character varying(255) DEFAULT NULL::character varying,
     member integer,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    acting_guardian_user uuid
 );
+
+
+--
+-- Name: COLUMN push_subscriptions.acting_guardian_user; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.push_subscriptions.acting_guardian_user IS 'Guardian login that registered this device while acting for `member` (households, migration 348). NULL = the member''s own device. Server-stamped; the row is deleted when that grant ends (migration 382).';
 
 
 --
@@ -12802,6 +13029,14 @@ ALTER TABLE ONLY public.live_history
 
 
 --
+-- Name: live_match_logs live_match_logs_events_size; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.live_match_logs
+    ADD CONSTRAINT live_match_logs_events_size CHECK ((pg_column_size(events) <= 2097152)) NOT VALID;
+
+
+--
 -- Name: live_match_logs live_match_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12930,14 +13165,6 @@ ALTER TABLE ONLY public.password_reset_tokens
 
 
 --
--- Name: password_reset_tokens password_reset_tokens_user_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.password_reset_tokens
-    ADD CONSTRAINT password_reset_tokens_user_unique UNIQUE ("user");
-
-
---
 -- Name: poll_votes poll_votes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12975,6 +13202,14 @@ ALTER TABLE ONLY public.push_subscriptions
 
 ALTER TABLE ONLY public.rankings
     ADD CONSTRAINT rankings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: referee_expenses referee_expenses_amount_nonneg; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.referee_expenses
+    ADD CONSTRAINT referee_expenses_amount_nonneg CHECK ((amount >= (0)::numeric)) NOT VALID;
 
 
 --
@@ -13500,10 +13735,10 @@ CREATE INDEX carpools_event_idx ON public.carpools USING btree (event) WHERE (ev
 
 
 --
--- Name: carpools_event_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_event_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_event_member_kind_uq ON public.carpools USING btree (event, member, kind) WHERE (event IS NOT NULL);
+CREATE UNIQUE INDEX carpools_event_member_kind_dir_uq ON public.carpools USING btree (event, member, kind, direction) WHERE (event IS NOT NULL);
 
 
 --
@@ -13514,10 +13749,10 @@ CREATE INDEX carpools_game_idx ON public.carpools USING btree (game) WHERE (game
 
 
 --
--- Name: carpools_game_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_game_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_game_member_kind_uq ON public.carpools USING btree (game, member, kind) WHERE (game IS NOT NULL);
+CREATE UNIQUE INDEX carpools_game_member_kind_dir_uq ON public.carpools USING btree (game, member, kind, direction) WHERE (game IS NOT NULL);
 
 
 --
@@ -13535,10 +13770,10 @@ CREATE INDEX carpools_training_idx ON public.carpools USING btree (training) WHE
 
 
 --
--- Name: carpools_training_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_training_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_training_member_kind_uq ON public.carpools USING btree (training, member, kind) WHERE (training IS NOT NULL);
+CREATE UNIQUE INDEX carpools_training_member_kind_dir_uq ON public.carpools USING btree (training, member, kind, direction) WHERE (training IS NOT NULL);
 
 
 --
@@ -14641,6 +14876,13 @@ CREATE INDEX idx_password_reset_tokens_hash ON public.password_reset_tokens USIN
 
 
 --
+-- Name: idx_password_reset_tokens_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_reset_tokens_user ON public.password_reset_tokens USING btree ("user");
+
+
+--
 -- Name: idx_signup_tokens_expires; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14708,6 +14950,13 @@ CREATE INDEX live_match_logs_game_idx ON public.live_match_logs USING btree (gam
 --
 
 CREATE INDEX live_match_logs_uploaded_idx ON public.live_match_logs USING btree (uploaded_at DESC);
+
+
+--
+-- Name: live_scores_game_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_scores_game_id_idx ON public.live_scores USING btree (game_id) WHERE (game_id IS NOT NULL);
 
 
 --
@@ -14897,6 +15146,13 @@ CREATE INDEX polls_created_by_index ON public.polls USING btree (created_by);
 --
 
 CREATE INDEX polls_team_index ON public.polls USING btree (team);
+
+
+--
+-- Name: push_subscriptions_acting_guardian_ix; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX push_subscriptions_acting_guardian_ix ON public.push_subscriptions USING btree (acting_guardian_user, member) WHERE (acting_guardian_user IS NOT NULL);
 
 
 --
@@ -15299,6 +15555,13 @@ CREATE OR REPLACE VIEW public.stats_team_roster WITH (security_invoker='true') A
 
 
 --
+-- Name: events events_signup_form_slug_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_signup_form_slug_guard BEFORE INSERT OR UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.events_signup_form_slug_guard();
+
+
+--
 -- Name: form_submissions form_submissions_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15338,6 +15601,13 @@ CREATE TRIGGER members_sync_nationality_trg BEFORE INSERT OR UPDATE OF nationali
 --
 
 CREATE TRIGGER trg_absences_normalize_indefinite BEFORE INSERT OR UPDATE ON public.absences FOR EACH ROW EXECUTE FUNCTION public.trg_absences_normalize_indefinite();
+
+
+--
+-- Name: announcements trg_announcements_publish_image; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_announcements_publish_image AFTER INSERT OR UPDATE OF image ON public.announcements FOR EACH ROW EXECUTE FUNCTION public.kscw_publish_referenced_file('image');
 
 
 --
@@ -15383,6 +15653,13 @@ CREATE TRIGGER trg_events_0_purge_polymorphic AFTER DELETE ON public.events FOR 
 
 
 --
+-- Name: events_members trg_events_members_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_members_keys_immutable BEFORE UPDATE ON public.events_members FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('events_id', 'members_id');
+
+
+--
 -- Name: events trg_events_notify; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15397,6 +15674,13 @@ CREATE TRIGGER trg_events_open_roster BEFORE INSERT OR UPDATE ON public.events F
 
 
 --
+-- Name: events_teams trg_events_teams_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_teams_keys_immutable BEFORE UPDATE ON public.events_teams FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('events_id', 'teams_id');
+
+
+--
 -- Name: events_teams trg_events_teams_open_roster; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15408,6 +15692,20 @@ CREATE TRIGGER trg_events_teams_open_roster AFTER INSERT OR DELETE OR UPDATE ON 
 --
 
 CREATE TRIGGER trg_finance_native_txn_lock BEFORE INSERT OR DELETE OR UPDATE ON public.finance_transactions FOR EACH ROW EXECUTE FUNCTION public.finance_native_txn_lock();
+
+
+--
+-- Name: forms_teams trg_forms_teams_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_forms_teams_keys_immutable BEFORE UPDATE ON public.forms_teams FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('forms_id', 'teams_id');
+
+
+--
+-- Name: game_guest_teams trg_game_guest_teams_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guest_teams_keys_immutable BEFORE UPDATE ON public.game_guest_teams FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('game', 'team');
 
 
 --
@@ -15432,10 +15730,24 @@ CREATE TRIGGER trg_game_guests_0_skip_own_roster BEFORE INSERT ON public.game_gu
 
 
 --
+-- Name: game_guests trg_game_guests_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guests_keys_immutable BEFORE UPDATE ON public.game_guests FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('game', 'member', 'via_team');
+
+
+--
 -- Name: game_guests trg_game_guests_purge_participation; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_game_guests_purge_participation AFTER DELETE ON public.game_guests FOR EACH ROW EXECUTE FUNCTION public.game_guests_purge_participation();
+
+
+--
+-- Name: game_roster_officials trg_game_roster_officials_forget_dob; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_roster_officials_forget_dob BEFORE UPDATE OF member ON public.game_roster_officials FOR EACH ROW WHEN (((old.member IS NOT NULL) AND (new.member IS NULL))) EXECUTE FUNCTION public.game_roster_officials_forget_dob();
 
 
 --
@@ -15467,6 +15779,13 @@ CREATE TRIGGER trg_games_notify AFTER INSERT OR DELETE OR UPDATE ON public.games
 
 
 --
+-- Name: hall_slots_teams trg_hall_slots_teams_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_hall_slots_teams_keys_immutable BEFORE UPDATE ON public.hall_slots_teams FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('hall_slots_id', 'teams_id');
+
+
+--
 -- Name: hall_slots trg_hall_slots_validate_extra_halls; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15492,6 +15811,13 @@ CREATE TRIGGER trg_halls_reject_vm_combo BEFORE INSERT OR UPDATE ON public.halls
 --
 
 CREATE TRIGGER trg_household_members_rebuild AFTER INSERT OR DELETE OR UPDATE ON public.household_members FOR EACH ROW EXECUTE FUNCTION public.trg_household_members_rebuild();
+
+
+--
+-- Name: member_guardians trg_member_guardians_unbind_push; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_member_guardians_unbind_push AFTER DELETE ON public.member_guardians DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.trg_member_guardians_unbind_push();
 
 
 --
@@ -15530,6 +15856,13 @@ CREATE TRIGGER trg_members_prevent_email_blanking BEFORE UPDATE OF email ON publ
 
 
 --
+-- Name: members trg_members_publish_photo; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_publish_photo AFTER INSERT OR UPDATE OF photo ON public.members FOR EACH ROW EXECUTE FUNCTION public.kscw_publish_referenced_file('photo');
+
+
+--
 -- Name: members trg_members_shell_convert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15548,6 +15881,13 @@ CREATE TRIGGER trg_members_user_rebuild_guardians AFTER UPDATE OF "user" ON publ
 --
 
 CREATE TRIGGER trg_members_user_revoke_managed AFTER UPDATE OF "user" ON public.members FOR EACH ROW WHEN ((old."user" IS DISTINCT FROM new."user")) EXECUTE FUNCTION public.trg_members_user_revoke_managed();
+
+
+--
+-- Name: news trg_news_publish_image; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_news_publish_image AFTER INSERT OR UPDATE OF image ON public.news FOR EACH ROW EXECUTE FUNCTION public.kscw_publish_referenced_file('image');
 
 
 --
@@ -15596,7 +15936,7 @@ CREATE TRIGGER trg_pv_member_teams AFTER INSERT OR DELETE OR UPDATE ON public.me
 -- Name: members trg_pv_members; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_pv_members AFTER INSERT OR DELETE OR UPDATE ON public.members FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+CREATE TRIGGER trg_pv_members AFTER INSERT OR DELETE OR UPDATE OF "user", id ON public.members FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
 
 
 --
@@ -15663,6 +16003,13 @@ CREATE TRIGGER trg_slot_claims_validate BEFORE INSERT OR UPDATE ON public.slot_c
 
 
 --
+-- Name: sponsors trg_sponsors_publish_logo; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sponsors_publish_logo AFTER INSERT OR UPDATE OF logo ON public.sponsors FOR EACH ROW EXECUTE FUNCTION public.kscw_publish_referenced_file('logo');
+
+
+--
 -- Name: teams_coaches trg_staff_gratis_coaches; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15677,6 +16024,13 @@ CREATE TRIGGER trg_staff_gratis_responsibles AFTER INSERT ON public.teams_respon
 
 
 --
+-- Name: teams_coaches trg_teams_coaches_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_coaches_keys_immutable BEFORE UPDATE ON public.teams_coaches FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('teams_id', 'members_id');
+
+
+--
 -- Name: teams trg_teams_protect_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15684,10 +16038,31 @@ CREATE TRIGGER trg_teams_protect_delete BEFORE DELETE ON public.teams FOR EACH R
 
 
 --
+-- Name: teams trg_teams_publish_team_picture; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_publish_team_picture AFTER INSERT OR UPDATE OF team_picture ON public.teams FOR EACH ROW EXECUTE FUNCTION public.kscw_publish_referenced_file('team_picture');
+
+
+--
 -- Name: teams trg_teams_release_derby_host; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_teams_release_derby_host BEFORE DELETE ON public.teams FOR EACH ROW EXECUTE FUNCTION public.trg_teams_release_derby_host();
+
+
+--
+-- Name: teams_responsibles trg_teams_responsibles_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_responsibles_keys_immutable BEFORE UPDATE ON public.teams_responsibles FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('teams_id', 'members_id');
+
+
+--
+-- Name: teams_sponsors trg_teams_sponsors_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_sponsors_keys_immutable BEFORE UPDATE ON public.teams_sponsors FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('teams_id', 'sponsors_id');
 
 
 --
@@ -17013,6 +17388,14 @@ ALTER TABLE ONLY public.live_match_logs
 
 
 --
+-- Name: live_scores live_scores_game_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_scores
+    ADD CONSTRAINT live_scores_game_id_fkey FOREIGN KEY (game_id) REFERENCES public.games(id) ON DELETE SET NULL;
+
+
+--
 -- Name: member_guardians member_guardians_guardian_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17154,6 +17537,14 @@ ALTER TABLE ONLY public.poll_votes
 
 ALTER TABLE ONLY public.poll_votes
     ADD CONSTRAINT poll_votes_poll_foreign FOREIGN KEY (poll) REFERENCES public.polls(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_subscriptions push_subscriptions_acting_guardian_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_acting_guardian_user_fkey FOREIGN KEY (acting_guardian_user) REFERENCES public.directus_users(id) ON DELETE CASCADE;
 
 
 --
@@ -17756,22 +18147,34 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict FWl1wQU8MgZN9XdgCltCPPGbxImOioZfMt6J0XOLSSMqUEz7k57jzvzfQ3BnOJU
+\unrestrict eNnJ5sJAAtAZAJyEIyAHzdjKFIZpxGTOUpSaT2QrvPSJ2q3mPuS7m1BhPCrh6gF
 
 
 
 -- ============================================================================
--- Migration tracker seed — 387 migration(s) already in the schema above.
+-- KSCW triggers on Directus-owned tables (directus_* are excluded from the dump
+-- above because Directus creates them on first boot; these triggers come from
+-- our migrations and would otherwise be lost). GENERATED; do not hand-edit.
+-- ============================================================================
+DROP TRIGGER IF EXISTS trg_directus_files_folder_guard ON public.directus_files;
+CREATE TRIGGER trg_directus_files_folder_guard BEFORE INSERT OR UPDATE OF folder ON public.directus_files FOR EACH ROW EXECUTE FUNCTION public.kscw_directus_files_folder_guard();
+DROP TRIGGER IF EXISTS trg_directus_users_revoke_managed ON public.directus_users;
+CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, password ON public.directus_users FOR EACH ROW WHEN ((((old.email)::text IS DISTINCT FROM (new.email)::text) OR ((old.status)::text IS DISTINCT FROM (new.status)::text) OR ((old.password)::text IS DISTINCT FROM (new.password)::text))) EXECUTE FUNCTION public.trg_directus_users_revoke_managed();
+
+
+-- ============================================================================
+-- Migration tracker seed — 398 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS kscw_migrations (
+-- Schema-qualified: pg_dump's header emptied search_path for this session.
+CREATE TABLE IF NOT EXISTS public.kscw_migrations (
   filename   text PRIMARY KEY,
   sha256     text,
   applied_at timestamptz NOT NULL DEFAULT now(),
   applied_by text
 );
 
-INSERT INTO kscw_migrations (filename, sha256, applied_by)
+INSERT INTO public.kscw_migrations (filename, sha256, applied_by)
 SELECT v.fname, 'unknown', 'baseline'
 FROM (VALUES
   ('001-postgres-triggers.sql'),
@@ -18160,6 +18563,17 @@ FROM (VALUES
   ('377-household-shadow-consent.sql'),
   ('378-carpools.sql'),
   ('379-carpool-teams.sql'),
-  ('380-carpool-offer-teams-return.sql')
+  ('380-carpool-offer-teams-return.sql'),
+  ('381-notify-only-on-real-change.sql'),
+  ('382-push-subscription-acting-guardian.sql'),
+  ('385-events-signup-form-slug.sql'),
+  ('387-private-upload-folders.sql'),
+  ('388-upload-folder-defaults.sql'),
+  ('389-junction-keys-immutable.sql'),
+  ('390-audit-db-backstops.sql'),
+  ('391-news-is-published-backfill.sql'),
+  ('392-password-reset-tokens-multi.sql'),
+  ('393-carpool-going-return-split.sql'),
+  ('394-live-scores-game-channel.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
