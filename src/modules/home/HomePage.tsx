@@ -963,7 +963,7 @@ function SectionHeader({
 
 /** Card shell the home lists sit in — the page keeps its card hierarchy; the
  *  rows inside are flat (RowList owns the hairlines). */
-const LIST_SHELL = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card px-1'
+const LIST_SHELL = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card p-1'
 
 /** RSVP status → row tone (stripe + rail text). No answer = neutral. */
 const RSVP_TONE: Record<string, RowTone> = {
@@ -1214,7 +1214,8 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     const hall = asObj<Hall>(tr.hall)
     if (tr.start_time) time = formatTime(tr.start_time)
     coachIds = teamCoachIds(team)
-    title = team ? <p className={titleClass}>{team.name}</p> : null
+    // Lead with the kind of activity: a bare "H3" reads like a label, not a training.
+    title = <p className={titleClass}>{tCal('typeTraining')}{team ? ` ${team.name}` : ''}</p>
     body = hall && (
       <TruncatedText text={hall.name} className="mt-0.5 text-xs text-muted-foreground">
         {hall.name}<ExtraHallsSuffix extraHalls={tr.extra_halls} />

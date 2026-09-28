@@ -50,7 +50,7 @@ export default function LiveScoringEntry({ gameId, date, time, sport }: Props) {
   if (!enabled || !info || (!info.canScore && !info.live)) return null
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {info.canScore && (
         <Button asChild className="flex-1">
           <Link to={`/live/score/${gameId}`}><Radio />{t('liveScoring')}</Link>

@@ -461,13 +461,18 @@ export async function isGuestTeamLeader(database, memberId, gameId) {
  * the people the scorer's sheet would list, not a second definition that drifts.
  * VM is read through fetchOwnNominationList, which caches a real answer for a minute
  * and never waits on the shared VM account (busy → RSVP fallback).
+ *
+ * `{ vm: false }` skips the Einsatzliste and decides from the saved sheet and the
+ * confirmed RSVPs alone. game-participant.js passes it for a member with no link to
+ * the team: every eligibility check would otherwise log in to the SHARED VM account
+ * for someone who cannot be on the list anyway.
  */
-export async function gameSheetMemberIds(database, log, game) {
+export async function gameSheetMemberIds(database, log, game, { vm: useVm = true } = {}) {
   const saved = await loadSavedSheet(database, game.id)
   if (saved) {
     return new Set(saved.roster.filter((r) => !r.dropped && r.member != null).map((r) => r.member))
   }
-  const vm = await loadVmRoster(database, log, game, null).catch(() => null)
+  const vm = useVm ? await loadVmRoster(database, log, game, null).catch(() => null) : null
   if (vm && vm.roster.length) {
     return new Set(vm.roster.filter((r) => r.member != null).map((r) => r.member))
   }

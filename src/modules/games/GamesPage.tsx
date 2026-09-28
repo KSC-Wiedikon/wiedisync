@@ -17,6 +17,7 @@ import { teamIds } from '../../utils/teamColors'
 import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
 import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
+import { dedupeProvisionalGames, NON_STANDINGS_LEAGUE } from '../../utils/gameResult'
 import { asObj, relId } from '../../utils/relations'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -370,11 +371,32 @@ export default function GamesPage() {
   })
   const allRankings = allRankingsRaw ?? []
 
+  // Played KSCW games with a provisional result the SV feed has not made official
+  // yet (migration 395) — RankingsTable counts them in, marked. One small query for
+  // every league table instead of one per table. Logged-in only: anonymous visitors
+  // have no `games` read, and a 403 here would fail the public rankings page.
+  // 'scheduled' only — a postponed / cancelled game's leftover result must not count.
+  const { data: provisionalGamesRaw } = useCollection<Game>('games', {
+    filter: { _and: [
+      { season: { _eq: selectedRankSeason } },
+      { status: { _eq: 'scheduled' } },
+      { provisional_home_score: { _nnull: true } },
+    ] },
+    fields: ['id', 'game_id', 'status', 'league', 'round', 'home_team', 'away_team', 'season', 'provisional_home_score', 'provisional_away_score', 'provisional_sets_json', 'provisional_source', 'provisional_at'],
+    limit: 500,
+    enabled: !!user && activeTab === 'rankings',
+  })
+  // A derby is two rows sharing a game_id — count it once.
+  const provisionalGames = useMemo(
+    () => (provisionalGamesRaw?.length ? dedupeProvisionalGames(provisionalGamesRaw) : undefined),
+    [provisionalGamesRaw],
+  )
+
   const leagueGroups = useMemo(() => {
     const grouped = new Map<string, Ranking[]>()
     for (const r of allRankings) {
       // Skip cup/tournament/match-group leagues — not regular season standings
-      if (/^Group \d+$|Cup|Turnier|Pokal|Final|Runde \d|Spiel \d|Tour \d/i.test(r.league)) continue
+      if (NON_STANDINGS_LEAGUE.test(r.league)) continue
 
       // Sport filter: bb_ prefix = basketball, vb_ = volleyball
       if (!r.team_id) continue
@@ -610,7 +632,7 @@ export default function GamesPage() {
             ) : (
               <div className="grid gap-6 lg:grid-cols-2">
                 {[...leagueGroups.entries()].map(([league, rows]) => (
-                  <RankingsTable key={league} league={league} rankings={rows} />
+                  <RankingsTable key={league} league={league} rankings={rows} provisionalGames={provisionalGames} />
                 ))}
               </div>
             )}

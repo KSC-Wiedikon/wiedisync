@@ -2,8 +2,8 @@
  * Phone live scoring (migration 394) — the pure halves of live-scoring.js: the
  * plausibility check on a published score and the short team codes.
  */
-import { describe, it, expect } from 'vitest'
-import { cleanState, shortName, channelFor } from '../live-scoring.js'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { cleanState, shortName, channelFor, registerLiveScoring } from '../live-scoring.js'
 
 const base = {
   points_a: 12, points_b: 10, sets_won_a: 1, sets_won_b: 0,
@@ -52,4 +52,43 @@ describe('shortName', () => {
 
 it('names the channel after the game', () => {
   expect(channelFor(541)).toBe('game-541')
+})
+
+describe('who may score — the shared eligibility check', () => {
+  afterEach(() => vi.useRealTimers())
+  // Any logged-in member can open any game modal, and the check may read the VM
+  // Einsatzliste on the SHARED account. Someone with no roster row on the team and no
+  // call-up for the game must be decided without it (game-participant.js squadLinked).
+  it('never reads Volleymanager for a member with no link to the team', async () => {
+    const seen = []
+    const db = (table) => {
+      seen.push(table)
+      const b = {}
+      for (const m of ['where', 'whereNot', 'whereRaw', 'join']) b[m] = () => b
+      b.first = async () => {
+        if (table === 'games') return { id: 541, game_id: 'vb_406208', kscw_team: 7, type: 'away', status: 'scheduled', date: '2026-09-28', time: '20:45:00' }
+        if (table === 'teams') return { sport: 'volleyball', id: 7 }
+        if (table === 'members') return { id: 12, first_name: 'Anna', last_name: 'Muster' }
+        return undefined
+      }
+      b.select = async () => []
+      b.pluck = async () => []
+      return b
+    }
+    const routes = {}
+    const router = { get: (p, h) => { routes[`GET ${p}`] = h }, post: (p, h) => { routes[`POST ${p}`] = h } }
+    const noop = () => {}
+    const logger = { child: () => logger, info: noop, warn: noop, error: noop }
+    registerLiveScoring(router, { database: db, logger })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.UTC(2026, 8, 28, 18, 45))   // kickoff
+    let body
+    await routes['GET /live-scoring/game/:gameId'](
+      { accountability: { user: 'u-12' }, params: { gameId: '541' } },
+      { status() { return this }, json(b) { body = b } },
+    )
+    expect(body).toMatchObject({ can_score: false, code: 'not_participant' })
+    expect(seen).toContain('member_teams')
+    expect(seen).not.toContain('svrz_games')
+  })
 })

@@ -1026,6 +1026,15 @@ const GAME_WRITE_FIELDS = [
   //         push, since the cron skips anything already closed/skipped.
   //   duty_late_json          (migration 202) → duty-late.js
   //   duty_leader_alert_json  (migration 203) → duty-leader-contact.js
+  //   provisional_sets_json / _home_score / _away_score / _source / _by_name / _at,
+  //   vm_result_status / _error / _pushed_at / _claimed_at / _report_id / _checked_at,
+  //   vm_opponent_report      (migration 395)
+  //       → game-result.js + vm-push-result.mjs + the kscw-hooks result sweep. A
+  //         coach who could PATCH these would forge a "Provisional" score every
+  //         member sees, fake an opponent report, or park vm_result_status at
+  //         'pending' and so block the real push (the lease refuses a pending row).
+  //         Members READ them via MEMBER_READ_ALL; none is in PUBLIC_GAME_FIELDS —
+  //         the website shows official results only.
   //
   // ⚠ Verify additions against the LIVE database, not SCHEMA.sql — the baseline is
   // regenerated on demand and lags the migration journal (it was missing 202/203/205

@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.25.0 — 2026-09-29
+
+### New
+
+- **Enter the final result after the game.** *Games → game → Result.* From 3 hours after kickoff, the players on the match sheet, the coaches and — for home games — the scorer duty can enter the set scores (prefilled from live scoring). If the other team already reported the result in VolleyManager, you see it and confirm it with one tap; otherwise your result is sent to VolleyManager as our report. The score shows right away as provisional on the game, the results list and the standings, until the official result from Swiss Volley replaces it. If the two teams' scores differ, the app shows both and never sends ours without you confirming it.
+
 ## v2.24.0 — 2026-09-29
 
 ### New

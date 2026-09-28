@@ -24,14 +24,8 @@ import { rsvpTone } from '../../../utils/rsvpTone'
 import TruncatedText from '../../../components/TruncatedText'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-function parseSets(json: unknown): Array<{ home: number; away: number }> {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (s): s is { home: number; away: number } =>
-      typeof s === 'object' && s !== null && 'home' in s && 'away' in s,
-  )
-}
+import { displayResult, parseSets } from '../../../utils/gameResult'
+import { ProvisionalPill } from './GameResultPanel'
 
 interface GameCardProps {
   game: Game
@@ -95,15 +89,15 @@ function StatusBadge({ status }: { status: Game['status'] }) {
  * totals line up down a list regardless of how many sets were played. Set
  * chips are coloured from KSCW's point of view (green = a set we won).
  */
-function ScoreAside({ side, game, sets, kscwWon, kscwLost }: {
+function ScoreAside({ side, game, total, sets, kscwWon, kscwLost }: {
   side: 'home' | 'away'
   game: Game
+  total: number | null
   sets: Array<{ home: number; away: number }>
   kscwWon: boolean
   kscwLost: boolean
 }) {
   const ours = game.type === side
-  const total = side === 'home' ? game.home_score : game.away_score
   return (
     <div className="flex items-center justify-end gap-1 leading-5">
       {sets.map((s, i) => {
@@ -168,19 +162,26 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
   const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
 
-  const hasScore = game.status === 'completed' || game.status === 'live'
-  const homeWon = Number(game.home_score) > Number(game.away_score)
-  const awayWon = Number(game.away_score) > Number(game.home_score)
+  // Official score once sv-sync completes the game; before that a provisional one
+  // (our report / the opponent's VM report), marked as such; a live game keeps its
+  // running score.
+  const result = displayResult(game)
+  const provisional = result.kind === 'provisional'
+  const hasScore = result.kind !== 'none' || game.status === 'live'
+  const homeTotal = result.kind === 'none' ? game.home_score : result.home
+  const awayTotal = result.kind === 'none' ? game.away_score : result.away
+  const homeWon = Number(homeTotal) > Number(awayTotal)
+  const awayWon = Number(awayTotal) > Number(homeTotal)
   const kscwWon = game.type === 'home' ? homeWon : awayWon
   const kscwLost = game.type === 'home' ? awayWon : homeWon
-  const sets = parseSets(game.sets_json)
+  const sets = result.kind === 'none' ? parseSets(game.sets_json) : result.sets
 
   // One tone for stripe + rail date: the game's state first, then (for a
   // played game) our result, else home vs away.
   const tone: RowTone =
     game.status === 'cancelled' || game.status === 'live' ? 'red'
       : game.status === 'postponed' ? 'amber'
-        : game.status === 'completed' ? (kscwWon ? 'green' : kscwLost ? 'red' : 'gray')
+        : result.kind !== 'none' ? (kscwWon ? 'green' : kscwLost ? 'red' : 'gray')
           : game.type === 'home' ? 'brand' : 'sky'
 
   const railFor = (railTone: RowTone) => (
@@ -199,8 +200,8 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
       home={homeLabel}
       away={awayLabel}
       emphasis={game.type === 'away' ? 'away' : 'home'}
-      homeAside={hasScore ? <ScoreAside side="home" game={game} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
-      awayAside={hasScore ? <ScoreAside side="away" game={game} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
+      homeAside={hasScore ? <ScoreAside side="home" game={game} total={homeTotal} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
+      awayAside={hasScore ? <ScoreAside side="away" game={game} total={awayTotal} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
     />
   )
 
@@ -228,7 +229,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         rail={railFor(tone)}
         tone={tone}
         title={title}
-        status={game.status !== 'completed' ? <StatusBadge status={game.status} /> : undefined}
+        status={provisional ? <ProvisionalPill /> : game.status !== 'completed' ? <StatusBadge status={game.status} /> : undefined}
         chips={<>{teamChip}{hallChip}</>}
         onClick={onClick ? () => onClick(game) : undefined}
       />
@@ -265,7 +266,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
           // A played/cancelled game carries two badges (Home + Completed): stack
           // them on a phone so they don't squeeze the team names to a few letters.
           <span
-            className={cn('flex items-center gap-1.5', game.status !== 'scheduled' && 'max-sm:flex-col max-sm:items-end max-sm:gap-1')}
+            className={cn('flex items-center gap-1.5', (game.status !== 'scheduled' || provisional) && 'max-sm:flex-col max-sm:items-end max-sm:gap-1')}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
@@ -280,6 +281,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
               {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
             </span>
             {game.status !== 'scheduled' && <StatusBadge status={game.status} />}
+            {provisional && <ProvisionalPill />}
           </span>
         }
         chips={
