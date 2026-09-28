@@ -50,9 +50,15 @@ TARGET=$1 ROLE=$2 DB=$3 OTHER_DB=$4 CONT=$5 DIR=$6 PORT=$7
 PGC=kscw-postgres
 umask 077
 say(){ echo "[f29:$TARGET] $*"; }
+# ⚠ This whole script arrives on bash's STDIN (ssh … bash -s). Any command that
+# reads stdin — `docker exec -i` above all — would swallow the rest of the
+# script and bash would just stop. So `-i` only where psql is fed SQL
+# (su_psql, always with a redirect/heredoc); every -c query uses su_q/role_q,
+# which have no -i and read /dev/null.
 su_psql(){ docker exec -i "$PGC" psql -U supabase_admin -X -v ON_ERROR_STOP=1 "$@"; }
+su_q(){ docker exec "$PGC" psql -U supabase_admin -X -v ON_ERROR_STOP=1 "$@" </dev/null; }
 # As the new role, over TCP with its password — exactly how Directus connects.
-role_psql(){ docker exec -i -e PGPASSWORD="$PW" "$PGC" psql -h 127.0.0.1 -U "$ROLE" -X -v ON_ERROR_STOP=1 "$@"; }
+role_q(){ docker exec -e PGPASSWORD="$PW" "$PGC" psql -h 127.0.0.1 -U "$ROLE" -X -v ON_ERROR_STOP=1 "$@" </dev/null; }
 
 WORK=$(mktemp -d /tmp/f29.XXXXXX); trap 'rm -rf "$WORK"' EXIT
 printf '%s' "$8" | base64 -d > "$WORK/role.sql"
@@ -74,21 +80,21 @@ say "1/5 role $ROLE ready (CONNECT to $DB only)"
 
 # ── 2. ownership of public ─────────────────────────────────────────────
 su_psql -d "$DB" -q -v role="$ROLE" < "$WORK/role.sql"
-left=$(su_psql -d "$DB" -At -c "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m') and pg_get_userbyid(c.relowner) <> '$ROLE'")
+left=$(su_q -d "$DB" -At -c "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m') and pg_get_userbyid(c.relowner) <> '$ROLE'")
 [ "$left" = 0 ] || { say "!! $left relations in public still not owned by $ROLE"; exit 1; }
 say "2/5 public schema of $DB owned by $ROLE"
 
 # ── 3. prove the role BEFORE switching ─────────────────────────────────
-[ "$(role_psql -d "$DB" -At -c 'select rolsuper from pg_roles where rolname = current_user')" = f ] \
+[ "$(role_q -d "$DB" -At -c 'select rolsuper from pg_roles where rolname = current_user')" = f ] \
   || { say "!! $ROLE is a superuser"; exit 1; }
-if role_psql -d "$DB" -At -c "COPY (SELECT 1) TO PROGRAM 'true'" >/dev/null 2>&1; then
+if role_q -d "$DB" -At -c "COPY (SELECT 1) TO PROGRAM 'true'" >/dev/null 2>&1; then
   say "!! COPY TO PROGRAM succeeded as $ROLE"; exit 1; fi
-if role_psql -d "$OTHER_DB" -At -c 'select 1' >/dev/null 2>&1; then
+if role_q -d "$OTHER_DB" -At -c 'select 1' >/dev/null 2>&1; then
   say "!! $ROLE can connect to $OTHER_DB"; exit 1; fi
-a=$(su_psql -d "$DB" -At -c 'select count(*) from members')
-b=$(role_psql -d "$DB" -At -c 'select count(*) from members')
+a=$(su_q -d "$DB" -At -c 'select count(*) from members')
+b=$(role_q -d "$DB" -At -c 'select count(*) from members')
 [ "$a" = "$b" ] && [ "$a" -gt 0 ] || { say "!! members rows: superuser $a vs $ROLE $b (RLS?)"; exit 1; }
-role_psql -d "$DB" -q -c 'BEGIN; ALTER TABLE members ADD COLUMN f29_probe int; ROLLBACK;' \
+role_q -d "$DB" -q -c 'BEGIN; ALTER TABLE members ADD COLUMN f29_probe int; ROLLBACK;' \
   || { say "!! $ROLE cannot ALTER members"; exit 1; }
 say "3/5 proven: not superuser, no COPY TO PROGRAM, no access to $OTHER_DB, members=$b, DDL ok"
 
@@ -124,7 +130,7 @@ recreate
 
 # ── 5. health, or roll back ────────────────────────────────────────────
 if healthy && [ "$(docker exec "$CONT" printenv DB_USER)" = "$ROLE" ]; then
-  n=$(su_psql -d postgres -At -c "select count(*) from pg_stat_activity where usename='$ROLE' and datname='$DB'")
+  n=$(su_q -d postgres -At -c "select count(*) from pg_stat_activity where usename='$ROLE' and datname='$DB'")
   say "5/5 $CONT healthy on $ROLE ($n connections). Done."
   docker logs --since 3m "$CONT" 2>&1 | grep -iE 'permission denied|must be owner|ERROR' | tail -5 || true
 else
