@@ -13,6 +13,7 @@ import {
   sniffType, signTicket, verifyTicket, zurichToday, normalizeEmail, normalizeLicence,
   answersOf, pick, SCORER_EXAM_FOLDER, notifyExamUpload,
   SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM,
+  buildUploadLinkMail, uploadLinkFor, TICKET_TTL_MS,
 } from '../scorer-exam.js'
 
 const SECRET = 'test-secret-not-the-real-one'
@@ -421,5 +422,140 @@ describe('the Ausbildung mailbox as a sender', () => {
   it('is a complete From object', () => {
     expect(SCORER_AUSBILDUNG_FROM.address).toBe(SCORER_AUSBILDUNG_EMAIL)
     expect(SCORER_AUSBILDUNG_FROM.name).toBeTruthy()
+  })
+})
+
+// ── 2026-09-28 audit: the ticket goes to the registered mailbox, never to the caller ──
+describe('buildUploadLinkMail / uploadLinkFor', () => {
+  it('puts the ticket in the URL fragment, never the query string', () => {
+    const url = uploadLinkFor('abc.def', 'https://kscw.ch/weiteres/schreiberkurse/pruefung')
+    expect(url).toBe('https://kscw.ch/weiteres/schreiberkurse/pruefung#ticket=abc.def')
+  })
+
+  it('renders a German mail with one CTA, the course date in Swiss format and the TTL', () => {
+    const { subject, html, text } = buildUploadLinkMail({
+      firstName: 'Anna', links: [{ url: 'https://kscw.ch/p#ticket=T1', courseDateIso: '2026-08-15' }],
+    })
+    expect(subject).toContain('Matchblatt')
+    expect(html).toContain('Hallo Anna,')
+    expect(html).toContain('15.08.2026')
+    expect(html).toContain('href="https://kscw.ch/p#ticket=T1"')
+    expect(html).toContain('24 Stunden')
+    expect(text).toContain('https://kscw.ch/p#ticket=T1')
+  })
+
+  it('renders English and one link per course when the address matched two signups', () => {
+    const { subject, html } = buildUploadLinkMail({
+      en: true,
+      links: [
+        { url: 'https://kscw.ch/p#ticket=A', courseDateIso: '2026-08-15' },
+        { url: 'https://kscw.ch/p#ticket=B', courseDateIso: '2026-09-12' },
+      ],
+    })
+    expect(subject).toContain('upload link')
+    expect(html).toContain('#ticket=A')
+    expect(html).toContain('#ticket=B')
+    expect(html).toContain('12.09.2026')
+  })
+
+  // firstName is an anonymous OpnForm answer.
+  it('escapes the participant-supplied first name', () => {
+    const { html } = buildUploadLinkMail({
+      firstName: '<img src=x onerror=alert(1)>', links: [{ url: 'https://kscw.ch/p#ticket=T', courseDateIso: null }],
+    })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x')
+  })
+
+  it('keeps an emailed ticket valid for 24 hours', () => {
+    expect(TICKET_TTL_MS).toBe(24 * 60 * 60 * 1000)
+  })
+})
+
+describe('POST /scorer-exam/lookup', () => {
+  const FORM = {
+    fields: [
+      { id: 'fa', name: 'E-Mail', type: 'email' },
+      { id: 'fb', name: 'Vorname', type: 'text' },
+    ],
+    data: [{ id: 42, data: { fa: 'Anna.Beispiel@example.ch', fb: 'Anna' } }],
+  }
+
+  /** Loads the module with a secret + Turnstile configured and returns the two handlers. */
+  const setup = async () => {
+    vi.resetModules()
+    vi.stubEnv('SECRET', SECRET)
+    vi.stubEnv('TURNSTILE_SECRET', 'ts-secret')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ success: true }) })))
+    const mod = await import('../scorer-exam.js')
+    const handlers = {}
+    const router = { post: (path, fn) => { handlers[path] = fn } }
+    const sent = []
+    const database = (table) => ({
+      select: async () => (table === 'scorer_courses'
+        ? [{ id: 7, date_iso: '2026-08-15', form_slug_de: 'kurs-de', form_slug_en: '' }]
+        : []),
+    })
+    const noop = () => {}
+    mod.registerScorerExam(router, {
+      database,
+      getSchema: async () => ({}),
+      logger: { child: () => ({ info: noop, warn: noop, error: noop }) },
+      services: { MailService: class { async send(m) { sent.push(m) } } },
+    })
+    return { mod, lookup: handlers['/scorer-exam/lookup'], sent }
+  }
+  const call = async (handler, body, ip) => {
+    const res = {
+      statusCode: 200, body: null, headersSent: false,
+      status(c) { this.statusCode = c; return this },
+      json(b) { this.body = b; this.headersSent = true; return this },
+    }
+    await handler({ body, headers: { 'cf-connecting-ip': ip }, query: {} }, res)
+    return res
+  }
+
+  beforeEach(() => {
+    vi.mocked(listSubmissions).mockReset()
+    vi.mocked(listSubmissions).mockResolvedValue(FORM)
+  })
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+
+  it('answers a registered address with a bare ok and MAILS the ticket there', async () => {
+    const { mod, lookup, sent } = await setup()
+    const res = await call(lookup, { email: ' anna.beispiel@EXAMPLE.ch ', turnstile_token: 't' }, '10.0.0.1')
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('anna.beispiel@example.ch')
+    const ticket = decodeURIComponent(/#ticket=([^"&\s]+)/.exec(sent[0].html)[1])
+    const claim = mod.verifyTicket(ticket, SECRET)
+    expect(claim).toMatchObject({ k: 'kurs-de:42', s: 'kurs-de', i: '42' })
+    expect(claim.exp - Date.now()).toBeGreaterThan(23 * 60 * 60 * 1000)
+  })
+
+  it('answers an unknown address identically and sends nothing (no enumeration oracle)', async () => {
+    const { lookup, sent } = await setup()
+    const res = await call(lookup, { email: 'nobody@example.ch', turnstile_token: 't' }, '10.0.0.2')
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    expect(sent).toHaveLength(0)
+  })
+
+  it('caps link mails per recipient, silently', async () => {
+    const { lookup, sent } = await setup()
+    for (let i = 0; i < 5; i++) {
+      const res = await call(lookup, { email: 'anna.beispiel@example.ch', turnstile_token: 't' }, `10.0.1.${i}`)
+      expect(res.body).toEqual({ ok: true })
+    }
+    expect(sent).toHaveLength(3)
+  })
+
+  it('still refuses a failed captcha', async () => {
+    const { lookup, sent } = await setup()
+    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ success: false }) })))
+    const res = await call(lookup, { email: 'anna.beispiel@example.ch', turnstile_token: 'bad' }, '10.0.0.3')
+    expect(res.statusCode).toBe(400)
+    expect(sent).toHaveLength(0)
   })
 })

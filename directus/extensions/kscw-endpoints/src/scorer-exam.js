@@ -1,7 +1,8 @@
 /**
  * scorer-exam.js — course participants upload their exam scoresheet themselves.
  *
- *   POST /kscw/scorer-exam/lookup   — public, Turnstile: email → which course(s) they're on
+ *   POST /kscw/scorer-exam/lookup   — public, Turnstile: email → MAILS an upload link
+ *   POST /kscw/scorer-exam/ticket   — public, ticket-bound: what the upload page shows
  *   POST /kscw/scorer-exam/upload   — public, ticket-bound: the scoresheet bytes
  *
  * WHY A LOOKUP STEP
@@ -11,24 +12,30 @@
  * allowlist: you may upload iff the email you type is on a scorer course's OpnForm
  * signup list. That check needs an OpnForm round-trip (a club-wide PAT, ~300ms), which
  * we do NOT want to do while holding a 10 MB upload in flight. So lookup happens first
- * and mints a short-lived HMAC ticket naming the exact submission; the upload then
- * carries the ticket and needs no further OpnForm call.
+ * and mints a short-lived HMAC ticket naming the exact submission — mailed to the
+ * registered address, see below; the upload then carries the ticket and needs no further
+ * OpnForm call.
  *
  * The ticket is what binds bytes to a person. It is signed server-side and the client
- * cannot mint or edit one, so a caller cannot upload "as" someone whose email they never
- * proved. It expires (TICKET_TTL_MS) so a leaked ticket is not a standing credential.
+ * cannot mint or edit one. It expires (TICKET_TTL_MS) so a leaked ticket is not a
+ * standing credential.
  *
- * WHAT THIS DOES NOT DO — READ THIS BEFORE HARDENING IT
- * -----------------------------------------------------
- * The gate is an email address, which is not a secret. Anyone who knows a participant's
- * address can upload a scoresheet in their name, and /lookup confirms whether a given
- * address is registered (an enumeration oracle). Both were accepted deliberately when
- * this was specified: the alternative gates were a shared password (no better — it
- * leaks to exactly the same people, and identifies nobody) or the SVRZ licence number,
- * which is issued only AFTER passing and which 0 of 24 registrants had. Turnstile + the
- * per-IP limiter keep enumeration slow and manual; the real backstop is that an admin
- * looks at every scoresheet in /admin before ticking "Prüfung bestanden". Treat an
- * upload as a claim, never as proof.
+ * THE TICKET GOES TO THE MAILBOX, NEVER TO THE CALLER (2026-09-28 audit)
+ * ----------------------------------------------------------------------
+ * Until 2026-09-28 /lookup handed the ticket straight back to the browser, so knowing a
+ * participant's email address — not a secret — was enough to upload in their name, and
+ * the 404 for an unknown address made /lookup an enumeration oracle. Now /lookup MAILS
+ * the ticket (as a link to the website's upload page) to the address on the signup and
+ * answers `{ ok: true }` whatever happened — matched, unmatched, mail failed — and the
+ * answer is sent BEFORE the mail, so the response time does not leak a match either.
+ * The gate is therefore control of the registered mailbox.
+ *
+ * ⚠ Do not "improve the UX" by returning anything match-dependent from /lookup again —
+ * not the ticket, not the first name, not a 404. Each of those re-opens one of the two
+ * holes. The upload page gets its display data from /ticket, which requires the ticket.
+ *
+ * Still true: an admin looks at every scoresheet in /admin before ticking "Prüfung
+ * bestanden". Treat an upload as a claim, never as proof.
  *
  * PRIVACY OF THE BYTES
  * --------------------
@@ -54,7 +61,7 @@ import crypto from 'node:crypto'
 import { Transform } from 'node:stream'
 import { listSubmissions } from './opnform.js'
 import { readManagedFile } from './storage-read.js'
-import { buildEmailLayout, buildInfoCard, formatDateCH } from './email-template.js'
+import { buildEmailLayout, buildInfoCard, escHtml, formatDateCH } from './email-template.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -111,7 +118,17 @@ export const SCORER_EXAM_FOLDER = 'd0c00002-0000-4000-8000-000000000001'
 // the SAME type allowlist. A second copy would drift, and the drift would be silent
 // until an admin stored something the participant route would have refused.
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
-const TICKET_TTL_MS = 30 * 60 * 1000 // long enough to find the file and scan it, short enough to not be a credential
+// 24h, not the 30 minutes of the in-browser ticket it replaced: the ticket now travels by
+// email, and a participant who requests the link in the evening should still be able to
+// use it after scanning the sheet the next morning. The ticket is only ever held by the
+// registered mailbox, and it authorizes nothing but uploading for that one signup.
+export const TICKET_TTL_MS = 24 * 60 * 60 * 1000
+const TICKET_TTL_HOURS = TICKET_TTL_MS / 3600000
+
+// Where the emailed link points. The upload page lives on the WEBSITE; dev can point it at
+// a local/preview build (whose Directus must then be dev, or the ticket will not verify).
+const UPLOAD_PAGE_URL = (process.env.SCORER_EXAM_PAGE_URL || 'https://kscw.ch/weiteres/schreiberkurse/pruefung')
+  .replace(/[#?].*$/, '')
 
 // Directus refuses to boot without SECRET, so this is always present in practice;
 // the fallback is only for a bare unit-test import.
@@ -197,24 +214,35 @@ async function verifyTurnstile(token) {
 // Same sliding per-IP window as contact-form.js. Safe ONLY behind CF Tunnel (SECURITY.md):
 // cf-connecting-ip is trustworthy there and spoofable anywhere else.
 const ipAttempts = new Map()
+function hit(map, key, maxAttempts, windowMs) {
+  const now = Date.now()
+  const a = map.get(key)
+  if (a && now < a.resetAt) {
+    if (a.count >= maxAttempts) return false
+    a.count++
+  } else {
+    map.set(key, { count: 1, resetAt: now + windowMs })
+  }
+  if (map.size > 1000) {
+    for (const [k, v] of map) { if (now > v.resetAt) map.delete(k) }
+  }
+  return true
+}
 function rateLimit(req, maxAttempts, windowMs) {
   const xff = req.headers['x-forwarded-for']
   const ip = req.headers['cf-connecting-ip']
     || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
     || req.ip || 'unknown'
-  const now = Date.now()
-  const a = ipAttempts.get(ip)
-  if (a && now < a.resetAt) {
-    if (a.count >= maxAttempts) return false
-    a.count++
-  } else {
-    ipAttempts.set(ip, { count: 1, resetAt: now + windowMs })
-  }
-  if (ipAttempts.size > 1000) {
-    for (const [k, v] of ipAttempts) { if (now > v.resetAt) ipAttempts.delete(k) }
-  }
-  return true
+  return hit(ipAttempts, ip, maxAttempts, windowMs)
 }
+
+// Per-RECIPIENT cap on link mails. /lookup now sends mail to whatever registered address
+// is typed, so without this anyone could use it (slowly, per IP) to flood a participant's
+// inbox. Silent: the caller still gets { ok: true } — a visible 429 here would be a match
+// oracle again.
+const mailsPerAddress = new Map()
+const MAILS_PER_ADDRESS = 3
+const MAILS_WINDOW_MS = 60 * 60 * 1000
 
 /** Field ids for one OpnForm schema, by role. Mirrors the detection in admin.astro. */
 function fieldIds(fields) {
@@ -281,8 +309,9 @@ async function courseSlugs(database) {
  *
  * Only ever used to make the notification email readable. It is deliberately NOT folded
  * into the ticket: the ticket rides in the query string and therefore in the access log
- * (see the /upload header), and a signed blob that decodes to somebody's name and address
- * turns an accepted "it's a 30-minute capability" into logged PII.
+ * (see the /upload header) and in the emailed link, and a signed blob that decodes to
+ * somebody's name and address turns an accepted "it's a short-lived capability" into
+ * logged PII. Also feeds /ticket's greeting.
  *
  * Same page-1/100 window as /lookup — a submission past #100 is invisible to both, so
  * this stays consistent with the gate rather than inventing a second reachability rule.
@@ -297,6 +326,66 @@ export async function participantOf(slug, submissionId) {
     last: pick(row, ids.last),
     email: normalizeEmail(pick(row, ids.email)),
   }
+}
+
+/** The upload page, with the ticket in the FRAGMENT: a fragment is never sent to any
+ *  server, so the ticket stays out of the website's access logs and Referer headers. */
+export function uploadLinkFor(ticket, base = UPLOAD_PAGE_URL) {
+  return `${base}#ticket=${encodeURIComponent(ticket)}`
+}
+
+/**
+ * Build the "here is your upload link" mail (subject + html + text). Pure, like
+ * buildExamResultMail in wadmin.js, so the copy is unit-tested exactly as it is sent.
+ *
+ * `links` is one entry per signup the address matched — normally one; two when someone
+ * registered for both a DE and an EN course. Everything interpolated here is escaped by
+ * buildEmailLayout / escHtml (firstName comes from an anonymous OpnForm answer).
+ */
+export function buildUploadLinkMail({ en = false, firstName = '', links = [], ttlHours = TICKET_TTL_HOURS } = {}) {
+  const P = 'font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px'
+  const subject = en
+    ? 'Your scoresheet upload link — KSC Wiedikon'
+    : 'Dein Link zum Matchblatt-Upload — KSC Wiedikon'
+  const intro = en
+    ? 'You asked to upload your scoresheet for the scorer exam. Use the button below to open the upload page.'
+    : 'Du möchtest dein Matchblatt für die Schreiber-Prüfung hochladen. Über den Button unten gelangst du zur Upload-Seite.'
+  const validity = en
+    ? `The link is valid for ${ttlHours} hours and only works for your registration. Don't forward it.`
+    : `Der Link ist ${ttlHours} Stunden gültig und gilt nur für deine Anmeldung. Bitte leite ihn nicht weiter.`
+  const notYou = en
+    ? "Didn't request this? Then you can simply ignore this email."
+    : 'Du hast das nicht angefordert? Dann kannst du diese E-Mail einfach ignorieren.'
+  const courseLabel = (iso) => (iso
+    ? (en ? `Scorer course of ${formatDateCH(iso)}` : `Schreiberkurs vom ${formatDateCH(iso)}`)
+    : (en ? 'Scorer course' : 'Schreiberkurs'))
+
+  const single = links.length === 1
+  // One signup → the layout's CTA button. Several → one labelled link per course, so the
+  // participant picks the course; each link carries its own ticket.
+  const listHtml = single ? '' : links.map((l) => (
+    `<p style="${P}"><a href="${escHtml(l.url)}" style="color:#FFC832;font-weight:600">${escHtml(courseLabel(l.courseDateIso))}</a></p>`
+  )).join('')
+  const html = buildEmailLayout(
+    `<p style="${P}">${escHtml(intro)}</p>${listHtml}<p style="${P}">${escHtml(validity)}</p>`,
+    {
+      sport: 'vb',
+      title: en ? 'Upload your scoresheet' : 'Matchblatt hochladen',
+      subtitle: single ? courseLabel(links[0].courseDateIso) : undefined,
+      greeting: firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : undefined,
+      ...(single ? { ctaUrl: links[0].url, ctaLabel: en ? 'Upload scoresheet' : 'Matchblatt hochladen' } : {}),
+      footerExtra: notYou,
+    },
+  )
+  const text = [
+    firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : null,
+    intro,
+    links.map((l) => `${courseLabel(l.courseDateIso)}:\n${l.url}`).join('\n\n'),
+    validity,
+    notYou,
+    'KSC Wiedikon',
+  ].filter(Boolean).join('\n\n')
+  return { subject, html, text }
 }
 
 const fmtBytes = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
@@ -388,10 +477,14 @@ export function registerScorerExam(router, ctx) {
   const { database, logger, services, getSchema } = ctx
   const log = logger.child({ endpoint: 'scorer-exam' })
 
-  // ── who is this, and which course are they on? ─────────────────────────────
+  // ── email → mail the registered address an upload link ─────────────────────
+  // ⚠ Every path past input validation answers the SAME `{ ok: true }`, and answers it
+  // BEFORE any mail is sent: no match, a match, a dead OpnForm, a failed send and the
+  // per-address mail cap must be indistinguishable to the caller (see header).
   router.post('/scorer-exam/lookup', async (req, res) => {
+    let email
     try {
-      const email = normalizeEmail(req.body?.email)
+      email = normalizeEmail(req.body?.email)
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ error: 'invalid_email' })
       }
@@ -405,10 +498,18 @@ export function registerScorerExam(router, ctx) {
         log.error({ msg: 'SECRET/KEY missing — cannot sign upload tickets' })
         return res.status(500).json({ error: 'internal' })
       }
+    } catch (err) {
+      log.error({ msg: `POST scorer-exam/lookup: ${err.message}`, stack: err.stack })
+      return res.status(500).json({ error: 'internal' })
+    }
 
+    // The answer goes out first; everything below is invisible to the caller.
+    res.json({ ok: true })
+
+    try {
       const slugs = await courseSlugs(database)
       const matches = []
-      for (const { slug, course } of slugs) {
+      for (const { slug, lang, course } of slugs) {
         let listing
         try {
           listing = await listSubmissions(slug, { page: 1, perPage: 100 })
@@ -423,47 +524,90 @@ export function registerScorerExam(router, ctx) {
           const subId = String(row.id ?? '')
           if (!subId) continue
           matches.push({
-            key: `${slug}:${subId}`,
+            lang,
+            first_name: pick(row, ids.first).replace(/[\r\n]/g, '').trim(),
+            course_date: course.date_iso || null,
             ticket: signTicket({
               k: `${slug}:${subId}`, s: slug, i: subId, exp: Date.now() + TICKET_TTL_MS,
             }),
-            first_name: pick(row, ids.first),
-            course_date: course.date_iso || null,
-            // The signup form asks for the licence but does not require it, and in
-            // practice nobody fills it in — so this is almost always ''.
-            form_licence: normalizeLicence(pick(row, ids.svrz)),
           })
         }
       }
+      if (!matches.length) {
+        log.info({ msg: 'lookup: no registration for this address (no mail sent)' })
+        return
+      }
+      if (!hit(mailsPerAddress, email, MAILS_PER_ADDRESS, MAILS_WINDOW_MS)) {
+        log.warn({ msg: 'lookup: per-address mail cap reached (no mail sent)', matches: matches.length })
+        return
+      }
 
-      if (!matches.length) return res.status(404).json({ error: 'not_registered' })
+      // Language of the signup form they used (the DE and EN forms are separate slugs,
+      // the same rule as the exam-result mail). One address, one mail.
+      const en = matches.every((m) => m.lang === 'en')
+      const { subject, html, text } = buildUploadLinkMail({
+        en,
+        firstName: matches.find((m) => m.first_name)?.first_name || '',
+        links: matches.map((m) => ({ url: uploadLinkFor(m.ticket), courseDateIso: m.course_date })),
+      })
+      const { MailService } = services
+      const mail = new MailService({ schema: await getSchema(), knex: database })
+      // `to` is the address that MATCHED a signup (normalized, validated above), never a
+      // free-typed one that didn't — that is the whole security property.
+      await mail.send({
+        to: email,
+        from: SCORER_AUSBILDUNG_FROM,
+        replyTo: SCORER_AUSBILDUNG_EMAIL,
+        subject,
+        html,
+        text,
+      })
+      log.info({ msg: 'upload link mailed', matches: matches.length, en })
+    } catch (err) {
+      log.error({ msg: `scorer-exam/lookup mail failed: ${err.message}`, stack: err.stack })
+    }
+  })
 
-      // What we already know per signup: whether a sheet is in (so the page can say so
-      // rather than silently replacing it) and the licence (so it can pre-fill).
-      const existing = await database('scorer_course_attendance')
-        .whereIn('sub_key', matches.map((m) => m.key))
-        .select('sub_key', 'exam_date', 'exam_file', 'sv_license')
-      const byKey = new Map(existing.map((r) => [r.sub_key, r]))
+  // ── what the upload page shows, for the holder of an emailed ticket ────────
+  // POST with the ticket in the BODY (not the query string) so it stays out of access
+  // logs. Returns only what the participant's own page needs; never the licence number.
+  router.post('/scorer-exam/ticket', async (req, res) => {
+    try {
+      if (!rateLimit(req, 30, 10 * 60 * 1000)) {
+        return res.status(429).json({ error: 'rate_limited' })
+      }
+      const claim = verifyTicket(req.body?.ticket)
+      if (!claim) return res.status(403).json({ error: 'bad_ticket' })
+      const slugs = await courseSlugs(database)
+      const entry = slugs.find((s) => s.slug === claim.s)
+      if (!entry) return res.status(403).json({ error: 'course_closed' })
 
+      const row = await database('scorer_course_attendance')
+        .where('sub_key', claim.k)
+        .first('exam_date', 'exam_file', 'sv_license')
+      // Best-effort: the greeting and the "licence on file" hint are conveniences, and a
+      // dead OpnForm must not block an upload the ticket already authorizes.
+      let who = null
+      try {
+        who = await participantOf(claim.s, claim.i)
+      } catch (err) {
+        log.warn({ msg: 'opnform lookup failed for ticket info', slug: claim.s, error: err.message })
+      }
       res.json({
-        data: matches.map((m) => {
-          const row = byKey.get(m.key)
-          return {
-            ticket: m.ticket,
-            first_name: m.first_name,
-            course_date: m.course_date,
-            uploaded_on: (row && row.exam_file) ? row.exam_date : null,
-            // ⚠ Never the licence NUMBER: this answer goes to anyone who solves a
-            // Turnstile and knows an email (2026-09-28 audit). `licence` stays in
-            // the shape, always '', so an older page just shows an empty field;
-            // `licence_on_file` tells a newer page it may skip the field.
-            licence: '',
-            licence_on_file: !!(normalizeLicence(row && row.sv_license) || m.form_licence),
-          }
-        }),
+        data: {
+          first_name: who?.first || '',
+          course_date: entry.course.date_iso || null,
+          lang: entry.lang,
+          uploaded_on: (row && row.exam_file) ? row.exam_date : null,
+          // ONLY the attendance row: that is what /upload treats as "known" when the
+          // field is left empty. A licence typed into the signup form is not — counting
+          // it here would hide the field and then 422 the upload as licence_required.
+          licence_on_file: !!normalizeLicence(row && row.sv_license),
+          expires_at: new Date(claim.exp).toISOString(),
+        },
       })
     } catch (err) {
-      log.error({ msg: `POST scorer-exam/lookup: ${err.message}`, stack: err.stack })
+      log.error({ msg: `POST scorer-exam/ticket: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'internal' })
     }
   })
@@ -479,8 +623,9 @@ export function registerScorerExam(router, ctx) {
   // query string needs no allowlist entry. If you move these into headers, add them to
   // CORS_ALLOWED_HEADERS on the VPS in the same change, or uploads break in browsers only.
   //
-  // The ticket is therefore in the access log. Accepted: it lives 30 minutes and does
-  // nothing but authorize one upload for one submission.
+  // The ticket is therefore in the Directus access log. Accepted: it lives 24 hours, is
+  // only ever issued to the registered mailbox, and does nothing but authorize uploads
+  // for one submission.
   router.post('/scorer-exam/upload', async (req, res) => {
     try {
       const claim = verifyTicket(req.query?.ticket)
@@ -614,9 +759,9 @@ export function registerScorerExam(router, ctx) {
       const prev = prevRow
       const patch = { exam_file: fileId, exam_date: zurichToday() }
       // Only write a licence the uploader actually typed, and only when none is on file.
-      // Re-writing knownLicence would silently revert an admin's correction, and the
-      // upload ticket is obtainable by anyone who knows the participant's email — it
-      // must not be able to overwrite a licence already recorded (2026-09-28 audit).
+      // Re-writing knownLicence would silently revert an admin's correction, and a
+      // ticket is a bearer credential (a forwarded mail, a shared screen) — it must not
+      // be able to overwrite a licence already recorded (2026-09-28 audit).
       if (licence && !knownLicence) patch.sv_license = licence
       if (prev) {
         await database('scorer_course_attendance').where('id', prev.id).update(patch)
@@ -625,9 +770,9 @@ export function registerScorerExam(router, ctx) {
           sub_key: claim.k, form_slug: claim.s, submission_id: claim.i, ...patch,
         })
       }
-      // Re-upload replaces the LINK but keeps the superseded bytes. The ticket is
-      // bound to this submission but obtainable by anyone who knows the email, so a
-      // replacement must never destroy the previous scoresheet (2026-09-28 audit) —
+      // Re-upload replaces the LINK but keeps the superseded bytes. The ticket is a
+      // bearer credential for this submission, so a replacement must never destroy
+      // the previous scoresheet (2026-09-28 audit) —
       // the old file id is logged so an admin can restore it from the folder.
       if (prev?.exam_file && prev.exam_file !== fileId) {
         log.info({ msg: 'scoresheet superseded (kept)', sub_key: claim.k, previous_file: prev.exam_file, file: fileId })
