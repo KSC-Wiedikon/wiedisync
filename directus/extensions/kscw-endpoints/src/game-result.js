@@ -533,6 +533,12 @@ export function registerGameResult(router, { database, logger }) {
       if (game.status === 'completed') {
         return fail(res, 409, 'The official result is already in', 'already_official')
       }
+      // Admins bypass WHO may report and the upper bound, never the opening: a result
+      // for a game that has not been played would be filed in VolleyManager for real.
+      const startMs = gameStartMs(game)
+      if (startMs == null || Date.now() < startMs + OPENS_AFTER_MS) {
+        return fail(res, 403, 'The result can be entered 3 hours after kickoff', 'outside_window')
+      }
 
       const uuid = await vmGameUuid(game)
       // Needed sets: VM's league setting when a recent read knows it, else inferred.

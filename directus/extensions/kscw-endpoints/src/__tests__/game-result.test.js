@@ -294,6 +294,13 @@ describe('POST /game-result/:gameId', () => {
   it('is registered as GET + POST only', () => {
     expect(Object.keys(R.routes).sort()).toEqual(['GET /game-result/:gameId', 'POST /game-result/:gameId'])
   })
+  it('refuses a game that has not been played yet, even for an admin', async () => {
+    // Kickoff 28.09 20:45 Zurich; 23:00 Zurich is only 2 h 15 min later.
+    vi.setSystemTime(Date.UTC(2026, 8, 28, 21, 0))
+    const res = await post({ sets: three })
+    expect([res.statusCode, res.body.code]).toEqual([403, 'outside_window'])
+    expect(updates).toEqual([])
+  })
   it('refuses once the official result is in', async () => {
     game.status = 'completed'
     const res = await post({ sets: three })
