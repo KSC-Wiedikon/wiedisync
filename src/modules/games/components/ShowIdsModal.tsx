@@ -599,6 +599,20 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                 </div>
               </div>
 
+              {/* Arrows ABOVE the document: the ID fills most of a phone screen, and
+                  below it they were off-screen — the coach could not find "next". */}
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="icon" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label={t('idsPrev')}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="flex-1 text-center text-sm tabular-nums text-muted-foreground">
+                  {idx + 1} / {withDocs.length}
+                </span>
+                <Button variant="outline" size="icon" onClick={() => setIdx((i) => Math.min(withDocs.length - 1, i + 1))} disabled={idx >= withDocs.length - 1} aria-label={t('idsNext')}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
               <div className="relative">
                 {card.isPdf ? (
                   <iframe
@@ -631,18 +645,6 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     </span>
                   </div>
                 )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button variant="outline" size="icon" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label={t('idsPrev')}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="flex-1 text-center text-sm tabular-nums text-muted-foreground">
-                  {idx + 1} / {withDocs.length}
-                </span>
-                <Button variant="outline" size="icon" onClick={() => setIdx((i) => Math.min(withDocs.length - 1, i + 1))} disabled={idx >= withDocs.length - 1} aria-label={t('idsNext')}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
               </div>
 
               {missing.length > 0 && !progress && (
