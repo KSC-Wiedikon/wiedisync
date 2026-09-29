@@ -132,7 +132,7 @@ export default {
   noScoreboard: 'Käni Scoreboard-Date',
   showMore: 'Meh Spiel aazeige',
   participation: 'Teilnahm',
-  participationRoster: 'Ufgebot aazeige',
+  participationRoster: 'Zue- und Absäge aazeige',
   setDeadline: 'Frischt setze',
   respondBy: 'Antwort bis',
   comeAndSupport: 'Chum und unterstütz eus!',
@@ -194,7 +194,7 @@ export default {
   nominationPushFailed: 'D\'Übermittlig hät nöd chöne gstartet werde.',
 
   // Matchblatt vor em Spiel (Trainer / Teamverantwortlichi)
-  pregameTitle: 'Matchblatt',
+  pregameTitle: 'Matchufgebot',
   pregameSourceVm: 'Us de im Volleymanager erfasste Einsatzliste.',
   pregameSourceRsvp: 'Us de bestätigte Zuesäge — kei Einsatzliste vorhande.',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.

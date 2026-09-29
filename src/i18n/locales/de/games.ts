@@ -132,7 +132,7 @@ export default {
   noScoreboard: 'Keine Scoreboard-Daten',
   showMore: 'Mehr Spiele anzeigen',
   participation: 'Teilnahme',
-  participationRoster: 'Aufgebot anzeigen',
+  participationRoster: 'Zu- und Absagen anzeigen',
   setDeadline: 'Frist setzen',
   respondBy: 'Antwort bis',
   comeAndSupport: 'Komm und unterstütze uns!',
@@ -194,7 +194,7 @@ export default {
   nominationPushFailed: 'Die Übermittlung konnte nicht gestartet werden.',
 
   // Matchblatt vor dem Spiel (Trainer/in / Teamverantwortliche/r)
-  pregameTitle: 'Matchblatt',
+  pregameTitle: 'Matchaufgebot',
   pregameSourceVm: 'Aus der im Volleymanager erfassten Einsatzliste.',
   pregameSourceRsvp: 'Aus den bestätigten Zusagen — keine Einsatzliste vorhanden.',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.

@@ -129,7 +129,7 @@ export default {
   noScoreboard: 'Aucune donnee de tableau d\'honneur',
   showMore: 'Afficher plus de matchs',
   participation: 'Participation',
-  participationRoster: 'Voir la liste',
+  participationRoster: 'Voir les réponses',
   setDeadline: 'Fixer le delai',
   respondBy: 'Repondre avant le',
   comeAndSupport: 'Venez encourager !',
@@ -191,7 +191,7 @@ export default {
   nominationPushFailed: 'Impossible de lancer l\'envoi.',
 
   // Feuille de match d'avant-match (entraîneur / responsable d'équipe)
-  pregameTitle: 'Feuille de match',
+  pregameTitle: 'Effectif du match',
   pregameSourceVm: 'D\'après l\'Einsatzliste enregistrée dans Volleymanager.',
   pregameSourceRsvp: 'D\'après les présences confirmées — aucune Einsatzliste disponible.',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.
