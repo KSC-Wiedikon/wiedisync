@@ -41,8 +41,10 @@ interface SheetRow {
   is_captain: boolean
   is_libero: boolean
   dropped: boolean
-  /** An official (coach, assistant…) from the sheet's officials block — shown after the players. */
+  /** Staff only (not playing): shown after the players, with a role badge instead of a number. */
   staff?: boolean
+  /** On the sheet's officials block — a playing assistant coach too. Gets the role chip. */
+  official?: boolean
   role?: string | null
 }
 
@@ -75,6 +77,7 @@ interface Card {
   /** A rasterised PDF: shown at full width and scrolled, never shrunk to fit — a stacked A4 would be unreadable. */
   scroll?: boolean
   staff?: boolean
+  official?: boolean
   role?: string | null
 }
 
@@ -175,6 +178,7 @@ async function buildCard(
     is_captain: r.is_captain,
     is_libero: r.is_libero,
     staff: r.staff === true,
+    official: r.official === true,
     role: r.role ?? null,
   }
   if (!c) {
@@ -333,19 +337,28 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     // the RSVPs. Opening this never logs the shared Volleymanager account in.
     kscwApi<SheetResponse>(`/scorer/game/${gameId}/roster`)
       .then((res) => {
-        const players = res.data.roster.filter((r) => !r.dropped && r.member != null)
-        // The officials after the last player — their IDs are checked at the table too.
-        // Only linked members, and never twice (a TR who also plays is already a player).
-        const onSheet = new Set(players.map((r) => r.member))
-        const staff: SheetRow[] = []
+        // The officials' IDs are checked at the table too. Someone who plays AND is an
+        // official (a playing assistant coach) stays ONE card, in their player slot, with
+        // the role chip on it; staff who do not play follow after the last player.
+        const officials = new Map<number, string | null>()
         for (const c of res.data.coaches ?? []) {
-          if (c.member == null || onSheet.has(c.member)) continue
-          onSheet.add(c.member)
-          staff.push({
-            member: c.member, number: null, last_name: c.last_name, first_initial: c.first_initial,
-            is_captain: false, is_libero: false, dropped: false, staff: true, role: c.role,
-          })
+          if (c.member != null && !officials.has(c.member)) officials.set(c.member, c.role)
         }
+        const players = res.data.roster
+          .filter((r) => !r.dropped && r.member != null)
+          .map((r) => (officials.has(r.member as number)
+            ? { ...r, official: true, role: officials.get(r.member as number) ?? null }
+            : r))
+        const onSheet = new Set(players.map((r) => r.member))
+        const staff: SheetRow[] = [...officials]
+          .filter(([m]) => !onSheet.has(m))
+          .map(([m, role]) => {
+            const c = (res.data.coaches ?? []).find((x) => x.member === m)
+            return {
+              member: m, number: null, last_name: c?.last_name ?? '', first_initial: c?.first_initial ?? '',
+              is_captain: false, is_libero: false, dropped: false, staff: true, official: true, role,
+            }
+          })
         trace(`sheet for game ${gameId}: ${players.length} players + ${staff.length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
         if (!cancelled) { setRoster([...players, ...staff]); setVmCheck(res.data.vm_check ?? null) }
       })
@@ -634,7 +647,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                   <div className="flex gap-1.5 pt-0.5">
                     {card.is_captain && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameCaptain')}</span>}
                     {card.is_libero && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameLibero')}</span>}
-                    {card.staff && <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">{roleLabel(card.role)}</span>}
+                    {card.official && <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">{roleLabel(card.role)}</span>}
                   </div>
                 </div>
               </div>
