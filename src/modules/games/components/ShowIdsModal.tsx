@@ -41,6 +41,9 @@ interface SheetRow {
   is_captain: boolean
   is_libero: boolean
   dropped: boolean
+  /** An official (coach, assistant…) from the sheet's officials block — shown after the players. */
+  staff?: boolean
+  role?: string | null
 }
 
 interface SheetResponse {
@@ -49,6 +52,7 @@ interface SheetResponse {
     source?: string
     vm_check?: VmCheck | null
     roster: SheetRow[]
+    coaches?: { member: number | null; last_name: string; first_initial: string; role: string | null }[]
   }
 }
 
@@ -70,7 +74,12 @@ interface Card {
   isPdf?: boolean
   /** A rasterised PDF: shown at full width and scrolled, never shrunk to fit — a stacked A4 would be unreadable. */
   scroll?: boolean
+  staff?: boolean
+  role?: string | null
 }
+
+/** Badge text for an official, where a player shows their jersey number. */
+const ROLE_SHORT: Record<string, string> = { coach: 'C', assistant_coach_1: 'A1', assistant_coach_2: 'A2', physio: 'P', doctor: 'D' }
 
 /**
  * Burn a use-restriction watermark INTO the decrypted document, on a canvas, before
@@ -165,6 +174,8 @@ async function buildCard(
     name: `${r.last_name}${r.first_initial ? `, ${r.first_initial}` : ''}`,
     is_captain: r.is_captain,
     is_libero: r.is_libero,
+    staff: r.staff === true,
+    role: r.role ?? null,
   }
   if (!c) {
     trace(`card #${r.member}: nothing cached`)
@@ -322,9 +333,21 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     // the RSVPs. Opening this never logs the shared Volleymanager account in.
     kscwApi<SheetResponse>(`/scorer/game/${gameId}/roster`)
       .then((res) => {
-        const rows = res.data.roster.filter((r) => !r.dropped && r.member != null)
-        trace(`sheet for game ${gameId}: ${rows.length} players (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
-        if (!cancelled) { setRoster(rows); setVmCheck(res.data.vm_check ?? null) }
+        const players = res.data.roster.filter((r) => !r.dropped && r.member != null)
+        // The officials after the last player — their IDs are checked at the table too.
+        // Only linked members, and never twice (a TR who also plays is already a player).
+        const onSheet = new Set(players.map((r) => r.member))
+        const staff: SheetRow[] = []
+        for (const c of res.data.coaches ?? []) {
+          if (c.member == null || onSheet.has(c.member)) continue
+          onSheet.add(c.member)
+          staff.push({
+            member: c.member, number: null, last_name: c.last_name, first_initial: c.first_initial,
+            is_captain: false, is_libero: false, dropped: false, staff: true, role: c.role,
+          })
+        }
+        trace(`sheet for game ${gameId}: ${players.length} players + ${staff.length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
+        if (!cancelled) { setRoster([...players, ...staff]); setVmCheck(res.data.vm_check ?? null) }
       })
       .catch((err) => {
         trace(`sheet for game ${gameId} failed after ${since(t0)} ms:`, err)
@@ -362,7 +385,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     // Entitled, but never wrapped a key — see `blocked` handling below.
     let blocked = 0
     let hasPdf = false
-    const fetchOne = async (member: number) => {
+    const fetchOne = async (member: number, staff: boolean) => {
       const tm = performance.now()
       try {
         const meta = await kscwApi<DocResponse>(`/identity/document/${member}`)
@@ -394,22 +417,23 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
         if (meta.data.mime === 'application/pdf') hasPdf = true
       } catch (err) {
         const code = (err as { code?: string }).code
-        trace(`download #${member}: skipped (${code ?? (err as Error).message}) after ${since(tm)} ms`)
+        trace(`download #${member}${staff ? ' (staff)' : ''}: skipped (${code ?? (err as Error).message}) after ${since(tm)} ms`)
         // A player with no document is simply absent from the deck — not a failure of the
         // whole download. But `no_envelope` is NOT that: it means this coach is entitled
         // and holds no key, because they set their identity key up after the upload. That
         // used to be swallowed here, so the symptom was "0 IDs downloaded" with no reason
         // given, discovered at the hall. It is repairable, and the coach must be told.
-        if (code === 'no_envelope') blocked += 1
+        // Staff are shown only "if available" — a key they never gave is not a warning.
+        if (code === 'no_envelope' && !staff) blocked += 1
       }
     }
     try {
       // Every player at once, not one after another: two authorised round trips per player
       // (each re-checks access server-side and pulls the file from R2) serialised 14
       // players into ~20–35 s on mobile data. A match sheet is ≤ ~20 players.
-      const members = roster.flatMap((r) => (r.member == null ? [] : [r.member]))
-      trace(`download start: ${members.length} players, all at once`)
-      await Promise.all(members.map(fetchOne))
+      const members = roster.flatMap((r) => (r.member == null ? [] : [{ id: r.member, staff: r.staff === true }]))
+      trace(`download start: ${members.length} people (${members.filter((m) => m.staff).length} staff), all at once`)
+      await Promise.all(members.map((m) => fetchOne(m.id, m.staff)))
       const downloadMs = since(t0)
       // "Ready offline" must include the renderer: load pdf.js + its worker into
       // memory now, while there is signal (the SW does no caching — see pdfRaster.ts).
@@ -464,6 +488,11 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
           if (next.url) URL.revokeObjectURL(next.url)
           return
         }
+        // Staff are shown only when their ID is there and opens — never listed as missing.
+        if (next.staff && next.missing) {
+          setProgress({ done: i + 1, total: rows.length })
+          continue
+        }
         if (next.url) deck.urls.push(next.url)
         if (firstMs == null && !next.missing) {
           firstMs = since(t0)
@@ -491,6 +520,16 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const card = withDocs[idx]
 
   const title = t('idsTitle')
+  const roleLabel = (role: string | null | undefined) => {
+    switch (role) {
+      case 'coach': return t('pregameRoleCoach')
+      case 'assistant_coach_1': return t('pregameRoleAssistant1')
+      case 'assistant_coach_2': return t('pregameRoleAssistant2')
+      case 'physio': return t('pregameRolePhysio')
+      case 'doctor': return t('pregameRoleDoctor')
+      default: return t('pregameRoleStaff')
+    }
+  }
 
   return (
     <Modal open onClose={onClose} title={title} size="lg" disableAutoFocus>
@@ -588,13 +627,14 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-xl font-bold tabular-nums text-primary-foreground">
-                  {card.number ?? '—'}
+                  {card.staff ? (ROLE_SHORT[card.role ?? ''] ?? '·') : (card.number ?? '—')}
                 </span>
                 <div className="min-w-0">
                   <div className="break-words text-base font-bold uppercase leading-tight">{card.name}</div>
                   <div className="flex gap-1.5 pt-0.5">
                     {card.is_captain && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameCaptain')}</span>}
-                    {card.is_libero && <span className="rounded-full border border-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary">{t('pregameLibero')}</span>}
+                    {card.is_libero && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameLibero')}</span>}
+                    {card.staff && <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">{roleLabel(card.role)}</span>}
                   </div>
                 </div>
               </div>
