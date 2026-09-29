@@ -1,5 +1,5 @@
 /**
- * On-device PDF → canvas rasteriser for E2EE identity documents (ShowIdsModal).
+ * On-device PDF → canvas rasteriser for E2EE identity documents (ShowIdsView).
  *
  * Why: an installed PWA on a phone cannot show a PDF in an <iframe> (Android
  * Chrome has no in-frame viewer, iOS is flaky), so a coach at the hall got a
@@ -19,7 +19,7 @@
  *   pdf chunk imports Vite's preload helper from the entry chunk, so its hash
  *   changes on (nearly) every deploy. Warm-up points: app boot + every
  *   'online' event when this device holds a cached PDF ID
- *   (`armPdfRasterWarmup`, main.tsx), ShowIdsModal open, and "Download for
+ *   (`armPdfRasterWarmup`, main.tsx), Show IDs page open, and "Download for
  *   offline" (which tells the coach if it failed).
  * - A failed lazy import must NEVER reload the page: Vite fires
  *   `vite:preloadError` first, and main.tsx answers that with a stale-chunk

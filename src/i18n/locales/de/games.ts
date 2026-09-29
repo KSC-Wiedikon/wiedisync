@@ -276,6 +276,7 @@ export default {
   rsvpCheckDeclined: 'Abgesagt — aufgeboten, kommt aber nicht',
   rsvpCheckNotApplicable: 'Nichts zum Abgleichen',
 
+  backToGame: 'Zurück zum Spiel',
   idsTitle: 'Ausweise zeigen',
   idsWindow: 'Die Ausweise können ab {{time}} bis zum Spielbeginn gezeigt werden. Sie werden auf diesem Gerät entschlüsselt — der Verein kann sie nicht lesen.',
   idsNoKickoff: 'Dieses Spiel hat keine Anspielzeit, daher können keine Ausweise gezeigt werden.',

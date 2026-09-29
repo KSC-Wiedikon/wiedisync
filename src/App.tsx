@@ -17,6 +17,9 @@ import AdminRoute from './components/AdminRoute'
 import GlobalAdminRoute from './components/GlobalAdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
+// Eager, not lazy(): both are opened at the hall, often with no signal (see ShowIdsPage).
+import ShowIdsPage from './modules/games/ShowIdsPage'
+import MatchRosterPage from './modules/games/MatchRosterPage'
 import LivePage from './modules/live/LivePage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
 import AbsencesPage from './modules/absences/AbsencesPage'
@@ -219,6 +222,9 @@ export default function App() {
                 widen what an anonymous visitor can read. AuthRoute sends them
                 through /login?next=… and back here. */}
             <Route path="games/:gameId" element={<AuthRoute><GamesPage /></AuthRoute>} />
+            {/* A game's own pages — opened from the game modal; ← back returns to it. */}
+            <Route path="games/:gameId/ids" element={<AuthRoute><ShowIdsPage /></AuthRoute>} />
+            <Route path="games/:gameId/roster" element={<AuthRoute><MatchRosterPage /></AuthRoute>} />
             {/* Public spectator page — no AuthRoute. Most viewers in the hall are
                 not logged in, and `live_scores` is granted to the Public policy. */}
             <Route path="live" element={<LivePage />} />

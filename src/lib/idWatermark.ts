@@ -1,6 +1,6 @@
 /**
  * The use-restriction watermark burned INTO decrypted identity documents
- * (ShowIdsModal). One implementation for photos and rasterised PDFs, so a
+ * (ShowIdsView). One implementation for photos and rasterised PDFs, so a
  * screenshot of either carries the same "club · purpose · who · when" in its
  * pixels.
  */

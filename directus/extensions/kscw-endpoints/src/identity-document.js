@@ -918,7 +918,7 @@ export function registerIdentityDocument(router, ctx) {
           kickoff: verdict.kickoff ?? null,
         },
       })
-      // Show IDs timing (2026-09-29) — pairs with the `[ids]` console trace in ShowIdsModal.
+      // Show IDs timing (2026-09-29) — pairs with the `[ids]` console trace in ShowIdsView.
       log.info(`[ids] meta member=${target} caller=${me.id} as=${verdict.as} auth=${authMs}ms total=${Date.now() - t0}ms`)
     } catch (err) {
       log.error({ msg: `GET identity/document: ${err.message}`, stack: err.stack })

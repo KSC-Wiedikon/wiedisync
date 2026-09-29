@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MessageSquare, X, Check, AlertTriangle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,9 +11,6 @@ import { teamNameToColorKey } from '../../../utils/teamColors'
 import RsvpAnswerButtons from '../../../components/RsvpAnswerButtons'
 import IconButton from '../../../components/IconButton'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
-import RosterModal from '../../scorer/components/RosterModal'
-import PreGameRosterModal from './PreGameRosterModal'
-import ShowIdsModal from './ShowIdsModal'
 import { useAuth } from '../../../hooks/useAuth'
 import { useRsvpLabels } from '../../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../../hooks/useAdminMode'
@@ -178,9 +176,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const { effectiveIsAdmin } = useAdminMode()
   const { canManageTeam } = useTeamPermissions()
   const confirm = useConfirm()
-  const [rosterOpen, setRosterOpen] = useState(false)
   const [participationListOpen, setParticipationListOpen] = useState(false)
-  const [idsOpen, setIdsOpen] = useState(false)
+  // Show IDs and the match roster are pages of their own (/games/:id/ids|roster) —
+  // a window inside this window left a big ID scrolling.
+  const navigate = useNavigate()
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineValue, setDeadlineValue] = useState(() => {
     const parsed = parseRespondByTime(game?.respond_by, game?.time)
@@ -807,7 +806,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           <div className="border-t border-hairline px-6 py-3">
             <Button
               variant="outline"
-              onClick={() => (rosterIsMatchSheet ? setRosterOpen(true) : setParticipationListOpen(true))}
+              onClick={() => (rosterIsMatchSheet
+                // The assigned scorer gets the read-only sheet, the team's staff the editable one.
+                ? navigate(`/games/${game.id}/roster${isAssignedScorer ? '?view=scorer' : ''}`)
+                : setParticipationListOpen(true))}
               className="w-full"
             >
               {rosterIsMatchSheet ? t('pregameTitle') : t('participationRoster')}
@@ -835,7 +837,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             {canShowIds && (
               <Button
                 variant="outline"
-                onClick={() => setIdsOpen(true)}
+                onClick={() => navigate(`/games/${game.id}/ids`, { state: { kickoffMs: gameKickoffMs(game.date, game.time) } })}
                 className="mt-2 w-full"
               >
                 {t('idsTitle')}
@@ -1251,24 +1253,6 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         )}
       </div>
     </div>
-    {idsOpen && (
-      <ShowIdsModal
-        key={`ids-${game.id}`}
-        gameId={game.id}
-        kickoffMs={gameKickoffMs(game.date, game.time)}
-        onClose={() => setIdsOpen(false)}
-      />
-    )}
-    {isAssignedScorer ? (
-      rosterOpen && <RosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
-    ) : isTeamStaff ? (
-      // Coach / TR / admin of the playing team: the match sheet, laid out the way it is
-      // filled and editable per game (number, captain, libero — none of which exist on
-      // the Einsatzliste — plus an emergency add/drop that does NOT reach Volleymanager).
-      rosterOpen && (
-        <PreGameRosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
-      )
-    ) : null}
     {/* Always mounted, never behind the match-sheet branch: every one of its queries
         is gated on `open`, so a closed instance costs nothing. */}
     <ParticipationRosterModal

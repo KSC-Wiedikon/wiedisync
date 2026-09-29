@@ -1,7 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Plus, RotateCcw, X } from 'lucide-react'
-import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -86,9 +85,8 @@ interface SheetResponse {
   }
 }
 
-interface PreGameRosterModalProps {
+interface MatchRosterViewProps {
   gameId: string
-  onClose: () => void
 }
 
 const nameOf = (r: { last_name: string; first_initial: string }) =>
@@ -110,7 +108,7 @@ const nameOf = (r: { last_name: string; first_initial: string }) =>
  * door, and it is the only edit that raises the red banner: we do not push it to
  * Volleymanager, so the coach must make the same change there by hand.
  */
-export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterModalProps) {
+export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
   const { t } = useTranslation('games')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -538,7 +536,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   )
 
   return (
-    <Modal open onClose={onClose} title={t('pregameTitle')} size="full" disableAutoFocus>
+    <>
       {/* A match sheet is a narrow document — centred, not stretched across a desktop. */}
       <div className="mx-auto w-full max-w-2xl">
       {data && (
@@ -749,6 +747,6 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
         </div>
       )}
       </div>
-    </Modal>
+    </>
   )
 }
