@@ -14,6 +14,9 @@ interface RosterRow {
   first_initial: string
   birthdate: string | null
   is_captain?: boolean
+  is_libero?: boolean
+  /** Taken off the sheet by the coach — not counted. */
+  dropped?: boolean
   /** Licence category (RLL / JLL / DLR). Volleymanager source only. */
   licence?: string | null
   /** Volleymanager's eligibility verdict; false → flag it at the table. */
@@ -100,6 +103,10 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
         <>
           <p className="mb-1 text-sm font-medium text-foreground/85">
             {data.game.home_team} – {data.game.away_team}
+          </p>
+          {/* Same head count as the coach's match roster and Show IDs. */}
+          <p className="mb-1 text-sm font-semibold tabular-nums text-foreground">
+            {tg('sheetPlayers', { count: data.roster.filter((r) => !r.dropped).length })}, {tg('sheetLiberos', { count: data.roster.filter((r) => !r.dropped && r.is_libero).length })}
           </p>
           <p className="mb-3 text-xs text-muted-foreground">
             {data.source === 'vm' ? t('rosterSourceVm') : t('rosterSourceRsvp')}
