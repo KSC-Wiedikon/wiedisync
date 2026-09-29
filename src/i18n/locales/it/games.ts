@@ -282,6 +282,8 @@ export default {
   idsNoKey: 'Non hai ancora una chiave di cifratura. Creala prima nel tuo profilo.',
   idsPreload: 'Scarica per offline',
   idsPreloadHint: 'Scarica i documenti finché hai ancora campo — nelle palestre spesso non ce n\'è.',
+  idsSheetSaved: 'Nessuna connessione — rosa della partita salvata il {{time}}.',
+  idsSheetUnavailable: 'Impossibile caricare la rosa della partita e sul dispositivo non ce n\'è una salvata. Premi « Scarica per offline » prima della partita, finché hai segnale.',
   idsDownloaded_one: '{{count}} documento scaricato e pronto offline.',
   idsDownloaded_other: '{{count}} documenti scaricati e pronti offline.',
   idsNoEnvelope_one: 'Non puoi aprire il documento di {{count}} giocatore. Chiedi a un collega di ripristinare il tuo accesso dalla pagina della squadra.',

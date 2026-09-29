@@ -287,6 +287,8 @@ export default {
   idsNoKey: 'Du hast noch keinen Schlüssel. Erstelle ihn zuerst in deinem Profil.',
   idsPreload: 'Für offline herunterladen',
   idsPreloadHint: 'Lade die Dokumente herunter, solange du noch Empfang hast — in Hallen fehlt er oft.',
+  idsSheetSaved: 'Keine Verbindung — gespeichertes Matchaufgebot vom {{time}}.',
+  idsSheetUnavailable: 'Das Matchaufgebot konnte nicht geladen werden, und auf diesem Gerät ist keines gespeichert. Tippe vor dem Spiel mit Empfang auf «Für offline herunterladen».',
   idsDownloaded_one: '{{count}} Dokument heruntergeladen und offline bereit.',
   idsDownloaded_other: '{{count}} Dokumente heruntergeladen und offline bereit.',
   idsNoEnvelope_one: 'Du kannst den Ausweis von {{count}} Person nicht öffnen. Bitte eine Kollegin oder einen Kollegen, deinen Zugriff auf der Teamseite wiederherzustellen.',

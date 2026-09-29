@@ -285,6 +285,8 @@ export default {
   idsNoKey: 'Du hesch no kein Schlüssel. Mach en zerscht i dim Profil.',
   idsPreload: 'Für offline abelade',
   idsPreloadHint: 'Lad d Dokumänt abe, solang du no Empfang hesch — i de Halle het s oft kein.',
+  idsSheetSaved: 'Kei Verbindig — gspeicherets Matchufgebot vom {{time}}.',
+  idsSheetUnavailable: 'Das Matchufgebot het nöd chöne glade wärde, und uf dem Grät isch keis gspeicheret. Tipp vor em Spiel mit Empfang uf «Für offline abelade».',
   idsDownloaded_one: '{{count}} Dokumänt abeglade und offline parat.',
   idsDownloaded_other: '{{count}} Dokumänt abeglade und offline parat.',
   idsNoEnvelope_one: 'Du chasch de Uswis vo {{count}} Person nöd öffne. Frag öpper vo de Teamleitig, dass er din Zuegriff uf de Teamsite wiederherstellt.',

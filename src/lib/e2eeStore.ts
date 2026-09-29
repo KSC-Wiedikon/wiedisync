@@ -17,9 +17,11 @@
  */
 
 const DB_NAME = 'kscw-e2ee'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE = 'device-keys'
 const DOCS = 'cached-docs'
+/** v3 (2026-09-29): the match sheet saved next to a game's documents — see CachedSheet. */
+const SHEETS = 'cached-sheets'
 
 export interface DeviceKey {
   memberId: number
@@ -35,6 +37,7 @@ function open(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'memberId' })
       if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'id' })
+      if (!db.objectStoreNames.contains(SHEETS)) db.createObjectStore(SHEETS, { keyPath: 'gameId' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -136,9 +139,57 @@ export async function hasCachedPdfDocuments(): Promise<boolean> {
   }
 }
 
+// ── the match sheet, saved next to the documents ─────────────────────────────
+//
+// Show IDs learns WHO to show from the match sheet, which comes from the server. At a hall
+// with no signal that request fails, and the downloaded documents had no names or order to
+// go with them — the deck came up empty. So the sheet is saved here with the documents and
+// used when the server cannot be reached. Only what the deck displays: member id, number,
+// last name + initial, captain / libero, staff role. Never a birthdate (the sheet endpoint
+// sends them; the caller picks fields explicitly). Wiped with the documents.
+
+export interface CachedSheetRow {
+  member: number
+  number: number | null
+  last_name: string
+  first_initial: string
+  is_captain: boolean
+  is_libero: boolean
+  staff: boolean
+  official: boolean
+  role: string | null
+}
+
+export interface CachedSheet {
+  gameId: string
+  game: { home_team: string; away_team: string; date: string; time: string | null }
+  rows: CachedSheetRow[]
+  /** Head count of the sheet (unlinked players included) and its liberos. */
+  players: number
+  liberos: number
+  cachedAt: number
+}
+
+export async function cacheSheet(sheet: Omit<CachedSheet, 'cachedAt'>): Promise<void> {
+  try {
+    await tx(SHEETS, 'readwrite', (s) => s.put({ ...sheet, cachedAt: Date.now() }))
+  } catch {
+    // Best effort — without it the deck just needs signal, as before.
+  }
+}
+
+export async function loadCachedSheet(gameId: string): Promise<CachedSheet | null> {
+  try {
+    return (await tx<CachedSheet | undefined>(SHEETS, 'readonly', (s) => s.get(gameId))) ?? null
+  } catch {
+    return null
+  }
+}
+
 /**
- * Drop everything cached for a game. Called once the display window closes, so a squad's
- * identity documents do not sit on a coach's phone until the end of the season.
+ * Drop everything cached for a game — documents and the saved sheet. Called once the
+ * display window closes, so a squad's identity documents do not sit on a coach's phone
+ * until the end of the season.
  */
 export async function clearCachedDocuments(gameId: string): Promise<void> {
   try {
@@ -146,6 +197,7 @@ export async function clearCachedDocuments(gameId: string): Promise<void> {
     for (const d of all.filter((x) => x.gameId === gameId)) {
       await tx(DOCS, 'readwrite', (s) => s.delete(d.id))
     }
+    await tx(SHEETS, 'readwrite', (s) => s.delete(gameId))
   } catch {
     // Best effort.
   }
@@ -170,6 +222,7 @@ export async function clearCachedDocuments(gameId: string): Promise<void> {
 export async function clearAllCachedDocuments(): Promise<void> {
   try {
     await tx(DOCS, 'readwrite', (s) => s.clear())
+    await tx(SHEETS, 'readwrite', (s) => s.clear())
   } catch {
     // Best effort — logout must never fail because a wipe did.
   }

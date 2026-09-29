@@ -266,21 +266,6 @@ export function gameKickoffMs(
 export const ID_SHOW_BEFORE_MS = 45 * 60 * 1000;
 
 /**
- * TEST WINDOW — superadmins only, until ID_TEST_WINDOW_UNTIL (a Zurich date, exclusive;
- * self-reverts at that midnight). Lets the Show IDs speed work be measured on real
- * documents days before a game. Mirrors ID_TEST_WINDOW_* in identity-document.js (the
- * server must release the documents too). Do not bump the date forward — delete it.
- */
-const ID_TEST_WINDOW_UNTIL = '2026-10-03';
-const ID_TEST_WINDOW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** How long before kickoff this viewer may show IDs. */
-export function idShowBeforeMs(isSuperAdmin: boolean): number {
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' });
-  return isSuperAdmin && today < ID_TEST_WINDOW_UNTIL ? ID_TEST_WINDOW_BEFORE_MS : ID_SHOW_BEFORE_MS;
-}
-
-/**
  * Where we are relative to the identity-document display window.
  *
  * Lives here rather than in the component so `Date.now()` is not called during render
