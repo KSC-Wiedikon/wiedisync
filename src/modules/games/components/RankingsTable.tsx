@@ -10,7 +10,9 @@ import { teamIds } from '../../../utils/teamColors'
 import { getPromotionColor, promotionBorderColors } from '../../../utils/leaguePromotion'
 import { formatNumberSwiss } from '../../../utils/formatNumber'
 import { useCollection } from '../../../lib/query'
-import { formatDateCompact, formatTime } from '../../../utils/dateHelpers'
+import { formatDayMonthZurich, formatTime, formatWeekday, todayLocal } from '../../../utils/dateHelpers'
+import { DateRail, RowChip, RowList, RowStripe } from '../../../components/ActivityRow'
+import type { RowTone } from '../../../components/activityRowTokens'
 import { applyProvisionalToRankings, type RankingRow } from '../../../utils/gameResult'
 import { ProvisionalPill } from './GameResultPanel'
 
@@ -22,9 +24,13 @@ interface RankingsTableProps {
   /** Played KSCW games with a provisional result (migration 395), not yet official.
    *  Counted into the standings and marked, until the SV feed catches up. */
   provisionalGames?: Game[]
+  /** Ranking team_ids (`vb_…`/`bb_…`) of the KSCW teams picked in the team filter.
+   *  When set, the drill-down only lists games involving one of those teams —
+   *  an opponent row of a league shared by H1 + H3 shows only H3's fixtures. */
+  focusTeamIds?: ReadonlySet<string>
 }
 
-export default function RankingsTable({ league, rankings, compact, provisionalGames }: RankingsTableProps) {
+export default function RankingsTable({ league, rankings, compact, provisionalGames, focusTeamIds }: RankingsTableProps) {
   const { t } = useTranslation('games')
   const { t: tl } = useTranslation('live')
   const navigate = useNavigate()
@@ -53,18 +59,26 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
     limit: 500,
     enabled: !compact && expandedTeamId !== null,
   })
-  const leagueGames = leagueGamesRaw ?? []
-
-  // Set of KSCW team names in this league's rankings
-  const kscwTeamNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const r of rankings) {
-      if (teamIds[r.team_id]) {
-        names.add(r.team_name)
-      }
+  // An intra-club derby is two `games` rows sharing a game_id (one per side) —
+  // list it once, preferring the row that already carries the result.
+  const leagueGames = useMemo(() => {
+    const byKey = new Map<string, Game>()
+    for (const g of leagueGamesRaw ?? []) {
+      const key = g.game_id || g.id
+      const cur = byKey.get(key)
+      if (!cur || (cur.status !== 'completed' && g.status === 'completed')) byKey.set(key, g)
     }
-    return names
-  }, [rankings])
+    return [...byKey.values()]
+  }, [leagueGamesRaw])
+
+  // Names of the KSCW teams whose games the drill-down is about: the teams picked
+  // in the filter when any of them play in this league, otherwise every KSCW team.
+  const kscwTeamNames = useMemo(() => {
+    const all = rankings.filter((r) => teamIds[r.team_id])
+    const focused = focusTeamIds?.size ? all.filter((r) => focusTeamIds.has(r.team_id)) : []
+    return new Set((focused.length ? focused : all).map((r) => r.team_name))
+  }, [rankings, focusTeamIds])
+  const today = todayLocal()
 
   function getTeamLabel(row: Ranking): string {
     const kscwTeam = teamIds[row.team_id]
@@ -82,16 +96,15 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
 
   /** Get games to show for an expanded row */
   function getGamesForRow(row: Ranking): Game[] {
-    const isKscw = !!teamIds[row.team_id]
     const teamName = row.team_name
 
-    if (isKscw) {
-      // KSCW team: show ALL their games
+    if (kscwTeamNames.has(teamName)) {
+      // Focused KSCW team: show ALL their games
       return leagueGames.filter(
         (g) => g.home_team === teamName || g.away_team === teamName,
       )
     } else {
-      // Opponent: show only games against any KSCW team
+      // Opponent (or a KSCW team outside the filter): only games against a focused KSCW team
       return leagueGames.filter(
         (g) =>
           (g.home_team === teamName && kscwTeamNames.has(g.away_team)) ||
@@ -250,7 +263,7 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
                     {isExpanded && (
                       <tr key={`${row.id}-games`}>
                         <td colSpan={colCount} className="p-0">
-                          <div className="bg-surface-sunken px-3 py-2">
+                          <div className="bg-surface-sunken px-2 py-1 sm:px-3">
                             {/* `rowGames` is empty both while the deferred games query is
                                 in flight and when the team really has no fixtures. The query
                                 only starts on this tap (`enabled` above), so without this gate
@@ -264,57 +277,46 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
                             ) : rowGames.length === 0 ? (
                               <p className="py-2 text-center text-xs text-muted-foreground/80">{t('common:noData')}</p>
                             ) : (
-                              <div className="space-y-1">
+                              <RowList>
                                 {rowGames.map((g) => {
                                   const teamName = row.team_name
                                   const isHome = g.home_team === teamName
                                   const opponent = isHome ? g.away_team : g.home_team
                                   const completed = g.status === 'completed'
-                                  const isWin = completed && (
-                                    (isHome && g.home_score > g.away_score) ||
-                                    (!isHome && g.away_score > g.home_score)
-                                  )
-                                  const isLoss = completed && (
-                                    (isHome && g.home_score < g.away_score) ||
-                                    (!isHome && g.away_score < g.home_score)
-                                  )
-                                  const isFuture = g.status === 'scheduled'
-                                  const score = completed
-                                    ? (isHome ? `${g.home_score}:${g.away_score}` : `${g.away_score}:${g.home_score}`)
-                                    : ''
+                                  const own = completed ? (isHome ? g.home_score : g.away_score) : 0
+                                  const other = completed ? (isHome ? g.away_score : g.home_score) : 0
+                                  const isFuture = !completed && !!g.date && g.date >= today
+                                  const tone: RowTone = completed
+                                    ? (own > other ? 'green' : own < other ? 'red' : 'gray')
+                                    : isFuture ? (isHome ? 'brand' : 'sky') : 'gray'
 
                                   return (
-                                    <div
-                                      key={g.id}
-                                      className="flex items-center gap-2 rounded px-2 py-1 text-xs"
-                                    >
-                                      <div className="w-16 shrink-0 text-muted-foreground">
-                                        <div>{g.date ? formatDateCompact(g.date) : ''}</div>
-                                        {g.time && <div>{formatTime(g.time)}</div>}
+                                    <div key={g.id} className="flex items-stretch gap-2.5 px-1.5 py-2 sm:gap-3 sm:px-2">
+                                      <DateRail
+                                        eyebrow={g.date ? formatWeekday(g.date) : undefined}
+                                        main={g.date ? `${formatDayMonthZurich(g.date)}.` : '–'}
+                                        sub={g.time ? formatTime(g.time) : undefined}
+                                        tone={tone}
+                                      />
+                                      <RowStripe tone={tone} />
+                                      <div className="min-w-0 flex-1 self-center">
+                                        <div className="break-words text-sm font-normal leading-snug text-foreground">{opponent}</div>
+                                        <div className="mt-1 flex flex-wrap gap-1.5">
+                                          <RowChip tone={isHome ? 'brand' : 'sky'}>{isHome ? t('home') : t('away')}</RowChip>
+                                          {isFuture && <RowChip tone="violet">{t('comeAndSupport')}</RowChip>}
+                                        </div>
                                       </div>
-                                      <span className="w-4 shrink-0 text-center text-[10px] text-muted-foreground/80">
-                                        {isHome ? 'H' : 'A'}
-                                      </span>
-                                      <span title={opponent} className="min-w-0 flex-1 truncate text-foreground/85">
-                                        {opponent}
-                                      </span>
-                                      {isFuture ? (
-                                        <span className="shrink-0 text-[10px] font-bold text-primary dark:text-brand-300">
-                                          {t('comeAndSupport')}
-                                        </span>
-                                      ) : (
-                                        <span className={`shrink-0 font-mono font-semibold ${
-                                          isWin ? 'text-green-600 dark:text-green-400'
-                                            : isLoss ? 'text-red-500 dark:text-red-400'
-                                            : 'text-muted-foreground'
-                                        }`}>
-                                          {score}
-                                        </span>
-                                      )}
+                                      <div className={`shrink-0 self-center text-base font-bold tabular-nums ${
+                                        tone === 'green' ? 'text-green-600 dark:text-green-400'
+                                          : tone === 'red' ? 'text-red-500 dark:text-red-400'
+                                          : 'text-muted-foreground'
+                                      }`}>
+                                        {completed ? `${own}:${other}` : isFuture ? '' : '–'}
+                                      </div>
                                     </div>
                                   )
                                 })}
-                              </div>
+                              </RowList>
                             )}
                           </div>
                         </td>
