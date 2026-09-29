@@ -129,7 +129,7 @@ export default {
   noScoreboard: 'Nessun dato tabellone',
   showMore: 'Mostra più partite',
   participation: 'Partecipazione',
-  participationRoster: 'Vedi lista',
+  participationRoster: 'Vedi le risposte',
   setDeadline: 'Imposta scadenza',
   respondBy: 'Rispondi entro',
   comeAndSupport: 'Vieni a fare il tifo!',
@@ -191,7 +191,7 @@ export default {
   nominationPushFailed: 'Impossibile avviare l\'invio.',
 
   // Referto di gara prepartita (allenatore / responsabile di squadra)
-  pregameTitle: 'Referto di gara',
+  pregameTitle: 'Rosa della partita',
   pregameSourceVm: 'Dall\'Einsatzliste registrata in Volleymanager.',
   pregameSourceRsvp: 'Dalle presenze confermate — nessuna Einsatzliste disponibile.',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.

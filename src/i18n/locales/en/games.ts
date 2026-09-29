@@ -132,7 +132,7 @@ export default {
   noScoreboard: 'No scoreboard data',
   showMore: 'Show more games',
   participation: 'Participation',
-  participationRoster: 'View roster',
+  participationRoster: 'View RSVPs',
   setDeadline: 'Set deadline',
   respondBy: 'Respond by',
   comeAndSupport: 'Come and support!',
@@ -195,7 +195,7 @@ export default {
   nominationPushFailed: 'Could not start the push.',
 
   // Pre-game match sheet (coach / team responsible)
-  pregameTitle: 'Match sheet',
+  pregameTitle: 'Match roster',
   pregameSourceVm: 'From the Einsatzliste filed in Volleymanager.',
   pregameSourceRsvp: 'From the confirmed RSVPs — no Einsatzliste available.',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.
