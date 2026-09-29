@@ -392,6 +392,20 @@ export default function GamesPage() {
     [provisionalGamesRaw],
   )
 
+  // Ranking team_ids of the teams in the filter — scopes both which leagues show
+  // and which games a standings row's drill-down lists.
+  const effectiveTeamsKey = effectiveTeams.join('|')
+  const selectedSvIds = useMemo(() => {
+    const names = effectiveTeamsKey ? effectiveTeamsKey.split('|') : []
+    return new Set(
+      names.flatMap((t) =>
+        Object.entries(teamIds)
+          .filter(([, code]) => code.replace(/-\d+$/, '') === t)
+          .map(([id]) => id),
+      ),
+    )
+  }, [effectiveTeamsKey])
+
   const leagueGroups = useMemo(() => {
     const grouped = new Map<string, Ranking[]>()
     for (const r of allRankings) {
@@ -422,14 +436,6 @@ export default function GamesPage() {
     if (effectiveTeams.length === 0) return grouped
 
     // Filter to leagues containing a selected team
-    const selectedSvIds = new Set(
-      effectiveTeams.flatMap((t) =>
-        Object.entries(teamIds)
-          .filter(([, code]) => code.replace(/-\d+$/, '') === t)
-          .map(([id]) => id),
-      ),
-    )
-
     const filtered = new Map<string, Ranking[]>()
     for (const [league, rows] of grouped) {
       if (rows.some((r) => selectedSvIds.has(r.team_id))) {
@@ -437,7 +443,7 @@ export default function GamesPage() {
       }
     }
     return filtered
-  }, [allRankings, effectiveTeams, sport])
+  }, [allRankings, effectiveTeams.length, selectedSvIds, sport])
 
   // Games tabs render from games + the active-teams map (name→id) + auth team
   // context — gate on ALL of them so cards never pop in over a half-built view.
@@ -632,7 +638,7 @@ export default function GamesPage() {
             ) : (
               <div className="grid gap-6 lg:grid-cols-2">
                 {[...leagueGroups.entries()].map(([league, rows]) => (
-                  <RankingsTable key={league} league={league} rankings={rows} provisionalGames={provisionalGames} />
+                  <RankingsTable key={league} league={league} rankings={rows} provisionalGames={provisionalGames} focusTeamIds={selectedSvIds} />
                 ))}
               </div>
             )}
