@@ -546,6 +546,9 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
           <p className="mb-1 text-sm font-medium text-foreground">
             {data.game.home_team} – {data.game.away_team}
           </p>
+          <p className="mb-1 text-sm font-semibold tabular-nums text-foreground">
+            {t('sheetPlayers', { count: live.length })}, {t('sheetLiberos', { count: liberos.length })}
+          </p>
           <p className="mb-3 text-xs text-muted-foreground">
             {data.source === 'vm' ? t('pregameSourceVm') : t('pregameSourceRsvp')}
             {data.edited && data.edited_by ? ` · ${t('pregameEditedBy', { name: data.edited_by })}` : ''}

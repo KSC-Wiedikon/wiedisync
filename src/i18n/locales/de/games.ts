@@ -197,6 +197,11 @@ export default {
   pregameTitle: 'Matchaufgebot',
   pregameSourceVm: 'Aus der im Volleymanager erfassten Einsatzliste.',
   pregameSourceRsvp: 'Aus den bestätigten Zusagen — keine Einsatzliste vorhanden.',
+  // Head count on the match roster and Show IDs: "12 players, of which 2 liberos".
+  sheetPlayers_one: '{{count}} Spieler*in',
+  sheetPlayers_other: '{{count}} Spieler*innen',
+  sheetLiberos_one: 'davon {{count}} Libero',
+  sheetLiberos_other: 'davon {{count}} Liberos',
   // Volleymanager check on the match sheet (migration 396): read once at kickoff −45 min.
   vmCheckDue: 'Volleymanager wird um {{time}} geprüft, 45 Min. vor Spielbeginn.',
   vmCheckRead: 'Einsatzliste aus Volleymanager, gelesen um {{time}}',
