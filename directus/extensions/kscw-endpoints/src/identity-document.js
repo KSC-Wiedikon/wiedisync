@@ -97,17 +97,6 @@ export function safeIdentityMime(mime) {
 const PRELOAD_BEFORE_MS = 6 * 60 * 60 * 1000
 const PRELOAD_AFTER_MS = 15 * 60 * 1000
 
-// TEST WINDOW — superadmins only, until ID_TEST_WINDOW_UNTIL (a Zurich date, exclusive;
-// self-reverts at that midnight): documents are released up to 7 days before kickoff, so
-// the Show IDs speed work can be measured on real documents ahead of a game. Mirrors
-// ID_TEST_WINDOW_* in src/utils/dateHelpers.ts (the client gates the display). The roster
-// endpoint has no twin on purpose: a Directus admin bypasses its window, and the only
-// superadmin is one. Do not bump the date forward — delete this.
-const ID_TEST_WINDOW_UNTIL = '2026-10-03'
-const ID_TEST_WINDOW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000
-const idTestWindowActive = (nowMs) =>
-  new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) < ID_TEST_WINDOW_UNTIL
-
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
 function zurichOffsetMs(instantMs) {
@@ -485,15 +474,13 @@ async function mayRead(database, callerId, memberId, accountability) {
   // caller matches it (the fuller, more common signal) — fall back to the specific
   // game(s) the guest mechanism connects them through otherwise.
   const now = Date.now()
-  const testWindow = isSuper && idTestWindowActive(now)
-  const before = testWindow ? ID_TEST_WINDOW_BEFORE_MS : PRELOAD_BEFORE_MS
   const games = staffTeamIds.some((t) => ownTeamIds.includes(t))
     ? await database('games')
       .whereIn('kscw_team', ownTeamIds)
       .where('status', 'scheduled')
       .whereBetween('date', [
         dateYMD(new Date(now - 24 * 3600 * 1000)),
-        dateYMD(new Date(now + 24 * 3600 * 1000 + (testWindow ? before : 0))),
+        dateYMD(new Date(now + 24 * 3600 * 1000)),
       ])
       .select('id', 'date', 'time')
     : (await Promise.all(
@@ -503,7 +490,7 @@ async function mayRead(database, callerId, memberId, accountability) {
   for (const g of games) {
     const start = gameStartMs(g)
     if (start == null) continue
-    if (now >= start - before && now <= start + PRELOAD_AFTER_MS) {
+    if (now >= start - PRELOAD_BEFORE_MS && now <= start + PRELOAD_AFTER_MS) {
       return { ok: true, as: isSuper ? 'superadmin' : 'staff', game: g.id, kickoff: new Date(start).toISOString() }
     }
   }

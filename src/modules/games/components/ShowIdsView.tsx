@@ -7,10 +7,13 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import IconButton from '@/components/IconButton'
 import { API_URL, kscwApi } from '../../../lib/api'
 import { decryptDocument, unwrapContentKey, type Envelope } from '../../../lib/e2ee'
-import { cacheDocument, clearCachedDocuments, loadCachedDocuments, type CachedDoc } from '../../../lib/e2eeStore'
+import {
+  cacheDocument, cacheSheet, clearCachedDocuments, loadCachedDocuments, loadCachedSheet,
+  type CachedDoc, type CachedSheet, type CachedSheetRow,
+} from '../../../lib/e2eeStore'
 import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
-import { formatDateZurich, formatTimeZurich, gameKickoffMs, idShowBeforeMs, idWindowState } from '../../../utils/dateHelpers'
+import { formatDateZurich, formatTimeZurich, gameKickoffMs, ID_SHOW_BEFORE_MS, idWindowState } from '../../../utils/dateHelpers'
 import { safeBlobType } from '../../../utils/filePreviewKind'
 import { burnWatermark, canvasToObjectUrl, fitLongEdge } from '../../../lib/idWatermark'
 import { PdfRasterSession, warmPdfRaster } from '../../../lib/pdfRaster'
@@ -78,6 +81,54 @@ interface Card {
   staff?: boolean
   official?: boolean
   role?: string | null
+}
+
+type Sheet = Omit<CachedSheet, 'gameId' | 'cachedAt'>
+
+/** The fields the deck shows — picked one by one, so nothing else (birthdates) is ever saved. */
+const pickRow = (r: SheetRow & { member: number }): CachedSheetRow => ({
+  member: r.member,
+  number: r.number,
+  last_name: r.last_name,
+  first_initial: r.first_initial,
+  is_captain: !!r.is_captain,
+  is_libero: !!r.is_libero,
+  staff: !!r.staff,
+  official: !!r.official,
+  role: r.role ?? null,
+})
+
+/**
+ * The deck's sheet from GET /scorer/game/:id/roster. Officials are checked at the table like
+ * players (their ID is shown, a missing one flagged). Someone who plays AND is an official
+ * (a playing assistant coach) stays ONE card, in their player slot, with the role chip on
+ * it; staff who do not play follow after the last player.
+ */
+function sheetFromResponse(data: SheetResponse['data']): Sheet {
+  const officials = new Map<number, string | null>()
+  for (const c of data.coaches ?? []) {
+    if (c.member != null && !officials.has(c.member)) officials.set(c.member, c.role)
+  }
+  const players = data.roster
+    .filter((r): r is SheetRow & { member: number } => !r.dropped && r.member != null)
+    .map((r) => pickRow(officials.has(r.member) ? { ...r, official: true, role: officials.get(r.member) ?? null } : r))
+  const onSheet = new Set(players.map((r) => r.member))
+  const staff = [...officials]
+    .filter(([m]) => !onSheet.has(m))
+    .map(([m, role]) => {
+      const c = (data.coaches ?? []).find((x) => x.member === m)
+      return pickRow({
+        member: m, number: null, last_name: c?.last_name ?? '', first_initial: c?.first_initial ?? '',
+        is_captain: false, is_libero: false, dropped: false, staff: true, official: true, role,
+      })
+    })
+  const onSheetPlayers = data.roster.filter((r) => !r.dropped)
+  return {
+    game: { home_team: data.game.home_team, away_team: data.game.away_team, date: data.game.date, time: data.game.time },
+    rows: [...players, ...staff],
+    players: onSheetPlayers.length,
+    liberos: onSheetPlayers.filter((r) => r.is_libero).length,
+  }
 }
 
 /** Badge text for an official, where a player shows their jersey number. */
@@ -277,6 +328,9 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
   const [loading, setLoading] = useState(true)
   const [roster, setRoster] = useState<SheetRow[]>([])
   const [vmCheck, setVmCheck] = useState<VmCheck | null>(null)
+  /** Set while the sheet shown is the copy saved on this device (no signal). */
+  const [savedSheetAt, setSavedSheetAt] = useState<number | null>(null)
+  const [sheetFailed, setSheetFailed] = useState(false)
   /** From the sheet — who is playing whom, and (on a reload / direct link) when. */
   const [sheetGame, setSheetGame] = useState<SheetResponse['data']['game'] | null>(null)
   const kickoffMs = kickoffFromCaller ?? (sheetGame ? gameKickoffMs(sheetGame.date, sheetGame.time) : null)
@@ -308,14 +362,10 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
   }, [])
 
   // Date.now() lives inside the helpers, not here — React treats it as impure during render.
-  const showBeforeMs = idShowBeforeMs(isSuperAdmin)
+  const showBeforeMs = ID_SHOW_BEFORE_MS
   const windowState = idWindowState(kickoffMs, showBeforeMs)
   const opensAt = kickoffMs != null ? kickoffMs - showBeforeMs : null
-  // The superadmin test window opens days ahead — a bare "20:00" would read as today.
-  const fmtOpensAt = (ms: number) => {
-    const iso = new Date(ms).toISOString()
-    return showBeforeMs > 24 * 60 * 60 * 1000 ? `${formatDateZurich(iso)} ${formatTimeZurich(iso)}` : formatTimeZurich(iso)
-  }
+  const fmtOpensAt = (ms: number) => formatTimeZurich(new Date(ms).toISOString())
   const canShow = windowState === 'open'
   const beforeWindow = windowState === 'before'
 
@@ -336,48 +386,42 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
   })
 
   // Roster: who is on the sheet, so the deck is ordered and labelled like the match sheet.
+  // The copy saved with the documents first — instant, and all there is at a hall with no
+  // signal — then the server's, which replaces it (and refreshes the saved copy).
   useEffect(() => {
     let cancelled = false
+    let fromNetwork = false
     const t0 = performance.now()
+    const apply = (sheet: Sheet) => {
+      setSheetGame(sheet.game)
+      setRoster(sheet.rows.map((r) => ({ ...r, dropped: false })))
+      setSheetCount({ players: sheet.players, liberos: sheet.liberos })
+    }
+    void loadCachedSheet(gameId).then((saved) => {
+      if (cancelled || fromNetwork || !saved) return
+      trace(`sheet for game ${gameId}: saved copy (${saved.rows.length} rows, saved ${new Date(saved.cachedAt).toISOString()})`)
+      apply(saved)
+      setSavedSheetAt(saved.cachedAt)
+      setLoading(false)
+    })
     // The same sheet as the scorer's — the Einsatzliste stored at kickoff −45 min, else
     // the RSVPs. Opening this never logs the shared Volleymanager account in.
     kscwApi<SheetResponse>(`/scorer/game/${gameId}/roster`)
       .then((res) => {
-        // Officials are checked at the table like players (their ID is shown, a missing one
-        // is flagged). Someone who plays AND is an official (a playing assistant coach)
-        // stays ONE card, in their player slot, with the role chip on it; staff who do not
-        // play follow after the last player.
-        const officials = new Map<number, string | null>()
-        for (const c of res.data.coaches ?? []) {
-          if (c.member != null && !officials.has(c.member)) officials.set(c.member, c.role)
-        }
-        const players = res.data.roster
-          .filter((r) => !r.dropped && r.member != null)
-          .map((r) => (officials.has(r.member as number)
-            ? { ...r, official: true, role: officials.get(r.member as number) ?? null }
-            : r))
-        const onSheet = new Set(players.map((r) => r.member))
-        const staff: SheetRow[] = [...officials]
-          .filter(([m]) => !onSheet.has(m))
-          .map(([m, role]) => {
-            const c = (res.data.coaches ?? []).find((x) => x.member === m)
-            return {
-              member: m, number: null, last_name: c?.last_name ?? '', first_initial: c?.first_initial ?? '',
-              is_captain: false, is_libero: false, dropped: false, staff: true, official: true, role,
-            }
-          })
-        trace(`sheet for game ${gameId}: ${players.length} players + ${staff.length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
-        const onSheetPlayers = res.data.roster.filter((r) => !r.dropped)
-        if (!cancelled) {
-          setSheetGame(res.data.game)
-          setRoster([...players, ...staff])
-          setVmCheck(res.data.vm_check ?? null)
-          setSheetCount({ players: onSheetPlayers.length, liberos: onSheetPlayers.filter((r) => r.is_libero).length })
-        }
+        fromNetwork = true
+        const sheet = sheetFromResponse(res.data)
+        trace(`sheet for game ${gameId}: ${sheet.rows.filter((r) => !r.staff).length} players + ${sheet.rows.filter((r) => r.staff).length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
+        if (cancelled) return
+        apply(sheet)
+        setSavedSheetAt(null)
+        setSheetFailed(false)
+        setVmCheck(res.data.vm_check ?? null)
+        // Keep the saved copy current — only where there are documents to show with it.
+        void loadCachedDocuments(gameId).then((docs) => { if (docs.length) void cacheSheet({ gameId, ...sheet }) })
       })
       .catch((err) => {
         trace(`sheet for game ${gameId} failed after ${since(t0)} ms:`, err)
-        if (!cancelled) setRoster([])
+        if (!cancelled) setSheetFailed(true)
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -469,13 +513,24 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
         + ` · ${downloadMs ? ((bytes * 8) / 1e6 / (downloadMs / 1000)).toFixed(1) : '–'} Mbit/s`
         + `${hasPdf ? ` · pdf.js warm ${since(tp)} ms (${pdfReady ? 'ok' : 'FAILED'})` : ''}${blocked ? ` · ${blocked} without a key` : ''}`)
       setCachedCount(ok)
+      // The sheet goes with the documents: at the hall the server may be out of reach, and
+      // without it the downloaded IDs have no names or order.
+      if (ok > 0 && sheetGame && sheetCount) {
+        await cacheSheet({
+          gameId,
+          game: sheetGame,
+          rows: roster.filter((r): r is SheetRow & { member: number } => r.member != null).map(pickRow),
+          players: sheetCount.players,
+          liberos: sheetCount.liberos,
+        })
+      }
       toast.success(t('idsDownloaded', { count: ok }))
       if (!pdfReady) toast.warning(t('idsPdfViewerNotReady'), { duration: 10000 })
       if (blocked > 0) toast.warning(t('idsNoEnvelope', { count: blocked }), { duration: 10000 })
     } finally {
       setBusy(false)
     }
-  }, [gameId, roster, t])
+  }, [gameId, roster, t, sheetGame, sheetCount])
 
   /** Decrypt what is on the device. Works with no connection at all. */
   const reveal = useCallback(async () => {
@@ -563,6 +618,17 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
           {sheetCount && (
             <p className="text-sm font-semibold tabular-nums">
               {t('sheetPlayers', { count: sheetCount.players })}, {t('sheetLiberos', { count: sheetCount.liberos })}
+            </p>
+          )}
+          {/* No signal: say which sheet this is — or that there is none to go on. */}
+          {sheetFailed && savedSheetAt != null && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              {t('idsSheetSaved', { time: `${formatDateZurich(new Date(savedSheetAt).toISOString())} ${formatTimeZurich(new Date(savedSheetAt).toISOString())}` })}
+            </p>
+          )}
+          {sheetFailed && savedSheetAt == null && roster.length === 0 && (
+            <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">
+              {t('idsSheetUnavailable')}
             </p>
           )}
           {!cards && (

@@ -288,6 +288,8 @@ export default {
   idsNoKey: 'You have no encryption key yet. Create one in your profile first.',
   idsPreload: 'Download for offline',
   idsPreloadHint: 'Download the documents while you still have signal — halls often have none.',
+  idsSheetSaved: 'No connection — showing the match roster saved on {{time}}.',
+  idsSheetUnavailable: 'The match roster could not be loaded, and none is saved on this device. Press Download for offline before the game, while you have signal.',
   idsDownloaded_one: '{{count}} document downloaded and ready offline.',
   idsDownloaded_other: '{{count}} documents downloaded and ready offline.',
   idsNoEnvelope_one: '{{count}} player\'s ID cannot be opened by you. Ask a colleague to restore your access from the team page.',

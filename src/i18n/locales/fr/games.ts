@@ -282,6 +282,8 @@ export default {
   idsNoKey: 'Vous n\'avez pas encore de clé de chiffrement. Créez-la d\'abord dans votre profil.',
   idsPreload: 'Télécharger pour hors ligne',
   idsPreloadHint: 'Téléchargez les documents tant que vous avez encore du réseau — les salles n\'en ont souvent pas.',
+  idsSheetSaved: 'Pas de connexion — effectif du match enregistré le {{time}}.',
+  idsSheetUnavailable: 'L\'effectif du match n\'a pas pu être chargé et aucun n\'est enregistré sur cet appareil. Appuie sur « Télécharger pour hors ligne » avant le match, tant que tu as du réseau.',
   idsDownloaded_one: '{{count}} document téléchargé et disponible hors ligne.',
   idsDownloaded_other: '{{count}} documents téléchargés et disponibles hors ligne.',
   idsNoEnvelope_one: 'Vous ne pouvez pas ouvrir la pièce d\'identité de {{count}} joueur. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
