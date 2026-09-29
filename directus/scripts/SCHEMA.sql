@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-28T23:36:35.746Z
+-- Generated:   2026-09-29T08:37:53.504Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict u2rIBhrue9ccwM26iwMQ5Yc8OfmHXxgDcYG9I4EUeH2mqxkqDvJVggR2XfvLkNW
+\restrict Nu6U3HZrVNdPwaujIMAjTW2hskYFNfGTLBLuiD09TmwtVWsezCvVqlcqDhH9tsu
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -7592,6 +7592,30 @@ ALTER SEQUENCE public.game_scheduling_slots_id_seq OWNED BY public.game_scheduli
 
 
 --
+-- Name: game_vm_sheets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.game_vm_sheets (
+    game integer NOT NULL,
+    status character varying(16) NOT NULL,
+    list jsonb,
+    list_at timestamp with time zone,
+    error text,
+    checked_at timestamp with time zone DEFAULT now() NOT NULL,
+    checked_by integer,
+    checked_by_name character varying(255),
+    CONSTRAINT game_vm_sheets_status_check CHECK (((status)::text = ANY ((ARRAY['ok'::character varying, 'no_list'::character varying, 'busy'::character varying, 'failed'::character varying, 'unavailable'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE game_vm_sheets; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.game_vm_sheets IS 'Einsatzliste read from Volleymanager once at kickoff -45 min (or by a coach''s Recheck). Every match-sheet surface reads this row instead of VM. Raw-knex only.';
+
+
+--
 -- Name: games_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -13023,6 +13047,14 @@ ALTER TABLE ONLY public.game_scheduling_slots
 
 
 --
+-- Name: game_vm_sheets game_vm_sheets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_vm_sheets
+    ADD CONSTRAINT game_vm_sheets_pkey PRIMARY KEY (game);
+
+
+--
 -- Name: games games_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17238,6 +17270,22 @@ ALTER TABLE ONLY public.game_scheduling_slots
 
 
 --
+-- Name: game_vm_sheets game_vm_sheets_checked_by_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_vm_sheets
+    ADD CONSTRAINT game_vm_sheets_checked_by_fk FOREIGN KEY (checked_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: game_vm_sheets game_vm_sheets_game_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_vm_sheets
+    ADD CONSTRAINT game_vm_sheets_game_fk FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE CASCADE;
+
+
+--
 -- Name: games games_bb_24s_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18253,7 +18301,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict u2rIBhrue9ccwM26iwMQ5Yc8OfmHXxgDcYG9I4EUeH2mqxkqDvJVggR2XfvLkNW
+\unrestrict Nu6U3HZrVNdPwaujIMAjTW2hskYFNfGTLBLuiD09TmwtVWsezCvVqlcqDhH9tsu
 
 
 
@@ -18269,7 +18317,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 399 migration(s) already in the schema above.
+-- Migration tracker seed — 400 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -18681,6 +18729,7 @@ FROM (VALUES
   ('392-password-reset-tokens-multi.sql'),
   ('393-carpool-going-return-split.sql'),
   ('394-live-scores-game-channel.sql'),
-  ('395-game-provisional-result.sql')
+  ('395-game-provisional-result.sql'),
+  ('396-game-vm-sheets.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
