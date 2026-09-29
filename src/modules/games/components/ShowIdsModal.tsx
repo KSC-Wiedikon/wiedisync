@@ -276,6 +276,8 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const [loading, setLoading] = useState(true)
   const [roster, setRoster] = useState<SheetRow[]>([])
   const [vmCheck, setVmCheck] = useState<VmCheck | null>(null)
+  /** The sheet's head count — every player on it (linked or not), and its liberos. */
+  const [sheetCount, setSheetCount] = useState<{ players: number; liberos: number } | null>(null)
   // Bumped by a Volleymanager Recheck to read the sheet again.
   const [sheetKey, setSheetKey] = useState(0)
   const [cards, setCards] = useState<Card[] | null>(null)
@@ -361,7 +363,12 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             }
           })
         trace(`sheet for game ${gameId}: ${players.length} players + ${staff.length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
-        if (!cancelled) { setRoster([...players, ...staff]); setVmCheck(res.data.vm_check ?? null) }
+        const onSheetPlayers = res.data.roster.filter((r) => !r.dropped)
+        if (!cancelled) {
+          setRoster([...players, ...staff])
+          setVmCheck(res.data.vm_check ?? null)
+          setSheetCount({ players: onSheetPlayers.length, liberos: onSheetPlayers.filter((r) => r.is_libero).length })
+        }
       })
       .catch((err) => {
         trace(`sheet for game ${gameId} failed after ${since(t0)} ms:`, err)
@@ -546,6 +553,11 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
 
       {!loading && (
         <div className="space-y-4">
+          {sheetCount && (
+            <p className="text-sm font-semibold tabular-nums">
+              {t('sheetPlayers', { count: sheetCount.players })}, {t('sheetLiberos', { count: sheetCount.liberos })}
+            </p>
+          )}
           <div className="flex items-start gap-2.5 rounded-xl border border-hairline bg-surface-sunken p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <p className="text-xs leading-relaxed text-muted-foreground">
