@@ -277,6 +277,7 @@ export default {
   rsvpCheckNotApplicable: 'Nothing to check against',
 
   // Show IDs (end-to-end encrypted identity documents)
+  backToGame: 'Back to the game',
   idsTitle: 'Show IDs',
   idsWindow: 'Identity documents can be shown from {{time}} until kickoff. They are decrypted on this device — the club cannot read them.',
   idsNoKickoff: 'This game has no kickoff time, so identity documents cannot be shown.',

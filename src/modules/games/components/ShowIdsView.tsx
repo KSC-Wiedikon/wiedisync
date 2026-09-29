@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, CloudDownload, Loader2, Lock, Maximize2, ShieldCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
-import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import IconButton from '@/components/IconButton'
@@ -11,7 +10,7 @@ import { decryptDocument, unwrapContentKey, type Envelope } from '../../../lib/e
 import { cacheDocument, clearCachedDocuments, loadCachedDocuments, type CachedDoc } from '../../../lib/e2eeStore'
 import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
-import { formatDateZurich, formatTimeZurich, idShowBeforeMs, idWindowState } from '../../../utils/dateHelpers'
+import { formatDateZurich, formatTimeZurich, gameKickoffMs, idShowBeforeMs, idWindowState } from '../../../utils/dateHelpers'
 import { safeBlobType } from '../../../utils/filePreviewKind'
 import { burnWatermark, canvasToObjectUrl, fitLongEdge } from '../../../lib/idWatermark'
 import { PdfRasterSession, warmPdfRaster } from '../../../lib/pdfRaster'
@@ -241,11 +240,13 @@ async function shrinkStoredDocs(cached: CachedDoc[], privateKey: CryptoKey): Pro
   }
 }
 
-interface ShowIdsModalProps {
+interface ShowIdsViewProps {
   gameId: string
-  /** Kickoff, as an epoch ms. Drives the display window. */
-  kickoffMs: number | null
-  onClose: () => void
+  /**
+   * Kickoff, as an epoch ms — drives the display window. Handed over by the game modal;
+   * absent on a reload or a direct link, when the sheet's own game date/time is used.
+   */
+  kickoffMs?: number | null
 }
 
 /**
@@ -262,7 +263,7 @@ interface ShowIdsModalProps {
  * recorded server-side against the person who did it. That is accountability, not
  * impossibility — and for a volleyball club, accountability is the thing that was missing.
  */
-export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModalProps) {
+export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: ShowIdsViewProps) {
   const { t } = useTranslation('games')
   const { state, privateKey, unlock } = useIdentityKeys()
   const { realUser, isSuperAdmin } = useAuth()
@@ -276,6 +277,9 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const [loading, setLoading] = useState(true)
   const [roster, setRoster] = useState<SheetRow[]>([])
   const [vmCheck, setVmCheck] = useState<VmCheck | null>(null)
+  /** From the sheet — who is playing whom, and (on a reload / direct link) when. */
+  const [sheetGame, setSheetGame] = useState<SheetResponse['data']['game'] | null>(null)
+  const kickoffMs = kickoffFromCaller ?? (sheetGame ? gameKickoffMs(sheetGame.date, sheetGame.time) : null)
   /** The sheet's head count — every player on it (linked or not), and its liberos. */
   const [sheetCount, setSheetCount] = useState<{ players: number; liberos: number } | null>(null)
   // Bumped by a Volleymanager Recheck to read the sheet again.
@@ -365,6 +369,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
         trace(`sheet for game ${gameId}: ${players.length} players + ${staff.length} staff (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
         const onSheetPlayers = res.data.roster.filter((r) => !r.dropped)
         if (!cancelled) {
+          setSheetGame(res.data.game)
           setRoster([...players, ...staff])
           setVmCheck(res.data.vm_check ?? null)
           setSheetCount({ players: onSheetPlayers.length, liberos: onSheetPlayers.filter((r) => r.is_libero).length })
@@ -535,7 +540,6 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const missing = useMemo(() => (cards ?? []).filter((c) => c.missing), [cards])
   const card = withDocs[idx]
 
-  const title = t('idsTitle')
   const roleLabel = (role: string | null | undefined) => {
     switch (role) {
       case 'coach': return t('pregameRoleCoach')
@@ -548,24 +552,29 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   }
 
   return (
-    <Modal open onClose={onClose} title={title} size="lg" disableAutoFocus>
+    <>
       {loading && <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!loading && (
         <div className="space-y-4">
+          {sheetGame && (
+            <p className="text-sm font-medium text-foreground">{sheetGame.home_team} – {sheetGame.away_team}</p>
+          )}
           {sheetCount && (
             <p className="text-sm font-semibold tabular-nums">
               {t('sheetPlayers', { count: sheetCount.players })}, {t('sheetLiberos', { count: sheetCount.liberos })}
             </p>
           )}
-          <div className="flex items-start gap-2.5 rounded-xl border border-hairline bg-surface-sunken p-3">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {kickoffMs != null
-                ? t('idsWindow', { time: fmtOpensAt(kickoffMs - showBeforeMs) })
-                : t('idsNoKickoff')}
-            </p>
-          </div>
+          {!cards && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-hairline bg-surface-sunken p-3">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {kickoffMs != null
+                  ? t('idsWindow', { time: fmtOpensAt(kickoffMs - showBeforeMs) })
+                  : t('idsNoKickoff')}
+              </p>
+            </div>
+          )}
 
           {/* Who is on the sheet comes from the one Volleymanager read — flag its problems here. */}
           {!cards && (
@@ -682,7 +691,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                   <iframe
                     src={card.url ?? ''}
                     title={card.name}
-                    className="h-[55vh] w-full rounded-lg border bg-white"
+                    className="h-[calc(100dvh-19rem)] min-h-64 w-full rounded-lg border bg-white"
                   />
                 ) : (
                   // Always fitted — a stacked multi-page scan too: no scrolling at the
@@ -691,7 +700,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     src={card.url ?? ''}
                     alt={card.name}
                     onClick={() => setFullscreen(true)}
-                    className="max-h-[55vh] w-full cursor-zoom-in rounded-lg border bg-background object-contain"
+                    className="max-h-[calc(100dvh-19rem)] min-h-40 w-full cursor-zoom-in rounded-lg border bg-background object-contain"
                   />
                 )}
                 {/* Fallback overlay for anything the canvas could not draw (e.g. a PDF pdf.js rejected):
@@ -781,6 +790,6 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
           </DialogContent>
         )}
       </Dialog>
-    </Modal>
+    </>
   )
 }

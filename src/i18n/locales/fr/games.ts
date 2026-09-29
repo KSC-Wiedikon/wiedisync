@@ -271,6 +271,7 @@ export default {
   rsvpCheckDeclined: 'A décliné — convoqué mais absent',
   rsvpCheckNotApplicable: 'Rien à comparer',
 
+  backToGame: 'Retour au match',
   idsTitle: 'Afficher les documents d\'identité',
   idsWindow: 'Les documents d\'identité peuvent être affichés à partir de {{time}} et jusqu\'au coup d\'envoi. Ils sont déchiffrés sur cet appareil — le club ne peut pas les lire.',
   idsNoKickoff: 'Ce match n\'a pas d\'heure de coup d\'envoi, les documents d\'identité ne peuvent donc pas être affichés.',

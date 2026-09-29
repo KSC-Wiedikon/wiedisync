@@ -64,6 +64,19 @@ interface RosterModalProps {
  */
 export default function RosterModal({ gameId, onClose }: RosterModalProps) {
   const { t } = useTranslation('scorer')
+  return (
+    <Modal open onClose={onClose} title={t('rosterTitle')} size="md" disableAutoFocus>
+      <ScorerSheetView gameId={gameId} />
+    </Modal>
+  )
+}
+
+/**
+ * The scorer's sheet itself — in RosterModal (Scorer page, scorer rows) and on its own page
+ * (`/games/:gameId/roster?view=scorer`, from the game modal).
+ */
+export function ScorerSheetView({ gameId }: { gameId: string }) {
+  const { t } = useTranslation('scorer')
   // The check column owns its labels in the `games` namespace so the coach's
   // match sheet and this one cannot drift apart.
   const { t: tg } = useTranslation('games')
@@ -98,7 +111,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
   }
 
   return (
-    <Modal open onClose={onClose} title={t('rosterTitle')} size="md" disableAutoFocus>
+    <>
       {data && (
         <>
           <p className="mb-1 text-sm font-medium text-foreground/85">
@@ -216,6 +229,6 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
           </div>
         )
       })()}
-    </Modal>
+    </>
   )
 }

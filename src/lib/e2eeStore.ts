@@ -155,7 +155,7 @@ export async function clearCachedDocuments(gameId: string): Promise<void> {
  * Drop EVERY cached document, whatever game it belongs to.
  *
  * The per-game helper above cannot be called without already knowing the game
- * ids, and its only caller fires from a mounted `ShowIdsModal` once the display
+ * ids, and its only caller fires from a mounted `ShowIdsView` once the display
  * window closes — so closing the modal, or the tab, before kickoff stranded a
  * squad's identity documents permanently (audit 2026-08-08, finding 15).
  *
