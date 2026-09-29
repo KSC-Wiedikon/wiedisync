@@ -30,6 +30,7 @@ import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
 import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result.js'
 import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
+import { runVmCheck, VM_CHECK_LEAD_MS } from '../../kscw-endpoints/src/vm-sheet-check.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
@@ -8451,6 +8452,69 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           child.once('exit', () => { if (--outstanding === 0) releaseVmAccount() })
         }
       }
+    }
+  })
+
+  // ── Cron: read the Einsatzliste from Volleymanager ONCE, at kickoff −45 min ──
+  //
+  // Every match-sheet surface (the scorer's and coach's sheet, Show IDs, live scoring,
+  // the result participant check) reads the STORED list (game_vm_sheets, migration
+  // 396) — nothing logs the shared VM account in when a sheet opens any more. This is
+  // the one automatic read per game; after it, only a coach's "Recheck" reads again.
+  //
+  // Timing: due from kickoff −45 min — after the auto-filing push's T-65…T-35 window
+  // has had its go, and while a push is still in flight ('pending') the game waits a
+  // tick. Kept up to kickoff +3 h so a tick lost to a restart still catches up.
+  // A `busy` result read nothing, so it is retried on the next tick; anything else is
+  // final (flagged on the sheet, fixed by hand with Recheck).
+  //
+  // Shared VM account (CLAUDE.md, INFRA.md → "The shared VolleyManager account"):
+  // each read claims it via readOwnNominationList and never waits; the whole tick is
+  // skipped inside svrz_rc's windows (the game is picked up at the next tick outside
+  // them). PROD ONLY: dev holds a copy of prod's games and the same credentials, and two
+  // containers' locks cannot see each other — dev would log in at the same moment.
+  let vmSheetCheckRunning = false
+  schedule('2-59/5 * * * *', async () => {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    if (process.env.PUBLIC_URL?.includes('directus-dev')) return
+    if (vmSheetCheckRunning || isSvrzRcBlackout()) return
+    vmSheetCheckRunning = true
+    const startedAt = Date.now()
+    try {
+      const rows = await database('games as g')
+        .leftJoin('game_vm_sheets as v', 'v.game', 'g.id')
+        .whereRaw("g.game_id LIKE 'vb_%'")
+        .where('g.status', 'scheduled')
+        .whereNotNull('g.kscw_team')
+        .whereNotNull('g.time')
+        .where((q) => q.whereNull('v.game').orWhere('v.status', 'busy'))
+        .whereRaw("COALESCE(g.vm_nomination_status, '') <> 'pending'")
+        .whereBetween('g.date', [
+          new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+          new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        ])
+        .select('g.id', 'g.game_id', 'g.type', 'g.date', 'g.time')
+      const now = Date.now()
+      const due = rows.filter((g) => {
+        const kickoff = gameStartMs(g)
+        return kickoff != null && now >= kickoff - VM_CHECK_LEAD_MS && now <= kickoff + 3 * 3600 * 1000
+      })
+      if (!due.length) return
+      const results = []
+      for (const g of due) {
+        // Stop at the first busy answer: the account is taken, the rest would be too.
+        const r = await runVmCheck(database, log, g)
+        results.push(`${g.id}:${r.status}`)
+        if (r.status === 'busy') break
+      }
+      log.info({ msg: `[vm-sheet] checked ${results.join(', ')}`, event: 'vm_sheet_check_done', count: results.length })
+      await logCronRun(database, 'vm_sheet_check', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: results.length })
+    } catch (err) {
+      log.error({ msg: `[vm-sheet] cron failed: ${err.message}`, event: 'vm_sheet_check_failed', stack: err.stack })
+      logCronError('vm_sheet_check', err)
+      await logCronRun(database, 'vm_sheet_check', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    } finally {
+      vmSheetCheckRunning = false
     }
   })
 

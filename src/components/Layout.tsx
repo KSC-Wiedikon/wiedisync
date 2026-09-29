@@ -7,6 +7,7 @@ import { useNotificationsContext } from '../hooks/NotificationsContext'
 import { isAuthenticated } from '../lib/api'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
+import { useIdentityAutoShrink } from '../hooks/useIdentityAutoShrink'
 import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
@@ -26,6 +27,9 @@ export default function Layout() {
   const { user, realUser, householdMembers, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
   // Already excludes impersonation and unapproved accounts — see the hook.
   const profileReviewDue = useProfileReviewDue()
+  // Re-encodes the member's own stored ID at WhatsApp size, once, in the background —
+  // only a device holding their key can (see the hook).
+  useIdentityAutoShrink()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()

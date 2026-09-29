@@ -6,6 +6,7 @@ import LoadingSpinner from '../../../components/LoadingSpinner'
 import { kscwApi } from '../../../lib/api'
 import RsvpCheck, { type RsvpState } from '../../../components/RsvpCheck'
 import { formatDateZurich } from '../../../utils/dateHelpers'
+import VmCheckBanner, { type VmCheck } from '../../games/components/VmCheckBanner'
 
 interface RosterRow {
   number: number | null
@@ -33,6 +34,8 @@ interface RosterResponse {
     /** 'vm' = the Einsatzliste filed in Volleymanager; 'rsvp' = confirmed RSVPs. */
     source: 'vm' | 'rsvp'
     closed_at?: string | null
+    /** The one Volleymanager read (kickoff −45 min / Recheck); null for basketball. */
+    vm_check?: VmCheck | null
     roster: RosterRow[]
     coaches?: CoachRow[]
   }
@@ -64,6 +67,8 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<RosterResponse['data'] | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
+  // Bumped by a Volleymanager Recheck to read the sheet again.
+  const [reloadKey, setReloadKey] = useState(0)
 
   // No synchronous reset here (it would cascade a render): callers mount this
   // modal per game and key it on gameId, so a new game gets a fresh instance
@@ -77,7 +82,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [gameId])
+  }, [gameId, reloadKey])
 
   const errorMessage = (code: string): string => {
     switch (code) {
@@ -99,6 +104,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
           <p className="mb-3 text-xs text-muted-foreground">
             {data.source === 'vm' ? t('rosterSourceVm') : t('rosterSourceRsvp')}
           </p>
+          <VmCheckBanner gameId={gameId} check={data.vm_check} onRechecked={() => setReloadKey((k) => k + 1)} className="mb-3" />
         </>
       )}
 

@@ -97,6 +97,17 @@ export function safeIdentityMime(mime) {
 const PRELOAD_BEFORE_MS = 6 * 60 * 60 * 1000
 const PRELOAD_AFTER_MS = 15 * 60 * 1000
 
+// TEST WINDOW — superadmins only, until ID_TEST_WINDOW_UNTIL (a Zurich date, exclusive;
+// self-reverts at that midnight): documents are released up to 7 days before kickoff, so
+// the Show IDs speed work can be measured on real documents ahead of a game. Mirrors
+// ID_TEST_WINDOW_* in src/utils/dateHelpers.ts (the client gates the display). The roster
+// endpoint has no twin on purpose: a Directus admin bypasses its window, and the only
+// superadmin is one. Do not bump the date forward — delete this.
+const ID_TEST_WINDOW_UNTIL = '2026-10-03'
+const ID_TEST_WINDOW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000
+const idTestWindowActive = (nowMs) =>
+  new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) < ID_TEST_WINDOW_UNTIL
+
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
 function zurichOffsetMs(instantMs) {
@@ -329,6 +340,26 @@ async function recipientsFor(database, memberId, { superadmins = true } = {}) {
   }))
 }
 
+/**
+ * Who a RE-ENCODED document (`recompress`, 2026-09-29) may be wrapped to: the member and
+ * their teams' staff, exactly as the repair path — plus any superadmin who ALREADY holds
+ * an envelope on the current document. A recompress is not the owner's informed act of
+ * uploading (it runs by itself in the owner's app, and an admin can trigger it from Show
+ * IDs), so it must never widen the reader set to superadmins (2026-09-28 audit F12): it
+ * only carries forward what exists. null when the member has no document to recompress.
+ */
+async function recompressRecipients(database, memberId) {
+  const doc = await database('identity_documents').where('member', memberId).first('id')
+  if (!doc) return null
+  const [staff, everyone, holders] = await Promise.all([
+    recipientsFor(database, memberId, { superadmins: false }),
+    recipientsFor(database, memberId),
+    database('identity_document_keys').where('document', doc.id).select('recipient'),
+  ])
+  const keep = new Set([...staff.map((r) => r.member), ...holders.map((r) => Number(r.recipient))])
+  return everyone.filter((r) => keep.has(r.member))
+}
+
 /** `members.role` is a JSON array column that has also been seen holding a bare string. */
 function parseRoles(raw) {
   if (!raw) return []
@@ -433,13 +464,15 @@ async function mayRead(database, callerId, memberId, accountability) {
   // caller matches it (the fuller, more common signal) — fall back to the specific
   // game(s) the guest mechanism connects them through otherwise.
   const now = Date.now()
+  const testWindow = isSuper && idTestWindowActive(now)
+  const before = testWindow ? ID_TEST_WINDOW_BEFORE_MS : PRELOAD_BEFORE_MS
   const games = staffTeamIds.some((t) => ownTeamIds.includes(t))
     ? await database('games')
       .whereIn('kscw_team', ownTeamIds)
       .where('status', 'scheduled')
       .whereBetween('date', [
         dateYMD(new Date(now - 24 * 3600 * 1000)),
-        dateYMD(new Date(now + 24 * 3600 * 1000)),
+        dateYMD(new Date(now + 24 * 3600 * 1000 + (testWindow ? before : 0))),
       ])
       .select('id', 'date', 'time')
     : (await Promise.all(
@@ -449,7 +482,7 @@ async function mayRead(database, callerId, memberId, accountability) {
   for (const g of games) {
     const start = gameStartMs(g)
     if (start == null) continue
-    if (now >= start - PRELOAD_BEFORE_MS && now <= start + PRELOAD_AFTER_MS) {
+    if (now >= start - before && now <= start + PRELOAD_AFTER_MS) {
       return { ok: true, as: isSuper ? 'superadmin' : 'staff', game: g.id, kickoff: new Date(start).toISOString() }
     }
   }
@@ -557,6 +590,14 @@ export function registerIdentityDocument(router, ctx) {
       // role DOES appear, same as any other permanent reader — see `recipientsFor`.
       if (!isAdmin && Number(me.id) !== target) {
         return res.status(403).json({ error: 'Not your document', code: 'not_owner' })
+      }
+
+      // `?recompress=1`: the narrower set a re-encoded document may go to — see
+      // recompressRecipients(). The POST below enforces the same set.
+      if (req.query.recompress === '1') {
+        const recipients = await recompressRecipients(database, target)
+        if (!recipients) return res.status(404).json({ error: 'No document', code: 'no_document' })
+        return res.json({ data: { recipients } })
       }
 
       res.json({ data: { recipients: await recipientsFor(database, target) } })
@@ -693,6 +734,9 @@ export function registerIdentityDocument(router, ctx) {
       if (!me && !isAdmin) return res.status(401).json({ error: 'Authentication required' })
 
       const { member, file, iv, mime, size, envelopes } = req.body ?? {}
+      // A smaller re-encoding of the SAME document (Show IDs speed, 2026-09-29): keeps the
+      // owner's attribution and upload date, and never widens who can read it.
+      const recompress = req.body?.recompress === true
       const target = Number(member)
       if (!Number.isInteger(target) || !file || !iv || !Array.isArray(envelopes)) {
         return res.status(400).json({ error: 'member, file, iv and envelopes are required' })
@@ -713,7 +757,8 @@ export function registerIdentityDocument(router, ctx) {
 
       // WHO MAY HOLD A KEY IS DECIDED HERE. The client says who it wrapped to; we drop
       // anyone who is not the member or a coach/TR of a team they actually play in.
-      const allowed = await recipientsFor(database, target)
+      const allowed = recompress ? await recompressRecipients(database, target) : await recipientsFor(database, target)
+      if (!allowed) return res.status(409).json({ error: 'No document to recompress', code: 'no_document' })
       const allowedById = new Map(allowed.map((r) => [r.member, r]))
       const accepted = envelopes
         .filter((e) => e && allowedById.has(Number(e.recipient)))
@@ -732,6 +777,7 @@ export function registerIdentityDocument(router, ctx) {
       // binds of the same id cannot both pass.
       let supersededFile = null
       let fileTaken = false
+      let prevRow = null
       await database.transaction(async (trx) => {
         await trx('directus_files').where('id', file).forUpdate().first('id')
         const inUse = await trx('identity_documents').where('file', file).whereNot('member', target).first('id')
@@ -739,7 +785,11 @@ export function registerIdentityDocument(router, ctx) {
 
         // One document per member: replacing drops the old ciphertext row (and, by cascade,
         // its envelopes). The old ciphertext file itself is purged after commit (F34).
-        const prev = await trx('identity_documents').where('member', target).first('file')
+        const prev = await trx('identity_documents').where('member', target)
+          .first('file', 'size', 'uploaded_by', 'uploaded_by_self', 'date_created')
+        // Recompress replaces an existing document or nothing — never creates one.
+        if (recompress && !prev) return
+        prevRow = prev ?? null
         if (prev?.file && String(prev.file) !== String(file)) supersededFile = prev.file
         await trx('identity_documents').where('member', target).del()
 
@@ -749,9 +799,9 @@ export function registerIdentityDocument(router, ctx) {
           iv,
           mime: safeIdentityMime(mime),
           size: Number.isInteger(Number(size)) ? Number(size) : null,
-          uploaded_by: me ? Number(me.id) : null,
-          uploaded_by_self: !!me && Number(me.id) === target,
-          date_created: new Date(),
+          uploaded_by: recompress ? prev.uploaded_by : (me ? Number(me.id) : null),
+          uploaded_by_self: recompress ? prev.uploaded_by_self : (!!me && Number(me.id) === target),
+          date_created: recompress ? prev.date_created : new Date(),
           date_updated: new Date(),
         }).returning('id')
 
@@ -767,18 +817,20 @@ export function registerIdentityDocument(router, ctx) {
         })))
       })
       if (fileTaken) return res.status(400).json({ error: 'File is not an identity document', code: 'bad_file' })
+      if (recompress && !prevRow) return res.status(409).json({ error: 'No document to recompress', code: 'no_document' })
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
-        action: 'create',
+        action: recompress ? 'update' : 'create',
         collection: 'identity_documents',
         recordId: String(target),
         data: {
-          what: 'identity_document_upload',
+          what: recompress ? 'identity_document_recompress' : 'identity_document_upload',
           member: target,
           by_self: !!me && Number(me.id) === target,
           recipients: accepted.length,
           rejected_recipients: rejected,
+          ...(recompress ? { from_size: prevRow.size ?? null, to_size: Number(size) || null } : {}),
         },
       })
 
@@ -794,11 +846,13 @@ export function registerIdentityDocument(router, ctx) {
   // ── read: metadata + MY envelope ───────────────────────────────────────────
   router.get('/identity/document/:member', async (req, res) => {
     try {
+      const t0 = Date.now()
       const me = await callerMember(database, req)
       if (!me) return res.status(401).json({ error: 'Authentication required' })
 
       const target = Number(req.params.member)
       const verdict = await mayRead(database, me.id, target, req.accountability)
+      const authMs = Date.now() - t0
       if (!verdict.ok) {
         return res.status(403).json({
           error: 'Not available',
@@ -843,6 +897,8 @@ export function registerIdentityDocument(router, ctx) {
           kickoff: verdict.kickoff ?? null,
         },
       })
+      // Show IDs timing (2026-09-29) — pairs with the `[ids]` console trace in ShowIdsModal.
+      log.info(`[ids] meta member=${target} caller=${me.id} as=${verdict.as} auth=${authMs}ms total=${Date.now() - t0}ms`)
     } catch (err) {
       log.error({ msg: `GET identity/document: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -852,11 +908,13 @@ export function registerIdentityDocument(router, ctx) {
   // ── read: the ciphertext ───────────────────────────────────────────────────
   router.get('/identity/document/:member/bytes', async (req, res) => {
     try {
+      const t0 = Date.now()
       const me = await callerMember(database, req)
       if (!me) return res.status(401).json({ error: 'Authentication required' })
 
       const target = Number(req.params.member)
       const verdict = await mayRead(database, me.id, target, req.accountability)
+      const authMs = Date.now() - t0
       if (!verdict.ok) return res.status(403).json({ error: 'Not available', code: 'not_allowed' })
 
       const doc = await database('identity_documents').where('member', target).first('id', 'file')
@@ -873,7 +931,10 @@ export function registerIdentityDocument(router, ctx) {
       // from the member's own identity_documents row, never from user input. That is exactly
       // the contract storage-read.js states in its header.
       res.setHeader('Cache-Control', 'private, no-store')
+      const ts = Date.now()
       await streamManagedFile(doc.file, ctx, res, { type: 'application/octet-stream' })
+      // `stream` = R2 read + hand-off until the response finished leaving this process.
+      log.info(`[ids] bytes member=${target} caller=${me.id} auth=${authMs}ms stream=${Date.now() - ts}ms total=${Date.now() - t0}ms`)
     } catch (err) {
       log.error({ msg: `GET identity/document/bytes: ${err.message}`, stack: err.stack })
       if (!res.headersSent) res.status(500).json({ error: 'Internal error' })

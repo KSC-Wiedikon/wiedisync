@@ -594,7 +594,7 @@ describe('dispatchQueuedResultPushes', () => {
 
 // ── Eligibility: no VM login for people with no link to the team ─────────────
 
-describe('authorizeGameParticipant — who may cost a VM read', () => {
+describe('authorizeGameParticipant — who gets the Einsatzliste consulted', () => {
   afterEach(() => vi.useRealTimers())
   const AWAY = { ...GAME, type: 'away', scorer_member: null }
   const makeDb = ({ squad = false, guest = false, sheet = [], rsvps = [] } = {}) => {
@@ -610,8 +610,8 @@ describe('authorizeGameParticipant — who may cost a VM read', () => {
       if (table === 'game_guests') return guest ? { id: 1 } : undefined
       if (table === 'game_rosters') return sheet
       if (table === 'participations') return rsvps
-      // loadVmRoster's first step: the VM game uuid
-      if (table === 'svrz_games') return undefined
+      // loadVmRoster's only step: the list stored at kickoff −45 min (migration 396)
+      if (table === 'game_vm_sheets') return undefined
       throw new Error(`unexpected ${op} ${table}`)
     })
     return { db, seen }
@@ -620,24 +620,25 @@ describe('authorizeGameParticipant — who may cost a VM read', () => {
   const opts = { beforeMs: -OPENS_AFTER_MS, afterMs: CLOSES_AFTER_MS, vmOnlyForSquad: true }
   const at = () => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(KICKOFF + OPENS_AFTER_MS + 60 * 1000) }
 
-  it('a member with no roster row and no call-up never reaches Volleymanager', async () => {
+  it('a member with no roster row and no call-up never gets the Einsatzliste consulted', async () => {
     at()
     const { db, seen } = makeDb()
     expect((await authorizeGameParticipant(db, logger, req, opts)).code).toBe('not_participant')
-    expect(seen).not.toContain('svrz_games')
+    expect(seen).not.toContain('game_vm_sheets')
   })
   it('…but a confirmed RSVP still counts for them', async () => {
     at()
     const { db, seen } = makeDb({ rsvps: [12] })
     expect((await authorizeGameParticipant(db, logger, req, opts)).status).toBeUndefined()
-    expect(seen).not.toContain('svrz_games')
+    expect(seen).not.toContain('game_vm_sheets')
   })
   it('a squad member or a called-up guest gets the Einsatzliste consulted', async () => {
     at()
     for (const link of [{ squad: true }, { guest: true }]) {
       const { db, seen } = makeDb(link)
       await authorizeGameParticipant(db, logger, req, opts)
-      expect(seen).toContain('svrz_games')
+      expect(seen).toContain('game_vm_sheets')
+      expect(seen).not.toContain('svrz_games') // stored, never a live VM read
     }
   })
   it('caches a refusal for 2 minutes', async () => {

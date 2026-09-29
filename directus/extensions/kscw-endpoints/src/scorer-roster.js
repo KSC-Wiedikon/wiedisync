@@ -68,7 +68,8 @@
  */
 
 import { writeUserLog } from './activity-log.js'
-import { fetchOwnNominationList } from './vm-nomination-list.js'
+import { loadVmCheck, runVmCheck, VM_CHECK_LEAD_MS } from './vm-sheet-check.js'
+import { isSvrzRcBlackout } from './vm-windows.js'
 import { seasonForYmd } from './season.js'
 
 // SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
@@ -148,41 +149,14 @@ function seedLibero(position) {
 }
 
 /**
- * VM game UUID for one of our games — MATCHED BY GAME NUMBER.
- *
- * `games.game_id` is `vb_<SwissVolley gameId>` and `svrz_games.svrz_number` is that same
- * number (the equivalence sv-sync.js already relies on), so the number is the join key —
- * no team-name matching, no UUID guessing. Returns null for basketball (`bb_` prefix, no
- * VM) and for games with no VM fixture.
- *
- * No home/away flag is passed on: VM's call is scoped to the active party and only ever
- * returns OUR list, so the reader takes whichever side is populated. Nothing here needs
- * to know which side we are on — and shouldn't, since a stale home_club_id in our own DB
- * would then silently degrade the sheet to the RSVP fallback.
- */
-async function vmGameUuid(database, game) {
-  const gid = String(game.game_id ?? '')
-  if (!gid.startsWith('vb_')) return null
-  const number = Number(gid.slice(3))
-  if (!Number.isInteger(number)) return null
-
-  const row = await database('svrz_games')
-    .where('svrz_number', number)
-    .first('svrz_persistence_id')
-  return row?.svrz_persistence_id ?? null
-}
-
-/**
- * Source: the Einsatzliste filed in Volleymanager. null → VM unusable / no list.
+ * Source: the Einsatzliste filed in Volleymanager — as STORED by the one read at kickoff
+ * −45 min (or the last Recheck), never a live read: opening a sheet must not log the
+ * shared VM account in (vm-sheet-check.js, migration 396). null → no list read yet / none.
  * `roster` may be EMPTY while `coaches` is not (officials filed, nominations not yet):
  * the caller falls back to RSVPs for the players but keeps VM's officials.
  */
 async function loadVmRoster(database, log, game, captainId) {
-  const uuid = await vmGameUuid(database, game)
-  if (!uuid) return null
-  // The side only matters for an intra-club derby, where both lists are ours (see
-  // fetchOwnNominationList). Each derby leg is its own games row with its own `type`.
-  const nl = await fetchOwnNominationList(uuid, log, { side: game.type === 'away' ? 'away' : 'home' })
+  const nl = (await loadVmCheck(database, game.id))?.list
   if (!nl) return null
 
   // VM has no jersey number, no captain and no libero — merge ours in. VM's
@@ -228,6 +202,53 @@ async function loadVmRoster(database, log, game, captainId) {
   })
 
   return { source: 'vm', roster, coaches, closed_at: nl.closed_at }
+}
+
+/** A "Recheck" re-reads VM at most this often per game — the button is not a poll. */
+const RECHECK_MIN_GAP_MS = 60 * 1000
+
+const vmName = (p) => `${p.last_name ?? ''}${p.first_initial ? ` ${p.first_initial}` : ''}`.trim()
+
+/**
+ * The Volleymanager check as the sheet shows it (migration 396): when it happens or
+ * happened, who rechecked, and every problem with it as a code the UI turns into a flag.
+ * Per-player RSVP mismatches are NOT here — the check column and the bench carry those.
+ * null for a game with no Volleymanager (basketball).
+ */
+export function vmCheckSummary(check, game, sheet) {
+  if (!String(game.game_id ?? '').startsWith('vb_')) return null
+  const startMs = gameStartMs(game)
+  const dueAt = startMs != null ? new Date(startMs - VM_CHECK_LEAD_MS).toISOString() : null
+  const issues = []
+  if (!check) {
+    if (startMs != null && Date.now() >= startMs - VM_CHECK_LEAD_MS) issues.push({ code: 'not_checked' })
+    return { status: null, due_at: dueAt, checked_at: null, checked_by_name: null, list_at: null, closed_at: null, error: null, issues }
+  }
+  // The latest attempt read nothing (busy / failed / unavailable) — the last list, if
+  // any, is still what the sheet shows.
+  if (check.status !== 'ok' && check.status !== 'no_list') issues.push({ code: check.status })
+  const list = check.list
+  if (check.list_at && !list) issues.push({ code: 'no_list' })
+  if (list) {
+    if (!list.closed_at) issues.push({ code: 'not_closed' })
+    if (!list.players?.length) issues.push({ code: 'no_players' })
+    const ineligible = (list.players ?? []).filter((p) => p.eligible === false)
+    if (ineligible.length) issues.push({ code: 'ineligible', names: ineligible.map(vmName) })
+    // Nominated under a licence we hold no member for: on the legal list, but no RSVP,
+    // no jersey, no ID on file to show.
+    const unlinked = sheet.source === 'vm' ? sheet.roster.filter((r) => r.member == null) : []
+    if (unlinked.length) issues.push({ code: 'unlinked', names: unlinked.map(vmName) })
+  }
+  return {
+    status: check.status,
+    due_at: dueAt,
+    checked_at: check.checked_at,
+    checked_by_name: check.checked_by_name ?? null,
+    list_at: check.list_at ?? null,
+    closed_at: list?.closed_at ?? null,
+    error: check.error ?? null,
+    issues,
+  }
 }
 
 /**
@@ -459,7 +480,7 @@ export async function isGuestTeamLeader(database, memberId, gameId) {
  *
  * Exported for live scoring (live-scoring.js): "a participant of the game" must mean
  * the people the scorer's sheet would list, not a second definition that drifts.
- * VM is read through fetchOwnNominationList, which caches a real answer for a minute
+ * The Einsatzliste comes from the STORED read (kickoff −45 min / Recheck), never live —
  * and never waits on the shared VM account (busy → RSVP fallback).
  *
  * `{ vm: false }` skips the Einsatzliste and decides from the saved sheet and the
@@ -601,6 +622,49 @@ export function registerScorerRoster(router, { database, logger }) {
       : { source: 'team', list: await dbCoaches(database, game.kscw_team) }
   }
 
+  // ── POST: re-read the Einsatzliste from Volleymanager now ("Recheck") ──────
+  //
+  // The only on-demand VM read left (the automatic one is the kickoff −45 min cron,
+  // vm-sheet-check.js). Anyone who may open the sheet may press it — it only reads.
+  // Refused inside svrz_rc's windows (our login would switch the SHARED account's role
+  // under its jobs), at most once a minute per game, and never waits for the account.
+  router.post('/scorer/game/:gameId/vm-check', async (req, res) => {
+    try {
+      const auth = await authorize(req, res)
+      if (!auth) return
+      const { access, member, game, gameId } = auth
+      if (!String(game.game_id ?? '').startsWith('vb_')) {
+        return res.status(422).json({ error: 'Not a Volleymanager game', code: 'not_vm' })
+      }
+      if (isSvrzRcBlackout()) {
+        return res.status(409).json({ error: 'Volleymanager is in use by the SVRZ sync — try again in a few minutes', code: 'vm_window' })
+      }
+      const prev = await loadVmCheck(database, gameId)
+      if (prev?.checked_at && Date.now() - new Date(prev.checked_at).getTime() < RECHECK_MIN_GAP_MS) {
+        return res.status(429).json({ error: 'Checked less than a minute ago', code: 'too_soon' })
+      }
+
+      const who = member ? await database('members').where('id', member.id).first('id', 'first_name', 'last_name') : null
+      const by = { id: who ? Number(who.id) : null, name: who ? `${who.first_name ?? ''} ${who.last_name ?? ''}`.trim() : 'Admin' }
+      const result = await runVmCheck(database, log, game, { by })
+      if (!result.stored) {
+        return res.status(409).json({ error: 'Volleymanager is busy — try again in a minute', code: 'vm_busy' })
+      }
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'games',
+        recordId: gameId,
+        data: { what: 'vm_sheet_recheck', as: access, status: result.status, error: result.error ?? null },
+      })
+      res.json({ data: { status: result.status, error: result.error ?? null } })
+    } catch (err) {
+      log.error({ msg: `POST scorer/game/:id/vm-check: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // ── GET: read the sheet ───────────────────────────────────────────────────
   router.get('/scorer/game/:gameId/roster', async (req, res) => {
     try {
@@ -612,7 +676,12 @@ export function registerScorerRoster(router, { database, logger }) {
       const teamRow = await database('teams').where('id', game.kscw_team).first('captain')
       const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
 
-      const sheet = await buildSheet(game, gameId, season, captainId)
+      // No live Volleymanager read here — the Einsatzliste is the one stored at kickoff
+      // −45 min (or by a Recheck). See vm-sheet-check.js.
+      const [sheet, vmCheck] = await Promise.all([
+        buildSheet(game, gameId, season, captainId),
+        loadVmCheck(database, gameId),
+      ])
 
       // Officials: VM names them WITH their slot (coach / assistant 1 / assistant 2);
       // our junction cannot, so those come back unlabelled until the coach assigns one.
@@ -684,6 +753,7 @@ export function registerScorerRoster(router, { database, logger }) {
           },
           access,
           can_edit: access === 'coach' || access === 'admin',
+          vm_check: vmCheckSummary(vmCheck, game, sheet),
           source: sheet.source,
           edited: sheet.edited,
           edited_by: sheet.edited_by ?? null,

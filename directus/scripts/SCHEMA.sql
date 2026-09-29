@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-28T22:28:21.454Z
+-- Generated:   2026-09-28T23:36:35.746Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict eNnJ5sJAAtAZAJyEIyAHzdjKFIZpxGTOUpSaT2QrvPSJ2q3mPuS7m1BhPCrh6gF
+\restrict u2rIBhrue9ccwM26iwMQ5Yc8OfmHXxgDcYG9I4EUeH2mqxkqDvJVggR2XfvLkNW
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -3473,9 +3473,24 @@ CREATE TABLE public.games (
     bb_extra_duty_teams json,
     carpool_enabled boolean DEFAULT false NOT NULL,
     carpool_teams jsonb,
+    provisional_sets_json json,
+    provisional_home_score integer,
+    provisional_away_score integer,
+    provisional_source character varying(16),
+    provisional_by_name character varying(255),
+    provisional_at timestamp with time zone,
+    vm_result_status character varying(16),
+    vm_result_error text,
+    vm_result_pushed_at timestamp with time zone,
+    vm_result_claimed_at timestamp with time zone,
+    vm_result_report_id character varying(64),
+    vm_opponent_report json,
+    vm_result_checked_at timestamp with time zone,
     CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
-    CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[]))))
+    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying])::text[]))),
+    CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[])))),
+    CONSTRAINT games_vm_result_status_check CHECK (((vm_result_status)::text = ANY ((ARRAY['pending'::character varying, 'reported'::character varying, 'confirmed'::character varying, 'conflict'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
 );
 
 
@@ -3561,6 +3576,97 @@ COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on th
 --
 
 COMMENT ON COLUMN public.games.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to — the playing team and/or its guest teams. NULL/[] = everyone who can see the game.';
+
+
+--
+-- Name: COLUMN games.provisional_sets_json; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_sets_json IS 'Provisional set scores [{"home":25,"away":21}, …] (same shape as sets_json). Shown until status = completed; kept afterwards as history.';
+
+
+--
+-- Name: COLUMN games.provisional_home_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_home_score IS 'Provisional sets won by the home team.';
+
+
+--
+-- Name: COLUMN games.provisional_away_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_away_score IS 'Provisional sets won by the away team.';
+
+
+--
+-- Name: COLUMN games.provisional_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_source IS 'own = our team entered it; opponent = read from the opponent''s VM report, unconfirmed; confirmed = our report equals the opponent''s; vm_official = VM already holds the official result the SV feed has not delivered yet.';
+
+
+--
+-- Name: COLUMN games.provisional_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_by_name IS 'Member who entered the provisional result (actor capture; NULL when it came from Volleymanager).';
+
+
+--
+-- Name: COLUMN games.provisional_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_at IS 'When the provisional result was stored.';
+
+
+--
+-- Name: COLUMN games.vm_result_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_status IS 'Volleymanager result-report push: pending / reported / confirmed / conflict / failed / skipped. Endpoint- and worker-owned.';
+
+
+--
+-- Name: COLUMN games.vm_result_error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_error IS 'Why the push failed or was skipped (e.g. derby, home_team_reports, not_reportable, no_vm_game, dry_run).';
+
+
+--
+-- Name: COLUMN games.vm_result_pushed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_pushed_at IS 'Last successful result-report write to Volleymanager.';
+
+
+--
+-- Name: COLUMN games.vm_result_claimed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_claimed_at IS 'Row lease for the result push (10 min): only one worker per game in flight.';
+
+
+--
+-- Name: COLUMN games.vm_result_report_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_report_id IS 'Our Volleymanager gameResultReport __identity.';
+
+
+--
+-- Name: COLUMN games.vm_opponent_report; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_opponent_report IS 'The opponent''s VM result report as last read: {"sets":[{home,away}],"home":3,"away":2,"reported_at":iso,"party":"hometeam"} or NULL.';
+
+
+--
+-- Name: COLUMN games.vm_result_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_checked_at IS 'Last Volleymanager read of this game''s result reports (sweep or game modal).';
 
 
 --
@@ -18147,7 +18253,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eNnJ5sJAAtAZAJyEIyAHzdjKFIZpxGTOUpSaT2QrvPSJ2q3mPuS7m1BhPCrh6gF
+\unrestrict u2rIBhrue9ccwM26iwMQ5Yc8OfmHXxgDcYG9I4EUeH2mqxkqDvJVggR2XfvLkNW
 
 
 
@@ -18163,7 +18269,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 398 migration(s) already in the schema above.
+-- Migration tracker seed — 399 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -18574,6 +18680,7 @@ FROM (VALUES
   ('391-news-is-published-backfill.sql'),
   ('392-password-reset-tokens-multi.sql'),
   ('393-carpool-going-return-split.sql'),
-  ('394-live-scores-game-channel.sql')
+  ('394-live-scores-game-channel.sql'),
+  ('395-game-provisional-result.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
