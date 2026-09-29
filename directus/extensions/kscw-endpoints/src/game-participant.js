@@ -11,9 +11,10 @@
  *     An away game's scorer duty is the opponent's, and our members on it are none.
  * Full Directus admins bypass eligibility AND the time window.
  *
- * The Einsatzliste is read from Volleymanager on the SHARED account, so it is only
- * consulted for someone who could be on it (squadLinked); anyone else is decided from
- * the saved sheet, the confirmed RSVPs, the staff and the duty seats.
+ * The Einsatzliste is the one STORED at kickoff −45 min (vm-sheet-check.js, since
+ * 2026-09-29) — no VM login here any more. It is still only consulted for someone who
+ * could be on it (squadLinked); anyone else is decided from the saved sheet, the
+ * confirmed RSVPs, the staff and the duty seats.
  *
  * The window is relative to kickoff: allowed while
  *   start - beforeMs <= now <= start + afterMs.

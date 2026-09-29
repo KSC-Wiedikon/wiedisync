@@ -8,7 +8,9 @@ import { useAuth } from '../../hooks/useAuth'
 import { useIdentityKeys } from '../../hooks/useIdentityKeys'
 import { API_URL, kscwApi } from '../../lib/api'
 import { captureApiError } from '../../lib/sentry'
-import { decryptDocument, encryptDocument, unwrapContentKey, wrapContentKeyFor, type Envelope } from '../../lib/e2ee'
+import { decryptDocument, unwrapContentKey, wrapContentKeyFor, type Envelope } from '../../lib/e2ee'
+import { storeIdentityDocument } from '../../lib/identityUpload'
+import { shrinkIdDocument } from '../../lib/idShrink'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import { safeBlobType } from '../../utils/filePreviewKind'
 import IdentityCropDialog from './IdentityCropDialog'
@@ -161,50 +163,10 @@ export default function IdentityDocumentSection() {
     if (file.size > MAX_BYTES) { toast.error(t('idTooLarge')); return }
 
     setBusy(true)
-    let uploadStatus: number | undefined
     try {
-      // 1. Encrypt here. The plaintext never leaves this function.
-      const enc = await encryptDocument(file)
-
-      // 2. Upload the ciphertext through our own endpoint, NOT POST /files. The identity
-      //    folder is excluded from the Member file-read policy, so Directus would create the
-      //    row and answer 204 with an empty body — no file id ever reaches us.
-      const up = await fetch(`${API_URL}/kscw/identity/upload`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: enc.ciphertext as BodyInit,
-      })
-      uploadStatus = up.status
-      if (!up.ok) throw new Error(String(up.status))
-      const { data: { id: fileId } } = await up.json() as { data: { id: string } }
-
-      // 3. Wrap the content key once per authorised reader — the member, plus the coaches
-      //    and TRs of their teams. The server decides that list; we only wrap to what it
-      //    hands back, and it never includes an admin.
-      const { data } = await kscwApi<{ data: { recipients: Recipient[] } }>(
-        `/identity/recipients/${memberId}`,
-      )
-      const envelopes = await Promise.all(
-        data.recipients.map(async (r) => ({
-          recipient: r.member,
-          ...(await wrapContentKeyFor(enc.contentKey, r.public_key)),
-        })),
-      )
-
-      await kscwApi('/identity/document', {
-        method: 'POST',
-        body: {
-          member: memberId,
-          file: fileId,
-          iv: enc.iv,
-          mime: file.type || 'image/jpeg',
-          size: file.size,
-          envelopes,
-        },
-      })
-
-      const staff = data.recipients.filter((r) => !r.is_self).length
+      // Encrypted in this browser, wrapped to the member plus the coaches and TRs of their
+      // teams — the server decides that list — and stored (identityUpload.ts).
+      const { staff } = await storeIdentityDocument({ member: memberId, file, mime: file.type || 'image/jpeg' })
       toast.success(t('idUploaded', { count: staff }))
       setPreview(null)
       await loadDoc()
@@ -217,7 +179,7 @@ export default function IdentityDocumentSection() {
         operation: 'identityUpload',
         endpoint: '/identity/upload',
         method: 'POST',
-        status: uploadStatus,
+        status: (err as { status?: number }).status,
         payload: { mime: file.type, size: file.size },
       })
       toast.error(t('idUploadFailed'))
@@ -232,12 +194,19 @@ export default function IdentityDocumentSection() {
    * is nearly always sideways, or a small card on a big table — and the editor hands back the
    * flattened JPEG to upload.
    *
-   * A PDF has nothing to crop, and an undecodable image has nothing to show, so both skip the
-   * editor and upload as they are rather than dead-ending in it.
+   * A PDF has nothing to crop: it is drawn here into one WhatsApp-size JPEG (idShrink.ts),
+   * so Show IDs downloads ~300 KB and the hall never needs pdf.js. A PDF that will not draw,
+   * and an undecodable image, upload as they are rather than dead-ending.
    */
   const handlePicked = async (file: File) => {
     if (file.size > MAX_BYTES) { toast.error(t('idTooLarge')); return }
     if (file.type.startsWith('image/') && await canDecode(file)) { setPending(file); return }
+    if (file.type === 'application/pdf') {
+      setBusy(true)
+      const jpeg = await shrinkIdDocument(new Uint8Array(await file.arrayBuffer()), 'application/pdf')
+      setBusy(false)
+      if (jpeg) { await handleUpload(new File([jpeg], 'identity.jpg', { type: 'image/jpeg' })); return }
+    }
     await handleUpload(file)
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, CloudDownload, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -6,23 +6,32 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { API_URL, kscwApi } from '../../../lib/api'
 import { decryptDocument, unwrapContentKey, type Envelope } from '../../../lib/e2ee'
-import { cacheDocument, clearCachedDocuments, loadCachedDocuments } from '../../../lib/e2eeStore'
+import { cacheDocument, clearCachedDocuments, loadCachedDocuments, type CachedDoc } from '../../../lib/e2eeStore'
 import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
-import { formatDateZurich, formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
+import { formatDateZurich, formatTimeZurich, idShowBeforeMs, idWindowState } from '../../../utils/dateHelpers'
 import { safeBlobType } from '../../../utils/filePreviewKind'
-import { burnWatermark, canvasToObjectUrl } from '../../../lib/idWatermark'
+import { burnWatermark, canvasToObjectUrl, fitLongEdge } from '../../../lib/idWatermark'
 import { PdfRasterSession, warmPdfRaster } from '../../../lib/pdfRaster'
+import { needsShrink, shrinkIdDocument } from '../../../lib/idShrink'
+import { storeIdentityDocument } from '../../../lib/identityUpload'
+import VmCheckBanner, { type VmCheck } from './VmCheckBanner'
 
 /**
- * The document is only DISPLAYED in this window. See the honesty note below.
- * Widened to 5h for 2026-09-22 only (self-reverts at midnight Zurich time —
- * must stay in sync with ID_SHOW_BEFORE_MS in dateHelpers.ts).
+ * Timing trace, `[ids]` in the console — how long the download, each request and each
+ * card take. Member ids and sizes only: never a name, a key or document content.
  */
-const WIDE_ID_WINDOW_DATE = '2026-09-22'
-const isWideIdWindowDay = () =>
-  new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) === WIDE_ID_WINDOW_DATE
-const SHOW_BEFORE_MS = isWideIdWindowDay() ? 5 * 60 * 60 * 1000 : 45 * 60 * 1000
+const trace = (...args: unknown[]) => console.info('[ids]', ...args)
+const since = (t0: number) => Math.round(performance.now() - t0)
+const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`
+
+/** What rendering one document cost — filled in by watermarkedUrl for the trace. */
+interface RenderTrace {
+  kind?: 'photo' | 'pdf'
+  px?: string
+  drawMs?: number
+  encodeMs?: number
+}
 
 interface SheetRow {
   member: number | null
@@ -37,6 +46,8 @@ interface SheetRow {
 interface SheetResponse {
   data: {
     game: { home_team: string; away_team: string; date: string; time: string | null }
+    source?: string
+    vm_check?: VmCheck | null
     roster: SheetRow[]
   }
 }
@@ -76,19 +87,35 @@ interface Card {
  * only when neither works; the caller then falls back to the plain blob plus a
  * CSS overlay, so the label is always at least visually present.
  */
-async function watermarkedUrl(plain: Uint8Array, mime: string, label: string, pdf: () => PdfRasterSession): Promise<string | null> {
+async function watermarkedUrl(
+  plain: Uint8Array,
+  mime: string,
+  label: string,
+  pdf: () => PdfRasterSession,
+  rt: RenderTrace = {},
+): Promise<string | null> {
   if (mime === 'application/pdf') {
+    rt.kind = 'pdf'
     try {
+      const t0 = performance.now()
       const { canvas, omitted } = await pdf().rasterise(plain, (ctx, rect) => burnWatermark(ctx, rect, label))
       if (omitted > 0) console.warn(`[ids] PDF has ${omitted} page(s) beyond the display cap`)
+      rt.px = `${canvas.width}×${canvas.height}`
+      rt.drawMs = since(t0)
+      const t1 = performance.now()
       // Opaque scan on a white fill: JPEG encodes far faster than PNG on a phone.
-      return await canvasToObjectUrl(canvas, 'image/jpeg', 0.9)
-    } catch {
+      const url = await canvasToObjectUrl(canvas, 'image/jpeg', 0.9)
+      rt.encodeMs = since(t1)
+      return url
+    } catch (err) {
+      trace('pdf render failed, falling back to the frame viewer:', err)
       return null
     }
   }
+  rt.kind = 'photo'
   let srcUrl: string | null = null
   try {
+    const t0 = performance.now()
     srcUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(mime) }))
     const img = new Image()
     await new Promise<void>((resolve, reject) => {
@@ -96,21 +123,107 @@ async function watermarkedUrl(plain: Uint8Array, mime: string, label: string, pd
       img.onerror = () => reject(new Error('not drawable'))
       img.src = srcUrl as string
     })
-    const w = img.naturalWidth
-    const h = img.naturalHeight
-    if (!w || !h) return null
+    if (!img.naturalWidth || !img.naturalHeight) return null
+    // Bounded like a PDF page, and JPEG like one: full-size PNG made each photo
+    // seconds of work on a phone and a ~15 MB blob.
+    const { w, h } = fitLongEdge(img.naturalWidth, img.naturalHeight)
+    rt.px = `${img.naturalWidth}×${img.naturalHeight} → ${w}×${h}`
     const canvas = document.createElement('canvas')
     canvas.width = w
     canvas.height = h
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    ctx.drawImage(img, 0, 0)
+    // White bed: JPEG has no alpha, and a transparent PNG upload would turn black.
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
     burnWatermark(ctx, { x: 0, y: 0, w, h }, label)
-    return await canvasToObjectUrl(canvas)
-  } catch {
+    rt.drawMs = since(t0)
+    const t1 = performance.now()
+    const url = await canvasToObjectUrl(canvas, 'image/jpeg', 0.9)
+    rt.encodeMs = since(t1)
+    return url
+  } catch (err) {
+    trace(`${mime} could not be drawn, showing it unburned:`, err)
     return null
   } finally {
     if (srcUrl) URL.revokeObjectURL(srcUrl)
+  }
+}
+
+/** One player's card: decrypt the cached document and burn the watermark in. Never throws. */
+async function buildCard(
+  r: SheetRow & { member: number },
+  c: CachedDoc | undefined,
+  privateKey: CryptoKey,
+  label: string,
+  pdf: () => PdfRasterSession,
+): Promise<Card> {
+  const base = {
+    member: r.member,
+    number: r.number,
+    name: `${r.last_name}${r.first_initial ? `, ${r.first_initial}` : ''}`,
+    is_captain: r.is_captain,
+    is_libero: r.is_libero,
+  }
+  if (!c) {
+    trace(`card #${r.member}: nothing cached`)
+    return { ...base, url: null, missing: true }
+  }
+  const t0 = performance.now()
+  try {
+    const key = await unwrapContentKey(c.envelope, privateKey)
+    const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
+    const decryptMs = since(t0)
+    const rt: RenderTrace = {}
+    const burned = await watermarkedUrl(plain, c.mime ?? 'image/jpeg', label, pdf, rt)
+    trace(`card #${r.member}: ${c.mime ?? '?'} ${kb(c.ciphertext.byteLength)} ${rt.px ?? ''} · decrypt ${decryptMs} ms`
+      + ` · ${rt.kind === 'pdf' ? 'rasterise' : 'decode+draw'} ${rt.drawMs ?? '–'} ms · encode ${rt.encodeMs ?? '–'} ms`
+      + ` · total ${since(t0)} ms${burned ? '' : ' (UNBURNED fallback)'}`)
+    return {
+      ...base,
+      // The declared mime is the uploader's claim — stamp only a vetted type.
+      url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
+      burned: burned != null,
+      isPdf: burned == null && c.mime === 'application/pdf',
+      scroll: burned != null && c.mime === 'application/pdf',
+    }
+  } catch (err) {
+    // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
+    // than showing a broken image to a referee.
+    trace(`card #${r.member}: decrypt failed after ${since(t0)} ms:`, err)
+    return { ...base, url: null, missing: true }
+  }
+}
+
+/**
+ * Re-encode the squad's stored documents that are still above WhatsApp size (idShrink.ts),
+ * from the copies this reveal just decrypted. Superadmins only, and the server takes it
+ * only from a Directus admin (or the owner): readers are carried forward, never widened
+ * (`recompress`, identityUpload.ts). Runs after the deck is built, one at a time; a no-op
+ * once the squad is small. The device keeps its (old) cached copies — they still open.
+ */
+async function shrinkStoredDocs(cached: CachedDoc[], privateKey: CryptoKey): Promise<void> {
+  const big = cached.filter((c) => needsShrink(c.ciphertext.byteLength, c.mime))
+  if (!big.length) return
+  trace(`shrink: ${big.length} stored documents above WhatsApp size — re-encoding`)
+  for (const c of big) {
+    const t0 = performance.now()
+    try {
+      const key = await unwrapContentKey(c.envelope, privateKey)
+      const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
+      const small = await shrinkIdDocument(plain, c.mime ?? 'image/jpeg')
+      if (!small || (c.mime !== 'application/pdf' && small.size >= plain.byteLength)) {
+        trace(`shrink #${c.memberId}: skipped (not decodable here, or not smaller)`)
+        continue
+      }
+      await storeIdentityDocument({ member: c.memberId, file: small, mime: 'image/jpeg', recompress: true })
+      trace(`shrink #${c.memberId}: ${c.mime} ${kb(plain.byteLength)} → ${kb(small.size)}, stored in ${since(t0)} ms`)
+    } catch (err) {
+      trace(`shrink #${c.memberId}: failed after ${since(t0)} ms:`, err)
+      // Refused: not a Directus admin — every other document would be refused too.
+      if ((err as { status?: number }).status === 403) return
+    }
   }
 }
 
@@ -138,7 +251,7 @@ interface ShowIdsModalProps {
 export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModalProps) {
   const { t } = useTranslation('games')
   const { state, privateKey, unlock } = useIdentityKeys()
-  const { realUser } = useAuth()
+  const { realUser, isSuperAdmin } = useAuth()
   // Plain locals (not `realUser?.x` inside the callback): optional-chained
   // members in a dep array make the React Compiler bail on the memoization.
   const viewerFirstName = realUser?.first_name ?? ''
@@ -148,13 +261,40 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [roster, setRoster] = useState<SheetRow[]>([])
+  const [vmCheck, setVmCheck] = useState<VmCheck | null>(null)
+  // Bumped by a Volleymanager Recheck to read the sheet again.
+  const [sheetKey, setSheetKey] = useState(0)
   const [cards, setCards] = useState<Card[] | null>(null)
+  /** Set while the deck is still being decrypted — it is shown card by card as it grows. */
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [cachedCount, setCachedCount] = useState(0)
   const [idx, setIdx] = useState(0)
 
-  // Date.now() lives inside the helper, not here — React treats it as impure during render.
-  const windowState = idWindowState(kickoffMs)
-  const opensAt = kickoffMs != null ? kickoffMs - SHOW_BEFORE_MS : null
+  // Every decrypted document is a live blob URL, and an ID still reachable in the page
+  // after this closes is exactly what this feature exists to prevent. Tracked here, not
+  // derived from `cards`: the deck now grows one card at a time, and an effect keyed on
+  // `cards` would revoke the URLs still on screen at every append. `gen` retires a build
+  // still running when the modal closes (or a new one starts) — it stops and revokes what
+  // it made instead of leaving it behind.
+  const deckRef = useRef({ gen: 0, urls: [] as string[] })
+  useEffect(() => {
+    const deck = deckRef.current
+    return () => {
+      deck.gen += 1
+      for (const u of deck.urls) URL.revokeObjectURL(u)
+      deck.urls = []
+    }
+  }, [])
+
+  // Date.now() lives inside the helpers, not here — React treats it as impure during render.
+  const showBeforeMs = idShowBeforeMs(isSuperAdmin)
+  const windowState = idWindowState(kickoffMs, showBeforeMs)
+  const opensAt = kickoffMs != null ? kickoffMs - showBeforeMs : null
+  // The superadmin test window opens days ahead — a bare "20:00" would read as today.
+  const fmtOpensAt = (ms: number) => {
+    const iso = new Date(ms).toISOString()
+    return showBeforeMs > 24 * 60 * 60 * 1000 ? `${formatDateZurich(iso)} ${formatTimeZurich(iso)}` : formatTimeZurich(iso)
+  }
   const canShow = windowState === 'open'
   const beforeWindow = windowState === 'before'
 
@@ -168,7 +308,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   useEffect(() => {
     if (kickoffMs == null) return
     const now = Date.now()
-    const next = [kickoffMs - SHOW_BEFORE_MS, kickoffMs].filter((b) => b > now)
+    const next = [kickoffMs - showBeforeMs, kickoffMs].filter((b) => b > now)
     if (!next.length) return
     const id = setTimeout(() => setWindowTick((n) => n + 1), Math.min(...next) - now + 250)
     return () => clearTimeout(id)
@@ -177,18 +317,29 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   // Roster: who is on the sheet, so the deck is ordered and labelled like the match sheet.
   useEffect(() => {
     let cancelled = false
+    const t0 = performance.now()
+    // The same sheet as the scorer's — the Einsatzliste stored at kickoff −45 min, else
+    // the RSVPs. Opening this never logs the shared Volleymanager account in.
     kscwApi<SheetResponse>(`/scorer/game/${gameId}/roster`)
-      .then((res) => { if (!cancelled) setRoster(res.data.roster.filter((r) => !r.dropped && r.member != null)) })
-      .catch(() => { if (!cancelled) setRoster([]) })
+      .then((res) => {
+        const rows = res.data.roster.filter((r) => !r.dropped && r.member != null)
+        trace(`sheet for game ${gameId}: ${rows.length} players (source ${res.data.source ?? '?'}, vm check ${res.data.vm_check?.status ?? 'none'}) in ${since(t0)} ms`)
+        if (!cancelled) { setRoster(rows); setVmCheck(res.data.vm_check ?? null) }
+      })
+      .catch((err) => {
+        trace(`sheet for game ${gameId} failed after ${since(t0)} ms:`, err)
+        if (!cancelled) setRoster([])
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [gameId])
+  }, [gameId, sheetKey])
 
   // How much is already on this device?
   useEffect(() => {
     let cancelled = false
     loadCachedDocuments(gameId).then((d) => {
       if (cancelled) return
+      trace(`on this device: ${d.length} documents, ${kb(d.reduce((n, c) => n + c.ciphertext.byteLength, 0))}`)
       setCachedCount(d.length)
       // PDFs render through pdf.js, which is lazy-loaded. Pull it (and its worker)
       // into memory now, while this may still be online — the hall has no signal.
@@ -205,41 +356,68 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   /** Pull ciphertext + envelopes onto the device. Do this while you still have signal. */
   const preload = useCallback(async () => {
     setBusy(true)
+    const t0 = performance.now()
     let ok = 0
+    let bytes = 0
     // Entitled, but never wrapped a key — see `blocked` handling below.
     let blocked = 0
     let hasPdf = false
-    try {
-      for (const r of roster) {
-        if (r.member == null) continue
-        try {
-          const meta = await kscwApi<DocResponse>(`/identity/document/${r.member}`)
-          const res = await fetch(`${API_URL}/kscw/identity/document/${r.member}/bytes`, {
-            credentials: 'include',
-          })
-          if (!res.ok) continue
-          await cacheDocument({
-            gameId,
-            memberId: r.member,
-            ciphertext: await res.arrayBuffer(),
-            iv: meta.data.iv,
-            mime: meta.data.mime,
-            envelope: meta.data.envelope,
-          })
-          ok++
-          if (meta.data.mime === 'application/pdf') hasPdf = true
-        } catch (err) {
-          // A player with no document is simply absent from the deck — not a failure of the
-          // whole download. But `no_envelope` is NOT that: it means this coach is entitled
-          // and holds no key, because they set their identity key up after the upload. That
-          // used to be swallowed here, so the symptom was "0 IDs downloaded" with no reason
-          // given, discovered at the hall. It is repairable, and the coach must be told.
-          if ((err as { code?: string }).code === 'no_envelope') blocked += 1
+    const fetchOne = async (member: number) => {
+      const tm = performance.now()
+      try {
+        const meta = await kscwApi<DocResponse>(`/identity/document/${member}`)
+        const metaMs = since(tm)
+        const tb = performance.now()
+        const res = await fetch(`${API_URL}/kscw/identity/document/${member}/bytes`, {
+          credentials: 'include',
+        })
+        const firstByteMs = since(tb)
+        if (!res.ok) {
+          trace(`download #${member}: meta ${metaMs} ms · bytes HTTP ${res.status} after ${firstByteMs} ms`)
+          return
         }
+        const ciphertext = await res.arrayBuffer()
+        const bytesMs = since(tb)
+        const tc = performance.now()
+        await cacheDocument({
+          gameId,
+          memberId: member,
+          ciphertext,
+          iv: meta.data.iv,
+          mime: meta.data.mime,
+          envelope: meta.data.envelope,
+        })
+        trace(`download #${member}: ${meta.data.mime ?? '?'} ${kb(ciphertext.byteLength)} · meta ${metaMs} ms`
+          + ` · bytes ${bytesMs} ms (first byte ${firstByteMs} ms) · store ${since(tc)} ms · done at +${since(t0)} ms`)
+        ok++
+        bytes += ciphertext.byteLength
+        if (meta.data.mime === 'application/pdf') hasPdf = true
+      } catch (err) {
+        const code = (err as { code?: string }).code
+        trace(`download #${member}: skipped (${code ?? (err as Error).message}) after ${since(tm)} ms`)
+        // A player with no document is simply absent from the deck — not a failure of the
+        // whole download. But `no_envelope` is NOT that: it means this coach is entitled
+        // and holds no key, because they set their identity key up after the upload. That
+        // used to be swallowed here, so the symptom was "0 IDs downloaded" with no reason
+        // given, discovered at the hall. It is repairable, and the coach must be told.
+        if (code === 'no_envelope') blocked += 1
       }
+    }
+    try {
+      // Every player at once, not one after another: two authorised round trips per player
+      // (each re-checks access server-side and pulls the file from R2) serialised 14
+      // players into ~20–35 s on mobile data. A match sheet is ≤ ~20 players.
+      const members = roster.flatMap((r) => (r.member == null ? [] : [r.member]))
+      trace(`download start: ${members.length} players, all at once`)
+      await Promise.all(members.map(fetchOne))
+      const downloadMs = since(t0)
       // "Ready offline" must include the renderer: load pdf.js + its worker into
       // memory now, while there is signal (the SW does no caching — see pdfRaster.ts).
+      const tp = performance.now()
       const pdfReady = !hasPdf || await warmPdfRaster()
+      trace(`download done: ${ok}/${members.length} in ${downloadMs} ms · ${kb(bytes)}`
+        + ` · ${downloadMs ? ((bytes * 8) / 1e6 / (downloadMs / 1000)).toFixed(1) : '–'} Mbit/s`
+        + `${hasPdf ? ` · pdf.js warm ${since(tp)} ms (${pdfReady ? 'ok' : 'FAILED'})` : ''}${blocked ? ` · ${blocked} without a key` : ''}`)
       setCachedCount(ok)
       toast.success(t('idsDownloaded', { count: ok }))
       if (!pdfReady) toast.warning(t('idsPdfViewerNotReady'), { duration: 10000 })
@@ -252,70 +430,61 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   /** Decrypt what is on the device. Works with no connection at all. */
   const reveal = useCallback(async () => {
     if (!privateKey) return
+    const deck = deckRef.current
+    const gen = ++deck.gen
+    const stale = () => deck.gen !== gen
+    for (const u of deck.urls) URL.revokeObjectURL(u)
+    deck.urls = []
+    setCards(null)
+    setIdx(0)
     setBusy(true)
+    // One pdf.js worker for every PDF in the squad, created on the first one.
+    let pdfSession: PdfRasterSession | null = null
+    const pdf = () => (pdfSession ??= new PdfRasterSession())
+    const t0 = performance.now()
+    let firstMs: number | null = null
     try {
       const cached = await loadCachedDocuments(gameId)
       const byMember = new Map(cached.map((c) => [c.memberId, c]))
-
-      const built: Card[] = []
-      // One pdf.js worker for every PDF in the squad, created on the first one.
-      let pdfSession: PdfRasterSession | null = null
-      const pdf = () => (pdfSession ??= new PdfRasterSession())
-      try {
-        for (const r of roster) {
-          if (r.member == null) continue
-          const name = `${r.last_name}${r.first_initial ? `, ${r.first_initial}` : ''}`
-          const c = byMember.get(r.member)
-          if (!c) {
-            built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
-            continue
-          }
-          try {
-            const key = await unwrapContentKey(c.envelope, privateKey)
-            const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
-            // Not localized on purpose: a screenshot travels, and the label must
-            // stay legible wherever it lands.
-            const viewer = [viewerFirstName, viewerLastName].filter(Boolean).join(' ')
-            const nowIso = new Date().toISOString()
-            const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
-              `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
-            const burned = await watermarkedUrl(plain, c.mime ?? 'image/jpeg', label, pdf)
-            built.push({
-              member: r.member,
-              number: r.number,
-              name,
-              is_captain: r.is_captain,
-              is_libero: r.is_libero,
-              // The declared mime is the uploader's claim — stamp only a vetted type.
-              url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
-              burned: burned != null,
-              isPdf: burned == null && c.mime === 'application/pdf',
-              scroll: burned != null && c.mime === 'application/pdf',
-            })
-          } catch {
-            // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
-            // than showing a broken image to a referee.
-            built.push({ member: r.member, number: r.number, name, is_captain: r.is_captain, is_libero: r.is_libero, url: null, missing: true })
-          }
+      const rows = roster.filter((r): r is SheetRow & { member: number } => r.member != null)
+      trace(`reveal start: ${cached.length} cached for ${rows.length} players (read from device ${since(t0)} ms)`)
+      setProgress({ done: 0, total: rows.length })
+      // Not localized on purpose: a screenshot travels, and the label must
+      // stay legible wherever it lands.
+      const viewer = [viewerFirstName, viewerLastName].filter(Boolean).join(' ')
+      // In sheet order, each card shown the moment it is ready: the coach is looking at
+      // the first ID while the rest are still being decrypted, instead of at a spinner
+      // until the last of 14 is done.
+      for (const [i, r] of rows.entries()) {
+        const nowIso = new Date().toISOString()
+        const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
+          `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
+        const next = await buildCard(r, byMember.get(r.member), privateKey, label, pdf)
+        if (stale()) {
+          if (next.url) URL.revokeObjectURL(next.url)
+          return
         }
-      } finally {
-        (pdfSession as PdfRasterSession | null)?.close()
+        if (next.url) deck.urls.push(next.url)
+        if (firstMs == null && !next.missing) {
+          firstMs = since(t0)
+          trace(`first ID on screen after ${firstMs} ms`)
+        }
+        setCards((prev) => [...(prev ?? []), next])
+        setProgress({ done: i + 1, total: rows.length })
       }
-      setCards(built)
-      setIdx(0)
-    } catch {
-      toast.error(t('idsDecryptFailed'))
+      trace(`reveal done: ${rows.length} players in ${since(t0)} ms (first ID after ${firstMs ?? '–'} ms)`)
+      if (isSuperAdmin) void shrinkStoredDocs(cached.filter((c) => rows.some((r) => r.member === c.memberId)), privateKey)
+    } catch (err) {
+      trace(`reveal failed after ${since(t0)} ms:`, err)
+      if (!stale()) toast.error(t('idsDecryptFailed'))
     } finally {
-      setBusy(false)
+      (pdfSession as PdfRasterSession | null)?.close()
+      if (!stale()) {
+        setProgress(null)
+        setBusy(false)
+      }
     }
-  }, [gameId, roster, privateKey, t, viewerFirstName, viewerLastName])
-
-  // Every decrypted document is a live blob URL. Revoke them when the deck is replaced and
-  // when the modal closes — an ID still reachable in the page afterwards is exactly what
-  // this feature exists to prevent.
-  useEffect(() => () => {
-    for (const c of cards ?? []) if (c.url) URL.revokeObjectURL(c.url)
-  }, [cards])
+  }, [gameId, roster, privateKey, t, viewerFirstName, viewerLastName, isSuperAdmin])
 
   const withDocs = useMemo(() => (cards ?? []).filter((c) => !c.missing), [cards])
   const missing = useMemo(() => (cards ?? []).filter((c) => c.missing), [cards])
@@ -333,10 +502,15 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <p className="text-xs leading-relaxed text-muted-foreground">
               {kickoffMs != null
-                ? t('idsWindow', { time: formatTimeZurich(new Date(kickoffMs - SHOW_BEFORE_MS).toISOString()) })
+                ? t('idsWindow', { time: fmtOpensAt(kickoffMs - showBeforeMs) })
                 : t('idsNoKickoff')}
             </p>
           </div>
+
+          {/* Who is on the sheet comes from the one Volleymanager read — flag its problems here. */}
+          {!cards && (
+            <VmCheckBanner gameId={gameId} check={vmCheck} onRechecked={() => setSheetKey((k) => k + 1)} />
+          )}
 
           {/* The key. A coach unlocks once per device, not once per game. */}
           {(state === 'locked' || state === 'none') && (
@@ -382,7 +556,13 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     button exists for the no-signal-in-the-hall case, but a coach
                     standing at the table WITH signal shouldn't be dead-ended by it. */}
                 <Button
-                  onClick={() => void (async () => { if (cachedCount === 0) await preload(); await reveal() })()}
+                  onClick={() => void (async () => {
+                    const t0 = performance.now()
+                    trace(`show pressed: ${cachedCount} cached${cachedCount === 0 ? ' → downloading first' : ''}`)
+                    if (cachedCount === 0) await preload()
+                    await reveal()
+                    trace(`show total (tap → last ID ready): ${since(t0)} ms`)
+                  })()}
                   loading={busy}
                   disabled={!canShow}
                 >
@@ -394,7 +574,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
               </p>
               {beforeWindow && opensAt != null && (
                 <p className="text-xs text-amber-600 dark:text-amber-500">
-                  {t('idsLockedUntil', { time: formatTimeZurich(new Date(opensAt).toISOString()) })}
+                  {t('idsLockedUntil', { time: fmtOpensAt(opensAt) })}
                 </p>
               )}
               {!canShow && !beforeWindow && kickoffMs != null && (
@@ -465,7 +645,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                 </Button>
               </div>
 
-              {missing.length > 0 && (
+              {missing.length > 0 && !progress && (
                 <p className="text-xs text-muted-foreground">
                   {t('idsMissing', { count: missing.length, names: missing.map((m) => m.name).join(', ') })}
                 </p>
@@ -473,7 +653,14 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             </div>
           )}
 
-          {cards && withDocs.length === 0 && (
+          {progress && (
+            <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden="true" />
+              {t('idsPreparing', { done: progress.done, total: progress.total })}
+            </p>
+          )}
+
+          {cards && withDocs.length === 0 && !progress && (
             <p className="py-4 text-center text-sm text-muted-foreground">{t('idsNone')}</p>
           )}
         </div>

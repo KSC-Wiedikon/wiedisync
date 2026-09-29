@@ -6,6 +6,8 @@ import 'react-easy-crop/react-easy-crop.css'
 import { Loader2, RotateCcw, RotateCw, ZoomIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { fitLongEdge } from '@/lib/idWatermark'
+import { ID_JPEG_QUALITY } from '@/lib/idShrink'
 
 /**
  * Crop + rotate an identity photo before it is encrypted.
@@ -37,7 +39,9 @@ function rotatedSize(width: number, height: number, rotation: number) {
 }
 
 /**
- * Draw the selected region at the chosen rotation and hand back JPEG bytes.
+ * Draw the selected region at the chosen rotation and hand back JPEG bytes — at WhatsApp
+ * size (≤ 1600 px, JPEG 0.8, idShrink.ts): a full-resolution crop was 1–2.5 MB, and Show
+ * IDs downloads the whole squad's at once, often on a hall's mobile signal.
  *
  * Two canvases on purpose: react-easy-crop reports the crop in the coordinates of the
  * ROTATED bounding box, so the image has to be rotated into a canvas of exactly that size
@@ -63,9 +67,12 @@ async function renderCrop(src: string, crop: Area, rotation: number): Promise<Bl
   rctx.translate(-image.width / 2, -image.height / 2)
   rctx.drawImage(image, 0, 0)
 
+  const cropW = Math.max(1, Math.round(crop.width))
+  const cropH = Math.max(1, Math.round(crop.height))
+  const { w: outW, h: outH } = fitLongEdge(cropW, cropH)
   const out = document.createElement('canvas')
-  out.width = Math.max(1, Math.round(crop.width))
-  out.height = Math.max(1, Math.round(crop.height))
+  out.width = outW
+  out.height = outH
   const octx = out.getContext('2d')
   if (!octx) throw new Error('no 2d context')
   // A white bed, not transparency: the crop can sit partly outside the photo, and a
@@ -76,16 +83,16 @@ async function renderCrop(src: string, crop: Area, rotation: number): Promise<Bl
     rotated,
     Math.round(crop.x),
     Math.round(crop.y),
-    out.width,
-    out.height,
+    cropW,
+    cropH,
     0,
     0,
-    out.width,
-    out.height,
+    outW,
+    outH,
   )
 
   return new Promise<Blob>((resolve, reject) => {
-    out.toBlob((b) => (b ? resolve(b) : reject(new Error('encode failed'))), 'image/jpeg', 0.92)
+    out.toBlob((b) => (b ? resolve(b) : reject(new Error('encode failed'))), 'image/jpeg', ID_JPEG_QUALITY)
   })
 }
 

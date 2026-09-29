@@ -262,15 +262,23 @@ export function gameKickoffMs(
   } catch { return null; }
 }
 
+/** Identity documents are DISPLAYED only in this window before kickoff. */
+export const ID_SHOW_BEFORE_MS = 45 * 60 * 1000;
+
 /**
- * Identity documents are DISPLAYED only in this window before kickoff.
- * Widened to 5h for 2026-09-22 only (self-reverts at midnight Zurich time —
- * do not bump the date forward, just delete this override when no longer needed).
+ * TEST WINDOW — superadmins only, until ID_TEST_WINDOW_UNTIL (a Zurich date, exclusive;
+ * self-reverts at that midnight). Lets the Show IDs speed work be measured on real
+ * documents days before a game. Mirrors ID_TEST_WINDOW_* in identity-document.js (the
+ * server must release the documents too). Do not bump the date forward — delete it.
  */
-const WIDE_ID_WINDOW_DATE = '2026-09-22';
-const isWideIdWindowDay = () =>
-  new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) === WIDE_ID_WINDOW_DATE;
-export const ID_SHOW_BEFORE_MS = isWideIdWindowDay() ? 5 * 60 * 60 * 1000 : 45 * 60 * 1000;
+const ID_TEST_WINDOW_UNTIL = '2026-10-03';
+const ID_TEST_WINDOW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How long before kickoff this viewer may show IDs. */
+export function idShowBeforeMs(isSuperAdmin: boolean): number {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' });
+  return isSuperAdmin && today < ID_TEST_WINDOW_UNTIL ? ID_TEST_WINDOW_BEFORE_MS : ID_SHOW_BEFORE_MS;
+}
 
 /**
  * Where we are relative to the identity-document display window.
@@ -280,10 +288,11 @@ export const ID_SHOW_BEFORE_MS = isWideIdWindowDay() ? 5 * 60 * 60 * 1000 : 45 *
  */
 export function idWindowState(
   kickoffMs: number | null,
+  showBeforeMs: number = ID_SHOW_BEFORE_MS,
 ): 'unknown' | 'before' | 'open' | 'closed' {
   if (kickoffMs == null) return 'unknown';
   const now = Date.now();
-  if (now < kickoffMs - ID_SHOW_BEFORE_MS) return 'before';
+  if (now < kickoffMs - showBeforeMs) return 'before';
   if (now > kickoffMs) return 'closed';
   return 'open';
 }

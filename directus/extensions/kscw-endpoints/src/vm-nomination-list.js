@@ -45,11 +45,9 @@ const VM_TIMEOUT_MS = 8000
 
 let session = null
 
-// The coach opens the sheet, closes it, opens it again; the Show-IDs pre-load reads it
-// too. A short memo spares VM (and the coach) a round trip each time. Short enough that
-// a list the coach just fixed in Volleymanager shows up on the next open-after-a-minute.
-const LIST_CACHE_TTL_MS = 60 * 1000
-const listCache = new Map() // `${uuid}|${side}` → { at, value }
+// No memo any more (2026-09-29): nothing reads VM when a sheet opens. The list is read
+// ONCE, 45 min before kickoff (kscw-hooks), or when a coach presses "Recheck", and
+// stored in game_vm_sheets (migration 396) — see vm-sheet-check.js.
 
 async function openSession(log, force) {
   if (!force && session && Date.now() - session.at < SESSION_TTL_MS) return session
@@ -104,28 +102,27 @@ const mapPerson = (p) => (p ? {
 } : null)
 
 /**
- * Fetch OUR Einsatzliste for a VM game — home or away; `side` matters only for a derby.
+ * Read OUR Einsatzliste for a VM game, live — home or away; `side` matters only for a derby.
+ * Only vm-sheet-check.js calls this: once at kickoff −45 min, and on a coach's "Recheck".
  *
  * @param {string} gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
  * @param {{ side?: 'home'|'away'|null }} [opts]  Only consulted for an intra-club DERBY,
  *   where both lists are ours and VM hands back both — see below.
- * @returns {Promise<null | {
- *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
- *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
- *   coaches: Array<{ license_nr: string|null, last_name: string, first_initial: string, birthdate: string|null,
- *                    role: 'coach'|'assistant_coach_1'|'assistant_coach_2' }>,
- *   closed_at: string|null,
- * }>}  null when VM is unusable or has no list. `players` may be EMPTY while `coaches`
- *        is not (officials filed, nominations not yet) — the caller decides what that means.
+ * @returns {Promise<
+ *   | { status: 'ok', list: {
+ *       players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
+ *                        birthdate: string|null, licence: string|null, eligible: boolean }>,
+ *       coaches: Array<{ license_nr: string|null, last_name: string, first_initial: string, birthdate: string|null,
+ *                        role: 'coach'|'assistant_coach_1'|'assistant_coach_2' }>,
+ *       closed_at: string|null } }
+ *   | { status: 'no_list' }
+ *   | { status: 'busy', error: string }
+ *   | { status: 'failed' | 'unavailable', error: string }
+ * >}  `players` may be EMPTY while `coaches` is not (officials filed, nominations not
+ *     yet) — the caller decides what that means. `busy` = nothing was read at all.
  */
-export async function fetchOwnNominationList(gameUuid, log, { side = null } = {}) {
-  const key = `${gameUuid}|${side ?? ''}`
-  const hit = listCache.get(key)
-  if (hit && Date.now() - hit.at < LIST_CACHE_TTL_MS) return hit.value
-  const value = await readNominationList(gameUuid, log, side)
-  // Only cache a real answer — a VM hiccup must not pin the RSVP fallback for a minute.
-  if (value) listCache.set(key, { at: Date.now(), value })
-  return value
+export async function readOwnNominationList(gameUuid, log, { side = null } = {}) {
+  return readNominationList(gameUuid, log, side)
 }
 
 async function readNominationList(gameUuid, log, side) {
@@ -137,26 +134,26 @@ async function readNominationList(gameUuid, log, side) {
   // RSVPs for. Released in `finally`: this is an in-process call, not a worker.
   const release = claimVmAccount('vm-nomination:read')
   if (!release) {
-    log.info(`[vm-nomination] ${gameUuid}: shared VM account busy (${vmAccountHeldBy()}) — RSVP fallback`)
-    return null
+    log.info(`[vm-nomination] ${gameUuid}: shared VM account busy (${vmAccountHeldBy()}) — not read`)
+    return { status: 'busy', error: `account busy (${vmAccountHeldBy()})` }
   }
   try {
     const s = await openSession(log, false)
-    if (!s) return null
+    if (!s) return { status: 'unavailable', error: 'VM credentials not configured' }
     try {
       body = await callVm(s, gameUuid)
     } catch (err) {
       // Most likely an expired session (VM answers with the login page). One retry
-      // on a fresh login; if that fails too, the caller falls back to RSVP.
+      // on a fresh login; if that fails too, the check is flagged failed.
       log.warn(`[vm-nomination] ${gameUuid}: ${err.message} — retrying with fresh login`)
       const fresh = await openSession(log, true)
-      if (!fresh) return null
+      if (!fresh) return { status: 'unavailable', error: 'VM credentials not configured' }
       body = await callVm(fresh, gameUuid)
     }
   } catch (err) {
     session = null
     log.warn(`[vm-nomination] ${gameUuid}: giving up (${err.message})`)
-    return null
+    return { status: 'failed', error: err.message }
   } finally {
     release()
   }
@@ -181,11 +178,11 @@ async function readNominationList(gameUuid, log, side) {
     // Without a hint we still refuse to guess: that is a caller bug, not a derby.
     if (side !== 'home' && side !== 'away') {
       log.warn(`[vm-nomination] ${gameUuid}: BOTH sides populated and no side hint — refusing to guess`)
-      return null
+      return { status: 'failed', error: 'derby: both sides populated, no side hint' }
     }
     list = side === 'home' ? home : away
   }
-  if (!list) return null
+  if (!list) return { status: 'no_list' }
   const noms = Array.isArray(list.indoorPlayerNominations) ? list.indoorPlayerNominations : []
 
   // Persons nominated without a licence record. Never seen populated in practice;
@@ -224,5 +221,5 @@ async function readNominationList(gameUuid, log, side) {
     })
     .filter(Boolean)
 
-  return { players, coaches, closed_at: list.closedAt || null }
+  return { status: 'ok', list: { players, coaches, closed_at: list.closedAt || null } }
 }

@@ -9,6 +9,7 @@ import RsvpCheck, { type RsvpState } from '../../../components/RsvpCheck'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import { kscwApi } from '../../../lib/api'
 import { formatDateZurich } from '../../../utils/dateHelpers'
+import VmCheckBanner, { type VmCheck } from './VmCheckBanner'
 
 interface SheetRow {
   /** null when the Einsatzliste names a licence we hold no member for — not editable. */
@@ -74,6 +75,8 @@ interface SheetResponse {
     can_edit: boolean
     /** 'vm' = the Einsatzliste filed in Volleymanager; 'rsvp' = confirmed RSVPs. */
     source: 'vm' | 'rsvp'
+    /** The one Volleymanager read (kickoff −45 min / Recheck); null for basketball. */
+    vm_check?: VmCheck | null
     edited: boolean
     edited_by: string | null
     officials_edited: boolean
@@ -547,6 +550,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
             {data.source === 'vm' ? t('pregameSourceVm') : t('pregameSourceRsvp')}
             {data.edited && data.edited_by ? ` · ${t('pregameEditedBy', { name: data.edited_by })}` : ''}
           </p>
+          <VmCheckBanner gameId={gameId} check={data.vm_check} onRechecked={fetchSheet} className="mb-3" />
         </>
       )}
 

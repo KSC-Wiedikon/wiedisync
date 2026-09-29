@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PDF_RASTER_DEFAULTS, containPreloadErrors, isWorkerError, planPdfRaster } from './pdfRaster'
-import { watermarkFontSize } from './idWatermark'
+import { ID_IMAGE_MAX_LONG_EDGE, fitLongEdge, watermarkFontSize } from './idWatermark'
 import { forceReloadOnStaleChunk } from './chunkReload'
 
 const A4 = { width: 595, height: 842 }
@@ -61,6 +61,20 @@ describe('watermarkFontSize', () => {
   it('scales with the long edge and never drops below 16px', () => {
     expect(watermarkFontSize(2400, 1200)).toBe(100)
     expect(watermarkFontSize(100, 50)).toBe(16)
+  })
+})
+
+describe('fitLongEdge', () => {
+  it('bounds a phone photo to WhatsApp size', () => {
+    expect(ID_IMAGE_MAX_LONG_EDGE).toBe(1600)
+    expect(fitLongEdge(4000, 3000)).toEqual({ w: 1600, h: 1200 })
+    expect(fitLongEdge(2350, 3600)).toEqual({ w: 1044, h: 1600 })
+    expect(fitLongEdge(4000, 3000, 2000)).toEqual({ w: 2000, h: 1500 })
+  })
+
+  it('never upscales a small scan', () => {
+    expect(fitLongEdge(800, 500)).toEqual({ w: 800, h: 500 })
+    expect(fitLongEdge(1, 5000)).toEqual({ w: 1, h: 1600 })
   })
 })
 

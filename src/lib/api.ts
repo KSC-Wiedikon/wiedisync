@@ -991,6 +991,12 @@ const EXPECTED_VALIDATION_ENDPOINTS = new Set([
 // cap, and the 429s it causes drop REAL errors that happen in the same burst.
 const EXPECTED_ERROR_CODES = new Set([
   'no_document',
+  // Match-sheet "Recheck Volleymanager" refusals (scorer-roster.js): pressed again within
+  // a minute, inside svrz_rc's window, or while another job holds the shared account.
+  // VmCheckBanner shows each as a toast.
+  'too_soon',
+  'vm_window',
+  'vm_busy',
   // /admin/vis-player-check 409s: a run is already in flight, or VIS_USER/
   // VIS_PASS are not set on this environment. Both are states the Transfers
   // page renders inline — neither is a bug to file.

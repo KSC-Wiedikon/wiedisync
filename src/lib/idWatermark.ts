@@ -12,6 +12,20 @@ export interface Rect {
   h: number
 }
 
+/**
+ * Long edge of an ID document, px — WhatsApp's standard image size. Stored documents are
+ * encoded at it (idShrink.ts) and Show IDs draws at it. A phone camera crop is 6–12 MP;
+ * drawn and re-encoded at full size it took seconds per player on a phone. 1600 px is
+ * still ~475 dpi across an ID card, more than any phone screen shows.
+ */
+export const ID_IMAGE_MAX_LONG_EDGE = 1600
+
+/** Scale `w × h` down so the long edge fits `max` — never up. */
+export function fitLongEdge(w: number, h: number, max: number = ID_IMAGE_MAX_LONG_EDGE): { w: number; h: number } {
+  const k = Math.min(1, max / Math.max(w, h))
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) }
+}
+
 /** Font size for a document region — scales with the region, never unreadably small. */
 export function watermarkFontSize(w: number, h: number): number {
   return Math.max(16, Math.round(Math.max(w, h) / 24))
@@ -48,8 +62,9 @@ export function burnWatermark(ctx: CanvasRenderingContext2D, rect: Rect, label: 
 
 /**
  * Encode a canvas to a blob URL (caller owns + revokes it), then free the
- * canvas. PNG by default (keeps a photo's alpha); pass 'image/jpeg' for opaque
- * rasterised scans — several times faster to encode on a phone and ~10× smaller.
+ * canvas. PNG by default (keeps alpha); pass 'image/jpeg' for anything opaque —
+ * photo IDs and rasterised scans alike. PNG of photographic content is several
+ * times slower to encode on a phone and ~15× larger (an 8 MP ID: ~15 MB).
  */
 export async function canvasToObjectUrl(
   canvas: HTMLCanvasElement,
