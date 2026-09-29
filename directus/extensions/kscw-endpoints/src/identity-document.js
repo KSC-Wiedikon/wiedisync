@@ -176,7 +176,15 @@ async function callerMember(database, req) {
 }
 
 /**
- * Teams the member currently plays in.
+ * Active teams the member is tied to: as a PLAYER (member_teams) or as STAFF (coach /
+ * team responsible).
+ *
+ * Staff since 2026-09-29 (deliberate widening, SECURITY.md): a coach stands on the match
+ * sheet as an official and their ID is checked at the table like a player's, so Show IDs
+ * lists the officials after the players. A staff-only coach has no member_teams row, so
+ * until then their document was wrapped to — and readable by — nobody but themselves.
+ * Now the other coaches/TRs of the teams they coach are recipients like any player's.
+ *
  * ⚠ Gated on teams.active, not member_teams.season: this set decides who can
  * DECRYPT the member's ID document, and it is resolved at ENCRYPTION time. The
  * season column is a create-time stamp uncoupled from the rollover, so a lagged
@@ -184,11 +192,13 @@ async function callerMember(database, req) {
  * document becomes permanently unreadable and the member must re-upload.
  */
 async function memberTeamIds(database, memberId) {
-  const rows = await database('member_teams as mt')
-    .join('teams as t', 't.id', 'mt.team')
-    .where('mt.member', memberId)
+  const rows = await database('teams as t')
     .where('t.active', true)
-    .select('mt.team as team')
+    .where((q) => q
+      .whereIn('t.id', database('member_teams').where('member', memberId).select('team'))
+      .orWhereIn('t.id', database('teams_coaches').where('members_id', memberId).select('teams_id'))
+      .orWhereIn('t.id', database('teams_responsibles').where('members_id', memberId).select('teams_id')))
+    .select('t.id as team')
   return rows.map((r) => Number(r.team)).filter(Number.isInteger)
 }
 
@@ -293,7 +303,7 @@ async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
 
 /**
  * The people allowed to read this member's ID: the member, plus the coaches and team
- * responsibles of every team they play in — and, for a shared game, the coaches/TRs of
+ * responsibles of every team they play in or coach — and, for a shared game, the coaches/TRs of
  * the other team(s) on that game's sheet too (`sharedGameTeamIds`).
  *
  * Read via the junction tables directly. Expanding the M2M alias off `teams` returns
