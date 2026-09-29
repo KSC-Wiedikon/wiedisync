@@ -299,6 +299,8 @@ export default {
   idsPreparing: 'Preparing documents … {{done}} / {{total}}',
   idsPrev: 'Previous player',
   idsNext: 'Next player',
+  idsFullscreen: 'Full screen',
+  idsCloseFullscreen: 'Close full screen',
   // Game guest invitations (migration 271) — opening a fixture to players from
   // outside the team's own roster.
   guestSectionTitle: 'Called-up players',

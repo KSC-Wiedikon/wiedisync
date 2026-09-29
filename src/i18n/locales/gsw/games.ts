@@ -296,6 +296,8 @@ export default {
   idsPreparing: 'Dokumänt wärded vorbereitet … {{done}} / {{total}}',
   idsPrev: 'Vorherigi Person',
   idsNext: 'Nächsti Person',
+  idsFullscreen: 'Vollbild',
+  idsCloseFullscreen: 'Vollbild zuemache',
   // Ufbottni Spieler*innen (Migration 271).
   guestSectionTitle: 'Ufbottni Spieler*innen',
   guestSectionHint: 'Mach das Spiel für es anders Team oder einzelni Spieler*innen uf. Sie gsehnds uf ihrer Startsite und im Kalender und chönd da antworte.',
