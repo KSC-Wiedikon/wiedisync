@@ -298,6 +298,8 @@ export default {
   idsPreparing: 'Dokumente werden vorbereitet … {{done}} / {{total}}',
   idsPrev: 'Vorherige Person',
   idsNext: 'Nächste Person',
+  idsFullscreen: 'Vollbild',
+  idsCloseFullscreen: 'Vollbild schliessen',
   // Aufgebotene Spieler*innen (Migration 271).
   guestSectionTitle: 'Aufgebotene Spieler*innen',
   guestSectionHint: 'Öffne dieses Spiel für ein anderes Team oder einzelne Spieler*innen. Sie sehen es auf ihrer Startseite und im Kalender und können hier antworten.',

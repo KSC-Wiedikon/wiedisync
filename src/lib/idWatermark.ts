@@ -26,9 +26,13 @@ export function fitLongEdge(w: number, h: number, max: number = ID_IMAGE_MAX_LON
   return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) }
 }
 
-/** Font size for a document region — scales with the region, never unreadably small. */
+/**
+ * Font size for a document region — scales with the region, never unreadably small.
+ * /40 (was /24, 2026-09-29): the mark must survive a screenshot, not hide the ID from the
+ * referee — at 1600 px that is 40 px text.
+ */
 export function watermarkFontSize(w: number, h: number): number {
-  return Math.max(16, Math.round(Math.max(w, h) / 24))
+  return Math.max(14, Math.round(Math.max(w, h) / 40))
 }
 
 /**
@@ -49,11 +53,13 @@ export function burnWatermark(ctx: CanvasRenderingContext2D, rect: Rect, label: 
   ctx.font = `bold ${fs}px sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.lineWidth = Math.max(1, fs / 12)
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+  // Lighter than the first version (2026-09-29): fainter, thinner, rows further apart —
+  // still in the pixels of any screenshot, no longer in the referee's way.
+  ctx.lineWidth = Math.max(1, fs / 16)
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)'
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.26)'
   const diag = Math.hypot(w, h)
-  for (let ly = -diag / 2; ly <= diag / 2; ly += fs * 3.5) {
+  for (let ly = -diag / 2; ly <= diag / 2; ly += fs * 5) {
     ctx.strokeText(label, 0, ly, diag)
     ctx.fillText(label, 0, ly, diag)
   }

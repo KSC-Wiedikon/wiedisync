@@ -58,9 +58,10 @@ describe('planPdfRaster', () => {
 })
 
 describe('watermarkFontSize', () => {
-  it('scales with the long edge and never drops below 16px', () => {
-    expect(watermarkFontSize(2400, 1200)).toBe(100)
-    expect(watermarkFontSize(100, 50)).toBe(16)
+  it('scales with the long edge and never drops below 14px', () => {
+    expect(watermarkFontSize(2400, 1200)).toBe(60)
+    expect(watermarkFontSize(1600, 1000)).toBe(40)
+    expect(watermarkFontSize(100, 50)).toBe(14)
   })
 })
 

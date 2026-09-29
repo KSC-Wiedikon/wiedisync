@@ -293,6 +293,8 @@ export default {
   idsPreparing: 'Preparazione dei documenti … {{done}} / {{total}}',
   idsPrev: 'Giocatore precedente',
   idsNext: 'Giocatore successivo',
+  idsFullscreen: 'Schermo intero',
+  idsCloseFullscreen: 'Esci dallo schermo intero',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   scoreboardAbsolute: 'Assoluto',

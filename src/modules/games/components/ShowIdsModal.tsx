@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, CloudDownload, Loader2, Lock, ShieldCheck } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CloudDownload, Loader2, Lock, Maximize2, ShieldCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import IconButton from '@/components/IconButton'
 import { API_URL, kscwApi } from '../../../lib/api'
 import { decryptDocument, unwrapContentKey, type Envelope } from '../../../lib/e2ee'
 import { cacheDocument, clearCachedDocuments, loadCachedDocuments, type CachedDoc } from '../../../lib/e2eeStore'
@@ -74,8 +76,6 @@ interface Card {
   burned?: boolean
   /** Last resort only: a PDF pdf.js could not rasterise goes to the native viewer in a frame. */
   isPdf?: boolean
-  /** A rasterised PDF: shown at full width and scrolled, never shrunk to fit — a stacked A4 would be unreadable. */
-  scroll?: boolean
   staff?: boolean
   official?: boolean
   role?: string | null
@@ -201,7 +201,6 @@ async function buildCard(
       url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: safeBlobType(c.mime ?? 'image/jpeg') })),
       burned: burned != null,
       isPdf: burned == null && c.mime === 'application/pdf',
-      scroll: burned != null && c.mime === 'application/pdf',
     }
   } catch (err) {
     // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
@@ -284,6 +283,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [cachedCount, setCachedCount] = useState(0)
   const [idx, setIdx] = useState(0)
+  const [fullscreen, setFullscreen] = useState(false)
 
   // Every decrypted document is a live blob URL, and an ID still reachable in the page
   // after this closes is exactly what this feature exists to prevent. Tracked here, not
@@ -638,7 +638,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-xl font-bold tabular-nums text-primary-foreground">
                   {card.staff ? (ROLE_SHORT[card.role ?? ''] ?? '·') : (card.number ?? '—')}
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="break-words text-base font-bold uppercase leading-tight">{card.name}</div>
                   <div className="flex gap-1.5 pt-0.5">
                     {card.is_captain && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameCaptain')}</span>}
@@ -646,6 +646,9 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     {card.official && <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">{roleLabel(card.role)}</span>}
                   </div>
                 </div>
+                <IconButton label={t('idsFullscreen')} variant="outline" className="shrink-0" onClick={() => setFullscreen(true)}>
+                  <Maximize2 />
+                </IconButton>
               </div>
 
               {/* Arrows ABOVE the document: the ID fills most of a phone screen, and
@@ -669,17 +672,14 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     title={card.name}
                     className="h-[55vh] w-full rounded-lg border bg-white"
                   />
-                ) : card.scroll ? (
-                  // Full width, scrolled: object-contain would squeeze a stacked
-                  // multi-page scan into a ~129px-wide strip on a phone.
-                  <div className="max-h-[55vh] overflow-y-auto rounded-lg border bg-white">
-                    <img src={card.url ?? ''} alt={card.name} className="block h-auto w-full" />
-                  </div>
                 ) : (
+                  // Always fitted — a stacked multi-page scan too: no scrolling at the
+                  // table. Too small to read? Tap for full screen.
                   <img
                     src={card.url ?? ''}
                     alt={card.name}
-                    className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
+                    onClick={() => setFullscreen(true)}
+                    className="max-h-[55vh] w-full cursor-zoom-in rounded-lg border bg-background object-contain"
                   />
                 )}
                 {/* Fallback overlay for anything the canvas could not draw (e.g. a PDF pdf.js rejected):
@@ -689,7 +689,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0 grid select-none place-items-center overflow-hidden"
                   >
-                    <span className="-rotate-12 whitespace-nowrap text-lg font-bold uppercase tracking-widest text-foreground/30 [text-shadow:0_0_4px_rgba(0,0,0,0.4)]">
+                    <span className="-rotate-12 whitespace-nowrap text-lg font-bold uppercase tracking-widest text-foreground/20 [text-shadow:0_0_3px_rgba(0,0,0,0.25)]">
                       KSC Wiedikon · Spielkontrolle
                     </span>
                   </div>
@@ -716,6 +716,59 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
           )}
         </div>
       )}
+
+      {/* Full screen: a NESTED dialog, not a plain overlay — Show IDs is itself a Radix
+          dialog (a vaul drawer on phones), and anything outside it counts as an outside
+          click that closes it. Radix stacks nested dialogs: Escape and outside clicks
+          close only this one. Same deck and index, so ← → step through players here too. */}
+      <Dialog open={fullscreen && !!card} onOpenChange={setFullscreen}>
+        {card && (
+          <DialogContent
+            hideClose
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') setIdx((i) => Math.max(0, i - 1))
+              if (e.key === 'ArrowRight') setIdx((i) => Math.min(withDocs.length - 1, i + 1))
+            }}
+            className="left-0 top-0 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-black p-0 text-white shadow-none sm:p-0"
+          >
+            <DialogTitle className="sr-only">{card.name}</DialogTitle>
+            <DialogDescription className="sr-only">{t('idsTitle')}</DialogDescription>
+            <div className="flex items-center gap-3 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+              <span className="min-w-0 flex-1 truncate text-sm font-bold uppercase" title={card.name}>
+                {card.staff ? (ROLE_SHORT[card.role ?? ''] ?? '·') : (card.number ?? '—')} · {card.name}
+              </span>
+              <IconButton label={t('idsCloseFullscreen')} className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setFullscreen(false)}>
+                <X />
+              </IconButton>
+            </div>
+            <div className="relative min-h-0 flex-1">
+              {card.isPdf ? (
+                <iframe src={card.url ?? ''} title={card.name} className="h-full w-full bg-white" />
+              ) : (
+                <img src={card.url ?? ''} alt={card.name} className="h-full w-full object-contain" />
+              )}
+              {!card.burned && (
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid select-none place-items-center overflow-hidden">
+                  <span className="-rotate-12 whitespace-nowrap text-lg font-bold uppercase tracking-widest text-white/20">
+                    KSC Wiedikon · Spielkontrolle
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+              <IconButton label={t('idsPrev')} className="text-white hover:bg-white/10 hover:text-white" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}>
+                <ChevronLeft />
+              </IconButton>
+              <span className="flex-1 text-center text-sm tabular-nums text-white/70">
+                {idx + 1} / {withDocs.length}
+              </span>
+              <IconButton label={t('idsNext')} className="text-white hover:bg-white/10 hover:text-white" onClick={() => setIdx((i) => Math.min(withDocs.length - 1, i + 1))} disabled={idx >= withDocs.length - 1}>
+                <ChevronRight />
+              </IconButton>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </Modal>
   )
 }
