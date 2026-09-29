@@ -337,9 +337,10 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     // the RSVPs. Opening this never logs the shared Volleymanager account in.
     kscwApi<SheetResponse>(`/scorer/game/${gameId}/roster`)
       .then((res) => {
-        // The officials' IDs are checked at the table too. Someone who plays AND is an
-        // official (a playing assistant coach) stays ONE card, in their player slot, with
-        // the role chip on it; staff who do not play follow after the last player.
+        // Officials are checked at the table like players (their ID is shown, a missing one
+        // is flagged). Someone who plays AND is an official (a playing assistant coach)
+        // stays ONE card, in their player slot, with the role chip on it; staff who do not
+        // play follow after the last player.
         const officials = new Map<number, string | null>()
         for (const c of res.data.coaches ?? []) {
           if (c.member != null && !officials.has(c.member)) officials.set(c.member, c.role)
@@ -436,8 +437,8 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
         // and holds no key, because they set their identity key up after the upload. That
         // used to be swallowed here, so the symptom was "0 IDs downloaded" with no reason
         // given, discovered at the hall. It is repairable, and the coach must be told.
-        // Staff are shown only "if available" — a key they never gave is not a warning.
-        if (code === 'no_envelope' && !staff) blocked += 1
+        // Officials count like players: their ID is checked at the table too.
+        if (code === 'no_envelope') blocked += 1
       }
     }
     try {
@@ -500,11 +501,6 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
         if (stale()) {
           if (next.url) URL.revokeObjectURL(next.url)
           return
-        }
-        // Staff are shown only when their ID is there and opens — never listed as missing.
-        if (next.staff && next.missing) {
-          setProgress({ done: i + 1, total: rows.length })
-          continue
         }
         if (next.url) deck.urls.push(next.url)
         if (firstMs == null && !next.missing) {

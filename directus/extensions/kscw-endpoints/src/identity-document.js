@@ -203,6 +203,17 @@ async function memberTeamIds(database, memberId) {
 }
 
 /**
+ * Everyone tied to ONE team for identity purposes: its players (member_teams) AND its staff
+ * (coaches, TRs) — a coach's ID is checked at the table like a player's (2026-09-29, see
+ * memberTeamIds). A subquery for `whereIn('d.member', …)`.
+ */
+function teamIdPeople(database, teamId) {
+  return database('member_teams').where('team', teamId).select('member as m')
+    .union(function () { this.select('members_id as m').from('teams_coaches').where('teams_id', teamId) })
+    .union(function () { this.select('members_id as m').from('teams_responsibles').where('teams_id', teamId) })
+}
+
+/**
  * Teams tied to `memberId` only through the guest mechanism (migration 271): a host team
  * whose game `memberId` was called up to, or — the flip side — a team invited as a guest
  * into one of `memberId`'s own games. A shared game puts both staffs at the same hall
@@ -1063,15 +1074,15 @@ export function registerIdentityDocument(router, ctx) {
         return res.status(403).json({ error: 'Not team staff', code: 'not_allowed' })
       }
 
-      // Documents belonging to people on this team, joined to MY envelope for them. An inner
-      // join is the access check: no envelope, no row, nothing to repair.
+      // Documents belonging to people on this team — players AND staff — joined to MY
+      // envelope for them. An inner join is the access check: no envelope, no row, nothing
+      // to repair.
       const rows = await database('identity_documents as d')
-        .join('member_teams as mt', 'mt.member', 'd.member')
         .join('identity_document_keys as k', function () {
           this.on('k.document', 'd.id').andOn('k.recipient', database.raw('?', [me.id]))
         })
         .join('members as m', 'm.id', 'd.member')
-        .where('mt.team', teamId)
+        .whereIn('d.member', teamIdPeople(database, teamId))
         .distinct('d.id as doc', 'd.member', 'd.iv', 'm.first_name', 'm.last_name',
           'k.eph_public_key', 'k.wrap_iv', 'k.wrapped_key')
 
@@ -1234,10 +1245,10 @@ export function registerIdentityDocument(router, ctx) {
         return res.status(403).json({ error: 'Not team staff', code: 'not_allowed' })
       }
 
+      // Players AND staff of the team — a coach's document is checked like a player's.
       const docs = await database('identity_documents as d')
-        .join('member_teams as mt', 'mt.member', 'd.member')
         .join('members as m', 'm.id', 'd.member')
-        .where('mt.team', teamId)
+        .whereIn('d.member', teamIdPeople(database, teamId))
         .distinct('d.id as doc', 'd.member', 'd.date_created', 'm.first_name', 'm.last_name')
         .orderBy(['m.last_name', 'm.first_name'])
 
