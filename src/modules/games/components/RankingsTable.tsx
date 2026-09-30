@@ -6,7 +6,7 @@ import type { Game, Ranking } from '../../../types'
 import TeamChip from '../../../components/TeamChip'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
-import { teamIds } from '../../../utils/teamColors'
+import { useKscwRankingTeams } from '../../../hooks/useKscwRankingTeams'
 import { getPromotionColor, promotionBorderColors } from '../../../utils/leaguePromotion'
 import { formatNumberSwiss } from '../../../utils/formatNumber'
 import { useCollection } from '../../../lib/query'
@@ -44,6 +44,7 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
   const totalTeams = sorted.length
   const [breakdown, setBreakdown] = useState<{ row: Ranking; mode: 'win' | 'loss' } | null>(null)
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null)
+  const kscwTeams = useKscwRankingTeams()
 
   // Fetch all games for this league (skip in compact/homepage mode — no accordion).
   // Deferred until the first row is expanded: the games only feed the accordion
@@ -74,15 +75,14 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
   // Names of the KSCW teams whose games the drill-down is about: the teams picked
   // in the filter when any of them play in this league, otherwise every KSCW team.
   const kscwTeamNames = useMemo(() => {
-    const all = rankings.filter((r) => teamIds[r.team_id])
+    const all = rankings.filter((r) => kscwTeams.has(r.team_id))
     const focused = focusTeamIds?.size ? all.filter((r) => focusTeamIds.has(r.team_id)) : []
     return new Set((focused.length ? focused : all).map((r) => r.team_name))
-  }, [rankings, focusTeamIds])
+  }, [rankings, focusTeamIds, kscwTeams])
   const today = todayLocal()
 
   function getTeamLabel(row: Ranking): string {
-    const kscwTeam = teamIds[row.team_id]
-    return kscwTeam ? `KSC Wiedikon ${kscwTeam}` : (row.team_name || `Team ${row.team_id}`)
+    return row.team_name || `Team ${row.team_id}`
   }
 
   function hasBreakdownData(row: Ranking): boolean {
@@ -160,7 +160,7 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
             </thead>
             <tbody className="divide-y divide-border/60">
               {sorted.map((row) => {
-                const kscwTeam = teamIds[row.team_id]
+                const kscwTeam = kscwTeams.get(row.team_id)
                 const isKscw = !!kscwTeam
                 const promoColor = getPromotionColor(league, row.rank, totalTeams, row.team_name, sorted)
                 const promoBorder = promoColor ? promotionBorderColors[promoColor] : ''
@@ -178,8 +178,8 @@ export default function RankingsTable({ league, rankings, compact, provisionalGa
                       <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center font-bold text-foreground`}>{row.points}</td>
                       <td className={`${compact ? 'px-3 py-3' : 'max-w-0 px-2 py-2'}`}>
                         <div className="flex items-center gap-1.5 min-w-0">
-                          {isKscw ? (
-                            <TeamChip team={kscwTeam} label={`KSC Wiedikon ${kscwTeam}`} size="sm" />
+                          {kscwTeam ? (
+                            <TeamChip team={kscwTeam.colorKey} label={`KSC Wiedikon ${kscwTeam.label}`} size="sm" />
                           ) : (
                             <span
                               title={row.team_name || `Team ${row.team_id}`}

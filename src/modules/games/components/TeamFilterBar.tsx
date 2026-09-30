@@ -1,11 +1,18 @@
 import { useTranslation } from 'react-i18next'
 import TeamMultiSelect from '../../../components/TeamMultiSelect'
-import { teamColors, teamSport } from '../../../utils/teamColors'
 import type { SportView } from '../../../hooks/useSportPreference'
 
-const TEAM_ORDER = Object.keys(teamColors).filter((k) => k !== 'Other')
+/** An active `teams` row — the filter's options come from the DB, not from the
+ *  hardcoded `teamColors` keys (those are `BB-`-prefixed shortcodes that never
+ *  equal a real name like "Rhinos D3" or "HU23-1", which left non-admins with an
+ *  empty drop-down). */
+export interface TeamFilterTeam {
+  name: string
+  sport?: 'volleyball' | 'basketball' | null
+}
 
 interface TeamFilterBarProps {
+  teams: readonly TeamFilterTeam[]
   selected: string[]
   onChange: (selected: string[]) => void
   multiSelect?: boolean
@@ -18,6 +25,7 @@ interface TeamFilterBarProps {
 }
 
 export default function TeamFilterBar({
+  teams,
   selected,
   onChange,
   sport = 'all',
@@ -27,37 +35,29 @@ export default function TeamFilterBar({
   const { t } = useTranslation('common')
 
   // Filter team chips by sport (and optionally by user's teams)
-  const visibleTeams = TEAM_ORDER.filter((team) => {
-    if (limitToTeams && !limitToTeams.includes(team)) return false
+  const visibleTeams = teams.filter((team) => {
+    if (limitToTeams && !limitToTeams.includes(team.name)) return false
     if (sport === 'all') return true
-    const s = teamSport[team]
-    if (!s) return false
-    return sport === 'vb' ? s === 'volleyball' : s === 'basketball'
+    return sport === 'vb' ? team.sport === 'volleyball' : team.sport === 'basketball'
   })
 
   const showGroups = sport === 'all'
 
-  const options = visibleTeams.map((team) => {
-    const s = teamSport[team]
-    // When showing both sports: prefix VB- for volleyball, keep BB- for basketball
-    let label: string
-    if (showGroups) {
-      label = s === 'volleyball' ? `VB-${team}` : team
-    } else if (sport === 'bb') {
-      label = team.replace(/^BB-/, '')
-    } else {
-      label = team
-    }
-
-    return {
-      value: team,
-      label,
-      colorKey: team,
+  // Volleyball first, then basketball (grouped by sport — team names alone
+  // don't say which: "D3" is volleyball, "Rhinos D3" basketball).
+  const sportRank = (s: TeamFilterTeam['sport']) => (s === 'volleyball' ? 0 : s === 'basketball' ? 1 : 2)
+  const options = [...visibleTeams]
+    .sort((a, b) => sportRank(a.sport) - sportRank(b.sport) || a.name.localeCompare(b.name, 'de-CH', { numeric: true }))
+    .map((team) => ({
+      value: team.name,
+      label: team.name,
+      // teamColors keys basketball under a `BB-` prefix; getTeamColor resolves
+      // long BB names ("Herren 1 H1") from there.
+      colorKey: team.sport === 'basketball' ? `BB-${team.name}` : team.name,
       group: showGroups
-        ? (s === 'volleyball' ? t('volleyball') : t('basketball'))
+        ? (team.sport === 'volleyball' ? t('volleyball') : t('basketball'))
         : undefined,
-    }
-  })
+    }))
 
   // In single-select mode, collapse the next array to a single membership:
   // pick the newest addition (or fall back to the last entry / empty).

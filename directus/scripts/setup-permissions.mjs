@@ -899,6 +899,12 @@ const PUBLIC_TEAM_FIELDS = [
   // The basketball youth page splits those cards on these two: the gender being
   // taken gets the contact form, the other the waiting list. Booleans, no PII.
   'open_for_girls', 'open_for_boys',
+  // Federation team ids (Swiss Volley `vb_<id>` / Basketplan id), the key of every
+  // `rankings` row. The games page, rankings, scoreboard and the public embed use
+  // them to tell which standings rows are KSCW (useKscwRankingTeams) — replacing a
+  // hardcoded id map that drifted each season. Public on volleyball.ch /
+  // basketplan.ch, no PII.
+  'team_id', 'bb_source_id',
 ]
 
 /** Coach Dashboard prefs — readable by Coach/Team Responsible/Admin via an explicit read row. NOT added to PUBLIC_TEAM_FIELDS. */

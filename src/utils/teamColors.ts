@@ -59,56 +59,6 @@ export const teamColors: Record<string, { bg: string; text: string; border: stri
   Other: { bg: '#6b7280', text: '#ffffff', border: '#4b5563' },
 }
 
-/** Maps team short names to their sport. Keys without 'BB-' prefix are volleyball. */
-export const teamSport: Record<string, 'volleyball' | 'basketball'> = {
-  H1: 'volleyball', H2: 'volleyball', H3: 'volleyball',
-  HU20: 'volleyball', HU23: 'volleyball', Legends: 'volleyball',
-  D1: 'volleyball', D2: 'volleyball', D3: 'volleyball', D4: 'volleyball',
-  DU23: 'volleyball',
-  'BB-H1': 'basketball', 'BB-H3': 'basketball', 'BB-H4': 'basketball',
-  'BB-H-Classics': 'basketball',
-  'BB-D1': 'basketball', 'BB-D3': 'basketball', 'BB-D-Classics': 'basketball',
-  'BB-HU18': 'basketball', 'BB-HU16': 'basketball', 'BB-HU14': 'basketball', 'BB-HU12': 'basketball',
-  'BB-DU18': 'basketball', 'BB-DU16': 'basketball', 'BB-DU14': 'basketball',
-  'BB-DU12': 'basketball', 'BB-DU10': 'basketball',
-  'BB-MU10': 'basketball', 'BB-MU8': 'basketball',
-  'BB-Lions D1': 'basketball', 'BB-Lions D3': 'basketball',
-  'BB-Rhinos D1': 'basketball', 'BB-Rhinos D3': 'basketball',
-}
-
-export const teamIds: Record<string, string> = {
-  // Volleyball (vb_{swiss_volley_id})
-  'vb_12747': 'H3',
-  'vb_1394': 'D4',
-  'vb_14040': 'DU23-2',
-  'vb_7563': 'HU23-1',
-  'vb_1393': 'D2',
-  'vb_541': 'H2',
-  'vb_6023': 'Legends',
-  'vb_4689': 'D3',
-  'vb_2743': 'H1',
-  'vb_1395': 'D1',
-  'vb_2301': 'DU23-1',
-  // Basketball (bb_{basketplan_id})
-  'bb_1348': 'BB-H1',
-  'bb_4829': 'BB-H3',
-  'bb_7183': 'BB-H4',
-  'bb_4934': 'BB-D-Classics',
-  'bb_4935': 'BB-H-Classics',
-  'bb_4445': 'BB-Lions D1',
-  'bb_1077': 'BB-Rhinos D3',
-  'bb_5104': 'BB-DU12',
-  'bb_5441': 'BB-DU14',
-  'bb_7182': 'BB-DU16',
-  'bb_5697': 'BB-DU18',
-  'bb_5791': 'BB-HU12',
-  'bb_5790': 'BB-HU14',
-  'bb_5498': 'BB-HU16',
-  'bb_5789': 'BB-HU18',
-  'bb_5287': 'BB-MU10',
-  'bb_6724': 'BB-MU8',
-}
-
 const fallbackColor = { bg: '#6b7280', text: '#ffffff', border: '#4b5563' }
 
 /**

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import type { Game, Ranking } from '../../types'
 import { useCollection } from '../../lib/query'
-import { teamIds } from '../../utils/teamColors'
+import { useKscwRankingTeams } from '../../hooks/useKscwRankingTeams'
 import { todayLocal } from '../../utils/dateHelpers'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import GameTabs from './components/GameTabs'
@@ -67,6 +67,7 @@ export default function EmbedGamesPage() {
     limit: 2000,
   })
   const allRankings = allRankingsRaw ?? []
+  const kscwTeams = useKscwRankingTeams()
 
   const leagueGroups = useMemo(() => {
     const grouped = new Map<string, Ranking[]>()
@@ -78,10 +79,11 @@ export default function EmbedGamesPage() {
 
     if (!teamParam) return grouped
 
-    // Filter to leagues containing the selected team
+    // Filter to leagues containing the selected team — same name-contains
+    // match as the games query above (`?team=HU23` covers "HU23-1").
     const selectedSvIds = new Set(
-      Object.entries(teamIds)
-        .filter(([, code]) => code.replace(/-\d+$/, '') === teamParam)
+      [...kscwTeams]
+        .filter(([, team]) => team.name.toUpperCase().includes(teamParam))
         .map(([id]) => id),
     )
 
@@ -92,7 +94,7 @@ export default function EmbedGamesPage() {
       }
     }
     return filtered
-  }, [allRankings, teamParam])
+  }, [allRankings, teamParam, kscwTeams])
 
   const isLoading = activeTab === 'rankings' ? rankingsLoading : gamesLoading
 
