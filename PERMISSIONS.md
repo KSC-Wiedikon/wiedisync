@@ -133,7 +133,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 | Collection | Action | Filter | Notes |
 |---|---|---|---|
-| teams | read | `active = true` | Limited fields (`PUBLIC_TEAM_FIELDS`). 2026-07-03: added `waitlist_url` + `waitlist_label` (non-PII public Google-Form link + button label) so the website contact form + basketball youth page detect "full" teams and route to the waiting list instead of emailing the coach/youth coordinator. |
+| teams | read | `active = true` | Limited fields (`PUBLIC_TEAM_FIELDS`). 2026-07-03: added `waitlist_url` + `waitlist_label` (non-PII public Google-Form link + button label) so the website contact form + basketball youth page detect "full" teams and route to the waiting list instead of emailing the coach/youth coordinator. 2026-09-30: added `team_id` + `bb_source_id` (public federation team ids, the key of `rankings` rows) so the games page / rankings / scoreboard / public embed identify KSCW standings rows from the DB instead of a hardcoded map. |
 | games | read | none | Limited fields (`PUBLIC_GAME_FIELDS`). Internal ops columns stay out: duty assignments, `auto_confirm_rsvp`, and (migration 206) `auto_nomination_list` + the `vm_nomination_*` journal, and (migration 395) the `provisional_*` result + `vm_result_*` / `vm_opponent_report` journal — the website shows official results only |
 | rankings | read | none | |
 | sponsors | read | `active = true` | |

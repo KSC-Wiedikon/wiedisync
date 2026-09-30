@@ -13,7 +13,7 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useQuery } from '@tanstack/react-query'
-import { teamIds } from '../../utils/teamColors'
+import { useKscwRankingTeams } from '../../hooks/useKscwRankingTeams'
 import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
 import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
@@ -144,7 +144,7 @@ export default function GamesPage() {
   // Active teams only: after a rollover both the archived and the new team
   // share a name, and an arbitrary tie-break could resolve name→archived id,
   // making the games filter return nothing (games re-sync onto the active team).
-  const { data: allTeamsRaw, isLoading: allTeamsLoading } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name'], filter: { active: { _eq: true } } })
+  const { data: allTeamsRaw, isLoading: allTeamsLoading } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name', 'sport'], filter: { active: { _eq: true } } })
   const allTeams = allTeamsRaw ?? []
   const teamNameToId = useMemo(() => {
     const map = new Map<string, string>()
@@ -394,17 +394,14 @@ export default function GamesPage() {
 
   // Ranking team_ids of the teams in the filter — scopes both which leagues show
   // and which games a standings row's drill-down lists.
+  const kscwTeams = useKscwRankingTeams()
   const effectiveTeamsKey = effectiveTeams.join('|')
   const selectedSvIds = useMemo(() => {
-    const names = effectiveTeamsKey ? effectiveTeamsKey.split('|') : []
+    const names = new Set(effectiveTeamsKey ? effectiveTeamsKey.split('|') : [])
     return new Set(
-      names.flatMap((t) =>
-        Object.entries(teamIds)
-          .filter(([, code]) => code.replace(/-\d+$/, '') === t)
-          .map(([id]) => id),
-      ),
+      [...kscwTeams].filter(([, team]) => names.has(team.name)).map(([id]) => id),
     )
-  }, [effectiveTeamsKey])
+  }, [effectiveTeamsKey, kscwTeams])
 
   const leagueGroups = useMemo(() => {
     const grouped = new Map<string, Ranking[]>()
@@ -427,7 +424,7 @@ export default function GamesPage() {
     if (sport === 'bb' || sport === 'all') {
       for (const [league, rows] of grouped) {
         const isBbLeague = rows.some((r) => r.team_id.startsWith('bb_'))
-        if (isBbLeague && !rows.some((r) => teamIds[r.team_id])) {
+        if (isBbLeague && !rows.some((r) => kscwTeams.has(r.team_id))) {
           grouped.delete(league)
         }
       }
@@ -443,7 +440,7 @@ export default function GamesPage() {
       }
     }
     return filtered
-  }, [allRankings, effectiveTeams.length, selectedSvIds, sport])
+  }, [allRankings, effectiveTeams.length, selectedSvIds, sport, kscwTeams])
 
   // Games tabs render from games + the active-teams map (name→id) + auth team
   // context — gate on ALL of them so cards never pop in over a half-built view.
@@ -546,7 +543,7 @@ export default function GamesPage() {
           </div>
         )}
         <div>
-          <TeamFilterBar selected={selectedTeams} onChange={setSelectedTeams} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
+          <TeamFilterBar teams={allTeams} selected={selectedTeams} onChange={setSelectedTeams} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
         </div>
         <div>
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />

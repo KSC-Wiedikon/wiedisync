@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Ranking } from '../../../types'
 import TeamChip from '../../../components/TeamChip'
 import { Button } from '@/components/ui/button'
-import { teamIds } from '../../../utils/teamColors'
+import { useKscwRankingTeams } from '../../../hooks/useKscwRankingTeams'
 import { formatNumberSwiss } from '../../../utils/formatNumber'
 
 type SportKey = 'volleyball' | 'basketball'
@@ -46,6 +46,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
   const { t } = useTranslation('games')
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const [mode, setMode] = useState<ScoreboardMode>('perGame')
+  const kscwTeams = useKscwRankingTeams()
 
   const sections = useMemo<ScoreboardSection[]>(() => {
     const out: ScoreboardSection[] = []
@@ -54,7 +55,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
       const metrics = getMetricsForSport(sportKey)
       const rows = rankings.filter((row) => {
         const isSport = sportKey === 'volleyball' ? row.team_id.startsWith('vb_') : row.team_id.startsWith('bb_')
-        return isSport && !!teamIds[row.team_id]
+        return isSport && kscwTeams.has(row.team_id)
       })
 
       if (rows.length < 2) {
@@ -100,7 +101,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
     }
 
     return out
-  }, [rankings])
+  }, [rankings, kscwTeams])
 
   // Derive the per-metric ranking rows + totals once per (sections, mode) instead
   // of recomputing them inside the JSX map on every render (e.g. row expand/collapse).
@@ -220,12 +221,12 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                               ) : (
                                 <div className="flex min-w-0 flex-wrap justify-start gap-1.5">
                                   {topTeams.map((entry) => {
-                                    const shortTeam = teamIds[entry.teamId]
-                                    if (!shortTeam) return null
+                                    const kscwTeam = kscwTeams.get(entry.teamId)
+                                    if (!kscwTeam) return null
                                     const valueLabel = leaderPercent === null
-                                      ? `${shortTeam} - ${formatValue(topValue, mode)}`
-                                      : `${shortTeam} - ${formatValue(topValue, mode)} (${leaderPercent}%)`
-                                    return <TeamChip key={entry.teamId} team={shortTeam} size="sm" label={valueLabel} />
+                                      ? `${kscwTeam.label} - ${formatValue(topValue, mode)}`
+                                      : `${kscwTeam.label} - ${formatValue(topValue, mode)} (${leaderPercent}%)`
+                                    return <TeamChip key={entry.teamId} team={kscwTeam.colorKey} size="sm" label={valueLabel} />
                                   })}
                                 </div>
                               )}
@@ -250,8 +251,8 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                                       </thead>
                                       <tbody className="divide-y divide-border/60">
                                         {rankingRows.map((entry, idx) => {
-                                          const shortTeam = teamIds[entry.teamId]
-                                          if (!shortTeam) return null
+                                          const kscwTeam = kscwTeams.get(entry.teamId)
+                                          if (!kscwTeam) return null
                                           const prev = idx > 0 ? rankingRows[idx - 1] : null
                                           const rank = prev && prev.value === entry.value ? idx : idx + 1
                                           const pct = mode === 'absolute' && total > 0 ? Math.round((entry.value / total) * 100) : null
@@ -260,7 +261,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                                               <td className="px-2 py-1.5 text-center text-xs tabular-nums text-muted-foreground">#{rank}</td>
                                               <td className="px-2 py-1.5 text-left">
                                                 <span className="inline-flex">
-                                                  <TeamChip team={shortTeam} size="sm" label={shortTeam} />
+                                                  <TeamChip team={kscwTeam.colorKey} size="sm" label={kscwTeam.label} />
                                                 </span>
                                               </td>
                                               <td className="px-2 py-1.5 text-center font-medium tabular-nums text-foreground/85">

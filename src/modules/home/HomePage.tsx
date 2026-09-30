@@ -1203,7 +1203,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     title = <TeamPair home={g.home_team} away={g.away_team} emphasis={kscwSide(g)} />
     if (appointment.type === 'game') {
       coachIds = teamCoachIds(asObj<Team>(g.kscw_team))
-      // Games are the headline of the list: gold icon (+ gold edge below).
+      // Games are the headline of the list: gold icon (+ gold wash below).
       icon = gameIcon(g, 'h-4 w-4 shrink-0 text-gold-600 dark:text-gold-400')
     } else {
       chips = <RowChip tone="amber">{appointment.roleLabel}</RowChip>
@@ -1245,9 +1245,9 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
       status={icon}
       chips={chips}
       // A duty is "this needs you" — highlighted, and the role chip says why.
-      // A game gets a gold edge on the far left (inset shadow: no layout shift).
+      // A game gets a faint gold wash — no extra line next to the RSVP stripe.
       className={appointment.type === 'duty' ? ROW_HIGHLIGHT.amber
-        : appointment.type === 'game' ? 'rounded-l-sm shadow-[inset_3px_0_0_var(--color-gold-500)] dark:shadow-[inset_3px_0_0_var(--color-gold-400)]'
+        : appointment.type === 'game' ? 'rounded-md bg-gold-50/70 dark:bg-gold-400/[0.06]'
         : undefined}
     >
       {body}
