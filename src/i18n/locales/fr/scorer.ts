@@ -82,6 +82,7 @@ export default {
   selfAssign: 'M\'inscrire',
   selfAssignSuccess: 'Inscrit — à bientôt !',
   selfAssignError: 'Inscription impossible — déjà pris, ou tu n\'es pas éligible.',
+  selfAssignClash: 'Tu as déjà une tâche à cette heure-là.',
   confirmSelfAssignTitle: 'Confirmer l\'attribution',
   confirmSelfAssignMessage: 'Vous vous inscrivez en tant que <strong>{{role}}</strong> pour <strong>{{game}}</strong> le <strong>{{date}}</strong>.',
   confirmSelfAssignArrival_scorer: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',

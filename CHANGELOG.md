@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.26.0 — 2026-10-01
+
+### New
+
+- **Family view for parents.** *Home → Family* (or the account switcher). If your children are linked to your account, you see all their games, trainings and events for the next 3 weeks on one page and answer Yes / Maybe / No for each child right there — no more switching accounts. Deadlines, reasons for absence and who is invited work exactly as in the app.
+
+### Fixed
+
+- Scorer duties: if you hold a basketball scorer or timekeeper seat, the Delegate button now shows up. You can no longer take two duties at the same time (another seat on the same game, or a game starting less than 2 hours apart).
+- Scorer page: the coloured band now runs along the whole game, and the duty boxes all have the same height.
+
 ## v2.25.0 — 2026-09-29
 
 ### New

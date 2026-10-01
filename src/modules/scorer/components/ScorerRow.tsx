@@ -14,6 +14,7 @@ import { currentLocale, formatTime, formatDayMonthZurich, formatWeekdayZurich, t
 import { Calendar, MapPin, Clock, AlertTriangle, Users, Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ActivityRow, DateRail, RowChip, TeamPair } from '@/components/ActivityRow'
+import { hasApiErrorCode } from '@/lib/apiErrorCode'
 import type { RowTone } from '@/components/activityRowTokens'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import { useNow } from '../../../hooks/useNow'
@@ -100,6 +101,16 @@ function handleExportICal(game: ExpandedGame, title: string) {
 type VbAssignRole = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee'
 type BbAssignRole = 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
 type AssignRole = VbAssignRole | BbAssignRole
+
+// ⚠ A BB role is NOT its column: the scorer + timekeeper seats are
+// `bb_scorer_member` / `bb_timekeeper_member`; only the 24s seat is named like
+// its role. Reading `game[role]` made both look empty forever — no Delegate
+// button for the person on the seat, a Self-assign offer on a taken one.
+const BB_SEAT_COL: Record<BbAssignRole, 'bb_scorer_member' | 'bb_timekeeper_member' | 'bb_24s_official'> = {
+  bb_scorer: 'bb_scorer_member',
+  bb_timekeeper: 'bb_timekeeper_member',
+  bb_24s_official: 'bb_24s_official',
+}
 
 // Per-role "confirmed by"/at columns (migration 123/182), keyed by assign role.
 const CONFIRM_COLS: Record<AssignRole, { byName: keyof Game; at: keyof Game }> = {
@@ -237,7 +248,7 @@ export default function ScorerRow({
       if ((bbRole === 'bb_scorer' || bbRole === 'bb_timekeeper') && !BB_OTR1_OR_HIGHER.some((l) => userLicences.includes(l))) return false
       // OTR2 or either OTN level opens the 24s desk.
       if (bbRole === 'bb_24s_official' && !BB_OTR2_OR_HIGHER.some((l) => userLicences.includes(l))) return false
-      const currentPerson = game[bbRole]
+      const currentPerson = game[BB_SEAT_COL[bbRole]]
       if (currentPerson) return false
       // Any team sharing the game's duty may take the seat (migration 371).
       return bbSeatDutyTeamIds(game, bbRole).some((tid) => userTeamIds.includes(tid))
@@ -253,9 +264,9 @@ export default function ScorerRow({
     try {
       await kscwApi(`/games/${game.id}/duty-claim`, { method: 'POST', body: { role } })
       toast.success(t('selfAssignSuccess'))
-    } catch {
-      // 409 (someone else just took it), 403 (licence/team), etc.
-      toast.error(t('selfAssignError'))
+    } catch (err) {
+      // 409 (someone else just took it / a clashing duty), 403 (licence/team), etc.
+      toast.error(hasApiErrorCode(err, 'duty_clash') ? t('selfAssignClash') : t('selfAssignError'))
     } finally {
       onRefetch?.()
     }
@@ -315,7 +326,7 @@ export default function ScorerRow({
       if (role === 'referee') return game.referee_member === userId
       return game.scorer_scoreboard_member === userId
     }
-    return game[role as BbAssignRole] === userId
+    return game[BB_SEAT_COL[role as BbAssignRole]] === userId
   }
 
   // Get pending delegation name for a role

@@ -1068,6 +1068,8 @@ const EXPECTED_ERROR_CODES = new Set([
   'push_running',
   'invalid_sets',
   'not_participant',
+  // Scorer duty self-claim (scorer-claim.js): already on a clashing seat.
+  'duty_clash',
 ])
 
 /**

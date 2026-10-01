@@ -82,6 +82,7 @@ export default {
   selfAssign: 'Ich übernehme',
   selfAssignSuccess: 'Angemeldet — bis dann!',
   selfAssignError: 'Anmeldung fehlgeschlagen (evtl. gerade vergeben oder nicht berechtigt).',
+  selfAssignClash: 'Du hast zu dieser Zeit schon einen Einsatz.',
   confirmSelfAssignTitle: 'Einsatz bestätigen',
   confirmSelfAssignMessage: 'Du meldest dich als <strong>{{role}}</strong> für das Spiel <strong>{{game}}</strong> am <strong>{{date}}</strong> an.',
   confirmSelfAssignArrival_scorer: 'Du musst spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',

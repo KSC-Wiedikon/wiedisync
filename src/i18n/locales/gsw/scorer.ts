@@ -82,6 +82,7 @@ export default {
   selfAssign: 'Ich übernimm',
   selfAssignSuccess: 'Aagmäldet — bis denn!',
   selfAssignError: 'Aamäldig het nöd klappt (evtl. grad vergä oder nöd berächtigt).',
+  selfAssignClash: 'Du hesch zu dere Ziit scho en Iisatz.',
   confirmSelfAssignTitle: 'Iisatz bestätige',
   confirmSelfAssignMessage: 'Du mäldsch di als <strong>{{role}}</strong> für s Spiel <strong>{{game}}</strong> am <strong>{{date}}</strong> aa.',
   confirmSelfAssignArrival_scorer: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
