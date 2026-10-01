@@ -23,6 +23,7 @@ import MatchRosterPage from './modules/games/MatchRosterPage'
 import LivePage from './modules/live/LivePage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
 import AbsencesPage from './modules/absences/AbsencesPage'
+import FamilyPage from './modules/family/FamilyPage'
 import ScorerPage from './modules/scorer/ScorerPage'
 import CalendarPage from './modules/calendar/CalendarPage'
 import HomePage from './modules/home/HomePage'
@@ -233,6 +234,7 @@ export default function App() {
             <Route path="trainings" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="trainings/:trainingId" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="absences" element={<AuthRoute><AbsencesPage /></AuthRoute>} />
+            <Route path="family" element={<AuthRoute><FamilyPage /></AuthRoute>} />
             <Route path="scorer" element={<AuthRoute><ScorerPage /></AuthRoute>} />
             <Route path="teams" element={<AuthRoute><TeamsPage /></AuthRoute>} />
             <Route path="teams/:teamSlug" element={<AuthRoute><TeamDetail /></AuthRoute>} />

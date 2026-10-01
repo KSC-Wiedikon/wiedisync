@@ -59,3 +59,26 @@ export function isActingEchoMismatch(ok: boolean, echoed: string | null, sentId:
   const expected = sentId == null ? null : String(sentId)
   return echoed !== expected
 }
+
+/**
+ * The headers an SDK request goes out with. Precedence, per request:
+ *   1. the owner marker (`asOwner`) → stripped, no acting header at all;
+ *   2. an acting header the command already carries (`asMember`) → kept as is —
+ *      the family view answers for several children without switching;
+ *   3. otherwise the app-wide acting id, if any.
+ */
+export function resolveActingHeaders(
+  headers: Record<string, string>,
+  appActingId: number | null,
+  ownerMarker: string,
+): Record<string, string> {
+  const out = { ...headers }
+  if (out[ownerMarker]) {
+    delete out[ownerMarker]
+    delete out[ACTING_HEADER]
+    return out
+  }
+  if (out[ACTING_HEADER]) return out
+  if (appActingId != null) out[ACTING_HEADER] = String(appActingId)
+  return out
+}

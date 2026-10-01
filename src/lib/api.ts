@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import i18n from '../i18n'
 import { captureApiError, captureAuthError } from './sentry'
 import {
-  ACTING_HEADER, ACTING_DENIED_CODE, actingRefusalScope, sentActingId, isActingDeniedError, isActingEchoMismatch,
+  ACTING_HEADER, ACTING_DENIED_CODE, actingRefusalScope, sentActingId, isActingDeniedError, isActingEchoMismatch, resolveActingHeaders,
 } from './acting'
 // Pure predicate, kept in its own module so it is unit-testable without mocking
 // this one. Re-exported so existing `from './api'` call sites keep working.
@@ -145,15 +145,12 @@ export const client = createDirectus(SDK_BASE, { globals: { fetch: actingAwareFe
     // marker is stripped here and the request goes out as the session owner.
     // The command-level onRequest runs BEFORE this one, so the marker is always
     // visible by the time we get here.
-    onRequest: (options) => {
-      const headers = { ...(options.headers as Record<string, string>) }
-      if (headers[NO_ACTING_MARKER]) {
-        delete headers[NO_ACTING_MARKER]
-        return { ...options, headers }
-      }
-      if (_actingMemberId == null) return options
-      return { ...options, headers: { ...headers, [ACTING_HEADER]: String(_actingMemberId) } }
-    },
+    // A command built with `asMember()` already names its member (the family
+    // view) and keeps it — see resolveActingHeaders for the precedence.
+    onRequest: (options) => ({
+      ...options,
+      headers: resolveActingHeaders({ ...(options.headers as Record<string, string>) }, _actingMemberId, NO_ACTING_MARKER),
+    }),
   }))
   .with(realtime({
     // The Directus SDK detects URL overrides with `'url' in config` — passing
@@ -395,6 +392,29 @@ function asOwner<C extends () => any>(command: C): C {
     ...opts,
     headers: { ...(opts.headers as Record<string, string>), [NO_ACTING_MARKER]: '1' },
   })) as C
+}
+
+/**
+ * Send ONE command as a household member, whatever the app is currently acting
+ * as. The server resolves it exactly like a switched request (grant check,
+ * staff re-check, audit), so this narrows like the switch does and can never
+ * reach a member the login may not act for. Used by the family view, which
+ * answers for several children on one screen.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asMember<C extends () => any>(memberId: number, command: C): C {
+  return withOptions(command, (opts: RequestInit) => ({
+    ...opts,
+    headers: { ...(opts.headers as Record<string, string>), [ACTING_HEADER]: String(memberId) },
+  })) as C
+}
+
+/** Per-call identity for the data helpers: `actAs` wins over `asOwner`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function scoped<C extends () => any>(command: C, opts?: { asOwner?: boolean; actAs?: number }): C {
+  if (opts?.actAs != null) return asMember(opts.actAs, command)
+  if (opts?.asOwner) return asOwner(command)
+  return command
 }
 
 /**
@@ -685,6 +705,8 @@ export async function fetchItems<T = Record<string, unknown>>(
     optional?: boolean
     /** Send as the session owner even while acting (see `asOwner`). */
     asOwner?: boolean
+    /** Send as this household member (see `asMember`). */
+    actAs?: number
   },
 ): Promise<T[]> {
   const q: Record<string, unknown> = {}
@@ -697,7 +719,7 @@ export async function fetchItems<T = Record<string, unknown>>(
   if (query?.search) q.search = query.search
   try {
     return await withAuthRetry(() =>
-      client.request<T[]>(query?.asOwner ? asOwner(readItems(collection, q as never)) : readItems(collection, q as never)).then(stringifyIds),
+      client.request<T[]>(scoped(readItems(collection, q as never), query)).then(stringifyIds),
     )
   } catch (err) {
     // A refused acting request was already handled (reset + toast) on its way
@@ -830,11 +852,11 @@ export async function aggregateItems<R = Record<string, unknown>>(
 export async function createRecord<T = Record<string, unknown>>(
   collection: string,
   data: Record<string, unknown>,
-  opts: { silentOnUnique?: boolean } = {},
+  opts: { silentOnUnique?: boolean; actAs?: number } = {},
 ): Promise<T> {
   assertWritable()
   try {
-    const item = await client.request<T>(createItem(collection, data as never))
+    const item = await client.request<T>(scoped(createItem(collection, data as never), opts))
     return stringifyId(item)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -877,11 +899,12 @@ export async function updateRecord<T = Record<string, unknown>>(
   collection: string,
   id: string | number,
   data: Record<string, unknown>,
-  query?: { fields?: string[] },
+  query?: { fields?: string[]; actAs?: number },
 ): Promise<T> {
   assertWritable()
   try {
-    const item = await client.request<T>(updateItem(collection, id, data as never, query as never))
+    const q = query?.fields ? { fields: query.fields } : undefined
+    const item = await client.request<T>(scoped(updateItem(collection, id, data as never, q as never), query))
     return stringifyId(item)
   } catch (err) {
     captureApiError(err, { operation: 'updateRecord', collection, recordId: id, payload: data })
