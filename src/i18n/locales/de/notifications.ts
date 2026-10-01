@@ -23,6 +23,7 @@ export default {
   expense_paid: 'Deine Spesen über {{amount}} wurden bezahlt.',
   expense_rejected: 'Deine Spesen über {{amount}} wurden abgelehnt.',
   // Delegation notification messages
+  duty_assigned: '{{by}} hat dich fürs Kampfgericht eingeteilt: {{game}} am {{date}}.',
   duty_delegation_request: '{{from}} möchte dir den {{role}}-Einsatz für {{game}} am {{date}} übergeben.',
   duty_delegation_accepted: '{{to}} hat den {{role}}-Einsatz für {{game}} übernommen.',
   duty_delegation_declined: '{{to}} hat die Einsatz-Anfrage für {{game}} abgelehnt.',

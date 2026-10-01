@@ -23,3 +23,10 @@ test('other people and unknown times do not clash', () => {
   assert.equal(findDutyClash(g(2, '14:30'), 7, [g(1, '14:00', { scorer_member: 8 })]), null)
   assert.equal(findDutyClash(g(2, null), 7, [g(1, '14:00', { scorer_member: 7 })]), null)
 })
+
+import { isJuniorTeamName } from '../../extensions/kscw-endpoints/src/scorer-claim.js'
+
+test('junior = U-age in the team name (same rule as game-scheduling)', () => {
+  for (const n of ['HU16', 'DU18 Fire', 'MU10', 'DU12']) assert.equal(isJuniorTeamName(n), true, n)
+  for (const n of ['Herren 1', 'Herren 3 (Unicorns)', 'Lions D1', 'Rhinos D3', 'H-Classics 1LR', null]) assert.equal(isJuniorTeamName(n), false, String(n))
+})

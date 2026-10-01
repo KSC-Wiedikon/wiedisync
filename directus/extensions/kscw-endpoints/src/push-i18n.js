@@ -160,6 +160,20 @@ const T = {
     fr: 'Ta note de frais de {amount} a été refusée',
     it: 'La tua spesa di {amount} è stata respinta',
   },
+  'dutyAssigned.title': {
+    de: 'Neuer Einsatz am Kampfgericht',
+    gsw: 'Neue Iisatz am Kampfgricht',
+    en: 'New table duty',
+    fr: 'Nouvelle tâche à la table de marque',
+    it: 'Nuovo incarico al tavolo',
+  },
+  'dutyAssigned.body': {
+    de: '{by} hat dich eingeteilt: {game} am {date}',
+    gsw: '{by} het dich iiteilt: {game} am {date}',
+    en: '{by} assigned you: {game} on {date}',
+    fr: '{by} t\'a inscrit·e : {game} le {date}',
+    it: '{by} ti ha assegnato: {game} il {date}',
+  },
   'delegation.accepted.title': {
     de: 'Delegation angenommen',
     gsw: 'Delegation aagnoh',

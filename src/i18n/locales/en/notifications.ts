@@ -23,6 +23,7 @@ export default {
   expense_paid: 'Your expense of {{amount}} has been paid.',
   expense_rejected: 'Your expense of {{amount}} was rejected.',
   // Delegation notification messages
+  duty_assigned: '{{by}} assigned you a table duty: {{game}} on {{date}}.',
   duty_delegation_request: '{{from}} wants to delegate the {{role}} duty for {{game}} on {{date}} to you.',
   duty_delegation_accepted: '{{to}} accepted the {{role}} duty for {{game}}.',
   duty_delegation_declined: '{{to}} declined the duty request for {{game}}.',

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import DOMPurify from 'dompurify'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ import { hasApiErrorCode } from '@/lib/apiErrorCode'
 import type { RowTone } from '@/components/activityRowTokens'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import { useNow } from '../../../hooks/useNow'
+import { useAuth } from '../../../hooks/useAuth'
 import RosterModal from './RosterModal'
 import { TeamPickerMulti } from '@/components/ui/TeamPicker'
 import { bbGameDutyTeamIds, bbSeatDutyTeamIds, bbDutyTeamsPayload } from '../lib/bbDutyTeams'
@@ -169,6 +170,54 @@ export default function ScorerRow({
   // Admins assign/clear duties via the dropdowns; clearing a person de-confirms
   // that one duty. Disabled once the game has started.
   const effectiveCanEdit = canEdit && !isGamePast
+
+  // ── Junior BB teams: the coach / TR puts a player on a seat directly ──
+  // (HU16 request, 01.10.2026; server: /games/:id/duty-assign). Only for a seat
+  // whose duty pool holds a junior BB team this user coaches or is TR of, and
+  // only while the seat is empty or held by one of that team's core players —
+  // anyone else's seat stays read-only.
+  const { coachTeamIds, teamResponsibleIds } = useAuth()
+  const staffTeamIds = useMemo(
+    () => new Set([...coachTeamIds, ...teamResponsibleIds].map(String)),
+    [coachTeamIds, teamResponsibleIds],
+  )
+  function juniorStaffTeamFor(role: BbAssignRole): string | null {
+    if (sport !== 'basketball' || effectiveCanEdit || isGamePast || !staffTeamIds.size) return null
+    for (const tid of bbSeatDutyTeamIds(game, role)) {
+      const tm = teams.find((x) => String(x.id) === tid)
+      if (tm && tm.sport === 'basketball' && tm.active !== false && /u\d/i.test(tm.name ?? '') && staffTeamIds.has(tid)) return tid
+    }
+    return null
+  }
+  const corePlayersOf = (teamId: string) => new Set(
+    memberTeams.filter((mt) => String(mt.team) === teamId && !((mt.guest_level ?? 0) > 0)).map((mt) => String(mt.member)),
+  )
+  /** Props that turn a BB seat into the junior-staff picker, or {} when it isn't one. */
+  function juniorStaffProps(role: BbAssignRole) {
+    const tid = juniorStaffTeamFor(role)
+    if (!tid) return {}
+    const players = corePlayersOf(tid)
+    const holder = game[BB_SEAT_COL[role]]
+    if (holder && !players.has(String(holder))) return {}
+    return {
+      canEdit: true,
+      disabled: false,
+      teamPool: [tid],
+      members: members.filter((m) => players.has(String(m.id))),
+      onPersonChange: (v: string) => { void handleStaffAssign(role, v) },
+      onDelegate: undefined,
+    }
+  }
+  async function handleStaffAssign(role: BbAssignRole, memberId: string) {
+    try {
+      await kscwApi(`/games/${game.id}/duty-assign`, { method: 'POST', body: { role, member: memberId || null } })
+      toast.success(memberId ? t('staffAssignSuccess') : t('staffUnassignSuccess'))
+    } catch (err) {
+      toast.error(hasApiErrorCode(err, 'duty_clash') ? t('staffAssignClash') : t('staffAssignError'))
+    } finally {
+      onRefetch?.()
+    }
+  }
 
   const vbCombined = isVbCombinedMode(game)
   // HU20 games are scorer + referee (data-driven: referee_duty_team is written
@@ -508,6 +557,7 @@ export default function ScorerRow({
               confirmedByName={game.bb_scorer_confirmed_by_name}
               confirmedAt={game.bb_scorer_confirmed_at}
               showConfirmedBy={isAdmin}
+              {...juniorStaffProps('bb_scorer')}
             />
             <AssignmentEditor
               label={t('bbTimekeeper')}
@@ -535,6 +585,7 @@ export default function ScorerRow({
               confirmedByName={game.bb_timekeeper_confirmed_by_name}
               confirmedAt={game.bb_timekeeper_confirmed_at}
               showConfirmedBy={isAdmin}
+              {...juniorStaffProps('bb_timekeeper')}
             />
             {show24s ? (
               <AssignmentEditor
@@ -563,6 +614,7 @@ export default function ScorerRow({
                 confirmedByName={game.bb_24s_confirmed_by_name}
                 confirmedAt={game.bb_24s_confirmed_at}
                 showConfirmedBy={isAdmin}
+                {...juniorStaffProps('bb_24s_official')}
                 onHide={!game.bb_24s_official && !requires24s ? () => setShow24s(false) : undefined}
               />
             ) : (

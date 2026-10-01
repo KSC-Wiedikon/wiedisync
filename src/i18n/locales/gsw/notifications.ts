@@ -23,6 +23,7 @@ export default {
   expense_paid: 'Dini Spese über {{amount}} sind zahlt worde.',
   expense_rejected: 'Dini Spese über {{amount}} sind abglehnt worde.',
   // Delegation notification messages
+  duty_assigned: '{{by}} het dich fürs Kampfgricht iiteilt: {{game}} am {{date}}.',
   duty_delegation_request: '{{from}} möcht dir de {{role}}-Iisatz für {{game}} am {{date}} übergäh.',
   duty_delegation_accepted: '{{to}} hät de {{role}}-Iisatz für {{game}} übernoh.',
   duty_delegation_declined: '{{to}} hät d Iisatz-Aafrag für {{game}} abglehnt.',
