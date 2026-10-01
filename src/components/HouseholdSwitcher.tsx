@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check } from 'lucide-react'
+import { Check, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import Modal from './Modal'
 import { useAuth } from '../hooks/useAuth'
 import { HouseholdSwitcherContext } from '../hooks/useHouseholdSwitcher'
@@ -77,6 +78,17 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
             </button>
           )
         })}
+
+        {householdMembers.length > 0 && (
+          <Link
+            to="/family"
+            onClick={() => { onClose(); if (actingMember) void switchTo(null) }}
+            className="mt-2 flex min-h-[44px] items-center gap-2 rounded-xl border-t border-hairline px-2 pt-2 text-sm font-medium text-primary hover:bg-accent dark:text-brand-300"
+          >
+            <Users className="h-4 w-4" aria-hidden />
+            {t('householdFamilyView')}
+          </Link>
+        )}
       </div>
     </Modal>
   )

@@ -248,4 +248,5 @@ export default {
   householdNotWhileActing: 'Non disponibile mentre usi un altro account',
   householdSwitchTo: 'Passa a {{names}}',
   fileNotYours: 'Puoi usare solo un\'immagine che hai caricato tu',
+  householdFamilyView: 'Vista famiglia',
 }

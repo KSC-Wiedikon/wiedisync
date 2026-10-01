@@ -53,6 +53,7 @@ import YourDuesCard from '../finance/YourDuesCard'
 import YourFinesCard from '../fines/YourFinesCard'
 import HomePollsCard from '../polls/HomePollsCard'
 import HomeCarpoolCard from '../carpool/HomeCarpoolCard'
+import FamilyHomeCard from '../family/FamilyHomeCard'
 import UpcomingTicker from './components/UpcomingTicker'
 import { eventTypeLabelKey } from '../calendar/eventTypeLabel'
 import HomeDelegationCard from './components/HomeDelegationCard'
@@ -653,6 +654,9 @@ export default function HomePage() {
           onClose={() => setSelectedAnnouncement(null)}
         />
       )}
+
+      {/* Family view entry — main accounts with linked members only (null otherwise). */}
+      {user && <FamilyHomeCard />}
 
       {/* Active surveys — placed right under the news feed so polls (which
           otherwise live only on the team page) are easy to find. Renders null

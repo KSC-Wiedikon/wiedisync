@@ -246,4 +246,5 @@ export default {
   householdNotWhileActing: 'Nicht verfügbar, während du ein anderes Konto verwendest',
   householdSwitchTo: 'Wechseln zu {{names}}',
   fileNotYours: 'Du kannst nur ein Bild verwenden, das du selbst hochgeladen hast',
+  householdFamilyView: 'Familienansicht',
 }

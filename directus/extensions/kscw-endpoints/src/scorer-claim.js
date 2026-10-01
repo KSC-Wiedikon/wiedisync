@@ -42,6 +42,28 @@ const CLAIM_DEFS = {
   bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            name: 'bb_24s_confirmed_by_name',            at: 'bb_24s_confirmed_at',            lic: ['otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
 }
 
+/** Two duties whose games start less than this apart cannot both be served. */
+export const DUTY_CLASH_MS = 2 * 60 * 60 * 1000
+
+/**
+ * Does `memberId` already hold a seat that clashes with `game`? Any other seat
+ * on the SAME game always clashes (one person, one seat); a seat on another
+ * game clashes when both kick-off times are known and lie < DUTY_CLASH_MS
+ * apart — back-to-back games two hours apart stay claimable, which basketball
+ * duty teams do routinely. `sameDayGames` = games on the same date (any seat).
+ */
+export function findDutyClash(game, memberId, sameDayGames) {
+  const mine = (g) => Object.values(CLAIM_DEFS).some((d) => g[d.member] != null && Number(g[d.member]) === Number(memberId))
+  const start = gameStartMs(game)
+  for (const g of sameDayGames) {
+    if (!mine(g)) continue
+    if (String(g.id) === String(game.id)) return g
+    const other = gameStartMs(g)
+    if (start != null && other != null && Math.abs(start - other) < DUTY_CLASH_MS) return g
+  }
+  return null
+}
+
 export function registerScorerClaim(router, ctx) {
   const { database, logger } = ctx
   const log = logger.child({ endpoint: 'scorer-claim' })
@@ -102,6 +124,17 @@ export function registerScorerClaim(router, ctx) {
         if (rows.length) { inTeam = true; break }
       }
       if (!inTeam) return res.status(403).json({ error: 'You are not in the duty team for this role' })
+
+      // One person cannot sit two tables at once (Anja, 01.10.2026: two
+      // timekeeper seats on overlapping games, both accepted).
+      // Date compared in SQL — a JS Date round-trip can shift it across midnight.
+      const sameDay = await database('games')
+        .whereRaw('date::date = (SELECT g2.date::date FROM games g2 WHERE g2.id = ?)', [game.id])
+        .select('id', 'date', 'time', ...Object.values(CLAIM_DEFS).map((d) => d.member))
+      const clash = findDutyClash(game, member.id, sameDay)
+      if (clash) {
+        return res.status(409).json({ error: 'You already have a duty at that time', code: 'duty_clash', game: clash.id })
+      }
 
       const now = new Date().toISOString()
       const fullName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || null

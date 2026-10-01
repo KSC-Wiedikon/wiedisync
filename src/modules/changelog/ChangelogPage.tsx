@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.25.0'
+const APP_VERSION = '2.26.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.26.0',
+    date: '01.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Family view for parents. *Home → Family* (or the account switcher). If your children are linked to your account, you see all their games, trainings and events for the next 3 weeks on one page and answer Yes / Maybe / No for each child right there — no more switching accounts. Deadlines, reasons for absence and who is invited work exactly as in the app.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "Scorer duties: if you hold a basketball scorer or timekeeper seat, the Delegate button now shows up. You can no longer take two duties at the same time (another seat on the same game, or a game starting less than 2 hours apart).",
+          "Scorer page: the coloured band now runs along the whole game, and the duty boxes all have the same height.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.25.0',
     date: '29.09.2026',

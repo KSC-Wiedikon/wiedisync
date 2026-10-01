@@ -246,4 +246,5 @@ export default {
   householdNotWhileActing: 'Nöd verfüegbar, solang du es anders Konto bruchsch',
   householdSwitchTo: 'Wächsle zu {{names}}',
   fileNotYours: 'Du chasch nur es Bild bruuche, wo du sälber ufeglade häsch',
+  householdFamilyView: 'Familieaasicht',
 }

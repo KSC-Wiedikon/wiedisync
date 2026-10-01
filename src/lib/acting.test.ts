@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  resolveActingHeaders,
   ACTING_HEADER, parseActingId, sentActingId, isActingDeniedError, actingRefusalScope, isActingEchoMismatch,
 } from './acting'
 
@@ -53,6 +54,24 @@ describe('acting transport helpers', () => {
 
     it('ignores non-2xx responses (a refusal carries no echo)', () => {
       expect(isActingEchoMismatch(false, null, 563)).toBe(false)
+    })
+  })
+
+  describe('resolveActingHeaders', () => {
+    const M = 'X-KSCW-No-Acting'
+    it('stamps the app-wide acting id when the command names nobody', () => {
+      expect(resolveActingHeaders({ a: '1' }, 563, M)).toEqual({ a: '1', [ACTING_HEADER]: '563' })
+    })
+    it('adds nothing for the owner herself', () => {
+      expect(resolveActingHeaders({}, null, M)).toEqual({})
+    })
+    it('keeps a per-request member over the app-wide one (family view)', () => {
+      expect(resolveActingHeaders({ [ACTING_HEADER]: '564' }, 563, M)).toEqual({ [ACTING_HEADER]: '564' })
+      expect(resolveActingHeaders({ [ACTING_HEADER]: '564' }, null, M)).toEqual({ [ACTING_HEADER]: '564' })
+    })
+    it('the owner marker wins and is stripped', () => {
+      expect(resolveActingHeaders({ [M]: '1' }, 563, M)).toEqual({})
+      expect(resolveActingHeaders({ [M]: '1', [ACTING_HEADER]: '564' }, 563, M)).toEqual({})
     })
   })
 })

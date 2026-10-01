@@ -82,6 +82,7 @@ export default {
   selfAssign: 'Mi iscrivo',
   selfAssignSuccess: 'Iscritto — a presto!',
   selfAssignError: 'Iscrizione non riuscita (forse già preso o non idoneo).',
+  selfAssignClash: 'Hai già un incarico a quell\'ora.',
   confirmSelfAssignTitle: 'Conferma assegnazione',
   confirmSelfAssignMessage: 'Ti stai iscrivendo come <strong>{{role}}</strong> per <strong>{{game}}</strong> del <strong>{{date}}</strong>.',
   confirmSelfAssignArrival_scorer: 'Devi essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
