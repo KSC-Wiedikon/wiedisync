@@ -12,6 +12,7 @@ import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
+import SupportContact from './SupportContact'
 import ImpersonationBanner from './ImpersonationBanner'
 import ActingBanner from './ActingBanner'
 import { HouseholdSwitcherProvider } from './HouseholdSwitcher'
@@ -121,6 +122,9 @@ export default function Layout() {
             </div>
           )}
           <Outlet />
+          {!(isDesktop && location.pathname.startsWith('/admin/explore')) && (
+            <SupportContact className="mt-10 border-t border-hairline pt-4" />
+          )}
         </main>
       </div>
 

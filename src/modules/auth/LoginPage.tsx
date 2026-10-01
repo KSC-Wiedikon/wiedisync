@@ -6,6 +6,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { safeReturnPath } from '../../utils/activityLinks'
+import SupportContact from '@/components/SupportContact'
 
 export default function LoginPage() {
   const { login, user } = useAuth()
@@ -138,6 +139,7 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+        <SupportContact className="mt-4" />
       </div>
     </div>
   )

@@ -247,4 +247,6 @@ export default {
   householdSwitchTo: 'Wächsle zu {{names}}',
   fileNotYours: 'Du chasch nur es Bild bruuche, wo du sälber ufeglade häsch',
   householdFamilyView: 'Familieaasicht',
+  supportContactLead: 'Problem? Mälde dich direkt bim Luca:',
+  supportContactLanguages: 'Lieber Änglisch, Dütsch gaht au',
 }

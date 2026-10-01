@@ -19,6 +19,7 @@ import LanguageSelect from '@/components/LanguageSelect'
 import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
 import { checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '../../lib/passwordRules'
+import SupportContact from '@/components/SupportContact'
 
 const CLUB_SIGNUP_URL = 'https://kscw.ch/weiteres/anmeldung'
 
@@ -765,6 +766,7 @@ export default function SignUpPage() {
             </form>
           )}
         </div>
+        <SupportContact className="mt-4" />
       </div>
       <PrivacyNotice />
       <Modal open={showPrivacy} onClose={() => setShowPrivacy(false)} title={t('privacyPolicy')} size="lg">
