@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.26.1 — 2026-10-01
+
+### Improved
+
+- Basketball juniors: the coach or team responsible of a junior team can now put a player straight onto a table seat (scorer, timekeeper, 24s) on the scorer page — no acceptance step needed. Only players of that team with the right licence can be picked, and the player gets a notification.
+
 ## v2.26.0 — 2026-10-01
 
 ### New
