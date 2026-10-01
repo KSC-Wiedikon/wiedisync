@@ -53,8 +53,8 @@ export function DateRail({
 }
 
 /** The 2px state stripe between rail and body. */
-export function RowStripe({ tone = 'gray' }: { tone?: RowTone }) {
-  return <div className={cn('w-[2px] shrink-0 self-stretch rounded-full', ROW_TONE_STRIPE[tone])} aria-hidden />
+export function RowStripe({ tone = 'gray', className }: { tone?: RowTone; className?: string }) {
+  return <div className={cn('w-[2px] shrink-0 self-stretch rounded-full', ROW_TONE_STRIPE[tone], className)} aria-hidden />
 }
 
 export interface ActivityRowProps {
@@ -73,6 +73,12 @@ export interface ActivityRowProps {
   action?: ReactNode
   /** Labelled toolbar on its own line under the row at every width (use <Button size="tool">). */
   tools?: ReactNode
+  /**
+   * Block under the toolbar (e.g. the scorer duty editors): full width on a
+   * phone, indented to the body from sm. From sm the stripe runs down beside
+   * it, so the whole entry reads as one activity.
+   */
+  footer?: ReactNode
   onClick?: () => void
   /** Dim the whole row (cancelled / past). */
   muted?: boolean
@@ -86,7 +92,7 @@ export interface ActivityRowProps {
  * inside it; `action`/`tools` are its siblings, never its children.
  */
 export function ActivityRow({
-  rail, tone = 'gray', title, status, chips, children, action, tools, onClick, muted, className, ...rest
+  rail, tone = 'gray', title, status, chips, children, action, tools, footer, onClick, muted, className, ...rest
 }: ActivityRowProps) {
   const interactive = !!onClick
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -94,7 +100,7 @@ export function ActivityRow({
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() }
   }
   return (
-    <div data-testid={rest['data-testid']} className={cn('flex flex-wrap items-stretch py-0.5', muted && 'opacity-60', className)}>
+    <div data-testid={rest['data-testid']} className={cn('flex flex-wrap items-stretch py-0.5', footer && 'relative', muted && 'opacity-60', className)}>
       <div
         role={interactive ? 'button' : undefined}
         tabIndex={interactive ? 0 : undefined}
@@ -106,7 +112,9 @@ export function ActivityRow({
         )}
       >
         {rail}
-        <RowStripe tone={tone} />
+        {/* With a footer the stripe is drawn full-height below (sm+); this one
+            keeps its 2px slot so the body still starts at the shared x. */}
+        <RowStripe tone={tone} className={footer ? 'sm:invisible' : undefined} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">{title}</div>
@@ -125,6 +133,14 @@ export function ActivityRow({
         <div className="flex basis-full items-center gap-1.5 px-1.5 pb-2.5 empty:hidden sm:gap-2 sm:pl-[6.625rem] sm:pr-2">
           {tools}
         </div>
+      )}
+      {footer && (
+        <>
+          <div className="basis-full px-1.5 pb-4 sm:pl-[6.625rem] sm:pr-2">{footer}</div>
+          {/* Full-height stripe from sm: row py-0.5 + body py-2.5 on top, the
+              footer's pb-4 at the bottom; x = row px + rail + gap (8+72+12). */}
+          <RowStripe tone={tone} className="absolute bottom-4 left-[5.75rem] top-3 hidden sm:block" />
+        </>
       )}
     </div>
   )

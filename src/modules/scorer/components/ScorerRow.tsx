@@ -433,26 +433,12 @@ export default function ScorerRow({
             {t('common:calendar')}
           </Button>
         </>}
-      >
-        {/* Arrival reminder — how early each duty must be in the hall */}
-        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-          <Clock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="min-w-0">
-            {sport === 'basketball'
-              ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
-              : vbCombined
-                ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
-                : vbReferee
-                  ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
-                  : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
-          </span>
-        </p>
-      </ActivityRow>
+        footer={
+          /* Assignment editors — in the footer, NOT the body: on a phone the
+             rail would leave the dropdowns ~240px, so they take the full width
+             there and line up with the body from sm (the stripe runs beside). */
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 
-      {/* Assignment editors — under the row, NOT inside its body: on a phone the
-          rail would leave the dropdowns ~240px, so they take the full width
-          there and line up with the body from sm. */}
-      <div className="grid gap-3 px-1.5 pb-4 sm:grid-cols-2 sm:pl-[6.625rem] sm:pr-2 xl:grid-cols-3">
         {sport === 'volleyball' ? (
           vbCombined ? (
             renderVbEditor('scorer_scoreboard', 'scorerTaefeler', undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
@@ -586,7 +572,23 @@ export default function ScorerRow({
         {/* Per-duty "Confirmed by … · time" is shown inside each AssignmentEditor
             (admins only). De-confirming a duty = clearing its person dropdown
             (disabled on past games via effectiveCanEdit). */}
-      </div>
+          </div>
+        }
+      >
+        {/* Arrival reminder — how early each duty must be in the hall */}
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Clock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0">
+            {sport === 'basketball'
+              ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
+              : vbCombined
+                ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
+                : vbReferee
+                  ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
+                  : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
+          </span>
+        </p>
+      </ActivityRow>
 
       {/* Self-assign confirmation popup */}
       {confirmRole && (() => {

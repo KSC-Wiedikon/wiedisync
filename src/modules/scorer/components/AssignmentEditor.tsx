@@ -9,6 +9,12 @@ import IconButton from '@/components/IconButton'
 import { RowChip } from '@/components/ActivityRow'
 import TeamSelect from '../../../components/TeamSelect'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
+import { cn } from '@/lib/utils'
+
+/** Read-only duty box. The min-height already fits a default Button (44px /
+ *  sm 36px + py-1.5 + border), so a box with Delegate / Self-assign is exactly
+ *  as tall as its neighbour without one. */
+const SLOT_BOX = 'flex min-h-[3.625rem] items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-1.5 sm:min-h-[3.125rem]'
 
 interface AssignmentEditorProps {
   label: string
@@ -257,7 +263,7 @@ export default function AssignmentEditor({
               shrink-0 at the standard height, so a long name never pushes it
               off a phone. Only one of the two can show at a time. */}
           {personValue ? (
-            <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2">
+            <div className={SLOT_BOX}>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 {teamName && <RowChip wrap>{teamName}</RowChip>}
                 <span className="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-medium leading-snug text-foreground">
@@ -274,7 +280,7 @@ export default function AssignmentEditor({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-sm">
+            <div className={cn(SLOT_BOX, 'text-sm')}>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 {teamName && <RowChip wrap>{teamName}</RowChip>}
                 <span className="text-muted-foreground">{t('unassigned')}</span>
