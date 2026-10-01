@@ -249,4 +249,6 @@ export default {
   householdSwitchTo: 'Switch to {{names}}',
   fileNotYours: 'You can only use an image you uploaded yourself',
   householdFamilyView: 'Family view',
+  supportContactLead: 'Having issues? Contact Luca directly:',
+  supportContactLanguages: 'English preferred, German OK',
 }

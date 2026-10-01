@@ -9,6 +9,7 @@ import { useTurnstile } from '../../lib/turnstile'
 import { OtpInput } from '@/components/OtpInput'
 import { LANGUAGES } from '@/i18n/languageConfig'
 import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
+import SupportContact from '@/components/SupportContact'
 
 type Phase = 'request-link' | 'link-sent' | 'email' | 'otp' | 'set-password' | 'success'
 
@@ -378,6 +379,7 @@ export default function SetPasswordPage() {
             </>
           )}
         </div>
+        <SupportContact className="mt-4" />
       </div>
     </div>
   )

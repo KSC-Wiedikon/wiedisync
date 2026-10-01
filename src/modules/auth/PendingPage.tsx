@@ -10,6 +10,7 @@ import ActingBanner from '../../components/ActingBanner'
 import { Button } from '@/components/ui/button'
 import type { Team } from '../../types'
 import { client, fetchItem } from '../../lib/api'
+import SupportContact from '@/components/SupportContact'
 
 export default function PendingPage() {
   const { user, isApproved, isProfileComplete, isLoading, logout, isImpersonating } = useAuth()
@@ -114,6 +115,7 @@ export default function PendingPage() {
             )}
           </div>
         </div>
+        <SupportContact className="mt-4" />
       </div>
       {/* Onboarding modal for unapproved users who haven't set language */}
       {user && !isProfileComplete && !skippedOnboarding && (
