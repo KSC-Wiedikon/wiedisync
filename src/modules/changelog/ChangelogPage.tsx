@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.26.0'
+const APP_VERSION = '2.26.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.26.1',
+    date: '01.10.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Basketball juniors: the coach or team responsible of a junior team can now put a player straight onto a table seat (scorer, timekeeper, 24s) on the scorer page — no acceptance step needed. Only players of that team with the right licence can be picked, and the player gets a notification.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.26.0',
     date: '01.10.2026',
