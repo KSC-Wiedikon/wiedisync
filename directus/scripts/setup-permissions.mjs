@@ -3940,45 +3940,53 @@ async function main() {
   // same attach/revoke the moment members.role changes, so this is the
   // deploy-time reconcile (catches manual SQL edits / pre-hook grants).
 
-  console.log('\n13. Backfilling user-level FINANCE access for finance members...')
+  //
+  // 'vorstand' gets the same user-level layer for VORSTAND_POLICY: a board
+  // member's base role can be Sport Admin (bb_admin/vb_admin) or Team
+  // Responsible (also coaches), neither of which carries the Vorstand policy —
+  // the app still opens /admin/finance for them (canAccessFinance = isVorstand)
+  // and every finance read 403'd (2026-10-01). Redundant but harmless for users
+  // whose base role IS Vorstand.
 
-  const allMembersForFinance = await api('GET', '/items/members?fields=user,role&limit=-1')
-  const financeUserIds = new Set(
-    (allMembersForFinance || [])
-      .filter(m => m.user && Array.isArray(m.role) && m.role.includes('finance'))
-      .map(m => m.user),
-  )
+  const allMembersForRolePolicies = await api('GET', '/items/members?fields=user,role&limit=-1')
+  for (const [appRole, policyId, label] of [['finance', FINANCE_POLICY, 'FINANCE'], ['vorstand', VORSTAND_POLICY, 'VORSTAND']]) {
+    console.log(`\n13. Backfilling user-level ${label} access for ${appRole} members...`)
+    const wantUserIds = new Set(
+      (allMembersForRolePolicies || [])
+        .filter(m => m.user && Array.isArray(m.role) && m.role.includes(appRole))
+        .map(m => m.user),
+    )
 
-  const existingFin = await api('GET', `/access?filter[policy][_eq]=${FINANCE_POLICY}&filter[user][_nnull]=true&fields=user&limit=-1`)
-  const haveFin = new Set((existingFin || []).map(a => a.user).filter(Boolean))
+    const existing = await api('GET', `/access?filter[policy][_eq]=${policyId}&filter[user][_nnull]=true&fields=id,user&limit=-1`)
+    const have = new Set((existing || []).map(a => a.user).filter(Boolean))
 
-  let finAttached = 0
-  let finSkipped = 0
-  for (const userId of financeUserIds) {
-    if (haveFin.has(userId)) { finSkipped++; continue }
-    try {
-      await api('POST', '/access', { user: userId, policy: FINANCE_POLICY })
-      finAttached++
-    } catch (e) {
-      if (!e.message.includes('RECORD_NOT_UNIQUE')) {
-        console.warn(`  ⚠ attach FINANCE to ${userId}: ${e.message.slice(0, 100)}`)
-      } else {
-        finSkipped++
+    let attached = 0
+    let skipped = 0
+    for (const userId of wantUserIds) {
+      if (have.has(userId)) { skipped++; continue }
+      try {
+        await api('POST', '/access', { user: userId, policy: policyId })
+        attached++
+      } catch (e) {
+        if (!e.message.includes('RECORD_NOT_UNIQUE')) {
+          console.warn(`  ⚠ attach ${label} to ${userId}: ${e.message.slice(0, 100)}`)
+        } else {
+          skipped++
+        }
       }
     }
-  }
-  console.log(`  ✓ Attached FINANCE policy to ${finAttached} user(s) (${finSkipped} already had it, ${financeUserIds.size} total finance)`)
+    console.log(`  ✓ Attached ${label} policy to ${attached} user(s) (${skipped} already had it, ${wantUserIds.size} total ${appRole})`)
 
-  const finAccessWithIds = await api('GET', `/access?filter[policy][_eq]=${FINANCE_POLICY}&filter[user][_nnull]=true&fields=id,user&limit=-1`)
-  const finStale = (finAccessWithIds || []).filter(a => a.user && !financeUserIds.has(a.user))
-  for (const row of finStale) {
-    try {
-      await api('DELETE', `/access/${row.id}`)
-    } catch (e) {
-      console.warn(`  ⚠ revoke FINANCE from ${row.user}: ${e.message.slice(0, 100)}`)
+    const stale = (existing || []).filter(a => a.user && !wantUserIds.has(a.user))
+    for (const row of stale) {
+      try {
+        await api('DELETE', `/access/${row.id}`)
+      } catch (e) {
+        console.warn(`  ⚠ revoke ${label} from ${row.user}: ${e.message.slice(0, 100)}`)
+      }
     }
+    if (stale.length > 0) console.log(`  ✓ Revoked ${label} policy from ${stale.length} ex-${appRole} user(s)`)
   }
-  if (finStale.length > 0) console.log(`  ✓ Revoked FINANCE policy from ${finStale.length} ex-finance user(s)`)
 
   // ── 14. Backfill user-level SPIELPLANER access for spielplaner members ───
   //

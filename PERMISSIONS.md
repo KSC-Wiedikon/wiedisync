@@ -111,6 +111,7 @@ Inheritance (additive): `Sport Admin` → `Team Responsible` → `Member`. `Vors
 - `KSCW Terminplanung` — members with `is_spielplaner = true` (game-scheduling + basketball prep; see its own section below).
 - `KSCW Spielplaner` — members with `is_spielplaner = true` OR at least one `spielplaner_assignments` row (per-team spielplaners). Manual-game create/update/delete in the Spielplanung planner, scoped to `source = 'manual'` at the policy layer; team scope is hook-enforced (kscw-hooks games guard). Reconciled by `setup-permissions.mjs §14` on every deploy.
 - `KSCW Finance` — members with the `finance` app-role (treasurer / finance team). Reconciled by the role-sync hook on `members.role` change + `setup-permissions.mjs §13` on every deploy.
+- `KSCW Vorstand` (user-level, since 2026-10-02) — every member with `vorstand` in `members.role`, ON TOP of the role-level attachment to the `Vorstand` base role. A board member's base role can be **Sport Admin** (`bb_admin`/`vb_admin` outranks `vorstand` in `resolveDirectusRole`) or **Team Responsible** (a coaching board member), and neither carries this policy — so the app opened `/admin/finance` for them (`canAccessFinance = isVorstand || isFinance`) and every finance read 403'd. Redundant (harmless) for users whose base role is Vorstand. Same reconcile pair as Finance: role-sync hook (`reconcileRolePolicy`) + `setup-permissions.mjs §13`.
 
 ---
 

@@ -664,7 +664,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // would let any member self-promote. Fail closed at the filter layer.
   //   role          → syncMemberRole (base Directus role, incl. Superuser)
   //   is_spielplaner → ensureTerminplanungAccess (club-wide scheduling policy)
-  //   finance        → reconcileFinanceAccess (finance policy)
+  //   finance        → reconcileRolePolicy (finance policy)
   //   user          → re-pointing a login onto another member row inherits
   //                   that row's role everywhere `members where user = …` is
   //                   resolved (security audit 2026-09-28: Sport Admin could
@@ -945,7 +945,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         await syncMemberRole(id)
         // 'finance' is orthogonal (layered policy), not a base role → reconcile
         // the per-user FINANCE policy alongside the base-role sync.
-        await reconcileFinanceAccess(id)
+        await reconcileRolePolicy(id, 'finance')
+        await reconcileRolePolicy(id, 'vorstand')
       }
     }
     // Sync member photo → directus_users.avatar
@@ -1144,31 +1145,36 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // members.role changes so a newly-designated treasurer gets (or loses) finance
   // access immediately, without waiting for a setup-perms deploy (§13 does the
   // same as an idempotent reconcile).
-  async function getFinancePolicyId() {
-    const row = await database('directus_policies').where('name', 'KSCW Finance').select('id').first()
-    return row?.id ?? null
-  }
+  //
+  // 'vorstand' gets the same per-user layer for the `KSCW Vorstand` policy: a
+  // board member's BASE role can outrank or replace Vorstand (bb_admin → Sport
+  // Admin, a coaching board member → Team Responsible), and neither carries the
+  // Vorstand policy — so /admin/finance opened for them (canAccessFinance =
+  // isVorstand) and every finance read 403'd (2026-10-01).
+  const ROLE_POLICIES = { finance: 'KSCW Finance', vorstand: 'KSCW Vorstand' }
 
-  async function reconcileFinanceAccess(memberId) {
+  async function reconcileRolePolicy(memberId, appRole) {
+    const tag = `${appRole}-access`
     try {
       const member = await database('members').where('id', memberId).select('user', 'role').first()
       if (!member?.user) return
-      const policyId = await getFinancePolicyId()
+      const row = await database('directus_policies').where('name', ROLE_POLICIES[appRole]).select('id').first()
+      const policyId = row?.id
       if (!policyId) return
       const roles = Array.isArray(member.role) ? member.role : []
-      const wantFinance = roles.includes('finance')
+      const want = roles.includes(appRole)
       const existing = await database('directus_access').where({ user: member.user, policy: policyId }).first()
-      if (wantFinance && !existing) {
+      if (want && !existing) {
         const { randomUUID } = await import('node:crypto')
         await database('directus_access').insert({ id: randomUUID(), user: member.user, policy: policyId })
-        log.info(`[finance-access] Attached FINANCE policy to user ${member.user} (member ${memberId})`)
-      } else if (!wantFinance && existing) {
+        log.info(`[${tag}] Attached ${ROLE_POLICIES[appRole]} policy to user ${member.user} (member ${memberId})`)
+      } else if (!want && existing) {
         await database('directus_access').where({ user: member.user, policy: policyId }).delete()
-        log.info(`[finance-access] Revoked FINANCE policy from user ${member.user} (member ${memberId} no longer finance)`)
+        log.info(`[${tag}] Revoked ${ROLE_POLICIES[appRole]} policy from user ${member.user} (member ${memberId} no longer ${appRole})`)
       }
     } catch (err) {
-      log.warn({ msg: `[finance-access] reconcile failed for member ${memberId}: ${err.message}`, memberId, stack: err.stack })
-      logWarning('finance_access_reconcile', err.message, { memberId, stack: err.stack })
+      log.warn({ msg: `[${tag}] reconcile failed for member ${memberId}: ${err.message}`, memberId, stack: err.stack })
+      logWarning(`${appRole}_access_reconcile`, err.message, { memberId, stack: err.stack })
     }
   }
 
