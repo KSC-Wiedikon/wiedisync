@@ -523,7 +523,7 @@ export interface Game extends BaseRecord {
   /** Einsatzliste push journal — written by the cron / push worker, read-only in the UI.
    *  `filled` = players written but the list left OPEN (VM flagged a fineable issue, so
    *  we refuse to close it); `closed` = filed and closed; `skipped` = nothing to file. */
-  vm_nomination_status?: 'pending' | 'filled' | 'closed' | 'skipped' | 'failed' | null
+  vm_nomination_status?: 'pending' | 'saved' | 'filled' | 'closed' | 'skipped' | 'failed' | null
   vm_nomination_list_id?: string | null
   vm_nomination_count?: number | null
   vm_nomination_pushed_at?: string | null

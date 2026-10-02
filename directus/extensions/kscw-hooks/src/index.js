@@ -8355,7 +8355,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .where('g.status', 'scheduled')
         .whereNotNull('g.kscw_team')
         .whereNotNull('g.time')
-        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'skipped')")
+        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'skipped', 'saved')")
         .whereRaw(
           "COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true",
         )
@@ -8409,7 +8409,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // Re-check the terminal states: a worker may have finished between
           // the SELECT above and this UPDATE, and re-claiming a closed list
           // would file it a second time.
-          .whereRaw("COALESCE(vm_nomination_status, '') NOT IN ('closed', 'skipped')")
+          .whereRaw("COALESCE(vm_nomination_status, '') NOT IN ('closed', 'skipped', 'saved')")
           .whereRaw(
             "(COALESCE(vm_nomination_status, '') <> 'pending'"
             + " OR COALESCE(vm_nomination_claimed_at, 'epoch'::timestamptz) < now() - interval '10 minutes')",

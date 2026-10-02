@@ -16,7 +16,8 @@ interface Preview {
   officials: Record<OfficialRole, Official>
   officials_source: 'game' | 'team'
   status: string | null
-  filed: boolean
+  exists: boolean
+  closed: boolean
   started: boolean
 }
 
@@ -28,8 +29,8 @@ const ROLE_LABEL: Record<OfficialRole, string> = {
 
 /**
  * "Create / Update Einsatzliste" — shows what the push would send (confirmed RSVPs +
- * C/AC1/AC2) before anything reaches Volleymanager, and warns before amending a list
- * that is already filed there. The push itself runs in the background worker; the
+ * C/AC1/AC2) before anything reaches Volleymanager, and warns that a re-save replaces
+ * the list already saved there. The push itself runs in the background worker; the
  * status box in GameDetailModal reports the outcome.
  */
 export default function NominationPushDialog({ gameId, open, onClose, onStarted }: {
@@ -52,14 +53,14 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
     return () => { cancelled = true }
   }, [open, gameId])
 
-  const amend = !!preview?.filed
+  const exists = !!preview?.exists
   const licensed = preview?.players.filter((p) => p.license_nr) ?? []
   const unlicensed = preview?.players.filter((p) => !p.license_nr) ?? []
 
   async function push() {
     setSending(true)
     try {
-      await kscwApi(`/games/${gameId}/nomination-push`, { method: 'POST', body: { amend } })
+      await kscwApi(`/games/${gameId}/nomination-push`, { method: 'POST' })
       toast.success(t('nominationPushStarted'))
       onStarted()
       onClose()
@@ -81,12 +82,12 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t(amend ? 'nominationUpdateTitle' : 'nominationCreateTitle')} size="md">
+    <Modal open={open} onClose={onClose} title={t(exists ? 'nominationUpdateTitle' : 'nominationCreateTitle')} size="md">
       {loadError && <p className="text-sm text-destructive">{t('nominationPreviewError')}</p>}
       {!preview && !loadError && <p className="text-sm text-muted-foreground">{t('common:loading')}</p>}
       {preview && (
         <div className="space-y-4">
-          {amend && (
+          {exists && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{t('nominationAmendWarning')}</span>
@@ -145,13 +146,13 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
             <Button variant="outline" onClick={onClose}>{t('common:cancel')}</Button>
             <Button
               onClick={push}
-              disabled={sending || preview.started || licensed.length === 0}
-              variant={amend ? 'destructive' : 'default'}
+              disabled={sending || preview.started || preview.closed || licensed.length === 0}
             >
-              {t(amend ? 'nominationUpdateCta' : 'nominationCreateCta')}
+              {t(exists ? 'nominationUpdateCta' : 'nominationCreateCta')}
             </Button>
           </div>
           {preview.started && <p className="text-xs text-muted-foreground">{t('nominationPushStartedGame')}</p>}
+          {preview.closed && <p className="text-xs text-muted-foreground">{t('nominationStatusClosed')}</p>}
         </div>
       )}
     </Modal>

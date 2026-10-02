@@ -6,14 +6,11 @@
  * a coach whose push failed, or who wants the list filed early, can trigger the
  * same worker on demand — including for a game whose flag is off.
  *
- * POST /kscw/games/:id/nomination-push   body { amend?: true } → { spawned: true }
+ * POST /kscw/games/:id/nomination-push   → { spawned: true }
  * GET  /kscw/games/:id/nomination-preview → what a push would send (DB only, no VM)
  *
- * `amend: true` lets the worker rewrite a list that is already FILED in VM (it
- * reopens, rewrites our side, and re-closes only on a clean validation). The UI
- * asks for it only after a warning; the cron never sends it. Refused once the game
- * has started — VM then compares the officials against the start, and the list is
- * the referee's.
+ * The club SAVES the list; the referee closes it after the game. Refused once the
+ * game has started — from then on the list is the referee's.
  *
  * Fire-and-forget, exactly like the cron: the worker writes its outcome onto the
  * game (vm_nomination_status/_error) and the UI polls that, so a slow or failing
@@ -126,7 +123,9 @@ export function registerNominationPush(router, { database, logger }) {
           officials,
           officials_source: picked.source,
           status: game.vm_nomination_status ?? null,
-          filed: game.vm_nomination_status === 'closed',
+          // A list is already in VM (a re-save replaces it) / the referee closed it.
+          exists: ['saved', 'filled'].includes(game.vm_nomination_status),
+          closed: game.vm_nomination_status === 'closed',
           started: startMs != null && Date.now() >= startMs,
         },
       })
@@ -147,7 +146,6 @@ export function registerNominationPush(router, { database, logger }) {
     // The reads below run before any claim is taken, so a DB error here has
     // nothing to hand back — but it must become a 500, not an unhandled
     // rejection that leaves the request hanging (Express 4 does not catch it).
-    const amend = req.body?.amend === true
     let game
     let allowed = false
     try {
@@ -277,8 +275,6 @@ export function registerNominationPush(router, { database, logger }) {
           DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
           DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
           GAME_ID: String(gameId),
-          // Rewrite a list already filed in VM — only when the coach confirmed the warning.
-          AMEND: amend ? '1' : '',
           // Lets the worker refuse to write from the dev DB — VM has no staging.
           DB_DATABASE: process.env.DB_DATABASE || '',
           VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
@@ -305,7 +301,7 @@ export function registerNominationPush(router, { database, logger }) {
         action: 'update',
         collection: 'games',
         recordId: gameId,
-        data: { what: 'nomination_push', team: game.kscw_team, manual: true, amend },
+        data: { what: 'nomination_push', team: game.kscw_team, manual: true },
       })
 
       return res.json({ spawned: true })
