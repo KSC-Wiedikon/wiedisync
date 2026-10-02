@@ -182,7 +182,7 @@ export default {
   autoNominationOff: 'Aus',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Wird übermittelt…',
-  nominationStatusSaved: 'Im Volleymanager eingetragen. Der Schiedsrichter schliesst die Liste nach dem Spiel ab.',
+  nominationStatusSaved: 'Im Volleymanager eingetragen.',
   nominationStatusFilled: 'Die Spieler wurden eingetragen, aber die Einsatzliste ist im Volleymanager noch offen. Bitte dort prüfen und abschliessen — der Grund steht unten.',
   nominationStatusClosed: 'Vom Schiedsrichter abgeschlossen — sie kann nicht mehr geändert werden.',
   nominationStatusSkipped: 'Nichts zu erfassen — keiner der bestätigten Spieler hat eine Lizenz.',

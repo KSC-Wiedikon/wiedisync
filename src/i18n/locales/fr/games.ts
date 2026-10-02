@@ -179,7 +179,7 @@ export default {
   autoNominationOff: 'Désactivé',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Envoi en cours…',
-  nominationStatusSaved: 'Inscrite dans Volleymanager. L\'arbitre clôture la liste après le match.',
+  nominationStatusSaved: 'Inscrite dans Volleymanager.',
   nominationStatusFilled: 'Les joueurs ont été inscrits, mais l\'Einsatzliste est encore ouverte dans Volleymanager. Vérifie-la et clôture-la là-bas — la raison est indiquée ci-dessous.',
   nominationStatusClosed: 'Clôturée par l\'arbitre — elle ne peut plus être modifiée.',
   nominationStatusSkipped: 'Rien à enregistrer — aucun joueur confirmé ne possède de licence.',

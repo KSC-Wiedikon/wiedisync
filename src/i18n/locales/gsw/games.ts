@@ -182,7 +182,7 @@ export default {
   autoNominationOff: 'Us',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Wird gschickt…',
-  nominationStatusSaved: 'Im Volleymanager iitreit. De Schiri schliesst d Lischte nach em Spiel ab.',
+  nominationStatusSaved: 'Im Volleymanager iitreit.',
   nominationStatusFilled: 'D Spieler sind iitreit, aber d Einsatzliste isch im Volleymanager no offe. Bitte det prüefe und abschliesse — de Grund staht une.',
   nominationStatusClosed: 'Vom Schiri abgschlosse — si cha nümme gänderet wärde.',
   nominationStatusSkipped: 'Nüt z\'erfasse — kein vo de bestätigte Spieler hät e Lizänz.',

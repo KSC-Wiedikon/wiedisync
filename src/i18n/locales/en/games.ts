@@ -183,7 +183,7 @@ export default {
   autoNominationOff: 'Off',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Filing in progress…',
-  nominationStatusSaved: 'Entered in Volleymanager. The referee closes the list after the game.',
+  nominationStatusSaved: 'Entered in Volleymanager.',
   nominationStatusFilled: 'Players were entered, but the Einsatzliste is still open in Volleymanager. Please check it there and close it — the reason is below.',
   nominationStatusClosed: 'Closed by the referee — it can no longer be changed.',
   nominationStatusSkipped: 'Nothing to file — none of the confirmed players holds a licence.',
