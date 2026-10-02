@@ -238,9 +238,8 @@ describe('buildListPairs — the PUT body', () => {
     assert.doesNotThrow(() => assertNotClosing(pairs));
   });
 
-  test('only close:true carries the filing flag', () => {
+  test('the body is always an OPEN list — filing is the separate finalize action', () => {
     const pairs = buildListPairs(list, { nominations, officials, close: true });
-    assert.equal(get(pairs, 'nominationList[isClosedForTeam]'), 'true');
-    assert.throws(() => assertNotClosing(pairs), /CLOSE/);
+    assert.equal(get(pairs, 'nominationList[isClosedForTeam]'), 'false');
   });
 });
