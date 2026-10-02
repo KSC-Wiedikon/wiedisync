@@ -25,8 +25,10 @@
  * 1. THERE IS NO VM STAGING. Every write here hits the real Swiss Volley
  *    production system, on both dev and prod. DRY_RUN is the only safe rehearsal.
  *
- * 2. SAVE AND CLOSE ARE THE SAME `PUT api\nominationlist`, distinguished only by
- *    `isClosedForTeam`. Closing files an official document, and VM's own validation
+ * 2. CLOSING IS ITS OWN ACTION — `POST api\nominationlist/finalize` with the same
+ *    body as a save (VM's own form: EditNominationListForm → "finalize"). A save
+ *    with `isClosedForTeam=true` is NOT a close: VM answers 200 and leaves the list
+ *    open (seen live 2026-10-02, game #406201). Closing files an official document, and VM's own validation
  *    marks a too-short or coachless list as `isFineable: true` — so an unconditional
  *    auto-close would quietly earn the club fines on thin-RSVP weeks. We therefore
  *    fill first, re-read VM's server-side validation, and close ONLY if no unresolved
@@ -251,12 +253,14 @@ async function findVmPerson(licence) {
  * collapses any object carrying an `__identity` to that identity — right for a
  * related entity, wrong for the ROOT, which has one too. So both PUTs went out as
  * `nominationList[__identity]` + nominations and nothing else: the close never
- * carried `isClosedForTeam=true`, and no official could ever be sent.
+ * carried `isClosedForTeam=true`, and no official could ever be sent. (It would not
+ * have filed anyway — closing is the separate `finalize` action, see the header.)
  *
  * `nominations` are VM candidates (getPossibleIndoorPlayerNominationsForNominationList);
- * `officials` is officialsPayload()'s output. `close` is the ONLY way to file.
+ * `officials` is officialsPayload()'s output. The body is always an OPEN list: VM's
+ * form posts the same open object to `finalize`, which is what files it.
  */
-export function buildListPairs(list, { nominations, officials, close = false }) {
+export function buildListPairs(list, { nominations, officials }) {
   const P = 'nominationList';
   const rel = (k, v) => [`${P}[${k}][__identity]`, idOf(v)];
   const pairs = [
@@ -276,10 +280,6 @@ export function buildListPairs(list, { nominations, officials, close = false }) 
   }
   if (idOf(list?.nominationListValidation)) pairs.push(rel('nominationListValidation', list.nominationListValidation));
   pairs.push([`${P}[isSubsequentGameForTeamInTournamentGroup]`, String(!!list?.isSubsequentGameForTeamInTournamentGroup)]);
-  if (close) {
-    pairs.push([`${P}[isClosedForTeam]`, 'true']);
-    return pairs;
-  }
   pairs.push([`${P}[isClosedForTeam]`, 'false'], [`${P}[closedAt]`, ''], [`${P}[closedBy]`, '']);
   return assertNotClosing(pairs);
 }
@@ -515,15 +515,15 @@ async function main() {
         error: [`left open for review: ${blockers.join(', ')}`, ...notes].join('; ') });
     }
 
-    // Same body as the fill — identity, nominations, officials — plus the close flag.
-    // Built from `list` (not the PUT response, whose shape is unprobed) with the
-    // validation identity from the read-back.
-    const closedRes = await vmCall('PUT', 'api%5cnominationlist', buildListPairs(
+    // File it: VM's own `finalize` action, same body as the fill. Built from `list`
+    // (the save response's shape is unprobed) with the validation identity from the
+    // read-back.
+    const closedRes = await vmCall('POST', 'api%5cnominationlist/finalize', buildListPairs(
       { ...list, nominationListValidation: savedList?.nominationListValidation ?? list.nominationListValidation },
-      { nominations: matched, officials, close: true }));
+      { nominations: matched, officials }));
     const closedList = closedRes?.nominationList ?? closedRes?.items?.nominationList ?? closedRes;
-    if (closedList && typeof closedList === 'object' && closedList.isClosedForTeam === false) {
-      // VM answered but did not file it — say so rather than report a filing that isn't.
+    if (closedList?.isClosedForTeam !== true) {
+      // Only a read-back that says closed counts — never report a filing that isn't.
       return finish('filled', { listId: idOf(list), count,
         error: ['Volleymanager did not accept the close — please close it there', ...notes].join('; ') });
     }

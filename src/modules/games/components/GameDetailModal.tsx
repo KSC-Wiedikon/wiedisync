@@ -303,6 +303,22 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     }
   }, [game])
 
+  // While an Einsatzliste push runs (`pending`), re-read the game every 5 s so the
+  // status box settles on its own — a push takes ~10 s. Stops on the first
+  // terminal status; capped so a stuck lease cannot poll for ever.
+  const pendingNominationGameId = (fullGame ?? game)?.vm_nomination_status === 'pending' ? game?.id : null
+  useEffect(() => {
+    if (pendingNominationGameId == null) return
+    let polls = 0
+    const timer = setInterval(() => {
+      if (++polls > 36) { clearInterval(timer); return }
+      fetchItem<Game>('games', pendingNominationGameId, { fields: ['*', ...GAME_EXPAND.split(',').map(r => `${r}.*`)] })
+        .then((r) => { if (r.vm_nomination_status !== 'pending') setFullGame(r) })
+        .catch(() => {})
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [pendingNominationGameId])
+
   // Late-report state — only for coaches/TRs/admins of the PLAYING team, on home
   // games. Lets the "duty is late" reveal survive a reload without re-emailing.
   // Derived during render, NOT set from inside the effect: a synchronous setState
