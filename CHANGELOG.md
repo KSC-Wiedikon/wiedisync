@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.26.2 — 2026-10-02
+
+### Improved
+
+- Scoreboard tablet: when the hall's LedBox is connected to live scoring, the scorer can see the game info (match number, referees, hall) and the KSCW match sheet for the home game on the board — behind the scorer PIN — and copy it into the eScoresheet. Each read is logged like the assigned scorer's.
+
 ## v2.26.1 — 2026-10-01
 
 ### Improved

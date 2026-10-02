@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.26.1'
+const APP_VERSION = '2.26.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.26.2',
+    date: '02.10.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Scoreboard tablet: when the hall's LedBox is connected to live scoring, the scorer can see the game info (match number, referees, hall) and the KSCW match sheet for the home game on the board — behind the scorer PIN — and copy it into the eScoresheet. Each read is logged like the assigned scorer's.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.26.1',
     date: '01.10.2026',
