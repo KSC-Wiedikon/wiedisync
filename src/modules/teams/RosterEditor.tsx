@@ -19,7 +19,7 @@ import FinesSettings from '../fines/FinesSettings'
 import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
 import { getCurrentSeason } from '../../utils/dateHelpers'
-import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
+import type { Team, Member, MemberPosition, MemberTeam, TeamSettings, NominationOfficialRole } from '../../types'
 import { Button, buttonVariants } from '../../components/ui/button'
 import IconButton from '../../components/IconButton'
 import { cn } from '../../lib/utils'
@@ -258,6 +258,17 @@ export default function RosterEditor() {
     }
     setUploadingPicture(false)
   }
+
+  // Einsatzliste officials are picked from the team's staff (coaches + TRs) —
+  // Volleymanager wants a licensed coach in the C slot, which a player rarely is.
+  const staffIds = new Set(
+    [...((team?.coach ?? []) as unknown[]), ...((team?.team_responsible ?? []) as unknown[])].map((j) =>
+      relId(typeof j === 'object' && j !== null ? (j as { members_id?: unknown }).members_id : j),
+    ),
+  )
+  const staffOptions = allMembers
+    .filter((m) => staffIds.has(String(m.id)))
+    .map((m) => ({ id: String(m.id), name: displayName(m) }))
 
   if (!team || isLoading) {
     return null
@@ -584,7 +595,11 @@ export default function RosterEditor() {
 
       {/* Team settings */}
       {team && (
-        <TeamSettingsSection team={team} onUpdate={(s) => setTeam((prev) => prev ? { ...prev, features_enabled: s } : prev)} />
+        <TeamSettingsSection
+          team={team}
+          staff={staffOptions}
+          onUpdate={(s) => setTeam((prev) => prev ? { ...prev, features_enabled: s } : prev)}
+        />
       )}
 
       {/* Team sponsors */}
@@ -710,7 +725,17 @@ function isMixedYouthTeam(team: Team): boolean {
   return /^MU\s*\d/i.test((team.name ?? '').trim())
 }
 
-function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: TeamSettings) => void }) {
+const OFFICIAL_ROLES: { role: NominationOfficialRole; label: string }[] = [
+  { role: 'coach', label: 'nominationOfficialCoach' },
+  { role: 'assistant_coach_1', label: 'nominationOfficialAc1' },
+  { role: 'assistant_coach_2', label: 'nominationOfficialAc2' },
+]
+
+function TeamSettingsSection({ team, staff, onUpdate }: {
+  team: Team
+  staff: { id: string; name: string }[]
+  onUpdate: (s: TeamSettings) => void
+}) {
   const { t } = useTranslation('teams')
   const { update } = useMutation<Team>('teams')
   const settings: TeamSettings = (team.features_enabled as TeamSettings) ?? {}
@@ -762,6 +787,10 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
 
   const setNumber = (key: keyof TeamSettings, v: number) => {
     save({ [key]: v })
+  }
+
+  const setOfficial = (role: NominationOfficialRole, memberId: string) => {
+    save({ nomination_officials: { ...settings.nomination_officials, [role]: memberId || null } })
   }
 
   const toggleOpenForPlayers = async () => {
@@ -934,6 +963,35 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
             <SettingRow label={t('featureAutoNominationList')} hint={t('featureAutoNominationListHint')}>
               <SwitchToggle checked={settings.auto_nomination_list === true} onChange={() => toggleBool('auto_nomination_list')} />
             </SettingRow>
+          )}
+          {team.sport === 'volleyball' && (
+            <div className="px-4 py-3">
+              <div className="text-sm font-medium text-foreground">{t('nominationOfficials')}</div>
+              <div className="text-xs italic text-muted-foreground">{t('nominationOfficialsHint')}</div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {OFFICIAL_ROLES.map(({ role, label }) => {
+                  const value = settings.nomination_officials?.[role] ?? ''
+                  // Keep a saved pick visible even if that person has left the staff.
+                  const options = value && !staff.some((s) => s.id === String(value))
+                    ? [...staff, { id: String(value), name: t('nominationOfficialFormerStaff') }]
+                    : staff
+                  return (
+                    <label key={role} className="text-xs text-muted-foreground">
+                      <span className="mb-1 block font-medium">{t(label)}</span>
+                      <select
+                        value={String(value)}
+                        onChange={(e) => setOfficial(role, e.target.value)}
+                        className="w-full rounded-md border border-input bg-card px-2 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
+                        style={{ minHeight: 44 }}
+                      >
+                        <option value="">{t('nominationOfficialNone')}</option>
+                        {options.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
           )}
           <SettingRow label={t('settingsRequireNoteIfAbsent')} hint={t('settingsRequireNoteHint')}>
             <SwitchToggle checked={settings.game_require_note_if_absent === true} onChange={() => toggleBool('game_require_note_if_absent')} />

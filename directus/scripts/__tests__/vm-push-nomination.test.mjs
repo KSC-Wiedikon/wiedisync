@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { toPairs, assertNotClosing, fineableBlockers } from '../vm-push-nomination.mjs';
+import { assertNotClosing, fineableBlockers, pickOfficials, officialsPayload, buildListPairs } from '../vm-push-nomination.mjs';
 
 // The whole point of these tests: in VolleyManager, saving a nomination list and
 // FILING it officially are the same PUT, one boolean apart. A list that is closed
@@ -40,14 +40,6 @@ describe('assertNotClosing — the fill payload can never file the list', () => 
     assert.throws(() => assertNotClosing([['nominationList[checkedBy]', 'someone']]), /CLOSE/);
   });
 
-  test('a real fill payload built by toPairs passes', () => {
-    const list = {
-      __identity: 'd6cdf56a', persistenceObjectIdentifier: 'd6cdf56a',
-      closed: false, closedAt: null, closedBy: null, isClosedForTeam: false,
-      game: { __identity: 'a388606f' }, team: { __identity: 'c2e77d88' },
-    };
-    assert.doesNotThrow(() => assertNotClosing(toPairs(list, 'nominationList')));
-  });
 });
 
 describe('dev-database write guard', () => {
@@ -82,27 +74,6 @@ describe('dev-database write guard', () => {
   test('an unset DB_DATABASE does not trip the guard (prod-shaped default)', async () => {
     const m = await loadWith({ DB_DATABASE: '', VM_NOMINATION_ALLOW_DEV_WRITE: '', DRY_RUN: '' });
     assert.equal(m.isDryRun(), false);
-  });
-});
-
-describe('toPairs — Flow bracket-notation round-trip', () => {
-  test('collapses a related entity to its __identity', () => {
-    const pairs = toPairs({ game: { __identity: 'g1', name: 'ignored' } }, 'nominationList');
-    assert.deepEqual(pairs, [['nominationList[game][__identity]', 'g1']]);
-  });
-
-  test('falls back to persistenceObjectIdentifier when __identity is absent', () => {
-    const pairs = toPairs({ team: { persistenceObjectIdentifier: 't1' } }, 'nominationList');
-    assert.deepEqual(pairs, [['nominationList[team][__identity]', 't1']]);
-  });
-
-  test('nulls become empty strings — Flow reads "" as unset', () => {
-    assert.deepEqual(toPairs({ closedAt: null }, 'nominationList'), [['nominationList[closedAt]', '']]);
-  });
-
-  test('indexes arrays', () => {
-    const pairs = toPairs({ xs: [{ __identity: 'a' }, { __identity: 'b' }] }, 'n');
-    assert.deepEqual(pairs, [['n[xs][0][__identity]', 'a'], ['n[xs][1][__identity]', 'b']]);
   });
 });
 
@@ -166,5 +137,110 @@ describe('fineableBlockers — we only close on a clean validation', () => {
       }),
       ['nominationList_hasTooFewNominations', 'nominationList_isMissingCoachPerson'],
     );
+  });
+});
+
+describe('pickOfficials — who is C / AC1 / AC2', () => {
+  const teamDefault = { coach: 5, assistant_coach_1: '7' };
+
+  test('no per-game sheet → the team default; unset slots have no opinion', () => {
+    assert.deepEqual(pickOfficials([], teamDefault), {
+      source: 'team',
+      slots: { coach: 5, assistant_coach_1: 7, assistant_coach_2: undefined },
+    });
+  });
+
+  test('no sheet and no default → keep everything VM has', () => {
+    assert.deepEqual(pickOfficials([], undefined).slots,
+      { coach: undefined, assistant_coach_1: undefined, assistant_coach_2: undefined });
+  });
+
+  test('a sheet that assigns a slot is a snapshot: an unassigned slot is CLEARED', () => {
+    const rows = [{ member: 9, role: 'coach' }, { member: 3, role: 'physio' }];
+    assert.deepEqual(pickOfficials(rows, teamDefault), {
+      source: 'game',
+      slots: { coach: 9, assistant_coach_1: null, assistant_coach_2: null },
+    });
+  });
+
+  test('a VM-named official we hold no member for is kept as VM has it', () => {
+    const rows = [{ member: null, role: 'coach' }, { member: { id: 4 }, role: 'assistant_coach_2' }];
+    assert.deepEqual(pickOfficials(rows, teamDefault).slots,
+      { coach: undefined, assistant_coach_1: null, assistant_coach_2: 4 });
+  });
+
+  test('a sheet with only unlabelled / physio rows does not override the team default', () => {
+    const rows = [{ member: 9, role: null }, { member: 3, role: 'physio' }];
+    assert.equal(pickOfficials(rows, teamDefault).source, 'team');
+  });
+});
+
+describe('officialsPayload — never wipe an official we have no opinion on', () => {
+  const existing = {
+    coachPerson: { __identity: 'vm-c' },
+    firstAssistantCoachPerson: { __identity: 'vm-a1' },
+    secondAssistantCoachPerson: null,
+  };
+
+  test('undefined keeps VM\'s person — a human-entered official survives our push', () => {
+    assert.deepEqual(officialsPayload(existing, {}), existing);
+  });
+
+  test('a resolved person replaces, null clears', () => {
+    assert.deepEqual(officialsPayload(existing, { coach: { __identity: 'new' }, assistant_coach_1: null }), {
+      coachPerson: { __identity: 'new' },
+      firstAssistantCoachPerson: null,
+      secondAssistantCoachPerson: null,
+    });
+  });
+
+  test('an AC2 with no AC1 moves up, as VM\'s own form does', () => {
+    assert.deepEqual(officialsPayload(null, { assistant_coach_2: { __identity: 'x' } }), {
+      coachPerson: null,
+      firstAssistantCoachPerson: { __identity: 'x' },
+      secondAssistantCoachPerson: null,
+    });
+  });
+});
+
+describe('buildListPairs — the PUT body', () => {
+  const list = {
+    __identity: 'L1', game: { __identity: 'G1' }, team: { __identity: 'T1' },
+    nominationListValidation: { __identity: 'V1', nominationListValidationIssues: [] },
+    notFoundButNominatedPersons: [{ __identity: 'NF1' }],
+    isClosedForTeam: true, closed: true, closedAt: '2026-10-01T10:00:00+00:00', closedBy: { __identity: 'U1' },
+    checkedBy: 'referee',
+  };
+  const nominations = [{ indoorPlayer: { __identity: 'P1' }, indoorPlayerLicenseCategory: { __identity: 'C1' } }];
+  const officials = officialsPayload({ coachPerson: { __identity: 'VMC' } }, { assistant_coach_1: { __identity: 'A1' } });
+  const get = (pairs, k) => pairs.find(([key]) => key === k)?.[1];
+
+  test('regression: the ROOT is expanded, not collapsed to its identity', () => {
+    const pairs = buildListPairs(list, { nominations, officials });
+    assert.equal(get(pairs, 'nominationList[__identity]'), 'L1');
+    assert.equal(get(pairs, 'nominationList[game][__identity]'), 'G1');
+    assert.equal(get(pairs, 'nominationList[indoorPlayerNominations][0][indoorPlayer][__identity]'), 'P1');
+    assert.equal(get(pairs, 'nominationList[notFoundButNominatedPersons][0][__identity]'), 'NF1');
+  });
+
+  test('officials are sent: kept, replaced, and empty slots as ""', () => {
+    const pairs = buildListPairs(list, { nominations, officials });
+    assert.equal(get(pairs, 'nominationList[coachPerson][__identity]'), 'VMC');
+    assert.equal(get(pairs, 'nominationList[firstAssistantCoachPerson][__identity]'), 'A1');
+    assert.equal(get(pairs, 'nominationList[secondAssistantCoachPerson]'), '');
+  });
+
+  test('a fill of a FILED list (amend) reopens it and never re-sends the close or the referee review', () => {
+    const pairs = buildListPairs(list, { nominations, officials });
+    assert.equal(get(pairs, 'nominationList[isClosedForTeam]'), 'false');
+    assert.equal(get(pairs, 'nominationList[closedAt]'), '');
+    assert.ok(!pairs.some(([k]) => /checked/.test(k)));
+    assert.doesNotThrow(() => assertNotClosing(pairs));
+  });
+
+  test('only close:true carries the filing flag', () => {
+    const pairs = buildListPairs(list, { nominations, officials, close: true });
+    assert.equal(get(pairs, 'nominationList[isClosedForTeam]'), 'true');
+    assert.throws(() => assertNotClosing(pairs), /CLOSE/);
   });
 });

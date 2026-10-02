@@ -29,6 +29,7 @@ import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, par
 import RefereeExpenseSection from './RefereeExpenseSection'
 import GameGuestSection from './GameGuestSection'
 import GameRecordingsSection from './GameRecordingsSection'
+import NominationPushDialog from './NominationPushDialog'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import ShareActivityButton from '../../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
@@ -200,7 +201,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // Per-game Einsatzliste override — held locally so the pills react instantly;
   // the write goes through updateGame (which invalidates the games query).
   const [autoNomination, setAutoNomination] = useState<boolean | null>(game?.auto_nomination_list ?? null)
-  const [pushingNomination, setPushingNomination] = useState(false)
+  const [nominationDialogOpen, setNominationDialogOpen] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
   // Car pooling toggle (migration 378). The `game` prop is the opener's copy and
@@ -284,7 +285,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   if (prevNominationGameId !== game?.id) {
     setPrevNominationGameId(game?.id)
     setAutoNomination(game?.auto_nomination_list ?? null)
-    setPushingNomination(false)
+    setNominationDialogOpen(false)
   }
   const lateKey = `${game?.id ?? ''}|${game?.type ?? ''}`
   const [prevLateKey, setPrevLateKey] = useState(lateKey)
@@ -527,23 +528,16 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     } catch { /* the list refetch still lands */ }
   }
 
-  // Manual retry after a failed push. The endpoint spawns the same worker the T-60
-  // cron uses and flips the game back to `pending`, so we refetch to show that.
-  async function pushNominationNow() {
-    setPushingNomination(true)
+  // After "Create / Update Einsatzliste" starts the worker, the game is `pending` —
+  // refetch so the status box shows it.
+  async function reloadAfterNominationPush() {
+    invalidateForCollection('games')
     try {
-      await kscwApi<{ spawned: boolean }>(`/games/${gameId}/nomination-push`, { method: 'POST' })
-      toast.success(t('nominationPushStarted'))
-      invalidateForCollection('games')
       const fresh = await fetchItem<Game>('games', gameId, {
         fields: ['*', ...GAME_EXPAND.split(',').map((r) => `${r}.*`)],
       })
       setFullGame(fresh)
-    } catch {
-      toast.error(t('nominationPushFailed'))
-    } finally {
-      setPushingNomination(false)
-    }
+    } catch { /* the list refetch still lands */ }
   }
 
   const lateProps = (role: string) => ({
@@ -1104,18 +1098,28 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     {t('nominationError', { error: nominationError })}
                   </p>
                 )}
-                {nominationStatus === 'failed' && !readOnly && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pushingNomination}
-                    onClick={pushNominationNow}
-                    className="mt-1"
-                  >
-                    {t('nominationPushNow')}
-                  </Button>
-                )}
               </div>
+            )}
+
+            {/* Manual push, any time before kickoff — previews first, and warns before
+                amending a list that is already filed in Volleymanager. */}
+            {game.status === 'scheduled' && !readOnly && String(game.game_id ?? '').startsWith('vb_') && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={nominationStatus === 'pending'}
+                onClick={() => setNominationDialogOpen(true)}
+              >
+                {t(nominationStatus === 'closed' || nominationStatus === 'filled' ? 'nominationUpdateCta' : 'nominationCreateCta')}
+              </Button>
+            )}
+            {nominationDialogOpen && (
+              <NominationPushDialog
+                gameId={gameId}
+                open={nominationDialogOpen}
+                onClose={() => setNominationDialogOpen(false)}
+                onStarted={reloadAfterNominationPush}
+              />
             )}
           </div>
         )}
