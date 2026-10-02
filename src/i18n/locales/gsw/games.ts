@@ -182,7 +182,7 @@ export default {
   autoNominationOff: 'Us',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Wird gschickt…',
-  nominationStatusFilled: 'D\'Spieler sind iitreit, aber d\'Einsatzliste isch offe blibe — de Volleymanager hät es Problem gmeldet (z\'wenig Spieler oder kein Trainer), wo bim Abschliesse e Buess uslöse würd. Bitte lueg sie aa und schliess sie sälber ab.',
+  nominationStatusFilled: 'D Spieler sind iitreit, aber d Einsatzliste isch im Volleymanager no offe. Bitte det prüefe und abschliesse — de Grund staht une.',
   nominationStatusClosed: 'Erfasst und abgschlosse.',
   nominationStatusSkipped: 'Nüt z\'erfasse — kein vo de bestätigte Spieler hät e Lizänz.',
   nominationStatusFailed: 'S\'Schicke isch fehlgschlage.',
