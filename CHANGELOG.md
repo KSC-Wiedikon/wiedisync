@@ -2,6 +2,23 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.27.0 — 2026-10-02
+
+### New
+
+- Volleyball games: coaches and team responsibles can now create or update the Einsatzliste in Volleymanager at any time before kickoff with one button. A preview shows who will be entered (confirmed players, with anyone missing a licence flagged) and the coach and assistant coaches. Updating a list that is already filed asks first.
+- Team settings: pick the coach (C) and assistant coaches (AC1, AC2) the Einsatzliste should name by default. A game's match sheet can override them.
+
+### Fixed
+
+- The automatic Einsatzliste now enters the coach and actually files the list when Volleymanager reports no problem; players who could not be entered are listed under the status.
+
+## v2.26.2 — 2026-10-02
+
+### Improved
+
+- Scoreboard tablet: when the hall's LedBox is connected to live scoring, the scorer can see the game info (match number, referees, hall) and the KSCW match sheet for the home game on the board — behind the scorer PIN — and copy it into the eScoresheet. Each read is logged like the assigned scorer's.
+
 ## v2.26.1 — 2026-10-01
 
 ### Improved

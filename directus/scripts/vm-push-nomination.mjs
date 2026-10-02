@@ -13,6 +13,9 @@
  *   GAME_ID                       — games.id to file
  *   DRY_RUN=1                     — build + log the payload, write NOTHING
  *   NO_CLOSE=1                    — fill but never close, even if validation is clean
+ *   AMEND=1                       — the list is already filed in VM: reopen it, rewrite
+ *                                   it from our side and re-close it (manual button only,
+ *                                   never the cron — see "Amend" in main())
  *
  * Writes back onto the game: vm_nomination_status / _list_id / _count /
  * _pushed_at / _error.
@@ -37,6 +40,7 @@ const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
 const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530';
 const GAME_ID = process.env.GAME_ID;
 const NO_CLOSE = !!process.env.NO_CLOSE;
+const AMEND = !!process.env.AMEND;
 
 const log = (...a) => console.log(new Date().toISOString(), '[vm-nom]', ...a);
 
@@ -112,38 +116,15 @@ const vmHeaders = () => ({
   ...(ctx.wuid ? { 'Window-Unique-Id': ctx.wuid } : {}),
 });
 
-async function vmCall(method, resource, pairs) {
+async function vmCall(method, resource, pairs, pkg = 'sportmanager.indoorvolleyball') {
   const body = pairs.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? '')}`).join('&')
     + `&__csrfToken=${encodeURIComponent(ctx.csrf)}`;
-  const r = await fetch(`${VM_BASE}/api/sportmanager.indoorvolleyball/${resource}`, {
+  const r = await fetch(`${VM_BASE}/api/${pkg}/${resource}`, {
     method, headers: vmHeaders(), body,
   });
   const text = await r.text();
   if (!r.ok) throw new Error(`${method} ${resource} HTTP ${r.status}: ${text.slice(0, 300)}`);
   try { return JSON.parse(text); } catch { return null; }
-}
-
-/**
- * Flatten an object into Flow's bracket-notation form pairs, the way the browser
- * round-trips the whole aggregate back on every save. Relations collapse to their
- * `[__identity]`; nulls become empty strings (Flow reads '' as "unset").
- */
-export function toPairs(obj, prefix) {
-  const out = [];
-  const walk = (val, path) => {
-    if (val === null || val === undefined) { out.push([path, '']); return; }
-    if (Array.isArray(val)) { val.forEach((v, i) => walk(v, `${path}[${i}]`)); return; }
-    if (typeof val === 'object') {
-      // A related entity is passed by identity, never by value.
-      const id = idOf(val);
-      if (id) { out.push([`${path}[__identity]`, id]); return; }
-      for (const [k, v] of Object.entries(val)) walk(v, `${path}[${k}]`);
-      return;
-    }
-    out.push([path, String(val)]);
-  };
-  walk(obj, prefix);
-  return out;
 }
 
 /**
@@ -180,6 +161,127 @@ export function fineableBlockers(validation) {
       return fineable && !i.isResolved;
     })
     .map((i) => i.validationIssueConfiguration?.identifier || `issue#${i.number}`);
+}
+
+// ─── Officials (C / AC1 / AC2) ───────────────────────────────────────
+//
+// The Einsatzliste names up to three officials — VM's coachPerson,
+// firstAssistantCoachPerson, secondAssistantCoachPerson — and a list without a
+// coach is fineable (#33), so without these the push could never close a list on
+// its own. Who fills which slot, in order of precedence:
+//   1. the coach's per-game match sheet (`game_roster_officials`, migration 372) —
+//      a SNAPSHOT: once it assigns any of C/AC1/AC2 it is the officials, so a slot with no row is
+//      deliberately empty, and a row with no member is a VM-named official we hold
+//      no member for (left exactly as VM has it);
+//   2. the team default, `teams.features_enabled.nomination_officials`
+//      ({ coach, assistant_coach_1, assistant_coach_2 } → member id), set in the
+//      roster editor; an unset slot there has no opinion;
+//   3. whatever VM already has. We never clear a slot we have no opinion on, so an
+//      official a human entered in Volleymanager survives our push.
+export const OFFICIAL_SLOTS = [
+  ['coach', 'coachPerson'],
+  ['assistant_coach_1', 'firstAssistantCoachPerson'],
+  ['assistant_coach_2', 'secondAssistantCoachPerson'],
+];
+const SLOT_ROLES = OFFICIAL_SLOTS.map(([r]) => r);
+
+/**
+ * role → member id (a number), null (empty this slot) or undefined (no opinion —
+ * keep VM's). Pure; mirrored by the preview in kscw-endpoints/src/nomination-push.js.
+ */
+export function pickOfficials(savedRows, teamDefault) {
+  const out = {};
+  const rows = (savedRows ?? []).filter(Boolean);
+  // A snapshot only has an opinion on the slots once it assigns at least one of
+  // them — rows with role NULL are the unlabelled teams_coaches fallback, and a
+  // coach who only added a physio has not said "this game has no coach".
+  if (rows.some((r) => SLOT_ROLES.includes(r.role))) {
+    for (const role of SLOT_ROLES) {
+      const row = rows.find((r) => r.role === role);
+      if (!row) out[role] = null;
+      else out[role] = row.member == null ? undefined : Number(typeof row.member === 'object' ? row.member.id : row.member);
+    }
+    return { source: 'game', slots: out };
+  }
+  for (const role of SLOT_ROLES) {
+    const id = teamDefault?.[role];
+    out[role] = id == null || id === '' ? undefined : Number(id);
+  }
+  return { source: 'team', slots: out };
+}
+
+/**
+ * The three person relations to send. `resolved[role]` is a VM person
+ * ({__identity}), null (clear) or undefined (keep `existing`'s). An empty AC1
+ * with an AC2 moves up, exactly as VM's own form does before it saves.
+ */
+export function officialsPayload(existing, resolved) {
+  const out = {};
+  for (const [role, key] of OFFICIAL_SLOTS) {
+    const r = resolved?.[role];
+    out[key] = r === undefined ? (existing?.[key] ?? null) : r;
+  }
+  if (!out.firstAssistantCoachPerson && out.secondAssistantCoachPerson) {
+    out.firstAssistantCoachPerson = out.secondAssistantCoachPerson;
+    out.secondAssistantCoachPerson = null;
+  }
+  return out;
+}
+
+/** VM person by licence number — the same Elasticsearch search VM's person picker uses. */
+async function findVmPerson(licence) {
+  const res = await vmCall('POST', 'api%5celasticsearchperson/search', [
+    ['searchConfiguration[propertyFilters][0][propertyName]', 'associationId'],
+    ['searchConfiguration[propertyFilters][0][text]', String(licence)],
+    ['searchConfiguration[customFilters]', ''],
+    ['searchConfiguration[propertyOrderings]', ''],
+    ['searchConfiguration[offset]', '0'],
+    ['searchConfiguration[limit]', '10'],
+    ['propertyRenderConfiguration[0]', 'associationId'],
+  ], 'sportmanager.core');
+  const hits = (res?.items ?? []).filter((p) => String(p.associationId) === String(licence));
+  return hits.length === 1 && idOf(hits[0]) ? { __identity: idOf(hits[0]) } : null;
+}
+
+/**
+ * The PUT body for one save of OUR list — every property spelled out, nothing
+ * round-tripped by reflection.
+ *
+ * ⚠ This replaced `toPairs({...list}, 'nominationList')` (2026-10-02). toPairs
+ * collapses any object carrying an `__identity` to that identity — right for a
+ * related entity, wrong for the ROOT, which has one too. So both PUTs went out as
+ * `nominationList[__identity]` + nominations and nothing else: the close never
+ * carried `isClosedForTeam=true`, and no official could ever be sent.
+ *
+ * `nominations` are VM candidates (getPossibleIndoorPlayerNominationsForNominationList);
+ * `officials` is officialsPayload()'s output. `close` is the ONLY way to file.
+ */
+export function buildListPairs(list, { nominations, officials, close = false }) {
+  const P = 'nominationList';
+  const rel = (k, v) => [`${P}[${k}][__identity]`, idOf(v)];
+  const pairs = [
+    [`${P}[__identity]`, idOf(list)],
+    rel('game', list?.game),
+    rel('team', list?.team),
+    ...nominations.flatMap((c, i) => [
+      [`${P}[indoorPlayerNominations][${i}][indoorPlayer][__identity]`, idOf(c.indoorPlayer)],
+      [`${P}[indoorPlayerNominations][${i}][indoorPlayerLicenseCategory][__identity]`, idOf(c.indoorPlayerLicenseCategory)],
+    ]),
+    // A human may have added someone VM could not find — never drop their entry.
+    ...(list?.notFoundButNominatedPersons ?? []).filter((x) => idOf(x))
+      .map((x, i) => [`${P}[notFoundButNominatedPersons][${i}][__identity]`, idOf(x)]),
+  ];
+  for (const [, key] of OFFICIAL_SLOTS) {
+    pairs.push(officials?.[key] && idOf(officials[key]) ? rel(key, officials[key]) : [`${P}[${key}]`, '']);
+  }
+  if (idOf(list?.nominationListValidation)) pairs.push(rel('nominationListValidation', list.nominationListValidation));
+  pairs.push([`${P}[isSubsequentGameForTeamInTournamentGroup]`, String(!!list?.isSubsequentGameForTeamInTournamentGroup)]);
+  if (close) {
+    pairs.push([`${P}[isClosedForTeam]`, 'true']);
+    return pairs;
+  }
+  pairs.push([`${P}[isClosedForTeam]`, 'false'], [`${P}[closedAt]`, ''], [`${P}[closedBy]`, '']);
+  return assertNotClosing(pairs);
 }
 
 // ─── main ────────────────────────────────────────────────────────────
@@ -237,16 +339,31 @@ async function main() {
 
   const licensed = playing.filter((m) => m.license_nr);
   const unlicensed = playing.filter((m) => !m.license_nr);
+  // Shown to the coach under the status (vm_nomination_error) even on success —
+  // "filed" must not hide that someone who said yes is not on the list.
+  const notes = [];
   if (unlicensed.length) {
     // Never silently drop a player who said yes — they simply cannot be nominated.
-    log(`WARN: ${unlicensed.length} confirmed player(s) have no licence_nr and cannot be nominated: `
-      + unlicensed.map((m) => `${m.first_name} ${m.last_name}`).join(', '));
+    const names = unlicensed.map((m) => `${m.first_name} ${m.last_name}`).join(', ');
+    log(`WARN: ${unlicensed.length} confirmed player(s) have no licence_nr and cannot be nominated: ${names}`);
+    notes.push(`no licence number: ${names}`);
   }
   if (!licensed.length) {
     return finish('skipped', { error: `no licensed confirmed players (${playing.length} confirmed, ${unlicensed.length} unlicensed)` });
   }
   const wantLicences = new Set(licensed.map((m) => String(m.license_nr)));
   log(`game ${GAME_ID} (${side.toLowerCase()} #${number}): ${licensed.length} licensed / ${playing.length} confirmed`);
+
+  // ── Officials (C / AC1 / AC2): per-game match sheet, else the team default.
+  const [savedOfficials, teamRow] = await Promise.all([
+    dGet(`/items/game_roster_officials?filter[game][_eq]=${GAME_ID}&fields=member,role&limit=-1`),
+    dGet(`/items/teams/${game.kscw_team}?fields=features_enabled`),
+  ]);
+  const picked = pickOfficials(savedOfficials ?? [], teamRow?.features_enabled?.nomination_officials);
+  const officialIds = [...new Set(Object.values(picked.slots).filter((v) => typeof v === 'number'))];
+  const officialMembers = officialIds.length
+    ? await dGet(`/items/members?filter[id][_in]=${officialIds.join(',')}&fields=id,first_name,last_name,license_nr&limit=-1`) ?? []
+    : [];
 
   // ── VM session
   jar = await vmLogin({ username: process.env.VM_USERNAME, password: process.env.VM_PASSWORD });
@@ -259,10 +376,46 @@ async function main() {
   const items = got?.items ?? got ?? {};
   let list = items[`nominationListTeam${side}`] ?? null;
 
-  if (list?.closed || list?.isClosedForTeam) {
+  // ── Amend. A filed list is left alone unless a coach pressed "Update" in the
+  // app and confirmed the warning (AMEND=1, manual endpoint only — the cron never
+  // sets it). Closing does not lock a list in VM: the team may edit it until the
+  // game starts, which is what VM's own form does — reopen, save, close again.
+  // The fill below reopens it (assertNotClosing still guards every fill), and the
+  // re-close obeys the same clean-validation rule as a first filing. So an amend
+  // that makes the list fineable (too few players) leaves it OPEN — status
+  // 'filled', which the coach sees — rather than filing a fineable document.
+  const wasClosed = !!(list?.closed || list?.isClosedForTeam);
+  if (wasClosed && !AMEND) {
+    // Already filed — only an explicit amend reopens it. Say so, or the coach who
+    // pressed the button sees "Filed" and thinks THEIR list went up.
     return finish('closed', { listId: idOf(list), count: (list.indoorPlayerNominations ?? []).length,
-      error: null });   // already filed by a human — never reopen someone's filing
+      error: 'already filed in Volleymanager — nothing was changed; use "Update Einsatzliste" to amend it' });
   }
+  if (wasClosed) log(`AMEND: list ${idOf(list)} is filed — reopening it to rewrite our side`);
+
+  // ── Officials → VM persons. Read-only lookups, so done before registerWindow.
+  const ROLE_LABEL = { coach: 'C', assistant_coach_1: 'AC1', assistant_coach_2: 'AC2' };
+  const resolvedOfficials = {};
+  for (const [role] of OFFICIAL_SLOTS) {
+    const want = picked.slots[role];
+    if (want == null) { resolvedOfficials[role] = want; continue; }   // null = clear, undefined = keep VM's
+    const m = officialMembers.find((x) => Number(x.id) === want);
+    const name = m ? `${m.first_name} ${m.last_name}` : `member ${want}`;
+    resolvedOfficials[role] = undefined;   // anything that fails below keeps VM's value
+    if (!m?.license_nr) { notes.push(`${ROLE_LABEL[role]} ${name} has no licence number`); continue; }
+    try {
+      const person = await findVmPerson(m.license_nr);
+      if (person) resolvedOfficials[role] = person;
+      else notes.push(`${ROLE_LABEL[role]} ${name} (${m.license_nr}) not found in Volleymanager`);
+    } catch (e) {
+      notes.push(`${ROLE_LABEL[role]} ${name}: lookup failed`);
+      log(`WARN: person lookup for ${m.license_nr} failed: ${e.message}`);
+    }
+  }
+  log(`officials (${picked.source}): ` + OFFICIAL_SLOTS.map(([r]) => {
+    const v = resolvedOfficials[r];
+    return `${ROLE_LABEL[r]}=${v === undefined ? 'keep' : v === null ? 'clear' : idOf(v)}`;
+  }).join(' '));
 
   const teamForNew = items[`team${side}ForNewNominationList`];
   if (!list && !teamForNew) return finish('failed', { error: `VM offered neither an existing list nor a team to create one for (side=${side})` });
@@ -285,6 +438,8 @@ async function main() {
     log(`DRY_RUN: want ${[...wantLicences].join(',')}`);
     log(`DRY_RUN: would nominate ${matched.length}/${wantLicences.size}: `
       + matched.map((c) => `${c.indoorPlayer?.person?.lastName}(${c.indoorPlayer?.person?.associationId})`).join(', '));
+    if (wasClosed) log('DRY_RUN: would REOPEN the filed list, rewrite it, and re-close it only on a clean validation');
+    if (notes.length) log(`DRY_RUN: notes: ${notes.join('; ')}`);
     if (!listId) log('DRY_RUN: no list exists yet — candidates can only be fetched once it does; run for real to see the full match');
     return finish('skipped', { error: null });
   }
@@ -313,6 +468,9 @@ async function main() {
       ]));
       list = created?.nominationList ?? created?.items?.nominationList ?? created;
       if (!idOf(list)) throw new Error('create returned no list identity');
+      // The create response's relations are unprobed; we know both, so never send ''.
+      list = { ...list, game: idOf(list.game) ? list.game : { __identity: svrz.svrz_persistence_id },
+               team: idOf(list.team) ? list.team : teamForNew };
       log(`created list ${idOf(list)}`);
 
       candidates = await vmCall('POST', 'api%5cnominationlist/getPossibleIndoorPlayerNominationsForNominationList',
@@ -325,26 +483,18 @@ async function main() {
       (l) => !candidates.some((c) => String(c.indoorPlayer?.person?.associationId) === l));
     if (missing.length) {
       log(`WARN: ${missing.length} confirmed licence(s) are not nominatable in VM (no validated licence for this team?): ${missing.join(', ')}`);
+      const byLicence = new Map(licensed.map((m) => [String(m.license_nr), `${m.first_name} ${m.last_name}`]));
+      notes.push(`not eligible in Volleymanager: ${missing.map((l) => byLicence.get(l) || l).join(', ')}`);
     }
     if (!matched.length) {
       return finish('skipped', { listId: idOf(list), count: 0,
-        error: `none of the ${wantLicences.size} confirmed licence(s) are nominatable in VM` });
+        error: [`none of the ${wantLicences.size} confirmed licence(s) are nominatable in VM`, ...notes].join('; ') });
     }
 
-    // Fill. Round-trip the whole aggregate (Flow's property mapper wants it back),
-    // swapping in our nominations. Every close flag stays explicitly false.
-    const fill = assertNotClosing([
-      ...toPairs({ ...list, indoorPlayerNominations: undefined, nominationListValidation: undefined,
-                   coachPerson: undefined, firstAssistantCoachPerson: undefined,
-                   secondAssistantCoachPerson: undefined,
-                   closed: false, closedAt: null, closedBy: null, isClosedForTeam: false },
-                 'nominationList'),
-      ['nominationList[nominationListValidation][__identity]', idOf(list.nominationListValidation)],
-      ...matched.flatMap((c, i) => [
-        [`nominationList[indoorPlayerNominations][${i}][indoorPlayer][__identity]`, idOf(c.indoorPlayer)],
-        [`nominationList[indoorPlayerNominations][${i}][indoorPlayerLicenseCategory][__identity]`, idOf(c.indoorPlayerLicenseCategory)],
-      ]),
-    ]);
+    // Fill: our nominations + officials, every close flag explicitly false (this is
+    // also what reopens a filed list on an amend).
+    const officials = officialsPayload(list, resolvedOfficials);
+    const fill = buildListPairs(list, { nominations: matched, officials });
 
     const saved = await vmCall('PUT', 'api%5cnominationlist', fill);
     const savedList = saved?.nominationList ?? saved?.items?.nominationList ?? saved;
@@ -354,27 +504,31 @@ async function main() {
     // Close — but only on a clean read-back. VM recomputed the validation during the
     // save above; a fineable issue here means closing would file a document we can be
     // fined for, so we leave it open for the coach instead.
+    const noteText = notes.length ? notes.join('; ') : null;
     if (NO_CLOSE) {
-      return finish('filled', { listId: idOf(list), count, error: null });
+      return finish('filled', { listId: idOf(list), count, error: noteText });
     }
     const blockers = fineableBlockers(savedList?.nominationListValidation);
     if (blockers.length) {
       log(`NOT closing — ${blockers.length} unresolved fineable issue(s): ${blockers.join(', ')}`);
       return finish('filled', { listId: idOf(list), count,
-        error: `left open for review: ${blockers.join(', ')}` });
+        error: [`left open for review: ${blockers.join(', ')}`, ...notes].join('; ') });
     }
 
-    await vmCall('PUT', 'api%5cnominationlist', [
-      ...toPairs({ ...savedList, indoorPlayerNominations: undefined, nominationListValidation: undefined,
-                   isClosedForTeam: true }, 'nominationList'),
-      ['nominationList[nominationListValidation][__identity]', idOf(savedList?.nominationListValidation)],
-      ...matched.flatMap((c, i) => [
-        [`nominationList[indoorPlayerNominations][${i}][indoorPlayer][__identity]`, idOf(c.indoorPlayer)],
-        [`nominationList[indoorPlayerNominations][${i}][indoorPlayerLicenseCategory][__identity]`, idOf(c.indoorPlayerLicenseCategory)],
-      ]),
-    ]);
-    log(`closed list ${idOf(list)}`);
-    return finish('closed', { listId: idOf(list), count, error: null });
+    // Same body as the fill — identity, nominations, officials — plus the close flag.
+    // Built from `list` (not the PUT response, whose shape is unprobed) with the
+    // validation identity from the read-back.
+    const closedRes = await vmCall('PUT', 'api%5cnominationlist', buildListPairs(
+      { ...list, nominationListValidation: savedList?.nominationListValidation ?? list.nominationListValidation },
+      { nominations: matched, officials, close: true }));
+    const closedList = closedRes?.nominationList ?? closedRes?.items?.nominationList ?? closedRes;
+    if (closedList && typeof closedList === 'object' && closedList.isClosedForTeam === false) {
+      // VM answered but did not file it — say so rather than report a filing that isn't.
+      return finish('filled', { listId: idOf(list), count,
+        error: ['Volleymanager did not accept the close — please close it there', ...notes].join('; ') });
+    }
+    log(`closed list ${idOf(list)}${wasClosed ? ' (amended)' : ''}`);
+    return finish('closed', { listId: idOf(list), count, error: noteText });
   } finally {
     try { rw?.ws?.close(); } catch { /* best effort */ }
   }

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.26.1'
+const APP_VERSION = '2.27.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,37 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.27.0',
+    date: '02.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Volleyball games: coaches and team responsibles can now create or update the Einsatzliste in Volleymanager at any time before kickoff with one button. A preview shows who will be entered (confirmed players, with anyone missing a licence flagged) and the coach and assistant coaches. Updating a list that is already filed asks first.",
+          "Team settings: pick the coach (C) and assistant coaches (AC1, AC2) the Einsatzliste should name by default. A game's match sheet can override them.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "The automatic Einsatzliste now enters the coach and actually files the list when Volleymanager reports no problem; players who could not be entered are listed under the status.",
+        ],
+      },
+    ],
+  },
+  {
+    version: '2.26.2',
+    date: '02.10.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Scoreboard tablet: when the hall's LedBox is connected to live scoring, the scorer can see the game info (match number, referees, hall) and the KSCW match sheet for the home game on the board — behind the scorer PIN — and copy it into the eScoresheet. Each read is logged like the assigned scorer's.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.26.1',
     date: '01.10.2026',

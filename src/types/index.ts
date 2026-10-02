@@ -126,7 +126,13 @@ export interface TeamSettings extends FeatureToggles {
    *  ~60 min before kickoff. A game's own `auto_nomination_list` overrides this; null
    *  there means "inherit this". Volleyball only. Default false. */
   auto_nomination_list?: boolean
+  /** Team default for the Einsatzliste officials (C / AC1 / AC2) → member id. The
+   *  push sends these to Volleymanager unless the game's match sheet names its own
+   *  (game_roster_officials). An unset slot keeps whatever VM already has. */
+  nomination_officials?: Partial<Record<NominationOfficialRole, string | null>>
 }
+
+export type NominationOfficialRole = 'coach' | 'assistant_coach_1' | 'assistant_coach_2'
 
 export interface Member extends BaseRecord {
   /** directus_users.id — set when this member has an authenticated account.

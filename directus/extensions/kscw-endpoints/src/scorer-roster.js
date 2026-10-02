@@ -33,7 +33,15 @@
  *            keyed to `coach`/`admin` only, so being lent players for one fixture never
  *            becomes a standing power to edit the host team's sheet.
  *
- * Directus admins bypass both. Every read is audit-logged (writeUserLog) precisely
+ *   board  — the hall's LedBox scoreboard (the `ledbox-board@kscw.ch` service user, which
+ *            holds the `KSCW LedBox Publisher` policy). Its tablet console shows the sheet to
+ *            the scorer, behind the board's scorer PIN, so they can copy it into the
+ *            eScoresheet. Window: the coach's (kickoff −6h … +3h) — most halls give the board
+ *            no uplink, so it must be able to fetch while one is briefly there and keep the
+ *            copy. Home games only, like the scorer. READ ONLY, and no Recheck: a scoreboard
+ *            must never log the shared VM account in.
+ *
+ * Directus admins bypass all of them. Every read is audit-logged (writeUserLog) precisely
  * because it surfaces minor PII — a deliberate exception to the "reads need no actor
  * capture" rule.
  *
@@ -89,6 +97,31 @@ const SCORER_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
 // roster 403s, and nothing downloads — with no error that points at the cause.
 const COACH_WINDOW_BEFORE_MS = 6 * 60 * 60 * 1000
 const COACH_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
+
+// The policy the board's service user holds (setup-permissions.mjs §5b). A user holding it
+// is the board, whatever else it is — there is exactly one such user, and it has no member row.
+export const LEDBOX_POLICY_NAME = 'KSCW LedBox Publisher'
+
+/** Is this Directus user the LedBox board? */
+export async function isLedboxBoard(database, userId) {
+  if (!userId) return false
+  const row = await database('directus_access')
+    .join('directus_policies', 'directus_policies.id', 'directus_access.policy')
+    .where('directus_access.user', userId)
+    .where('directus_policies.name', LEDBOX_POLICY_NAME)
+    .first('directus_access.id')
+  return !!row
+}
+
+/** Does `access` see the sheet at `nowMs`, for a game kicking off at `startMs`? Admins always. */
+export function inRosterWindow(access, startMs, nowMs) {
+  if (access === 'admin') return true
+  if (startMs == null) return false
+  const wide = access === 'coach' || access === 'guest_coach' || access === 'board'
+  const before = wide ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
+  const after = wide ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
+  return nowMs >= startMs - before && nowMs <= startMs + after
+}
 
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
@@ -510,7 +543,7 @@ export function registerScorerRoster(router, { database, logger }) {
 
   /**
    * Resolve caller → { access, member, game } or an error response.
-   * access: 'admin' | 'scorer' | 'coach'
+   * access: 'admin' | 'coach' | 'guest_coach' | 'scorer' | 'board'
    */
   async function authorize(req, res) {
     const isAdmin = req.accountability?.admin === true
@@ -535,8 +568,10 @@ export function registerScorerRoster(router, { database, logger }) {
     const isCoach = !!member && await isTeamLeader(database, Number(member.id), game.kscw_team)
     const isGuestCoach = !isCoach && !!member && await isGuestTeamLeader(database, Number(member.id), game.id)
 
+    const isBoard = !isAdmin && !member && await isLedboxBoard(database, userId)
+
     const access = isAdmin ? 'admin'
-      : (isCoach ? 'coach' : (isGuestCoach ? 'guest_coach' : (isScorer ? 'scorer' : null)))
+      : (isCoach ? 'coach' : (isGuestCoach ? 'guest_coach' : (isScorer ? 'scorer' : (isBoard ? 'board' : null))))
     if (!access) {
       res.status(403).json({
         error: 'Not the assigned scorer, coach or team responsible for this game',
@@ -552,10 +587,7 @@ export function registerScorerRoster(router, { database, logger }) {
         res.status(403).json({ error: 'Game has no scheduled time', code: 'no_time' })
         return null
       }
-      const before = (access === 'coach' || access === 'guest_coach') ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
-      const after = (access === 'coach' || access === 'guest_coach') ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
-      const nowMs = Date.now()
-      if (nowMs < startMs - before || nowMs > startMs + after) {
+      if (!inRosterWindow(access, startMs, Date.now())) {
         res.status(403).json({ error: 'Roster is not available at this time', code: 'outside_window' })
         return null
       }
@@ -568,7 +600,7 @@ export function registerScorerRoster(router, { database, logger }) {
       res.status(422).json({ error: 'Game has no KSCW team', code: 'not_home' })
       return null
     }
-    if (access === 'scorer' && game.type !== 'home') {
+    if ((access === 'scorer' || access === 'board') && game.type !== 'home') {
       res.status(422).json({ error: 'Roster is only available for home games', code: 'not_home' })
       return null
     }
@@ -633,6 +665,9 @@ export function registerScorerRoster(router, { database, logger }) {
       const auth = await authorize(req, res)
       if (!auth) return
       const { access, member, game, gameId } = auth
+      if (access === 'board') {
+        return res.status(403).json({ error: 'The scoreboard may only read the sheet', code: 'read_only' })
+      }
       if (!String(game.game_id ?? '').startsWith('vb_')) {
         return res.status(422).json({ error: 'Not a Volleymanager game', code: 'not_vm' })
       }
