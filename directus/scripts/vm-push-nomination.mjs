@@ -358,6 +358,18 @@ async function main() {
     ? await dGet(`/items/members?filter[id][_in]=${officialIds.join(',')}&fields=id,first_name,last_name,license_nr&limit=-1`) ?? []
     : [];
 
+  // The head coach is REQUIRED (AC1/AC2 optional): VM fines a list without one and
+  // can only find a person by licence. Checked before any VM login, so a team that
+  // has not set its C costs nothing and gets a status that says exactly what to do.
+  // (The manual endpoint refuses the same case up front.)
+  const headCoach = officialMembers.find((m) => Number(m.id) === picked.slots.coach);
+  if (typeof picked.slots.coach !== 'number') {
+    return finish('failed', { error: 'No head coach (C) set — set one in the team settings (Game defaults) or on the match sheet' });
+  }
+  if (!headCoach?.license_nr) {
+    return finish('failed', { error: `Head coach (C) ${headCoach ? `${headCoach.first_name} ${headCoach.last_name}` : ''} has no licence number`.replace('  ', ' ') });
+  }
+
   // ── VM session
   jar = await vmLogin({ username: process.env.VM_USERNAME, password: process.env.VM_PASSWORD });
   ctx = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/game/index');

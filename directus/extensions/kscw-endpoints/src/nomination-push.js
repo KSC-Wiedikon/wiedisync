@@ -6,7 +6,7 @@
  * a coach whose push failed, or who wants the list filed early, can trigger the
  * same worker on demand — including for a game whose flag is off.
  *
- * POST /kscw/games/:id/nomination-push   → { spawned: true }
+ * POST /kscw/games/:id/nomination-push   → { spawned: true, queued, position }
  * GET  /kscw/games/:id/nomination-preview → what a push would send (DB only, no VM)
  *
  * The club SAVES the list; the referee closes it after the game. Refused once the
@@ -23,6 +23,11 @@
  * ⚠ …and hence the lease: this endpoint and the cron BOTH claim the same
  * `games` row with the same predicate before spawning anything, so only one
  * worker per fixture can be in flight. See the claim below.
+ *
+ * ⚠ …and ONE push at a time ACROSS fixtures: requests from different teams join a
+ * FIFO (createSerialQueue) that holds the shared-VM-account claim per worker, so
+ * two teams pressing at once never put two logins on the account. The head coach
+ * (C) is required — refused with 422 `no_head_coach` / `head_coach_no_licence`.
  */
 import { writeUserLog } from './activity-log.js'
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
@@ -49,6 +54,81 @@ export function pickOfficials(savedRows, teamDefault) {
   return { source: 'team', slots: out }
 }
 
+/**
+ * Who goes up as C / AC1 / AC2 for this game, as display rows, plus the head-coach
+ * gate. C is REQUIRED (VM fines a list without one); AC1/AC2 are optional. "Set"
+ * means we name a member WITH a licence number — without one VM cannot find them.
+ */
+async function resolveOfficials(database, gameId, teamId) {
+  const [savedOfficials, team] = await Promise.all([
+    database('game_roster_officials').where('game', gameId).select('member', 'role'),
+    database('teams').where('id', teamId).first('features_enabled'),
+  ])
+  const fe = typeof team?.features_enabled === 'string' ? JSON.parse(team.features_enabled) : team?.features_enabled
+  const picked = pickOfficials(savedOfficials, fe?.nomination_officials)
+  const ids = Object.values(picked.slots).filter((v) => typeof v === 'number')
+  const people = ids.length
+    ? await database('members').whereIn('id', ids).select('id', 'first_name', 'last_name', 'license_nr')
+    : []
+  const officials = {}
+  for (const role of SLOT_ROLES) {
+    const v = picked.slots[role]
+    if (v === undefined) { officials[role] = { keep: true }; continue }
+    if (v === null) { officials[role] = null; continue }
+    const m = people.find((x) => Number(x.id) === v)
+    officials[role] = m
+      ? { member: Number(m.id), name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim(), license_nr: m.license_nr || null }
+      : { member: v, name: null, license_nr: null }
+  }
+  const c = officials.coach
+  const headCoach = !c || 'keep' in c ? 'missing' : !c.license_nr ? 'no_licence' : 'ok'
+  return { source: picked.source, officials, headCoach }
+}
+
+/**
+ * A FIFO that runs ONE job at a time, each only while holding `claim(job)` — the
+ * shared-VM-account claim. A busy account is waited for (polled every `pollMs`, up
+ * to `waitMs`), never refused; past that the job is handed to `onGiveUp`. The claim
+ * is released only after `run` settles, i.e. after the worker has EXITED.
+ * Returns `enqueue(job) → position` (1 = runs now).
+ */
+export function createSerialQueue({ claim, run, onGiveUp, onError, waitMs, pollMs = 3000 }) {
+  const queue = []
+  let draining = false
+
+  async function waitForClaim(job) {
+    const until = Date.now() + waitMs
+    for (;;) {
+      const release = claim(job)
+      if (release) return release
+      if (Date.now() >= until) return null
+      await new Promise((r) => setTimeout(r, pollMs))
+    }
+  }
+
+  async function drain() {
+    if (draining) return
+    draining = true
+    try {
+      while (queue.length) {
+        const job = queue.shift()
+        const release = await waitForClaim(job)
+        if (!release) { await onGiveUp?.(job); continue }
+        try { await run(job) } catch (err) { await onError?.(job, err) } finally { release() }
+      }
+    } finally {
+      draining = false
+    }
+  }
+
+  return function enqueue(job) {
+    queue.push(job)
+    const position = queue.length + (draining ? 1 : 0)
+    void drain()
+    return position
+  }
+}
+
 /** Sport admin, or coach / TR of the game's (active) team. */
 async function mayFile(database, accountability, teamId) {
   if (accountability?.admin) return true
@@ -66,6 +146,75 @@ async function mayFile(database, accountability, teamId) {
 
 export function registerNominationPush(router, { database, logger }) {
   const log = logger || console
+
+  // ── The manual-push queue ─────────────────────────────────────────────────
+  // Process-local, like the account claim itself (one Directus process). A
+  // restart loses queued jobs; their rows are 'pending' and the cron's lease
+  // sweep turns them into 'failed' after 10 minutes, which re-offers the button.
+  // How long a queued push waits for the account before giving up. Under the
+  // 10-minute row lease, so the cron never reclaims a row this is still serving.
+  const ACCOUNT_WAIT_MS = 8 * 60 * 1000
+  const WORKER_MAX_MS = 3 * 60 * 1000
+
+  const enqueue = createSerialQueue({
+    claim: (job) => claimVmAccount(`nomination-push:manual:${job.gameId}`),
+    waitMs: ACCOUNT_WAIT_MS,
+    run: async (job) => {
+      // Fresh lease from the moment the worker actually starts.
+      await database('games').where('id', job.gameId).update({ vm_nomination_claimed_at: database.fn.now() })
+      await runWorker(job.gameId)
+    },
+    onGiveUp: async (job) => {
+      log.warn?.({ msg: `[nomination-push] game ${job.gameId}: account busy for ${ACCOUNT_WAIT_MS / 60000} min — gave up (${vmAccountHeldBy()})`, game: job.gameId })
+      await database('games').where('id', job.gameId).update({
+        vm_nomination_status: 'failed',
+        vm_nomination_error: 'Volleymanager stayed busy with another sync — please press again in a few minutes',
+        vm_nomination_claimed_at: null,
+      }).catch(() => {})
+    },
+    onError: async (job, err) => {
+      log.error?.({ msg: `[nomination-push] game ${job.gameId}: ${err.message}`, game: job.gameId })
+      await database('games').where('id', job.gameId).update({
+        vm_nomination_status: 'failed',
+        vm_nomination_error: 'Could not start the push',
+        vm_nomination_claimed_at: null,
+      }).catch(() => {})
+    },
+  })
+
+  async function runWorker(gameId) {
+    const { spawn } = await import('node:child_process')
+    const { openSync } = await import('node:fs')
+    let logOut
+    try { logOut = openSync('/directus/logs/vm-nomination.log', 'a') } catch { logOut = 'ignore' }
+    const child = spawn('node', ['/directus/scripts/vm-push-nomination.mjs'], {
+      detached: true,
+      stdio: ['ignore', logOut, logOut],
+      env: {
+        HOME: process.env.HOME,
+        PATH: process.env.PATH,
+        VM_USERNAME: process.env.VM_USERNAME,
+        VM_PASSWORD: process.env.VM_PASSWORD,
+        KSCW_SVRZ_CLUB_ID: process.env.KSCW_SVRZ_CLUB_ID || '',
+        DIRECTUS_URL: 'http://127.0.0.1:8055',
+        DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
+        DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
+        GAME_ID: String(gameId),
+        // Lets the worker refuse to write from the dev DB — VM has no staging.
+        DB_DATABASE: process.env.DB_DATABASE || '',
+        VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
+      },
+    })
+    child.unref()
+    await new Promise((resolve, reject) => {
+      child.once('error', reject)
+      const timer = setTimeout(() => {
+        log.warn?.({ msg: `[nomination-push] game ${gameId}: worker hung — killed`, game: gameId })
+        try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch { /* gone */ } }
+      }, WORKER_MAX_MS)
+      child.once('exit', () => { clearTimeout(timer); resolve() })
+    })
+  }
 
   // ── Preview: what "Update Einsatzliste" would send. DB only — eligibility in VM
   // (validated licence for this team) is only known once the worker asks VM, and
@@ -91,26 +240,7 @@ export function registerNominationPush(router, { database, logger }) {
         .distinct('m.id', 'm.first_name', 'm.last_name', 'm.license_nr')
         .orderBy([{ column: 'm.last_name' }, { column: 'm.first_name' }])
 
-      const [savedOfficials, team] = await Promise.all([
-        database('game_roster_officials').where('game', gameId).select('member', 'role'),
-        database('teams').where('id', game.kscw_team).first('features_enabled'),
-      ])
-      const fe = typeof team?.features_enabled === 'string' ? JSON.parse(team.features_enabled) : team?.features_enabled
-      const picked = pickOfficials(savedOfficials, fe?.nomination_officials)
-      const ids = Object.values(picked.slots).filter((v) => typeof v === 'number')
-      const people = ids.length
-        ? await database('members').whereIn('id', ids).select('id', 'first_name', 'last_name', 'license_nr')
-        : []
-      const officials = {}
-      for (const role of SLOT_ROLES) {
-        const v = picked.slots[role]
-        if (v === undefined) { officials[role] = { keep: true }; continue }
-        if (v === null) { officials[role] = null; continue }
-        const m = people.find((x) => Number(x.id) === v)
-        officials[role] = m
-          ? { member: Number(m.id), name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim(), license_nr: m.license_nr || null }
-          : { member: v, name: null, license_nr: null }
-      }
+      const { source, officials, headCoach } = await resolveOfficials(database, gameId, game.kscw_team)
 
       const startMs = gameStartMs(game)
       res.json({
@@ -121,7 +251,9 @@ export function registerNominationPush(router, { database, logger }) {
             license_nr: m.license_nr || null,
           })),
           officials,
-          officials_source: picked.source,
+          officials_source: source,
+          // 'ok' | 'missing' | 'no_licence' — the push is refused unless 'ok'.
+          head_coach: headCoach,
           status: game.vm_nomination_status ?? null,
           // A list is already in VM (a re-save replaces it) / the referee closed it.
           exists: ['saved', 'filled'].includes(game.vm_nomination_status),
@@ -174,56 +306,27 @@ export function registerNominationPush(router, { database, logger }) {
       return res.status(422).json({ error: 'The game has started — the Einsatzliste can no longer be changed from here', code: 'game_started' })
     }
 
-    // ── Claim the SHARED Volleymanager account, BEFORE the row ────────────────
-    //
-    // Two different shared things, two different claims. The row claim below
-    // stops a second worker on this fixture; this one stops a worker of any kind
-    // running while vm_sync, the SVRZ sync or an admin's "Sync now" holds the
-    // account — VM keeps the active role per ACCOUNT and the worker's vmLogin()
-    // switches it, so an overlap reads under somebody else's role, where VM
-    // answers 200 with the WRONG ROWS as readily as 403.
-    //
-    // Order matters: the row claim writes 'pending', and a row left at 'pending'
-    // with no worker behind it hides the coach's button (which renders only for
-    // 'failed') until the 10-minute lease runs out. Refusing BEFORE that write
-    // leaves the game exactly as it was, so the coach can press again in a
-    // moment rather than being locked out of their own fixture.
-    const releaseVmAccount = claimVmAccount('nomination-push:manual')
-    if (!releaseVmAccount) {
-      const holder = vmAccountHeldBy()
-      log.info?.({ msg: `[nomination-push] rejected: the shared VM account is busy (${holder})`, game: gameId })
-      return res.status(409).json({
-        error: 'Volleymanager is busy with another sync — try again in a few minutes',
-        code: 'vm_account_busy',
-        holder,
-      })
+    // The head coach is REQUIRED — a list without one is fineable, and VM can only
+    // find a person by licence. Refused here, before any claim, so nothing changes.
+    try {
+      const { headCoach } = await resolveOfficials(database, gameId, game.kscw_team)
+      if (headCoach !== 'ok') {
+        return res.status(422).json({
+          error: headCoach === 'missing' ? 'No head coach (C) set for this game' : 'The head coach (C) has no licence number',
+          code: headCoach === 'missing' ? 'no_head_coach' : 'head_coach_no_licence',
+        })
+      }
+    } catch (err) {
+      log.error?.({ msg: `[nomination-push] officials lookup failed: ${err.message}`, game: gameId })
+      return res.status(500).json({ error: 'Internal error' })
     }
 
-    // ── Claim the game, then spawn ────────────────────────────────────────────
-    // The T-60 cron (kscw-hooks/src/index.js) retries exactly the states this
-    // button is offered for, so cron-vs-coach — and coach-vs-team-responsible on
-    // two phones — really do land seconds apart on one fixture. Two detached
-    // workers on one game create two Einsatzlisten in the REAL Swiss Volley
-    // system, or one reopens the list the other has just closed, and both then
-    // race to stamp the journal (last writer wins, so the coach can be shown
-    // 'failed' for a list that is filed).
-    //
-    // One conditional UPDATE is the whole guard: Postgres takes the row lock, so
-    // two callers serialize and the loser matches 0 rows and gets a 409. The cron
-    // takes the SAME claim on the SAME row with the SAME predicate and lease —
-    // keep the two in sync, a guard only one of the two actors honours is none.
-    // Keyed on the single game id, so pushes for different fixtures never wait.
-    //
-    // ⚠⚠ The lease MUST be able to expire. A worker killed mid-run (every
-    // `ext:deploy` restarts this container) never writes its terminal status, so
-    // a claim without an expiry would strand the row at 'pending' for ever — the
-    // cron skips it and the coach's button, which only renders for 'failed',
-    // cannot reach it, so the list could never be filed at all. That is what
-    // `vm_nomination_claimed_at` (migration 354) is for: after 10 minutes the
-    // claim is reclaimable. A worker that finishes releases implicitly — finish()
-    // writes a terminal status, and anything not 'pending' is claimable again at
-    // once. This also folds in the old post-spawn "clear the previous failure so
-    // the UI shows in progress" write, which a fast worker could otherwise beat.
+    // ── Claim the game ────────────────────────────────────────────────────────
+    // One conditional UPDATE: Postgres takes the row lock, so two callers on the
+    // SAME fixture (coach + TR on two phones, or coach vs the T-60 cron) serialize
+    // and the loser matches 0 rows → 409. The cron takes the same claim with the
+    // same predicate and lease; keep them in step. The lease (migration 354) lets
+    // the cron hand a row whose worker died back as 'failed' after 10 minutes.
     let claimed
     try {
       claimed = await database('games').where('id', gameId)
@@ -238,15 +341,10 @@ export function registerNominationPush(router, { database, logger }) {
           vm_nomination_claimed_at: database.fn.now(),
         })
     } catch (err) {
-      // Nothing spawned — give the account back rather than holding it for the lease.
-      releaseVmAccount()
       log.error?.({ msg: `[nomination-push] row claim failed: ${err.message}`, game: gameId })
       return res.status(500).json({ error: 'Internal error' })
     }
     if (!claimed) {
-      // Nothing was spawned, so the account goes straight back — otherwise a
-      // rejected button press would lock every VM job out for the lease.
-      releaseVmAccount()
       log.info?.({ msg: '[nomination-push] rejected: a push is already in flight', game: gameId })
       return res.status(409).json({
         error: 'A push for this game is already running — give it a minute',
@@ -254,80 +352,24 @@ export function registerNominationPush(router, { database, logger }) {
       })
     }
 
-    // Set the instant the child is away; the catch below must not release the
-    // claim once a worker is running against the real Swiss Volley system.
-    let spawned = false
-    try {
-      const { spawn } = await import('node:child_process')
-      const { openSync } = await import('node:fs')
-      let logOut
-    try { logOut = openSync('/directus/logs/vm-nomination.log', 'a') } catch { logOut = 'ignore' }
-      const child = spawn('node', ['/directus/scripts/vm-push-nomination.mjs'], {
-        detached: true,
-        stdio: ['ignore', logOut, logOut],
-        env: {
-          HOME: process.env.HOME,
-          PATH: process.env.PATH,
-          VM_USERNAME: process.env.VM_USERNAME,
-          VM_PASSWORD: process.env.VM_PASSWORD,
-          KSCW_SVRZ_CLUB_ID: process.env.KSCW_SVRZ_CLUB_ID || '',
-          DIRECTUS_URL: 'http://127.0.0.1:8055',
-          DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
-          DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
-          GAME_ID: String(gameId),
-          // Lets the worker refuse to write from the dev DB — VM has no staging.
-          DB_DATABASE: process.env.DB_DATABASE || '',
-          VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
-        },
-      })
-      // Detached, so the request returns long before the worker does — but the
-      // account stays claimed until it actually exits. Leased and process-local,
-      // so a hung worker loses it after VM_LEASE_MS and a restart clears it.
-      child.once('exit', () => releaseVmAccount())
-      child.unref()
-      // ⚠ Past this point a worker IS running against the real Swiss Volley system.
-      // The catch below must not release the claim, or the row returns to 'failed' —
-      // which both re-renders the coach's button and makes it cron-claimable within
-      // 5 minutes, i.e. a SECOND Einsatzliste filed while the first worker is still
-      // going. Today the only await after this is writeUserLog, which swallows its
-      // own errors, so the catch is unreachable by accident; this flag makes it
-      // unreachable by construction.
-      spawned = true
+    // ── Queue it ─────────────────────────────────────────────────────────────
+    // Two DIFFERENT teams pressing at once must not put two logins on the one
+    // shared VM account (nor overlap vm_sync, the SVRZ sync or the T-60 cron).
+    // So the request never spawns directly: it joins a FIFO that runs one worker
+    // at a time, each under claimVmAccount — the same process-wide claim every
+    // VM job here takes — and waits for the account rather than refusing.
+    const position = enqueue({ gameId })
 
-      // Raw spawn → no Directus revision trail. Filing an official document on the
-      // club's behalf is exactly the kind of state change the audit log exists for.
-      await writeUserLog(database, log, {
-        accountability: req.accountability,
-        action: 'update',
-        collection: 'games',
-        recordId: gameId,
-        data: { what: 'nomination_push', team: game.kscw_team, manual: true },
-      })
+    // Raw spawn → no Directus revision trail. Saving an official document on the
+    // club's behalf is exactly the kind of state change the audit log exists for.
+    await writeUserLog(database, log, {
+      accountability: req.accountability,
+      action: 'update',
+      collection: 'games',
+      recordId: gameId,
+      data: { what: 'nomination_push', team: game.kscw_team, manual: true, queue_position: position },
+    })
 
-      return res.json({ spawned: true })
-    } catch (err) {
-      log.error?.({ msg: `[nomination-push] spawn failed: ${err.message}`, game: gameId })
-      // Release ONLY when no worker got away — see the flag above. If one did, the
-      // lease is what ends the claim, not this handler.
-      if (spawned) return res.status(500).json({ error: 'Could not start the push' })
-      // Nothing is running, so give BOTH claims back now rather than making the
-      // game wait out a lease. The account one has no child to release it — the
-      // throw happened before there was a child — and holding it would keep
-      // vm_sync and the SVRZ sync out for twenty minutes over a spawn that never
-      // touched Volleymanager at all.
-      releaseVmAccount()
-      // The row claim next: 'pending' hides the Push now button. Restores the
-      // journal exactly as this request found it, so a failed spawn changes nothing.
-      try {
-        await database('games').where('id', gameId).update({
-          vm_nomination_status: game.vm_nomination_status ?? null,
-          vm_nomination_error: game.vm_nomination_error ?? null,
-          vm_nomination_claimed_at: game.vm_nomination_claimed_at ?? null,
-        })
-      } catch (releaseErr) {
-        log.warn?.({ msg: `[nomination-push] claim release failed: ${releaseErr.message}`, game: gameId })
-      }
-      return res.status(500).json({ error: 'Could not start the push' })
-    }
+    return res.json({ spawned: true, queued: position > 1, position })
   })
 }

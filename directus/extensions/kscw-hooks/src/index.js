@@ -8280,6 +8280,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return child
   }
 
+  // A push takes ~10 s. Anything still alive after this is hung — killed, so one
+  // stuck worker cannot hold the queue (and the shared account) for ever.
+  const NOMINATION_WORKER_MAX_MS = 3 * 60 * 1000
+  function waitForExit(child, gameId) {
+    return new Promise((resolve) => {
+      if (child.exitCode != null || child.signalCode != null) return resolve()
+      const timer = setTimeout(() => {
+        log.warn({ msg: `[vm-nomination] game ${gameId}: worker still running after ${NOMINATION_WORKER_MAX_MS / 1000}s — killed`, event: 'vm_nomination_worker_killed', gameId })
+        try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch { /* gone */ } }
+      }, NOMINATION_WORKER_MAX_MS)
+      child.once('exit', () => { clearTimeout(timer); resolve() })
+    })
+  }
+
   schedule('*/5 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
     if (nominationRunning) {
@@ -8402,6 +8416,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // predicate is the single place that decides. The worker overwrites
       // vm_nomination_status in finish(), so the documented retry behaviour
       // ('filled' / 'failed' are re-attempted on the next tick) is unchanged.
+      // ⚠ ONE AT A TIME. Several teams routinely play at the same hour, so a tick
+      // often has 3–4 games due; spawning them side by side put that many logins on
+      // the ONE shared VM account at once. Each worker now runs to completion before
+      // the next starts, all under the single account claim taken above. The manual
+      // button queues behind the same claim (nomination-push.js), so nothing overlaps.
       let spawned = 0
       for (const g of due) {
         const claimed = await database('games')
@@ -8422,8 +8441,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           })
           continue
         }
-        children.push(await spawnNominationPush(g.id))
+        const child = await spawnNominationPush(g.id)
+        children.push(child)
         spawned += 1
+        await waitForExit(child, g.id)
       }
       log.info({ msg: `[vm-nomination] spawned ${spawned} push(es) of ${due.length} due`, event: 'vm_nomination_cron_done', count: spawned })
       await logCronRun(database, 'vm_nomination', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: spawned })
@@ -8444,7 +8465,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // and a container restart takes globalThis with it. An earlier attempt at
       // this guard was reverted for holding the account for ever — it predated
       // the lease.
-      const pending = children.filter(Boolean)
+      // Normally every child has already exited (the loop awaits each one); only a
+      // throw mid-loop can leave one running. An exited child never emits 'exit'
+      // again, so count only the live ones or the claim waits out its lease.
+      const pending = children.filter((c) => c && c.exitCode == null && c.signalCode == null)
       if (pending.length === 0) releaseVmAccount()
       else {
         let outstanding = pending.length
