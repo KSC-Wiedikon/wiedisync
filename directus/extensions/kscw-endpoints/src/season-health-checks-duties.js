@@ -666,8 +666,8 @@ export const CHECKS = [
   {
     key: 'nomination_push_not_closed',
     section: 'duties', sport: 'vb', severity: 'warn', grain: 'game',
-    title: 'Einsatzliste push did not end closed for an auto-enabled VB game',
-    description: 'For games whose effective auto_nomination_list flag is on (game override, else team default) the T-60 cron should leave vm_nomination_status closed. failed or NULL after kick-off means the coach had to file by hand or the list is missing in Volleymanager (fineable); filled means a validation issue kept it open; skipped means no licensed confirmed players (an RSVP problem). stranded_claim is a worker killed mid-push. Check vm_nomination_error and the Volleymanager list.',
+    title: 'Einsatzliste push did not end saved for an auto-enabled VB game',
+    description: 'For games whose effective auto_nomination_list flag is on (game override, else team default) the T-60 cron should leave vm_nomination_status saved (the referee closes the list after the game → closed). failed or NULL after kick-off means the coach had to file by hand or the list is missing in Volleymanager (fineable); filled means Volleymanager flagged a fineable issue on the saved list; skipped means no licensed confirmed players (an RSVP problem). stranded_claim is a worker killed mid-push. Check vm_nomination_error and the Volleymanager list.',
     sql: `SELECT ${GAME_COLS}, t.name AS team,
          CASE WHEN g.vm_nomination_status = 'pending' AND g.vm_nomination_claimed_at < now() - INTERVAL '10 minutes'
               THEN 'stranded_claim' ELSE COALESCE(g.vm_nomination_status, 'never_attempted') END AS issue,
@@ -677,7 +677,7 @@ export const CHECKS = [
   FROM games g JOIN teams t ON t.id = g.kscw_team
   WHERE left(g.game_id, 3) = 'vb_' AND g.season = {{season}} AND ${LIVE_GAME}
     AND COALESCE(g.auto_nomination_list, NULLIF(btrim(COALESCE(t.features_enabled->>'auto_nomination_list', '')), '')::boolean, false) = true
-    AND ((${GAME_START} < {{now}} AND COALESCE(g.vm_nomination_status, '') <> 'closed')
+    AND ((${GAME_START} < {{now}} AND COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'saved'))
       OR (g.vm_nomination_status = 'pending' AND g.vm_nomination_claimed_at < now() - INTERVAL '10 minutes'))
   ORDER BY g.date DESC, g.time DESC, g.id`,
   },

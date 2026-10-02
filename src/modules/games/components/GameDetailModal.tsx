@@ -111,6 +111,7 @@ type NominationStatus = NonNullable<Game['vm_nomination_status']>
 
 const NOMINATION_STATUS_KEY: Record<NominationStatus, string> = {
   pending: 'nominationStatusPending',
+  saved: 'nominationStatusSaved',
   filled: 'nominationStatusFilled',
   closed: 'nominationStatusClosed',
   skipped: 'nominationStatusSkipped',
@@ -119,8 +120,9 @@ const NOMINATION_STATUS_KEY: Record<NominationStatus, string> = {
 
 const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
   pending: 'border-border bg-surface-sunken text-foreground/85',
+  saved: 'border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
   filled: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200',
-  closed: 'border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
+  closed: 'border-border bg-surface-sunken text-foreground/85',
   skipped: 'border-border bg-surface-sunken text-muted-foreground',
   failed: 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
 }
@@ -1119,14 +1121,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
             {/* Manual push, any time before kickoff — previews first, and warns before
                 amending a list that is already filed in Volleymanager. */}
-            {game.status === 'scheduled' && !readOnly && String(game.game_id ?? '').startsWith('vb_') && (
+            {game.status === 'scheduled' && !readOnly && nominationStatus !== 'closed' && String(game.game_id ?? '').startsWith('vb_') && (
               <Button
                 size="sm"
                 variant="outline"
                 disabled={nominationStatus === 'pending'}
                 onClick={() => setNominationDialogOpen(true)}
               >
-                {t(nominationStatus === 'closed' || nominationStatus === 'filled' ? 'nominationUpdateCta' : 'nominationCreateCta')}
+                {t(nominationStatus === 'saved' || nominationStatus === 'filled' ? 'nominationUpdateCta' : 'nominationCreateCta')}
               </Button>
             )}
             {nominationDialogOpen && (

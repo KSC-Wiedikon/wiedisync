@@ -12,10 +12,6 @@
  *   DIRECTUS_SYNC_EMAIL/PASSWORD  — sync admin (mints a bearer token)
  *   GAME_ID                       — games.id to file
  *   DRY_RUN=1                     — build + log the payload, write NOTHING
- *   NO_CLOSE=1                    — fill but never close, even if validation is clean
- *   AMEND=1                       — the list is already filed in VM: reopen it, rewrite
- *                                   it from our side and re-close it (manual button only,
- *                                   never the cron — see "Amend" in main())
  *
  * Writes back onto the game: vm_nomination_status / _list_id / _count /
  * _pushed_at / _error.
@@ -25,15 +21,14 @@
  * 1. THERE IS NO VM STAGING. Every write here hits the real Swiss Volley
  *    production system, on both dev and prod. DRY_RUN is the only safe rehearsal.
  *
- * 2. CLOSING IS ITS OWN ACTION — `POST api\nominationlist/finalize` with the same
- *    body as a save (VM's own form: EditNominationListForm → "finalize"). A save
- *    with `isClosedForTeam=true` is NOT a close: VM answers 200 and leaves the list
- *    open (seen live 2026-10-02, game #406201). Closing files an official document, and VM's own validation
- *    marks a too-short or coachless list as `isFineable: true` — so an unconditional
- *    auto-close would quietly earn the club fines on thin-RSVP weeks. We therefore
- *    fill first, re-read VM's server-side validation, and close ONLY if no unresolved
- *    fineable issue remains. `assertNotClosing()` guards the fill payload so a close
- *    can never happen by accident — it is one boolean away at all times.
+ * 2. WE SAVE, THE REFEREE CLOSES. The club's part is saving the list (players +
+ *    C/AC1/AC2) before kickoff; the referee closes it after the game (game #406208:
+ *    `closedBy: "referee"` the next day). Closing is VM's separate `finalize` action
+ *    and answers 403 to the club role (live, game #406201) — so we never call it,
+ *    and 'saved' is our success state. `assertNotClosing()` still guards every save
+ *    payload, so no flag can ever file or reopen the referee's document by accident.
+ *    A save VM flags as fineable (too few players, no coach) ends 'filled' (amber)
+ *    for the coach to fix before kickoff.
  */
 import { pathToFileURL } from 'node:url';
 import { vmLogin, csrfFromPage, registerWindow, VM_BASE, UA } from './vm-client.mjs';
@@ -41,8 +36,6 @@ import { vmLogin, csrfFromPage, registerWindow, VM_BASE, UA } from './vm-client.
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
 const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530';
 const GAME_ID = process.env.GAME_ID;
-const NO_CLOSE = !!process.env.NO_CLOSE;
-const AMEND = !!process.env.AMEND;
 
 const log = (...a) => console.log(new Date().toISOString(), '[vm-nom]', ...a);
 
@@ -376,22 +369,13 @@ async function main() {
   const items = got?.items ?? got ?? {};
   let list = items[`nominationListTeam${side}`] ?? null;
 
-  // ── Amend. A filed list is left alone unless a coach pressed "Update" in the
-  // app and confirmed the warning (AMEND=1, manual endpoint only — the cron never
-  // sets it). Closing does not lock a list in VM: the team may edit it until the
-  // game starts, which is what VM's own form does — reopen, save, close again.
-  // The fill below reopens it (assertNotClosing still guards every fill), and the
-  // re-close obeys the same clean-validation rule as a first filing. So an amend
-  // that makes the list fineable (too few players) leaves it OPEN — status
-  // 'filled', which the coach sees — rather than filing a fineable document.
-  const wasClosed = !!(list?.closed || list?.isClosedForTeam);
-  if (wasClosed && !AMEND) {
-    // Already filed — only an explicit amend reopens it. Say so, or the coach who
-    // pressed the button sees "Filed" and thinks THEIR list went up.
+  // ── A closed list is the REFEREE's — they close it after the game. Never touch
+  // it: a save would reopen their document (assertNotClosing forces the flag
+  // false). The endpoint already refuses after kickoff; this is the backstop.
+  if (list?.closed || list?.isClosedForTeam) {
     return finish('closed', { listId: idOf(list), count: (list.indoorPlayerNominations ?? []).length,
-      error: 'already filed in Volleymanager — nothing was changed; use "Update Einsatzliste" to amend it' });
+      error: 'closed by the referee in Volleymanager — nothing was changed' });
   }
-  if (wasClosed) log(`AMEND: list ${idOf(list)} is filed — reopening it to rewrite our side`);
 
   // ── Officials → VM persons. Read-only lookups, so done before registerWindow.
   const ROLE_LABEL = { coach: 'C', assistant_coach_1: 'AC1', assistant_coach_2: 'AC2' };
@@ -438,7 +422,6 @@ async function main() {
     log(`DRY_RUN: want ${[...wantLicences].join(',')}`);
     log(`DRY_RUN: would nominate ${matched.length}/${wantLicences.size}: `
       + matched.map((c) => `${c.indoorPlayer?.person?.lastName}(${c.indoorPlayer?.person?.associationId})`).join(', '));
-    if (wasClosed) log('DRY_RUN: would REOPEN the filed list, rewrite it, and re-close it only on a clean validation');
     if (notes.length) log(`DRY_RUN: notes: ${notes.join('; ')}`);
     if (!listId) log('DRY_RUN: no list exists yet — candidates can only be fetched once it does; run for real to see the full match');
     return finish('skipped', { error: null });
@@ -501,47 +484,18 @@ async function main() {
     const count = (savedList?.indoorPlayerNominations ?? matched).length;
     log(`filled ${count} player(s) onto list ${idOf(list)}`);
 
-    // Close — but only on a clean read-back. VM recomputed the validation during the
-    // save above; a fineable issue here means closing would file a document we can be
-    // fined for, so we leave it open for the coach instead.
-    const noteText = notes.length ? notes.join('; ') : null;
-    if (NO_CLOSE) {
-      return finish('filled', { listId: idOf(list), count, error: noteText });
-    }
+    // Done. The club SAVES the list; the REFEREE closes it, after the game
+    // (game #406208: closedBy "referee" the next day; our `finalize` under the club
+    // role is 403). So a save is the success state — 'saved' — and 'filled' (amber)
+    // is kept for a save VM flags as fineable (too few players, no coach), which
+    // the coach must fix before kickoff.
     const blockers = fineableBlockers(savedList?.nominationListValidation);
     if (blockers.length) {
-      log(`NOT closing — ${blockers.length} unresolved fineable issue(s): ${blockers.join(', ')}`);
+      log(`saved, but ${blockers.length} unresolved fineable issue(s): ${blockers.join(', ')}`);
       return finish('filled', { listId: idOf(list), count,
-        error: [`left open for review: ${blockers.join(', ')}`, ...notes].join('; ') });
+        error: [`Volleymanager flags: ${blockers.join(', ')}`, ...notes].join('; ') });
     }
-
-    // File it: VM's own `finalize` action, same body as the fill. Built from `list`
-    // (the save response's shape is unprobed) with the validation identity from the
-    // read-back.
-    // ⚠ Live 2026-10-02 (game #406201): finalize answered 403 under VM_ROLE_CLUB
-    // while the save right before it succeeded — the club role may save but not
-    // file. The players and officials ARE in VM at this point, so a refused close
-    // is 'filled' (amber, "close it there"), never 'failed' — that told the coach
-    // nothing had been entered.
-    let closedRes;
-    try {
-      closedRes = await vmCall('POST', 'api%5cnominationlist/finalize', buildListPairs(
-        { ...list, nominationListValidation: savedList?.nominationListValidation ?? list.nominationListValidation },
-        { nominations: matched, officials }));
-    } catch (e) {
-      log(`WARN: finalize refused: ${e.message.slice(0, 120)}`);
-      const status = /HTTP (\d+)/.exec(e.message)?.[1] ?? '?';
-      return finish('filled', { listId: idOf(list), count,
-        error: [`saved, but Volleymanager refused to close it (HTTP ${status}) — please close it there`, ...notes].join('; ') });
-    }
-    const closedList = closedRes?.nominationList ?? closedRes?.items?.nominationList ?? closedRes;
-    if (closedList?.isClosedForTeam !== true) {
-      // Only a read-back that says closed counts — never report a filing that isn't.
-      return finish('filled', { listId: idOf(list), count,
-        error: ['Volleymanager did not accept the close — please close it there', ...notes].join('; ') });
-    }
-    log(`closed list ${idOf(list)}${wasClosed ? ' (amended)' : ''}`);
-    return finish('closed', { listId: idOf(list), count, error: noteText });
+    return finish('saved', { listId: idOf(list), count, error: notes.length ? notes.join('; ') : null });
   } finally {
     try { rw?.ws?.close(); } catch { /* best effort */ }
   }
