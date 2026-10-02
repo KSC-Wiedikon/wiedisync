@@ -27,7 +27,7 @@
  *      deliberately broad match, so a field renamed or retyped since the answer
  *      was stored still counts as a reference).
  *   4. No Directus-registered file relation references it: every
- *      directus_relations row with related_collection = 'directus_files' is
+ *      directus_relations row with one_collection = 'directus_files' is
  *      checked (M2O image/logo/photo columns, file junction tables, …), so a file
  *      someone moved into the folder while it is used elsewhere is kept.
  *   5. It is still in the folder when re-read immediately before the delete.
@@ -43,7 +43,7 @@ export const ORPHAN_SWEEP_BATCH = 500
 /** Every column Directus knows to hold a directus_files id (M2O / junction). */
 export async function fileRelationColumns(database) {
   const rows = await database('directus_relations')
-    .where('related_collection', 'directus_files')
+    .where('one_collection', 'directus_files')
     .whereNotNull('many_field')
     .select('many_collection', 'many_field')
   const seen = new Set()
