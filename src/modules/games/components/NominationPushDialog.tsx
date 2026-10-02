@@ -15,6 +15,7 @@ interface Preview {
   players: { member: number; name: string; license_nr: string | null }[]
   officials: Record<OfficialRole, Official>
   officials_source: 'game' | 'team'
+  head_coach: 'ok' | 'missing' | 'no_licence'
   status: string | null
   exists: boolean
   closed: boolean
@@ -60,12 +61,13 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
   async function push() {
     setSending(true)
     try {
-      await kscwApi(`/games/${gameId}/nomination-push`, { method: 'POST' })
-      toast.success(t('nominationPushStarted'))
+      const r = await kscwApi<{ queued?: boolean; position?: number }>(`/games/${gameId}/nomination-push`, { method: 'POST' })
+      toast.success(r.queued ? t('nominationPushQueued', { n: (r.position ?? 2) - 1 }) : t('nominationPushStarted'))
       onStarted()
       onClose()
     } catch (err) {
-      if (hasApiErrorCode(err, 'vm_account_busy')) toast.error(t('nominationPushBusy'))
+      if (hasApiErrorCode(err, 'no_head_coach')) toast.error(t('nominationHeadCoachMissing'))
+      else if (hasApiErrorCode(err, 'head_coach_no_licence')) toast.error(t('nominationHeadCoachNoLicence'))
       else if (hasApiErrorCode(err, 'push_in_flight')) toast.error(t('nominationPushInFlight'))
       else if (hasApiErrorCode(err, 'game_started')) toast.error(t('nominationPushStartedGame'))
       else toast.error(t('nominationPushFailed'))
@@ -138,6 +140,12 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
             <p className="mt-1 text-xs text-muted-foreground">
               {t(preview.officials_source === 'game' ? 'nominationOfficialsFromSheet' : 'nominationOfficialsFromTeam')}
             </p>
+            {preview.head_coach !== 'ok' && (
+              <p className="mt-2 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{t(preview.head_coach === 'missing' ? 'nominationHeadCoachMissing' : 'nominationHeadCoachNoLicence')}</span>
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-muted-foreground">{t('nominationPreviewEligibilityHint')}</p>
@@ -146,7 +154,7 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
             <Button variant="outline" onClick={onClose}>{t('common:cancel')}</Button>
             <Button
               onClick={push}
-              disabled={sending || preview.started || preview.closed || licensed.length === 0}
+              disabled={sending || preview.started || preview.closed || preview.head_coach !== 'ok' || licensed.length === 0}
             >
               {t(exists ? 'nominationUpdateCta' : 'nominationCreateCta')}
             </Button>

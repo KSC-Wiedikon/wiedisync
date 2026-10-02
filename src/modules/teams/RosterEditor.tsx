@@ -984,7 +984,7 @@ function TeamSettingsSection({ team, staff, onUpdate }: {
                         className="w-full rounded-md border border-input bg-card px-2 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
                         style={{ minHeight: 44 }}
                       >
-                        <option value="">{t('nominationOfficialNone')}</option>
+                        <option value="">{t(role === 'coach' ? 'nominationOfficialNotSet' : 'nominationOfficialNone')}</option>
                         {options.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </label>
