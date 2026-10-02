@@ -518,9 +518,22 @@ async function main() {
     // File it: VM's own `finalize` action, same body as the fill. Built from `list`
     // (the save response's shape is unprobed) with the validation identity from the
     // read-back.
-    const closedRes = await vmCall('POST', 'api%5cnominationlist/finalize', buildListPairs(
-      { ...list, nominationListValidation: savedList?.nominationListValidation ?? list.nominationListValidation },
-      { nominations: matched, officials }));
+    // ⚠ Live 2026-10-02 (game #406201): finalize answered 403 under VM_ROLE_CLUB
+    // while the save right before it succeeded — the club role may save but not
+    // file. The players and officials ARE in VM at this point, so a refused close
+    // is 'filled' (amber, "close it there"), never 'failed' — that told the coach
+    // nothing had been entered.
+    let closedRes;
+    try {
+      closedRes = await vmCall('POST', 'api%5cnominationlist/finalize', buildListPairs(
+        { ...list, nominationListValidation: savedList?.nominationListValidation ?? list.nominationListValidation },
+        { nominations: matched, officials }));
+    } catch (e) {
+      log(`WARN: finalize refused: ${e.message.slice(0, 120)}`);
+      const status = /HTTP (\d+)/.exec(e.message)?.[1] ?? '?';
+      return finish('filled', { listId: idOf(list), count,
+        error: [`saved, but Volleymanager refused to close it (HTTP ${status}) — please close it there`, ...notes].join('; ') });
+    }
     const closedList = closedRes?.nominationList ?? closedRes?.items?.nominationList ?? closedRes;
     if (closedList?.isClosedForTeam !== true) {
       // Only a read-back that says closed counts — never report a filing that isn't.
