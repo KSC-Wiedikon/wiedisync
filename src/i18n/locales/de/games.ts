@@ -182,7 +182,7 @@ export default {
   autoNominationOff: 'Aus',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Wird übermittelt…',
-  nominationStatusFilled: 'Die Spieler wurden eingetragen, aber die Einsatzliste blieb offen — der Volleymanager hat ein Problem gemeldet (zu wenige Spieler oder kein Trainer), das beim Abschliessen eine Busse auslösen würde. Bitte prüfe sie und schliesse sie selbst ab.',
+  nominationStatusFilled: 'Die Spieler wurden eingetragen, aber die Einsatzliste ist im Volleymanager noch offen. Bitte dort prüfen und abschliessen — der Grund steht unten.',
   nominationStatusClosed: 'Erfasst und abgeschlossen.',
   nominationStatusSkipped: 'Nichts zu erfassen — keiner der bestätigten Spieler hat eine Lizenz.',
   nominationStatusFailed: 'Die Übermittlung ist fehlgeschlagen.',

@@ -179,7 +179,7 @@ export default {
   autoNominationOff: 'Désactivé',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Envoi en cours…',
-  nominationStatusFilled: 'Les joueurs ont été inscrits, mais l\'Einsatzliste est restée ouverte — Volleymanager a signalé un problème (trop peu de joueurs ou aucun entraîneur) qui serait passible d\'une amende. Merci de la vérifier et de la clôturer toi-même.',
+  nominationStatusFilled: 'Les joueurs ont été inscrits, mais l\'Einsatzliste est encore ouverte dans Volleymanager. Vérifie-la et clôture-la là-bas — la raison est indiquée ci-dessous.',
   nominationStatusClosed: 'Enregistrée et clôturée.',
   nominationStatusSkipped: 'Rien à enregistrer — aucun joueur confirmé ne possède de licence.',
   nominationStatusFailed: 'L\'envoi a échoué.',

@@ -183,7 +183,7 @@ export default {
   autoNominationOff: 'Off',
   nominationStatusLabel: 'Einsatzliste',
   nominationStatusPending: 'Filing in progress…',
-  nominationStatusFilled: 'Players were entered, but the Einsatzliste was left open — Volleymanager flagged a problem (too few players, or no coach) that would be fineable if filed. Please review it and close it yourself.',
+  nominationStatusFilled: 'Players were entered, but the Einsatzliste is still open in Volleymanager. Please check it there and close it — the reason is below.',
   nominationStatusClosed: 'Filed and closed.',
   nominationStatusSkipped: 'Nothing to file — none of the confirmed players holds a licence.',
   nominationStatusFailed: 'The push failed.',
