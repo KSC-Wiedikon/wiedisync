@@ -79,9 +79,9 @@ function formFixture() {
       { id: 2, answers: { gone: [{ file: id(8).toUpperCase() }] } },
     ],
     directus_relations: [
-      { many_collection: 'teams', many_field: 'team_picture', related_collection: 'directus_files' },
-      { many_collection: 'teams', many_field: 'team_picture', related_collection: 'directus_files' },
-      { many_collection: 'members', many_field: 'team', related_collection: 'teams' },
+      { many_collection: 'teams', many_field: 'team_picture', one_collection: 'directus_files' },
+      { many_collection: 'teams', many_field: 'team_picture', one_collection: 'directus_files' },
+      { many_collection: 'members', many_field: 'team', one_collection: 'teams' },
     ],
     teams: [{ id: 1, team_picture: id(7) }],
     members: [],

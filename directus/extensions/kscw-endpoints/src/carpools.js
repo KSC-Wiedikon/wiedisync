@@ -982,11 +982,13 @@ export function registerCarpools(router, { services, database, logger, getSchema
       // Match-making nudge: a new request tells the drivers who still have a
       // free seat; a new offer tells the members still waiting for a ride.
       const b = await board(act.type, act.id, me.id)
+      // Nudge only within the same leg — a Going request is no use to a Return driver.
+      const leg = input.direction === 'back' ? b.back : b.there
       if (input.kind === 'request') {
-        const drivers = b.offers.filter((o) => o.seats_free > 0 && !o.mine).map((o) => o.member.id)
+        const drivers = leg.offers.filter((o) => o.seats_free > 0 && !o.mine).map((o) => o.member.id)
         await notify(drivers, 'carpool_requested', act, { name: displayName(me), seats: input.seats })
       } else {
-        let waiting = b.requests.filter((r) => !r.covered && !r.mine).map((r) => r.member.id)
+        let waiting = leg.requests.filter((r) => !r.covered && !r.mine).map((r) => r.member.id)
         // An offer for some teams only nudges the people it is actually for.
         const offerTeams = parseScope(input.teams)
         if (offerTeams.length) {
