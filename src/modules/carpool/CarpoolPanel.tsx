@@ -13,7 +13,9 @@ import {
   CARPOOL_ERROR_KEYS, useCarpoolActions, useCarpoolBoard,
   type CarpoolActivityType, type CarpoolDirection, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
 } from './carpoolApi'
-import { CARPOOL_DIRECTIONS, canJoin, canOffer, canRequest, canTake, entryCount, myRole, seatsINeed } from './carpoolFormat'
+import {
+  CARPOOL_DIRECTIONS, activityDays, canJoin, canOffer, canRequest, canTake, entryCount, firstFreeDay, myRideDays, myRole, seatsINeed,
+} from './carpoolFormat'
 import CarpoolEntryForm from './CarpoolEntryForm'
 
 interface CarpoolPanelProps {
@@ -58,6 +60,9 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   if (!activity.enabled && !hasEntries) return null
 
   const open = activity.open
+  // A multi-day activity takes one ride per way per day (migration 397).
+  const days = activityDays(activity.date, activity.last_date)
+  const multiDay = days.length > 1
   // Teams a ride can be offered to (migration 380) — the form's "For teams".
   const teamOptions = (res.activity_teams ?? []).map((tm) => ({ id: String(tm.id), label: tm.name, sport: tm.sport }))
   const teamName = new Map((res.activity_teams ?? []).map((tm) => [tm.id, tm.name]))
@@ -197,14 +202,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
       </div>
 
       {/* The two ways in, side by side at equal width — never stacked. */}
-      {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
+      {open && composer == null && (canOffer(board, open, multiDay) || canRequest(board, open, multiDay)) && (
         <div className="flex gap-2 px-3 pb-3">
-          {canOffer(board, open) && (
+          {canOffer(board, open, multiDay) && (
             <Button type="button" size="tool" onClick={() => setComposer({ kind: 'offer' })} icon={<Car aria-hidden />}>
               {t('offerRide')}
             </Button>
           )}
-          {canRequest(board, open) && (
+          {canRequest(board, open, multiDay) && (
             <Button type="button" size="tool" variant="outline" onClick={() => setComposer({ kind: 'request' })} icon={<UserPlus aria-hidden />}>
               {t('requestRide')}
             </Button>
@@ -219,7 +224,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
               key={`${leg}-${composer.kind}-${composer.editId ?? 'new'}`}
               kind={composer.kind}
               direction={leg}
-              defaultDate={leg === 'back' ? (activity.last_date ?? activity.date) : activity.date}
+              // The next day without a ride of mine: Going from the first day,
+              // Return from the last.
+              defaultDate={firstFreeDay(
+                leg === 'back' ? [...days].reverse() : days,
+                myRideDays(board, composer.kind),
+                leg === 'back' ? (activity.last_date ?? activity.date) : activity.date,
+              )}
+              takenDays={myRideDays(board, composer.kind, composer.editId)}
               initial={editing ? {
                 direction: editing.direction,
                 seats: editing.seats,
@@ -260,7 +272,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                     </>}
                     tools={<>
                       {canJoin(board, o, open) && (
-                        <Button type="button" size="tool" disabled={busy} onClick={() => act(() => actions.join(o.id, seatsINeed(board)), 'joined').catch(() => {})} icon={<UserPlus aria-hidden />}>
+                        <Button type="button" size="tool" disabled={busy} onClick={() => act(() => actions.join(o.id, seatsINeed(board, o.departure_date)), 'joined').catch(() => {})} icon={<UserPlus aria-hidden />}>
                           {t('join')}
                         </Button>
                       )}

@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea'
 import DatePicker from '@/components/ui/DatePicker'
 import { TeamPickerMulti, type TeamPickerOption } from '@/components/ui/TeamPicker'
 import type { CarpoolDirection, CarpoolEntryInput, CarpoolKind } from './carpoolApi'
+import { TriangleAlert } from 'lucide-react'
+import { formatDayMonthZurich, formatWeekdayZurich } from '../../utils/dateHelpers'
 import { CARPOOL_MAX_SEATS } from './carpoolFormat'
 
 interface CarpoolEntryFormProps {
@@ -19,6 +21,8 @@ interface CarpoolEntryFormProps {
   initial?: Partial<CarpoolEntryInput>
   /** Pre-fill for a new offer's time (e.g. the activity's meeting time). */
   suggestedTime?: string | null
+  /** Days that already carry the viewer's ride of this kind and way (one per day, 397). */
+  takenDays?: readonly string[]
   /** Seats already taken in this car — an offer cannot go below it. */
   minSeats?: number
   /** Teams an offer can be for (migration 380). Picker shown when ≥2. */
@@ -32,7 +36,7 @@ interface CarpoolEntryFormProps {
  * dialog: the banner itself lives inside the game/training/event modals, and a
  * dialog on top of those fights their focus traps.
  */
-export default function CarpoolEntryForm({ kind, direction, defaultDate, initial, suggestedTime, minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
+export default function CarpoolEntryForm({ kind, direction, defaultDate, initial, suggestedTime, takenDays = [], minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
   const { t } = useTranslation('carpool')
   const { t: tc } = useTranslation('common')
   const editing = !!initial
@@ -44,10 +48,12 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
   const [notes, setNotes] = useState<string>(initial?.notes ?? '')
   const [saving, setSaving] = useState(false)
   const idp = `carpool-${kind}-${direction}`
+  // One ride per way per day: the server refuses a second one, so say it here.
+  const dayTaken = !!date && takenDays.includes(date)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (saving) return
+    if (saving || dayTaken) return
     setSaving(true)
     try {
       await onSubmit({
@@ -82,6 +88,12 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
           <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       </div>
+      {dayTaken && (
+        <p role="alert" className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>{t(kind === 'offer' ? 'sameDayOffer' : 'sameDayRequest', { way: t(`tab_${direction}`), day: `${formatWeekdayZurich(date)} ${formatDayMonthZurich(date)}` })}</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -126,7 +138,7 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
       {/* Equal halves on a phone (same rule as the ride rows), right-aligned from sm. */}
       <div className="flex gap-2 sm:justify-end">
         <Button type="button" variant="outline" onClick={onCancel} className="flex-1 sm:flex-none">{tc('cancel')}</Button>
-        <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">{editing ? tc('save') : t('post')}</Button>
+        <Button type="submit" disabled={saving || dayTaken} className="flex-1 sm:flex-none">{editing ? tc('save') : t('post')}</Button>
       </div>
     </form>
   )
