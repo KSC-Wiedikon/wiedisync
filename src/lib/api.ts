@@ -1099,6 +1099,12 @@ export async function kscwApi<T = unknown>(
   const doFetch = async (): Promise<Response> => {
     return fetch(`${API_URL}/kscw${path}`, {
       method,
+      // ⚠ Never from the HTTP cache. Directus answers `no-cache` + an ETag, and many of these
+      // URLs are the same for every identity (/finance/my-invoices, /carpools/upcoming). A 304
+      // hands back the STORED response with its stored headers — including an X-KSCW-Acting-Member
+      // echo from when the guardian was acting for a child — so assertActingEcho saw a desync
+      // and reloaded, on every boot: a guardian's app looped every ~3 s (Familie Bolgé, 03.10.).
+      cache: 'no-store',
       // Authenticated calls send the `.kscw.ch` session cookie. Anonymous calls
       // (token-in-URL opponent flow) MUST omit it — a logged-in admin's cookie
       // hitting a public endpoint trips Directus' global auth middleware (401
