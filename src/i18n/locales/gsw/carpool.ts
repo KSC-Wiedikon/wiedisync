@@ -10,7 +10,7 @@ export default {
   freeSeats_other: '{{count}} freii Plätz',
   looking_one: '{{count}} suecht ä Mitfahrgleägeheit',
   looking_other: '{{count}} sueched ä Mitfahrgleägeheit',
-  emptyHint: 'No kei Fahrte. Biet freii Plätz a oder säg, dass du ä Mitfahrgleägeheit bruchsch.',
+  emptyHint: 'No kei Fahrte. Biet freii Plätz a.',
   offerRide: 'Fahrt abiete',
   requestRide: 'Mitfahrt sueche',
   editOffer: 'Dini Fahrt bearbeite',

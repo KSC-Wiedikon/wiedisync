@@ -10,7 +10,7 @@ export default {
   freeSeats_other: '{{count}} freie Plätze',
   looking_one: '{{count}} sucht eine Mitfahrgelegenheit',
   looking_other: '{{count}} suchen eine Mitfahrgelegenheit',
-  emptyHint: 'Noch keine Fahrten. Biete freie Plätze an oder melde, dass du eine Mitfahrgelegenheit brauchst.',
+  emptyHint: 'Noch keine Fahrten. Biete freie Plätze an.',
   offerRide: 'Fahrt anbieten',
   requestRide: 'Mitfahrt suchen',
   editOffer: 'Deine Fahrt bearbeiten',

@@ -36,7 +36,6 @@ export default function HomeCarpoolCard() {
             <TableRow>
               <TableHead>{t('colActivity')}</TableHead>
               <TableHead className="text-center">{t('homeRides')}</TableHead>
-              <TableHead className="text-center">{t('homeLooking')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -68,9 +67,6 @@ export default function HomeCarpoolCard() {
                 <TableCell className="py-2.5 text-center">
                   <div className="text-sm font-semibold tabular-nums text-foreground">{r.offers}</div>
                   <div className="text-[11px] text-muted-foreground">{t('freeSeats', { count: r.seats_free })}</div>
-                </TableCell>
-                <TableCell className={`py-2.5 text-center text-sm font-semibold tabular-nums ${r.requests_open > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>
-                  {r.requests_open}
                 </TableCell>
               </TableRow>
             ))}

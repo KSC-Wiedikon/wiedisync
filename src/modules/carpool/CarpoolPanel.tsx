@@ -14,7 +14,7 @@ import {
   type CarpoolActivityType, type CarpoolDirection, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
 } from './carpoolApi'
 import {
-  CARPOOL_DIRECTIONS, activityDays, canJoin, canOffer, canRequest, canTake, entryCount, firstFreeDay, myRideDays, myRole, seatsINeed,
+  CARPOOL_DIRECTIONS, activityDays, canJoin, canOffer, entryCount, firstFreeDay, myRideDays, myRole, seatsINeed,
 } from './carpoolFormat'
 import CarpoolEntryForm from './CarpoolEntryForm'
 
@@ -145,7 +145,6 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
               ? [
                   t('rides', { count: pool.totals.offers }),
                   t('freeSeats', { count: pool.totals.seats_free }),
-                  pool.totals.requests_open > 0 ? t('looking', { count: pool.totals.requests_open }) : null,
                 ].filter(Boolean).join(' · ')
               : t('emptyHint')}
           </p>
@@ -201,19 +200,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
         })}
       </div>
 
-      {/* The two ways in, side by side at equal width — never stacked. */}
-      {open && composer == null && (canOffer(board, open, multiDay) || canRequest(board, open, multiDay)) && (
+      {/* Offers only (03.10.2026): members offer seats and others join a car;
+          the "need a ride" request is no longer offered. Requests already on
+          a board stay hidden — the server still knows the kind. */}
+      {open && composer == null && canOffer(board, open, multiDay) && (
         <div className="flex gap-2 px-3 pb-3">
-          {canOffer(board, open, multiDay) && (
-            <Button type="button" size="tool" onClick={() => setComposer({ kind: 'offer' })} icon={<Car aria-hidden />}>
-              {t('offerRide')}
-            </Button>
-          )}
-          {canRequest(board, open, multiDay) && (
-            <Button type="button" size="tool" variant="outline" onClick={() => setComposer({ kind: 'request' })} icon={<UserPlus aria-hidden />}>
-              {t('requestRide')}
-            </Button>
-          )}
+          <Button type="button" size="tool" onClick={() => setComposer({ kind: 'offer' })} icon={<Car aria-hidden />}>
+            {t('offerRide')}
+          </Button>
         </div>
       )}
 
@@ -249,7 +243,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
             />
           )}
 
-          {board.offers.length + board.requests.length === 0 && composer == null && (
+          {board.offers.length === 0 && composer == null && (
             <p className="text-center text-xs text-sky-900/70 dark:text-sky-200/70">{t(`emptyLeg_${leg}`)}</p>
           )}
 
@@ -328,42 +322,6 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
             </div>
           )}
 
-          {board.requests.length > 0 && (
-            <div>
-              <SectionHead as="h4" className="mb-1" title={t('requestsHeading')} count={board.requests.filter((r) => !r.covered).length} />
-              <div className="divide-y divide-sky-200/70 dark:divide-sky-900/70">
-                {board.requests.map((r) => (
-                  <RideRow
-                    key={r.id}
-                    entry={r}
-                    tone={r.covered ? 'done' : r.mine ? 'mine' : 'waiting'}
-                    status={<span className="whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">{t('seatsTaken', { count: r.seats })}</span>}
-                    chips={<>
-                      {r.mine && <RowChip tone="sky">{t('you')}</RowChip>}
-                      {r.covered && <RowChip tone="green" wrap>{t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}</RowChip>}
-                    </>}
-                    tools={<>
-                      {canTake(board, r, open) && (
-                        <Button type="button" size="tool" disabled={busy} onClick={() => act(() => actions.take(r.id), 'taken', { name: memberDisplayName(r.member) }).catch(() => {})} icon={<UserPlus aria-hidden />}>
-                          {t('take')}
-                        </Button>
-                      )}
-                      {r.mine && open && (
-                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => setComposer({ kind: 'request', editId: r.id })} icon={<Pencil aria-hidden />}>
-                          {t('edit')}
-                        </Button>
-                      )}
-                      {r.mine && (
-                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => withdraw(r)} className={DANGER_OUTLINE} icon={<Trash2 aria-hidden />}>
-                          {t('withdraw')}
-                        </Button>
-                      )}
-                    </>}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </section>

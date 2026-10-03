@@ -10,7 +10,7 @@ export default {
   freeSeats_other: '{{count}} places libres',
   looking_one: '{{count}} cherche un covoiturage',
   looking_other: '{{count}} cherchent un covoiturage',
-  emptyHint: 'Aucun trajet pour l’instant. Propose tes places libres ou indique que tu cherches un covoiturage.',
+  emptyHint: 'Aucun trajet pour l’instant. Propose tes places libres.',
   offerRide: 'Proposer un trajet',
   requestRide: 'Chercher un trajet',
   editOffer: 'Modifier ton trajet',

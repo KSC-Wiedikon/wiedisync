@@ -10,7 +10,7 @@ export default {
   freeSeats_other: '{{count}} posti liberi',
   looking_one: '{{count}} cerca un passaggio',
   looking_other: '{{count}} cercano un passaggio',
-  emptyHint: 'Ancora nessun passaggio. Offri i tuoi posti liberi o segnala che ti serve un passaggio.',
+  emptyHint: 'Ancora nessun passaggio. Offri i tuoi posti liberi.',
   offerRide: 'Offri un passaggio',
   requestRide: 'Cerco un passaggio',
   editOffer: 'Modifica il tuo passaggio',
