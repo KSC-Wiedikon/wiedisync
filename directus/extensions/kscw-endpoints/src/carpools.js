@@ -49,6 +49,11 @@
  * passengers to the other board); a driver takes a request only into their car
  * for the same way, and a request is covered per way.
  *
+ * PER DAY (migration 397): one offer and one request per member, activity,
+ * way AND day — a two-day tournament gets a Saturday and a Sunday ride each
+ * way. A request is covered, taken and nudged per day: a Saturday seat does
+ * not cover a Sunday request.
+ *
  * New entries and seats need `carpool_enabled` and an activity that is neither
  * cancelled nor over; withdrawing and leaving are always allowed, so switching
  * the board off never strands anybody in a car they cannot get out of.
@@ -199,7 +204,7 @@ export function mapCarpoolError(err) {
   }
   if (err?.code === '23505') {
     if (/carpool_passengers_pair_uq/.test(msg)) return httpError(409, 'Already in this car', 'carpool_already_passenger')
-    return httpError(409, 'You already have an entry of this kind here', 'carpool_duplicate')
+    return httpError(409, 'You already have an entry of this kind for this way and day', 'carpool_duplicate')
   }
   return err
 }
@@ -314,7 +319,7 @@ export function buildBoard(entries, passengers, me, opts = {}) {
  *   passengers: carpool_passengers rows joined with the passenger's name
  *   me:         the acting member id (or null)
  * Offers carry seats_taken / seats_free / passengers; a request is `covered`
- * once its requester sits in any offered car of the activity.
+ * once its requester sits in an offered car of this way on the same day (397).
  */
 export function buildLeg(entries, passengers, me, { myTeams = [], admin = false } = {}) {
   const meId = me != null ? Number(me) : null
@@ -334,15 +339,17 @@ export function buildLeg(entries, passengers, me, { myTeams = [], admin = false 
 
   const offers = []
   const requests = []
-  const riding = new Map() // passenger member id → [driver person]
+  const riding = new Map() // `${passenger member id}:${day}` → [driver person]
+  const rideKey = (memberId, day) => `${memberId}:${ymd(day) ?? ''}`
   const myCars = new Set() // offer ids I sit in
   for (const e of entries) {
     if (e.kind !== 'offer') continue
     const driver = person(e, 'm_')
     for (const p of byOffer.get(Number(e.id)) ?? []) {
       const pid = Number(p.passenger)
-      if (!riding.has(pid)) riding.set(pid, [])
-      riding.get(pid).push(driver)
+      const k = rideKey(pid, e.departure_date)
+      if (!riding.has(k)) riding.set(k, [])
+      riding.get(k).push(driver)
       if (pid === meId) myCars.add(Number(e.id))
     }
   }
@@ -385,7 +392,7 @@ export function buildLeg(entries, passengers, me, { myTeams = [], admin = false 
         })),
       })
     } else {
-      const drivers = riding.get(owner.id) ?? []
+      const drivers = riding.get(rideKey(owner.id, e.departure_date)) ?? []
       requests.push({ ...base, covered: drivers.length > 0, covered_by: drivers.map((d) => ({ id: d.id, first_name: d.first_name, last_name: d.last_name, nickname: d.nickname })) })
     }
   }
@@ -742,8 +749,9 @@ export function registerCarpools(router, { services, database, logger, getSchema
       // Totals for every listed activity in two queries.
       const counts = new Map()
       const keyOf = (r) => (r.game != null ? `game:${r.game}` : r.training != null ? `training:${r.training}` : `event:${r.event}`)
-      // Riders per activity AND way (393): a Going seat does not cover a Return request.
-      const legKey = (r) => `${keyOf(r)}:${r.direction === 'back' ? 'back' : 'there'}`
+      // Riders per activity, way (393) AND day (397): a Going seat does not cover
+      // a Return request, a Saturday seat not a Sunday request.
+      const legKey = (r) => `${keyOf(r)}:${r.direction === 'back' ? 'back' : 'there'}:${ymd(r.departure_date) ?? ''}`
       const byType = { game: [], training: [], event: [] }
       for (const a of acts) byType[a.type].push(a.id)
       if (acts.length) {
@@ -900,9 +908,12 @@ export function registerCarpools(router, { services, database, logger, getSchema
       assertOpen(act.info)
       await assertInScope(req, act, me)
       const fk = ACTIVITY[act.type].fk
-      // Only into my car for the same way (393): a Going request is not a Return seat.
-      const offer = await database('carpools').where({ [fk]: act.id, kind: 'offer', member: me.id, direction: act.entry.direction }).first()
-      if (!offer) throw httpError(409, 'Offer a ride first, then take requests into your car', 'carpool_no_offer')
+      // Only into my car for the same way (393) and day (397): a Going request
+      // is not a Return seat, a Saturday request not a Sunday seat.
+      const offer = await database('carpools')
+        .where({ [fk]: act.id, kind: 'offer', member: me.id, direction: act.entry.direction, departure_date: ymd(act.entry.departure_date) })
+        .first()
+      if (!offer) throw httpError(409, 'Offer a ride on that day first, then take requests into your car', 'carpool_no_offer')
       if (!(await offerAllows(offer, act.entry.member))) {
         throw httpError(409, 'Your ride is offered to other teams than this person\'s', 'carpool_offer_other_teams')
       }
@@ -982,8 +993,11 @@ export function registerCarpools(router, { services, database, logger, getSchema
       // Match-making nudge: a new request tells the drivers who still have a
       // free seat; a new offer tells the members still waiting for a ride.
       const b = await board(act.type, act.id, me.id)
-      // Nudge only within the same leg — a Going request is no use to a Return driver.
-      const leg = input.direction === 'back' ? b.back : b.there
+      // Nudge only within the same leg and day — a Going request is no use to a
+      // Return driver, a Saturday request none to a Sunday one.
+      const legAll = input.direction === 'back' ? b.back : b.there
+      const sameDay = (e) => e.departure_date === input.departure_date
+      const leg = { offers: legAll.offers.filter(sameDay), requests: legAll.requests.filter(sameDay) }
       if (input.kind === 'request') {
         const drivers = leg.offers.filter((o) => o.seats_free > 0 && !o.mine).map((o) => o.member.id)
         await notify(drivers, 'carpool_requested', act, { name: displayName(me), seats: input.seats })

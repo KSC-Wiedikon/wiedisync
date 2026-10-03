@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CarpoolLeg, CarpoolOffer, CarpoolRequest } from '../carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, entryCount, inCarpoolScope, myRole, seatsINeed } from '../carpoolFormat'
+import { activityDays, canJoin, canOffer, canRequest, canTake, entryCount, firstFreeDay, inCarpoolScope, myRideDays, myRole, seatsINeed } from '../carpoolFormat'
 
 const person = (id: number) => ({ id, first_name: `F${id}`, last_name: `L${id}`, nickname: null })
 
@@ -94,5 +94,36 @@ describe('inCarpoolScope', () => {
     expect(inCarpoolScope([3, 9], ['9'])).toBe(true)
     expect(inCarpoolScope(['3'], [3])).toBe(true)
     expect(inCarpoolScope([3], ['1', '2'])).toBe(false)
+  })
+})
+
+describe('one ride per way per day (migration 397)', () => {
+  const SAT = '2026-10-10'
+  const SUN = '2026-10-11'
+  it('lists the days of a multi-day activity', () => {
+    expect(activityDays(SAT, SUN)).toEqual([SAT, SUN])
+    expect(activityDays(SAT, null)).toEqual([SAT])
+    expect(activityDays('2026-10-31', '2026-11-01')).toEqual(['2026-10-31', '2026-11-01'])
+  })
+  it('a Saturday driver can still offer, join and be taken on Sunday', () => {
+    const b = board(
+      [offer(1, 9, 3, 0, { mine: true, departure_date: SAT }), offer(2, 5, 3, 0, { departure_date: SUN }), offer(3, 6, 3, 0, { departure_date: SAT })],
+      [request(4, 7, 1, { departure_date: SUN }), request(5, 8, 1, { departure_date: SAT })],
+    )
+    expect(canOffer(b, true)).toBe(false) // one-day rule
+    expect(canOffer(b, true, true)).toBe(true) // multi-day: the form picks the day
+    expect(canJoin(b, b.offers[1], true)).toBe(true) // Sunday car, I drive Saturday only
+    expect(canJoin(b, b.offers[2], true)).toBe(false) // Saturday car, I drive that day
+    expect(canTake(b, b.requests[0], true)).toBe(false) // Sunday request, no Sunday car of mine
+    expect(canTake(b, b.requests[1], true)).toBe(true)
+    expect(myRideDays(b, 'offer')).toEqual([SAT])
+    expect(myRideDays(b, 'offer', 1)).toEqual([])
+    expect(firstFreeDay([SAT, SUN], myRideDays(b, 'offer'), SAT)).toBe(SUN)
+    expect(firstFreeDay([SAT, SUN], [SAT, SUN], SAT)).toBe(SAT)
+  })
+  it('joins with the seats asked for on that day', () => {
+    const b = board([], [request(4, 9, 2, { mine: true, departure_date: SAT }), request(5, 9, 1, { mine: true, departure_date: SUN })])
+    expect(seatsINeed(b, SAT)).toBe(2)
+    expect(seatsINeed(b, SUN)).toBe(1)
   })
 })

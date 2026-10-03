@@ -164,8 +164,8 @@ describe('Going + Return boards (migration 393)', () => {
   const entries = [
     { id: 1, kind: 'offer', member: 1, seats: 2, direction: 'there', departure_date: '2026-10-03', departure_time: '08:00:00', ...m(1) },
     { id: 2, kind: 'offer', member: 1, seats: 3, direction: 'back', departure_date: '2026-10-04', departure_time: '18:00:00', ...m(1) },
-    { id: 3, kind: 'request', member: 7, seats: 1, direction: 'there', ...m(7) },
-    { id: 4, kind: 'request', member: 7, seats: 1, direction: 'back', ...m(7) },
+    { id: 3, kind: 'request', member: 7, seats: 1, direction: 'there', departure_date: '2026-10-03', ...m(7) },
+    { id: 4, kind: 'request', member: 7, seats: 1, direction: 'back', departure_date: '2026-10-04', ...m(7) },
   ]
   it('splits rides by way; passengers and coverage are per way', () => {
     const b = buildBoard(entries, [pax(10, 1, 7), pax(11, 2, 8)], 7)
@@ -191,6 +191,23 @@ describe('Going + Return boards (migration 393)', () => {
     expect(rideDateAllowed(info, 'back', '2026-10-02')).toBe(false)
     expect(rideDateAllowed(info, 'back', '2026-10-06')).toBe(true)
     expect(rideDateAllowed(info, 'back', '2026-10-20')).toBe(false)
+  })
+})
+
+describe('one ride per way per day (migration 397)', () => {
+  const m = (id) => ({ m_id: id, m_first_name: 'F', m_last_name: 'L', m_nickname: null })
+  const pax = (id, carpool, passenger) => ({ id, carpool, passenger, seats: 1, p_id: passenger, p_first_name: 'P', p_last_name: 'Q', p_nickname: null })
+  it('keeps a Saturday and a Sunday ride apart; a seat covers the request of its own day only', () => {
+    const entries = [
+      { id: 1, kind: 'offer', member: 1, seats: 3, direction: 'there', departure_date: '2026-10-11', departure_time: '08:00:00', ...m(1) },
+      { id: 2, kind: 'offer', member: 1, seats: 3, direction: 'there', departure_date: '2026-10-10', departure_time: '08:00:00', ...m(1) },
+      { id: 3, kind: 'request', member: 7, seats: 1, direction: 'there', departure_date: '2026-10-10', ...m(7) },
+      { id: 4, kind: 'request', member: 7, seats: 1, direction: 'there', departure_date: '2026-10-11', ...m(7) },
+    ]
+    const leg = buildBoard(entries, [pax(10, 2, 7)], 7).there
+    expect(leg.offers.map((o) => o.id)).toEqual([2, 1]) // by day
+    expect(leg.requests.map((r) => [r.id, r.covered])).toEqual([[4, false], [3, true]]) // Sunday still open
+    expect(leg.totals.requests_open).toBe(1)
   })
 })
 
