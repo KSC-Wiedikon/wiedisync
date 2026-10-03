@@ -169,11 +169,13 @@ export function TeamPair({
   const weak = 'text-muted-foreground'
   const hasAside = homeAside != null || awayAside != null
   return (
-    <div className={cn('grid min-w-0 items-baseline gap-x-2', hasAside ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1', className)}>
+    // On a phone the asides (set scores) go UNDER their name: beside it, five set chips left the
+    // name a column of three letters ("K / S / C / W…") and pushed the other side's scores down.
+    <div className={cn('grid min-w-0 items-baseline gap-x-2', hasAside ? 'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1', className)}>
       <div className={cn('col-start-1 row-start-1 min-w-0 break-words text-sm leading-snug sm:text-[15px]', emphasis !== 'away' ? strong : weak)}>{home}</div>
-      {homeAside != null && <div className="col-start-2 row-start-1 text-right">{homeAside}</div>}
-      <div className={cn('col-start-1 row-start-2 min-w-0 break-words text-sm leading-snug sm:text-[15px]', emphasis !== 'home' ? strong : weak)}>{away}</div>
-      {awayAside != null && <div className="col-start-2 row-start-2 text-right">{awayAside}</div>}
+      {homeAside != null && <div className="col-start-1 row-start-2 mb-1 text-right sm:col-start-2 sm:row-start-1 sm:mb-0">{homeAside}</div>}
+      <div className={cn('col-start-1 min-w-0 break-words text-sm leading-snug sm:row-start-2 sm:text-[15px]', hasAside ? 'row-start-3' : 'row-start-2', emphasis !== 'home' ? strong : weak)}>{away}</div>
+      {awayAside != null && <div className="col-start-1 row-start-4 text-right sm:col-start-2 sm:row-start-2">{awayAside}</div>}
     </div>
   )
 }
