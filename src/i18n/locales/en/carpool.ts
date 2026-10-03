@@ -10,7 +10,7 @@ export default {
   freeSeats_other: '{{count}} free seats',
   looking_one: '{{count}} looking for a ride',
   looking_other: '{{count}} looking for a ride',
-  emptyHint: 'No rides yet. Offer your free seats or say you need a lift.',
+  emptyHint: 'No rides yet. Offer your free seats.',
   offerRide: 'Offer a ride',
   requestRide: 'Need a ride',
   editOffer: 'Edit your ride',
