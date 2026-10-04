@@ -66,16 +66,26 @@ export function parseTournamentList(html) {
 }
 
 /**
- * findTournamentById.do → { club, deadline, days: [{date, from, to, hall}], teamIds: [bp team id] }.
- * teamIds come only from the team links of the registrations table.
+ * findTournamentById.do → { club, deadline, leagues, open, days: [{date, from, to, hall}], teamIds: [bp team id] }.
+ * leagues = the "Ligen" table's codes (DU12Tu, MixU10M…); open = the page offers
+ * "Anmelden". teamIds come only from the team links of the registrations table.
  */
 export function parseTournamentDetail(html) {
   const s = String(html)
   const club = clean(/>\s*Verein\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/.exec(s)?.[1]) || null
   const deadline = bpDate(/name="deadline"[^>]*value="([^"]*)"/.exec(s)?.[1])
+  const open = /selectTeamForClubRegistration\.do/.test(s)
 
   const aStart = s.indexOf('Austragungen')
   const rStart = s.indexOf('<!-- registrations')
+  const lStart = s.search(/>\s*Ligen\s*</)
+  const leagues = []
+  if (lStart !== -1 && aStart > lStart) {
+    for (const m of s.slice(lStart, aStart).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)) {
+      const code = cellsOf(m[1])[0]
+      if (code && code !== 'Name' && code !== 'Ligen' && !leagues.includes(code)) leagues.push(code)
+    }
+  }
   const days = []
   if (aStart !== -1) {
     const seg = s.slice(aStart, rStart > aStart ? rStart : undefined)
@@ -93,7 +103,7 @@ export function parseTournamentDetail(html) {
       if (!teamIds.includes(id)) teamIds.push(id)
     }
   }
-  return { club, deadline, days, teamIds }
+  return { club, deadline, leagues, open, days, teamIds }
 }
 
 const ymdKey = (d) => String(d).replace(/-/g, '')
@@ -133,6 +143,41 @@ export function planTournamentGames(tournaments, teamsByBpId) {
     }
   }
   return rows
+}
+
+/**
+ * bb_tournaments rows (migration 398) from the parsed tournaments. Pure.
+ * `open` comes from the list's action column ("Anmelden") or, failing that,
+ * the detail page's own Anmelden link.
+ */
+export function planTournamentRows(tournaments, kscwBpIds) {
+  const ours = new Set([...kscwBpIds].map(String))
+  return tournaments.map((t) => {
+    const days = (t.days || []).map((d) => d.date).filter(Boolean).sort()
+    return {
+      id: t.id,
+      date: days[0] || t.date,
+      end_date: days.length > 1 ? days[days.length - 1] : null,
+      host_club: t.club || null,
+      hall: t.hall || t.days?.[0]?.hall || null,
+      time_from: t.from || t.days?.[0]?.from || null,
+      time_to: t.to || t.days?.[0]?.to || null,
+      leagues: t.leagues || [],
+      deadline: t.deadline || null,
+      registration_open: t.status ? /^Anmelden$/i.test(t.status) : !!t.open,
+      registered_count: (t.teamIds || []).length,
+      kscw_bp_team_ids: (t.teamIds || []).filter((id) => ours.has(String(id))),
+    }
+  })
+}
+
+/** Upsert the mirror. Tournaments that left the list are kept (picks hang off them). */
+async function writeTournamentRows(db, rows) {
+  const now = new Date()
+  for (const r of rows) {
+    await db('bb_tournaments').insert({ ...r, first_seen_at: now, last_seen_at: now })
+      .onConflict('id').merge({ ...r, last_seen_at: now })
+  }
 }
 
 const COMPARE = ['home_team', 'away_team', 'date', 'time', 'league', 'season', 'away_hall_json', 'type']
@@ -217,13 +262,17 @@ export async function syncBpTournaments(db, log, {
   for (const t of list) {
     try {
       const d = parseTournamentDetail(await client.getHtml(`/findTournamentById.do?tournamentId=${t.id}`))
-      tournaments.push({ ...t, club: d.club || t.club, days: d.days, teamIds: d.teamIds, deadline: d.deadline })
+      tournaments.push({ ...t, club: d.club || t.club, days: d.days, teamIds: d.teamIds, deadline: d.deadline, leagues: d.leagues, open: d.open })
     } catch (e) {
       // One unreadable tournament must not wipe the others' rows: abort before any write.
       throw new Error(`tournament ${t.id}: ${e.message}`)
     }
     if (delayMs) await sleep(delayMs)
   }
+
+  // The picking page's copy (migration 398). Written first: it is harmless on
+  // its own, and a failure here must not leave half-updated game rows.
+  await writeTournamentRows(db, planTournamentRows(tournaments, Object.keys(teamsByBpId)))
 
   const desired = planTournamentGames(tournaments, teamsByBpId)
 

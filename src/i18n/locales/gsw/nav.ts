@@ -30,6 +30,7 @@ export default {
   adminGroupData: 'Date & Uuswertige',
   memberTools: 'Mitglieder-Tools',
   jsExport: 'J+S-Export',
+  tournaments: 'Turnier',
   finance: 'Finanze',
   uploadInvoice: 'Rächnig hochlade',
   memberFinance: 'Persönlichi Finanze',
