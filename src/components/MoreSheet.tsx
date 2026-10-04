@@ -13,7 +13,7 @@ import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
 import { Button } from '@/components/ui/button'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight, Trophy } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN } from '../lib/api'
@@ -22,6 +22,7 @@ import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { useDonateVisible } from '../modules/support/donateConfig'
+import { useShowTournaments } from '../modules/tournaments/tournamentsApi'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
@@ -58,6 +59,7 @@ function buildSecondaryItems(
   sched: {
     isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; isVbAdmin: boolean; isBbAdmin: boolean; hasTeam: boolean
     is_spielplaner: boolean; spielplanerTeamIds: string[]; coachTeamIds: string[]; teamResponsibleIds: string[]; canManageForms: boolean
+    showTournaments: boolean
   },
 ): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetGroup[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
@@ -74,6 +76,7 @@ function buildSecondaryItems(
     ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     // J+S export — coaches and above (same audience as Forms authoring).
     ...(sched.canManageForms ? [{ to: '/js-export', labelKey: 'jsExport', icon: <GraduationCap className={iconClass} /> }] : []),
+    ...(sched.showTournaments ? [{ to: '/tournaments', labelKey: 'tournaments', icon: <Trophy className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
   // Finance — three labelled groups (member / team / club) from
@@ -230,6 +233,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   const { openSwitcher } = useHouseholdSwitcher()
   const { t: tCommon } = useTranslation('common')
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  const showTournaments = useShowTournaments(!!user, isApproved)
   // Same derivation as useNavItems: roster member, coach/TR or captain of an
   // active team unlocks the Team finance group.
   const hasTeam = memberTeamIds.length > 0 || coachTeamIds.length > 0 || captainTeamIds.length > 0
@@ -373,7 +377,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               block below. The bottom tab bar has no room for it. */}
           {showLive && renderNavItem({ to: '/live', labelKey: 'live', icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> })}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
+            const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms, showTournaments })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a

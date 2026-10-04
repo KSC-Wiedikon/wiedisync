@@ -28,6 +28,7 @@ import ScorerPage from './modules/scorer/ScorerPage'
 import CalendarPage from './modules/calendar/CalendarPage'
 import HomePage from './modules/home/HomePage'
 import CarpoolPage from './modules/carpool/CarpoolPage'
+import TournamentsPage from './modules/tournaments/TournamentsPage'
 import TeamsPage from './modules/teams/TeamsPage'
 import TeamDetail from './modules/teams/TeamDetail'
 import PlayerProfile from './modules/teams/PlayerProfile'
@@ -244,6 +245,7 @@ export default function App() {
             <Route path="events/:eventId" element={<AuthRoute><EventsPage /></AuthRoute>} />
             {/* Car pooling board (migration 378) — where its notifications and pushes land. */}
             <Route path="carpool/:type/:id" element={<AuthRoute><CarpoolPage /></AuthRoute>} />
+            <Route path="tournaments" element={<AuthRoute><TournamentsPage /></AuthRoute>} />
             <Route path="forms" element={<AuthRoute><FormsPage /></AuthRoute>} />
             <Route path="js-export" element={<AuthRoute><Suspense fallback={null}><JsExportPage /></Suspense></AuthRoute>} />
             <Route path="forms/new" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />

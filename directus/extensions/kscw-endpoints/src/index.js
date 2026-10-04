@@ -31,6 +31,7 @@ import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerGameRecordings } from './game-recordings.js'
 import { registerCarpools } from './carpools.js'
+import { registerBbTournamentPicks } from './bb-tournament-picks.js'
 import { registerLiveScoring } from './live-scoring.js'
 import { registerGameResult } from './game-result.js'
 import { registerNominationPush } from './nomination-push.js'
@@ -2770,6 +2771,7 @@ export default {
     registerScorerRoster(router, ctx)
     registerGameRecordings(router, ctx)
     registerCarpools(router, ctx)
+    registerBbTournamentPicks(router, ctx)
     registerLiveScoring(router, ctx)
     registerGameResult(router, ctx)
     registerNominationPush(router, ctx)

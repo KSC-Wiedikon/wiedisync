@@ -31,6 +31,7 @@ export default {
   adminGroupData: 'Data & insights',
   memberTools: 'Member tools',
   jsExport: 'J+S export',
+  tournaments: 'Tournaments',
   finance: 'Finances',
   uploadInvoice: 'Upload invoice',
   memberFinance: 'Member finance',

@@ -9,9 +9,10 @@ import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../l
 import { buildFinanceGroups, type FinanceNavEntry } from '../lib/financeNav'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
-  CalendarClock, Newspaper, ScrollText, GraduationCap,
+  CalendarClock, Newspaper, ScrollText, GraduationCap, Trophy,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
+import { useShowTournaments } from '../modules/tournaments/tournamentsApi'
 
 export interface NavItem {
   to: string
@@ -37,6 +38,8 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
+  // Basketball youth tournaments — coach/TR of a tournament team, or bb admin.
+  const showTournaments = useShowTournaments(isLoggedIn, isApproved)
   const liveNow = useLiveNow()
   const { pathname } = useLocation()
   const showLive = liveNow.live || pathname.startsWith('/live')
@@ -77,6 +80,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
     ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     // J+S export — coaches and above (same audience as Forms authoring).
     ...(canManageForms ? [{ to: '/js-export', label: t('jsExport'), icon: <GraduationCap className={iconClass} /> }] : []),
+    ...(showTournaments ? [{ to: '/tournaments', label: t('tournaments'), icon: <Trophy className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
   // Finance — own section, three labelled groups (member / team / club) built
