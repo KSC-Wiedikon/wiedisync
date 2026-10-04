@@ -509,7 +509,7 @@ export interface Game extends BaseRecord {
    *  no contact info is stored here. */
   duty_late_json?: Record<string, { at: string; by_name: string }> | null
   referees_json: Array<{ name: string; id?: number }>
-  source: 'swiss_volley' | 'manual' | 'basketplan'
+  source: 'swiss_volley' | 'manual' | 'basketplan' | 'basketplan_tournament'
   svrz_push_status: 'pending' | 'pushed' | 'failed' | null
   respond_by: string
   min_participants: number
