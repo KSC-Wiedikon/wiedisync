@@ -124,8 +124,10 @@ export function planTournamentGames(tournaments, teamsByBpId) {
           league: team.league || null,
           season: team.season || null,
           status: 'scheduled',
-          // The list says "Sportanlage Wisacher", the day row just "Wisacher".
-          away_hall_json: JSON.stringify({ name: (t.hall && d.hall && t.hall.includes(d.hall)) ? t.hall : (d.hall || t.hall || '') }),
+          // The list names the hall in full ("Kreisschule Mutschellen 1"), the
+          // day row often short ("Kreisschule 1"): one-day tournaments take the
+          // list's; a multi-day one keeps each day's own hall.
+          away_hall_json: JSON.stringify({ name: (days.length === 1 ? t.hall || d.hall : d.hall || t.hall) || '' }),
         })
       }
     }
