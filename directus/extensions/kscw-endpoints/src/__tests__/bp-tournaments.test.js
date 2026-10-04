@@ -66,7 +66,7 @@ describe('basketplan tournaments', () => {
     expect(planTournamentRows([t], ['5104', '5287'])).toEqual([{
       id: 438, date: '2026-11-01', end_date: null, host_club: 'Phönix Basket', hall: 'Sportanlage Wisacher',
       time_from: '08:00', time_to: '18:00', leagues: ['DU12Tu', 'MixU 8M'], deadline: '2026-10-25',
-      registration_open: true, registered_count: 2, kscw_bp_team_ids: ['5104'],
+      registration_open: true, list_status: 'Anmelden', registered_count: 2, kscw_bp_team_ids: ['5104'],
     }])
     expect(planTournamentRows([{ ...t, status: 'Anmeldefrist abgelaufen' }], [])[0].registration_open).toBe(false)
   })
