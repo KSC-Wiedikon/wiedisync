@@ -12,6 +12,7 @@ import path from 'path'
 import { spawn } from 'node:child_process'
 import { syncSvGames, syncSvRankings } from './sv-sync.js'
 import { syncBpGames, syncBpRankings, sweepSupersededManualGames } from './bp-sync.js'
+import { syncBpTournaments } from './bp-tournaments.js'
 import { registerPasswordReset } from './password-reset.js'
 import { registerSignupInvites } from './signup-invites.js'
 import { registerICalFeed } from './ical-feed.js'
@@ -1198,6 +1199,16 @@ export default {
         const startedAt = Date.now()
         const games = await syncBpGames(database, log, { sweepManual })
         const rankings = await syncBpRankings(database, log, games.leagueHoldingIds)
+        // Youth tournament days (DU12/HU12/MU10/MU8 — no league). Runs after the
+        // games so a day with published real games drops its placeholder. Its
+        // failure (login, Basketplan down) must not fail the league sync.
+        let tournaments
+        try {
+          tournaments = await syncBpTournaments(database, log)
+        } catch (e) {
+          log.warn(`[BP Tournaments] ${e.message}`)
+          tournaments = { error: e.message }
+        }
         // The sweep DELETES games — per CLAUDE.md → "Audit logging (actor
         // capture)", raw-knex writes bypass Directus's activity trail, so the
         // acting admin and the full list of retired fixtures are recorded here.
@@ -1217,7 +1228,7 @@ export default {
           })
         }
         await logCronRun(database, 'bp_sync', { status: 'ok', durationMs: Date.now() - startedAt })
-        res.json({ status: 'ok', games, rankings })
+        res.json({ status: 'ok', games, rankings, tournaments })
       } catch (err) {
         logEndpointError(log, 'admin/bp-sync', err, req)
         res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
