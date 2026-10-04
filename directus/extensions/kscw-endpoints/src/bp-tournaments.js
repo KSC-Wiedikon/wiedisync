@@ -20,7 +20,7 @@
  * club's own account (BASKETPLAN_USERNAME / BASKETPLAN_PASSWORD, container env).
  * ⚠ Basketplan withdraws a team with a plain GET link
  * (withdrawTeamFromTournament.do). This module may only request the four
- * read pages in ALLOWED_PATHS — bpFetch refuses anything else, so no parsing
+ * read pages in READ_PATHS — bpFetch refuses anything else, so no parsing
  * slip can ever follow that link.
  *
  * PRIVACY: a tournament page lists every club's coach with e-mail and phone.
@@ -32,7 +32,9 @@ import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
 
 const BP_BASE = 'https://www.basketplan.ch'
 export const SOURCE = 'basketplan_tournament'
-const ALLOWED_PATHS = new Set(['/showLogin.do', '/authenticate.do', '/findAllTournaments.do', '/findTournamentById.do'])
+export const READ_PATHS = ['/showLogin.do', '/authenticate.do', '/findAllTournaments.do', '/findTournamentById.do']
+/** Never in any allow-list: Basketplan withdraws a team with a plain GET to this. */
+export const WITHDRAW_PATH = '/withdrawTeamFromTournament.do'
 const DETAIL_DELAY_MS = 300
 
 const clean = (s) => String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
@@ -165,6 +167,7 @@ export function planTournamentRows(tournaments, kscwBpIds) {
       leagues: t.leagues || [],
       deadline: t.deadline || null,
       registration_open: t.status ? /^Anmelden$/i.test(t.status) : !!t.open,
+      list_status: t.status ? String(t.status).slice(0, 60) : null,
       registered_count: (t.teamIds || []).length,
       kscw_bp_team_ids: (t.teamIds || []).filter((id) => ours.has(String(id))),
     }
@@ -189,8 +192,13 @@ const norm = (f, v) => {
   return String(v)
 }
 
-/** A tiny cookie-carrying client restricted to ALLOWED_PATHS. */
-export function bpClient(fetchImpl = fetch) {
+/**
+ * A tiny cookie-carrying client restricted to an allow-list of paths — the
+ * four read pages unless a caller (the registration worker) adds its two.
+ * The withdraw path can never be allowed.
+ */
+export function bpClient(fetchImpl = fetch, { allow = READ_PATHS } = {}) {
+  const allowed = new Set(allow.filter((p) => p !== WITHDRAW_PATH))
   let cookie = ''
   const take = (res) => {
     const set = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean)
@@ -201,7 +209,7 @@ export function bpClient(fetchImpl = fetch) {
   }
   async function bpFetch(pathAndQuery, init = {}) {
     const url = new URL(pathAndQuery, BP_BASE)
-    if (url.origin !== new URL(BP_BASE).origin || !ALLOWED_PATHS.has(url.pathname.replace(/;jsessionid=.*$/i, ''))) {
+    if (url.origin !== new URL(BP_BASE).origin || !allowed.has(url.pathname.replace(/;jsessionid=.*$/i, ''))) {
       throw new Error(`bp-tournaments: refusing ${url.pathname}`)
     }
     const res = await fetchImpl(url.toString(), {
@@ -232,7 +240,12 @@ export function bpClient(fetchImpl = fetch) {
     if (!/Logout/.test(html)) throw new Error('bp-tournaments: not logged in (session lost)')
     return html
   }
-  return { login, getHtml }
+  /** Raw request for the worker's form post: status + body, no login check. */
+  async function request(path, init) {
+    const res = await bpFetch(path, init)
+    return { status: res.status, location: res.headers.get('location'), html: await res.text() }
+  }
+  return { login, getHtml, request }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

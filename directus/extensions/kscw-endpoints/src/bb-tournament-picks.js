@@ -26,9 +26,13 @@
  *   GET    /bb-tournaments                     → { admin, teams, tournaments }
  *   POST   /bb-tournaments/:id/picks/:teamId   → pick (body: { note? })
  *   DELETE /bb-tournaments/:id/picks/:teamId   → un-pick
+ *   GET    /bb-tournaments/worker              → worker settings + journal (admin)
+ *   POST   /bb-tournaments/worker              → mode / opening window (admin)
+ *   POST   /admin/bb-register-tick             → per-minute cron (bb-tournament-worker.js)
  */
 
 import { writeUserLog } from './activity-log.js'
+import { createBbTournamentWorker, MODES } from './bb-tournament-worker.js'
 
 const httpError = (status, message, code) => Object.assign(new Error(message), { status, code })
 const idParam = (v) => (/^\d+$/.test(String(v ?? '')) ? Number(v) : null)
@@ -62,12 +66,15 @@ export function teamFits(team, tournament) {
 /**
  * Pick state for one team on one tournament. Pure.
  *   status: registered (Basketplan has it) | picked (wanted, not yet in) | none
- *   canPick: a new pick still makes sense — sign-up open, deadline not past.
+ *   canPick: a new pick still makes sense — deadline not past, sign-up not closed.
  */
-export function pickState(team, tournament, pick, today) {
+export function pickState(team, tournament, pick, today, attempt = null) {
   const registered = (tournament.kscw_bp_team_ids || []).map(String).includes(String(team.bb_source_id))
   const deadline = ymd(tournament.deadline)
-  const closed = !tournament.registration_open || (deadline != null && deadline < today)
+  // Closed = past the deadline, or Basketplan says so. A tournament listed but
+  // not open YET stays pickable — the worker registers it the moment it opens.
+  const closed = (deadline != null && deadline < today)
+    || (!tournament.registration_open && /abgelaufen|geschlossen|voll/i.test(tournament.list_status || ''))
   return {
     team: Number(team.id),
     status: registered ? 'registered' : pick ? 'picked' : 'none',
@@ -75,12 +82,20 @@ export function pickState(team, tournament, pick, today) {
     picked_by_name: pick?.picked_by_name ?? null,
     note: pick?.note ?? null,
     canPick: !closed,
+    // Latest registration-worker attempt (migration 399), if any.
+    attempt: attempt ? { result: attempt.result, message: attempt.message ?? null, at: attempt.attempted_at ?? null } : null,
   }
 }
 
 /** The page's payload. Pure — unit-tested. */
-export function buildOverview(tournaments, teams, picks, today) {
+export function buildOverview(tournaments, teams, picks, today, attempts = []) {
   const pickBy = new Map(picks.map((p) => [`${p.tournament}:${p.team}`, p]))
+  // attempts arrive newest first; keep the first per pair.
+  const attemptBy = new Map()
+  for (const a of attempts) {
+    const k = `${a.tournament}:${a.team}`
+    if (!attemptBy.has(k)) attemptBy.set(k, a)
+  }
   const rows = []
   for (const t of tournaments) {
     const fits = teams.filter((team) => teamFits(team, t))
@@ -97,7 +112,7 @@ export function buildOverview(tournaments, teams, picks, today) {
       deadline: ymd(t.deadline),
       registration_open: !!t.registration_open,
       registered_count: t.registered_count ?? null,
-      teams: fits.map((team) => pickState(team, t, pickBy.get(`${t.id}:${team.id}`), today)),
+      teams: fits.map((team) => pickState(team, t, pickBy.get(`${t.id}:${team.id}`), today, attemptBy.get(`${t.id}:${team.id}`))),
     })
   }
   rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id))
@@ -106,6 +121,9 @@ export function buildOverview(tournaments, teams, picks, today) {
 
 export function registerBbTournamentPicks(router, { database, logger }) {
   const log = logger.child({ endpoint: 'bb-tournaments' })
+  const worker = createBbTournamentWorker({ database, log })
+  /** After a pick: try it now rather than at the next 10-minute mark. Best effort. */
+  const kick = () => { worker.run({ force: true }).catch((e) => log.warn(`[BB Worker] kick: ${e.message}`)) }
 
   const fail = (res, err, route) => {
     const status = err?.status || 500
@@ -166,10 +184,15 @@ export function registerBbTournamentPicks(router, { database, logger }) {
           .whereIn('tournament', tournaments.map((t) => t.id))
           .select('tournament', 'team', 'picked_by_name', 'note')
         : []
+      const attempts = teams.length
+        ? await database('bb_tournament_registrations').whereIn('team', teams.map((t) => t.id))
+          .whereIn('tournament', tournaments.map((t) => t.id))
+          .orderBy('attempted_at', 'desc').select('tournament', 'team', 'result', 'message', 'attempted_at')
+        : []
       res.json({
         admin: me.admin,
         teams: teams.map((t) => ({ id: Number(t.id), name: t.name, league: t.league })),
-        tournaments: teams.length ? buildOverview(tournaments, teams, picks, today) : [],
+        tournaments: teams.length ? buildOverview(tournaments, teams, picks, today, attempts) : [],
       })
     } catch (e) { fail(res, e, 'GET /bb-tournaments') }
   })
@@ -210,6 +233,7 @@ export function registerBbTournamentPicks(router, { database, logger }) {
         accountability: req.accountability, action: 'create', collection: 'bb_tournament_picks',
         recordId: row?.id ?? row, data: { tournament: tournament.id, team: team.id, note },
       })
+      kick()
       res.json({ ok: true })
     } catch (e) { fail(res, e, 'POST /bb-tournaments/:id/picks/:teamId') }
   })
@@ -227,5 +251,82 @@ export function registerBbTournamentPicks(router, { database, logger }) {
       }
       res.json({ ok: true })
     } catch (e) { fail(res, e, 'DELETE /bb-tournaments/:id/picks/:teamId') }
+  })
+
+  // ── Registration worker (migration 399) ────────────────────────────────────
+
+  async function requireAdmin(req) {
+    const me = await caller(req)
+    if (!me.admin) throw httpError(403, 'Basketball admins only', 'not_admin')
+    return me
+  }
+
+  router.get('/bb-tournaments/worker', async (req, res) => {
+    try {
+      await requireAdmin(req)
+      const s = await database('bb_tournament_worker').where('id', 1).first()
+      const journal = await database('bb_tournament_registrations as r')
+        .join('bb_tournaments as t', 't.id', 'r.tournament')
+        .join('teams as tm', 'tm.id', 'r.team')
+        .orderBy('r.attempted_at', 'desc').limit(50)
+        .select('r.id', 'r.tournament', 'r.team', 'r.mode', 'r.result', 'r.message', 'r.attempted_at',
+          't.date as tournament_date', 't.host_club', 'tm.name as team_name')
+      res.json({
+        mode: s?.mode ?? 'off',
+        live_allowed: worker.liveAllowed,
+        rush_from: s?.rush_from ?? null,
+        rush_until: s?.rush_until ?? null,
+        poll_seconds: s?.poll_seconds ?? 30,
+        updated_by_name: s?.updated_by_name ?? null,
+        date_updated: s?.date_updated ?? null,
+        journal: journal.map((j) => ({ ...j, tournament_date: j.tournament_date instanceof Date ? zurichToday(j.tournament_date) : j.tournament_date })),
+      })
+    } catch (e) { fail(res, e, 'GET /bb-tournaments/worker') }
+  })
+
+  router.post('/bb-tournaments/worker', async (req, res) => {
+    try {
+      const me = await requireAdmin(req)
+      const b = req.body || {}
+      const patch = {}
+      if (b.mode !== undefined) {
+        if (!MODES.includes(b.mode)) throw httpError(400, 'Invalid mode')
+        patch.mode = b.mode
+      }
+      if (b.rush_from !== undefined || b.rush_until !== undefined) {
+        if (b.rush_from == null || b.rush_until == null) {
+          patch.rush_from = null
+          patch.rush_until = null
+        } else {
+          const from = new Date(b.rush_from)
+          const until = new Date(b.rush_until)
+          if (Number.isNaN(from.getTime()) || Number.isNaN(until.getTime()) || until <= from) throw httpError(400, 'Invalid window')
+          if (until - from > 3 * 3600000) throw httpError(400, 'The window can be at most 3 hours', 'window_too_long')
+          if (until < new Date()) throw httpError(400, 'The window is in the past', 'window_past')
+          patch.rush_from = from
+          patch.rush_until = until
+        }
+      }
+      if (b.poll_seconds !== undefined) {
+        const n = Number(b.poll_seconds)
+        if (!Number.isInteger(n) || n < 20 || n > 300) throw httpError(400, 'Poll every 20–300 seconds')
+        patch.poll_seconds = n
+      }
+      if (!Object.keys(patch).length) throw httpError(400, 'Nothing to change')
+      await database('bb_tournament_worker').where('id', 1)
+        .update({ ...patch, updated_by_name: me.name, date_updated: new Date() })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update', collection: 'bb_tournament_worker', recordId: 1, data: patch,
+      })
+      res.json({ ok: true })
+    } catch (e) { fail(res, e, 'POST /bb-tournaments/worker') }
+  })
+
+  // Per-minute cron (kscw-hooks). Admin token only.
+  router.post('/admin/bb-register-tick', async (req, res) => {
+    try {
+      if (req.accountability?.admin !== true) throw httpError(403, 'Admin only')
+      res.json(await worker.run())
+    } catch (e) { fail(res, e, 'POST /admin/bb-register-tick') }
   })
 }

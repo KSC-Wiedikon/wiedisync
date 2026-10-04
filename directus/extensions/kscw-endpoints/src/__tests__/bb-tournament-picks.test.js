@@ -25,7 +25,17 @@ describe('bb tournament picks', () => {
   })
   it('closed after the deadline or when Basketplan no longer offers sign-up', () => {
     expect(pickState(MU8, T, null, '2026-10-26').canPick).toBe(false)
-    expect(pickState(MU8, { ...T, registration_open: false }, null, '2026-10-04').canPick).toBe(false)
+    expect(pickState(MU8, { ...T, registration_open: false, list_status: 'Anmeldefrist abgelaufen' }, null, '2026-10-04').canPick).toBe(false)
+  })
+  it('a tournament listed but not open yet can be picked in advance', () => {
+    expect(pickState(MU8, { ...T, registration_open: false, list_status: null }, null, '2026-10-04').canPick).toBe(true)
+  })
+  it('carries the latest worker attempt', () => {
+    const rows = buildOverview([T], [MU8], [{ tournament: 438, team: 88 }], '2026-10-04', [
+      { tournament: 438, team: 88, result: 'not_offered', message: 'x', attempted_at: '2026-10-04T10:00:00Z' },
+      { tournament: 438, team: 88, result: 'dry_run', message: 'y', attempted_at: '2026-10-04T09:00:00Z' },
+    ])
+    expect(rows[0].teams[0].attempt).toEqual({ result: 'not_offered', message: 'x', at: '2026-10-04T10:00:00Z' })
   })
   it('lists only tournaments with a fitting team, each with only its fitting teams', () => {
     const other = { ...T, id: 440, date: '2026-10-31', leagues: ['MixU14M'] }

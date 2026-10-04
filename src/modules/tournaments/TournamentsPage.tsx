@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Check, CircleCheck, Lock } from 'lucide-react'
+import { Check, CircleCheck, Lock, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { formatDate, formatDateCompact } from '../../utils/dateHelpers'
-import { useSetPick, useTournaments, type Tournament, type TournamentTeam, type TournamentTeamState } from './tournamentsApi'
+import WorkerPanel from './WorkerPanel'
+import { ATTENTION, useSetPick, useTournaments, type Tournament, type TournamentTeam, type TournamentTeamState } from './tournamentsApi'
 
 /**
  * /tournaments — basketball youth tournaments (migration 398). One row per
@@ -81,6 +82,8 @@ export default function TournamentsPage() {
               </label>
             </div>
           )}
+
+          {data?.admin && <WorkerPanel />}
 
           {rows.length === 0 && !isLoading && <Empty>{t('empty')}</Empty>}
 
@@ -177,8 +180,12 @@ function PickCell({ state, admin, labelOn, labelOff, busy, onToggle }: {
       </span>
     )
   }
-  const title = [state.picked ? labelOn : labelOff, state.picked_by_name ? t('pickedBy', { name: state.picked_by_name }) : null]
-    .filter(Boolean).join(' · ')
+  const attention = state.picked && state.attempt && ATTENTION.includes(state.attempt.result) ? state.attempt : null
+  const title = [
+    state.picked ? labelOn : labelOff,
+    state.picked_by_name ? t('pickedBy', { name: state.picked_by_name }) : null,
+    state.attempt ? t(`result_${state.attempt.result}` as 'result_error') : null,
+  ].filter(Boolean).join(' · ')
   return (
     <button
       type="button"
@@ -196,8 +203,10 @@ function PickCell({ state, admin, labelOn, labelOff, busy, onToggle }: {
           : 'border-input bg-card text-muted-foreground hover:bg-surface-sunken',
       )}
     >
-      {state.picked ? <Check className="h-4 w-4" aria-hidden /> : <span className="h-4 w-4 rounded border border-input" aria-hidden />}
-      <span>{state.picked ? t('picked') : t('pick')}</span>
+      {attention
+        ? <TriangleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
+        : state.picked ? <Check className="h-4 w-4" aria-hidden /> : <span className="h-4 w-4 rounded border border-input" aria-hidden />}
+      <span>{attention ? t(`result_${attention.result}` as 'result_error') : state.picked ? t('picked') : t('pick')}</span>
     </button>
   )
 }

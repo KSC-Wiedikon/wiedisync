@@ -4826,6 +4826,40 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 10a. Cron: Basketplan tournament registration worker (every minute) ──
+  // The worker lives in kscw-endpoints (bb-tournament-worker.js, migration
+  // 399). This only decides whether a tick is due — mode not 'off', and either
+  // inside the admin's opening window or on a 10-minute mark — so the cron
+  // token login happens a few times an hour, not every minute.
+  schedule('* * * * *', async () => {
+    const startedAt = Date.now()
+    try {
+      const s = await database('bb_tournament_worker').where('id', 1).first('mode', 'rush_from', 'rush_until')
+      if (!s || s.mode === 'off') return
+      const now = Date.now()
+      const inWindow = s.rush_from && s.rush_until && now >= new Date(s.rush_from).getTime() && now < new Date(s.rush_until).getTime()
+      if (!inWindow && new Date().getUTCMinutes() % 10 !== 0) return
+      const token = await getCronAccessToken(log, 'BB register tick')
+      if (!token) return
+      const res = await fetch('http://localhost:8055/kscw/admin/bb-register-tick', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await res.text()
+      if (!res.ok) throw new Error(`${res.status} ${body.slice(0, 200)}`)
+      if (!/"skipped"|"pending":0/.test(body)) {
+        log.info(`BB register tick: ${body}`)
+        await logCronRun(database, 'bb_register', { status: 'ok', durationMs: Date.now() - startedAt })
+      }
+    } catch (err) {
+      // A missing table (migration 399 not applied yet) is not worth an alert.
+      if (/bb_tournament_worker/.test(err.message) && /does not exist/.test(err.message)) return
+      log.error({ msg: `BB register tick: ${err.message}`, event: 'cron.bb_register', stack: err.stack })
+      logCronError('bb_register', err)
+      await logCronRun(database, 'bb_register', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── 10b. Cron: Volleymanager Sync (weekly, Mondays 04:00 UTC) ──
   // Runs vm-sync-check.mjs: team metadata → `teams`, players/writers/referees
   // → `sv_vm_check` + members licence flags. Weekly (was monthly) so team
