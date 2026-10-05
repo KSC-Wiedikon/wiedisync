@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { formatDate, formatDateCompact } from '../../utils/dateHelpers'
+import WishesPanel from './WishesPanel'
 import WorkerPanel from './WorkerPanel'
 import { ATTENTION, useSetPick, useTournaments, type Tournament, type TournamentTeam, type TournamentTeamState } from './tournamentsApi'
 
@@ -51,6 +52,7 @@ export default function TournamentsPage() {
 
       {isError && <Empty>{t('loadError')}</Empty>}
       {!isLoading && !isError && teams.length === 0 && <Empty>{t('noAccess')}</Empty>}
+      {data?.admin && teams.length === 0 && data.hidden_teams.length > 0 && <WishesPanel data={data} />}
 
       {teams.length > 0 && (
         <>
@@ -84,6 +86,8 @@ export default function TournamentsPage() {
           )}
 
           {data?.admin && <WorkerPanel />}
+
+          {data && <WishesPanel data={data} />}
 
           {rows.length === 0 && !isLoading && <Empty>{t('empty')}</Empty>}
 

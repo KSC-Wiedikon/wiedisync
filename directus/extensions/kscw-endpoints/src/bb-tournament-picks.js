@@ -26,6 +26,9 @@
  *   GET    /bb-tournaments                     → { admin, teams, tournaments }
  *   POST   /bb-tournaments/:id/picks/:teamId   → pick (body: { note? })
  *   DELETE /bb-tournaments/:id/picks/:teamId   → un-pick
+ *   POST   /bb-tournaments/wishes/:teamId      → weekend wish (body: { date }) — migration 400
+ *   DELETE /bb-tournaments/wishes/:wishId      → drop a wish (its pick, if any, stays)
+ *   POST   /bb-tournaments/teams/:teamId/prefs → { avoid?: string[] } (coach/admin), { hidden?: bool } (admin)
  *   GET    /bb-tournaments/worker              → worker settings + journal (admin)
  *   POST   /bb-tournaments/worker              → mode / opening window (admin)
  *   POST   /admin/bb-register-tick             → per-minute cron (bb-tournament-worker.js)
@@ -33,6 +36,9 @@
 
 import { writeUserLog } from './activity-log.js'
 import { createBbTournamentWorker, MODES } from './bb-tournament-worker.js'
+import { addDays, latestAttempts, leagueKey, teamFits, weekStart, wishState, ymd, zurichToday } from './bb-tournament-wishes.js'
+
+export { leagueKey, teamFits, zurichToday }
 
 const httpError = (status, message, code) => Object.assign(new Error(message), { status, code })
 const idParam = (v) => (/^\d+$/.test(String(v ?? '')) ? Number(v) : null)
@@ -40,27 +46,17 @@ const MAX_NOTE = 300
 /** A tournament that left Basketplan's list is hidden after this many days unseen. */
 const STALE_DAYS = 3
 const ADMIN_ROLES = ['bb_admin', 'admin', 'superuser']
+const MAX_WISHES = 20
+const MAX_AVOID = 15
+/** Wishes further ahead than this make no sense (one season). */
+const WISH_HORIZON_DAYS = 300
 
-/** 'MixU 8M' and 'mixu8m' are the same league. */
-export const leagueKey = (s) => String(s ?? '').replace(/\s+/g, '').toLowerCase()
-
-export function zurichToday(now = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(now)
-}
-
-const ymd = (v) => (v == null ? null : v instanceof Date ? zurichToday(v) : String(v).slice(0, 10))
 const hm = (v) => (v == null ? null : String(v).slice(0, 5))
 
 export function parseRoles(raw) {
   if (Array.isArray(raw)) return raw
   if (!raw) return []
   try { const r = JSON.parse(raw); return Array.isArray(r) ? r : [] } catch { return [] }
-}
-
-/** Does the team's league appear in the tournament's leagues? */
-export function teamFits(team, tournament) {
-  const k = leagueKey(team.league)
-  return !!k && (tournament.leagues || []).some((l) => leagueKey(l) === k)
 }
 
 /**
@@ -119,6 +115,34 @@ export function buildOverview(tournaments, teams, picks, today, attempts = []) {
   return rows
 }
 
+/** Each current wish with its state (bb-tournament-wishes.js). Pure. */
+export function buildWishes(wishes, teams, tournaments, picks, attempts, today) {
+  const teamBy = new Map(teams.map((t) => [Number(t.id), t]))
+  const pickBy = new Map(picks.map((p) => [`${p.tournament}:${p.team}`, p]))
+  const attemptBy = latestAttempts(attempts)
+  const out = []
+  for (const w of wishes) {
+    const team = teamBy.get(Number(w.team))
+    if (!team) continue
+    const st = wishState(w, team, tournaments, pickBy, attemptBy, today)
+    if (st.state === 'past') continue
+    out.push({ id: Number(w.id), team: Number(w.team), week_start: ymd(w.week_start), wished_by_name: w.wished_by_name ?? null, ...st })
+  }
+  out.sort((a, b) => (a.week_start < b.week_start ? -1 : a.week_start > b.week_start ? 1 : a.team - b.team))
+  return out
+}
+
+/** Places to avoid from a request body: trimmed, 2–60 chars, unique, at most MAX_AVOID. */
+export function cleanAvoid(raw) {
+  if (!Array.isArray(raw)) return null
+  const out = []
+  for (const v of raw) {
+    const w = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
+    if (w.length >= 2 && !out.some((o) => o.toLowerCase() === w.toLowerCase())) out.push(w)
+  }
+  return out.slice(0, MAX_AVOID)
+}
+
 export function registerBbTournamentPicks(router, { database, logger }) {
   const log = logger.child({ endpoint: 'bb-tournaments' })
   const worker = createBbTournamentWorker({ database, log })
@@ -148,7 +172,10 @@ export function registerBbTournamentPicks(router, { database, logger }) {
     const keys = new Set(tournaments.flatMap((t) => (t.leagues || []).map(leagueKey)))
     const teams = await database('teams').where('sport', 'basketball').where('active', true)
       .select('id', 'name', 'league', 'bb_source_id')
-    return teams.filter((t) => keys.has(leagueKey(t.league)))
+    const fit = teams.filter((t) => keys.has(leagueKey(t.league)))
+    const prefs = fit.length ? await database('bb_tournament_team_prefs').whereIn('team', fit.map((t) => t.id)).select('team', 'hidden', 'avoid') : []
+    const prefBy = new Map(prefs.map((p) => [Number(p.team), p]))
+    return fit.map((t) => ({ ...t, hidden: !!prefBy.get(Number(t.id))?.hidden, avoid: prefBy.get(Number(t.id))?.avoid || [] }))
   }
 
   /** The tournament teams this caller may pick for. */
@@ -178,7 +205,9 @@ export function registerBbTournamentPicks(router, { database, logger }) {
       const me = await caller(req)
       const today = zurichToday()
       const tournaments = await currentTournaments(today)
-      const teams = await myTeams(me, await tournamentTeams(tournaments))
+      const all = await myTeams(me, await tournamentTeams(tournaments))
+      // A hidden team (MU8 organises elsewhere) is listed for admins only, to show it again.
+      const teams = all.filter((t) => !t.hidden)
       const picks = teams.length
         ? await database('bb_tournament_picks').whereIn('team', teams.map((t) => t.id))
           .whereIn('tournament', tournaments.map((t) => t.id))
@@ -189,10 +218,19 @@ export function registerBbTournamentPicks(router, { database, logger }) {
           .whereIn('tournament', tournaments.map((t) => t.id))
           .orderBy('attempted_at', 'desc').select('tournament', 'team', 'result', 'message', 'attempted_at')
         : []
+      const wishes = teams.length
+        ? await database('bb_tournament_wishes').whereIn('team', teams.map((t) => t.id))
+          .where('week_start', '>=', addDays(today, -6)).select('id', 'team', 'week_start', 'wished_by_name')
+        : []
+      const teamPicks = teams.length
+        ? await database('bb_tournament_picks').whereIn('team', teams.map((t) => t.id)).select('tournament', 'team')
+        : []
       res.json({
         admin: me.admin,
-        teams: teams.map((t) => ({ id: Number(t.id), name: t.name, league: t.league })),
+        teams: teams.map((t) => ({ id: Number(t.id), name: t.name, league: t.league, avoid: t.avoid })),
+        hidden_teams: me.admin ? all.filter((t) => t.hidden).map((t) => ({ id: Number(t.id), name: t.name })) : [],
         tournaments: teams.length ? buildOverview(tournaments, teams, picks, today, attempts) : [],
+        wishes: buildWishes(wishes, teams, tournaments, teamPicks, attempts, today),
       })
     } catch (e) { fail(res, e, 'GET /bb-tournaments') }
   })
@@ -251,6 +289,89 @@ export function registerBbTournamentPicks(router, { database, logger }) {
       }
       res.json({ ok: true })
     } catch (e) { fail(res, e, 'DELETE /bb-tournaments/:id/picks/:teamId') }
+  })
+
+  // ── Weekend wishes + team preferences (migration 400) ─────────────────────
+
+  /** The caller may manage this active basketball team. */
+  async function teamTarget(req, teamIdRaw) {
+    const me = await caller(req)
+    const teamId = idParam(teamIdRaw)
+    if (teamId == null) throw httpError(400, 'Invalid id')
+    const team = await database('teams').where('id', teamId).where('sport', 'basketball').where('active', true)
+      .first('id', 'name', 'league', 'bb_source_id')
+    if (!team) throw httpError(404, 'Team not found')
+    if (!(await myTeams(me, [team])).length) throw httpError(403, 'Only the team\'s coach or team responsible can do this', 'not_team_lead')
+    return { me, team }
+  }
+
+  router.post('/bb-tournaments/wishes/:teamId', async (req, res) => {
+    try {
+      const { me, team } = await teamTarget(req, req.params.teamId)
+      const today = zurichToday()
+      const week = weekStart(req.body?.date)
+      if (!week) throw httpError(400, 'Invalid date')
+      if (addDays(week, 6) < today) throw httpError(400, 'This weekend is over', 'past')
+      if (week > addDays(today, WISH_HORIZON_DAYS)) throw httpError(400, 'Too far ahead', 'too_far')
+      const [{ n }] = await database('bb_tournament_wishes').where('team', team.id).where('week_start', '>=', addDays(today, -6)).count('* as n')
+      if (Number(n) >= MAX_WISHES) throw httpError(409, `At most ${MAX_WISHES} weekends per team`, 'too_many')
+      const rows = await database('bb_tournament_wishes')
+        .insert({ team: team.id, week_start: week, wished_by: me.id, wished_by_name: me.name, date_created: new Date() })
+        .onConflict(['team', 'week_start']).ignore()
+        .returning('id')
+      const id = rows[0]?.id ?? rows[0]
+      if (id != null) {
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'create', collection: 'bb_tournament_wishes',
+          recordId: id, data: { team: team.id, week_start: week },
+        })
+        kick()
+      }
+      res.json({ ok: true, week_start: week })
+    } catch (e) { fail(res, e, 'POST /bb-tournaments/wishes/:teamId') }
+  })
+
+  router.delete('/bb-tournaments/wishes/:wishId', async (req, res) => {
+    try {
+      const wishId = idParam(req.params.wishId)
+      if (wishId == null) throw httpError(400, 'Invalid id')
+      const wish = await database('bb_tournament_wishes').where('id', wishId).first('id', 'team', 'week_start')
+      if (!wish) return res.json({ ok: true })
+      await teamTarget(req, wish.team)
+      await database('bb_tournament_wishes').where('id', wish.id).del()
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'delete', collection: 'bb_tournament_wishes',
+        recordId: wish.id, data: { team: Number(wish.team), week_start: ymd(wish.week_start) },
+      })
+      res.json({ ok: true })
+    } catch (e) { fail(res, e, 'DELETE /bb-tournaments/wishes/:wishId') }
+  })
+
+  router.post('/bb-tournaments/teams/:teamId/prefs', async (req, res) => {
+    try {
+      const { me, team } = await teamTarget(req, req.params.teamId)
+      const b = req.body || {}
+      const patch = {}
+      if (b.avoid !== undefined) {
+        const avoid = cleanAvoid(b.avoid)
+        if (!avoid) throw httpError(400, 'avoid must be a list')
+        patch.avoid = avoid
+      }
+      if (b.hidden !== undefined) {
+        if (!me.admin) throw httpError(403, 'Basketball admins only', 'not_admin')
+        patch.hidden = b.hidden === true
+      }
+      if (!Object.keys(patch).length) throw httpError(400, 'Nothing to change')
+      const now = new Date()
+      await database('bb_tournament_team_prefs')
+        .insert({ team: team.id, ...patch, updated_by_name: me.name, date_updated: now })
+        .onConflict('team').merge({ ...patch, updated_by_name: me.name, date_updated: now })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update', collection: 'bb_tournament_team_prefs', recordId: team.id, data: patch,
+      })
+      if (patch.avoid) kick()
+      res.json({ ok: true })
+    } catch (e) { fail(res, e, 'POST /bb-tournaments/teams/:teamId/prefs') }
   })
 
   // ── Registration worker (migration 399) ────────────────────────────────────

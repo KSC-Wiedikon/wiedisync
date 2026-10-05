@@ -21,7 +21,7 @@ export interface TournamentTeamState {
   attempt: { result: AttemptResult; message: string | null; at: string | null } | null
 }
 
-export type AttemptResult = 'submitting' | 'registered' | 'unconfirmed' | 'error' | 'dry_run' | 'already' | 'not_offered' | 'closed'
+export type AttemptResult = 'submitting' | 'registered' | 'unconfirmed' | 'error' | 'dry_run' | 'already' | 'not_offered' | 'closed' | 'wish_picked'
 export type WorkerMode = 'off' | 'dry' | 'live'
 
 /** Attempt results a person should look at. */
@@ -67,12 +67,34 @@ export interface Tournament {
   teams: TournamentTeamState[]
 }
 
-export interface TournamentTeam { id: number; name: string; league: string | null }
+export interface TournamentTeam {
+  id: number
+  name: string
+  league: string | null
+  /** Places a weekend wish must not land on (host club or hall, migration 400). */
+  avoid: string[]
+}
+
+export type WishState = 'waiting' | 'picked' | 'registered'
+
+/** A weekend the team wants a tournament on (migration 400). */
+export interface TournamentWish {
+  id: number
+  team: number
+  /** Monday of the wished week. */
+  week_start: string
+  wished_by_name: string | null
+  state: WishState
+  tournament: { id: number; date: string; host_club: string | null } | null
+}
 
 export interface TournamentsResponse {
   admin: boolean
   teams: TournamentTeam[]
+  /** Admins only: teams hidden from this page. */
+  hidden_teams: { id: number; name: string }[]
   tournaments: Tournament[]
+  wishes: TournamentWish[]
 }
 
 export const tournamentsKey = (memberId: string | null | undefined) => ['bb-tournaments', memberId ?? null] as const
@@ -95,6 +117,34 @@ export function useSetPick() {
     mutationFn: ({ tournament, team, picked }: { tournament: number; team: number; picked: boolean }) =>
       kscwApi(`/bb-tournaments/${tournament}/picks/${team}`, { method: picked ? 'POST' : 'DELETE', body: picked ? {} : undefined }),
     onSettled: () => qc.invalidateQueries({ queryKey: tournamentsKey(user?.id) }),
+  })
+}
+
+export function useAddWish() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: ({ team, date }: { team: number; date: string }) =>
+      kscwApi(`/bb-tournaments/wishes/${team}`, { method: 'POST', body: { date } }),
+    onSettled: () => qc.invalidateQueries({ queryKey: tournamentsKey(user?.id) }),
+  })
+}
+
+export function useRemoveWish() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: (id: number) => kscwApi(`/bb-tournaments/wishes/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: tournamentsKey(user?.id) }),
+  })
+}
+
+export function useSaveTeamPrefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ team, ...patch }: { team: number; avoid?: string[]; hidden?: boolean }) =>
+      kscwApi(`/bb-tournaments/teams/${team}/prefs`, { method: 'POST', body: patch }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['bb-tournaments'] }),
   })
 }
 
