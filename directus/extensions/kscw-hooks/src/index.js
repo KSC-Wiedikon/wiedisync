@@ -4829,8 +4829,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ── 10a. Cron: Basketplan tournament registration worker (every minute) ──
   // The worker lives in kscw-endpoints (bb-tournament-worker.js, migration
   // 399). This only decides whether a tick is due — mode not 'off', and either
-  // inside the admin's opening window or on a 10-minute mark — so the cron
-  // token login happens a few times an hour, not every minute.
+  // inside the admin's opening window, on a 10-minute mark, or (migration 400)
+  // between 07:00 and 22:00 Zurich while a weekend wish is current — the
+  // worker itself then decides whether a wish is still waiting. Ticking every
+  // minute, the cron token is reused for 10 minutes (access tokens live 15)
+  // instead of a fresh login — and a session row — per minute.
+  let bbTickToken = null
   schedule('* * * * *', async () => {
     const startedAt = Date.now()
     try {
@@ -4838,16 +4842,27 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!s || s.mode === 'off') return
       const now = Date.now()
       const inWindow = s.rush_from && s.rush_until && now >= new Date(s.rush_from).getTime() && now < new Date(s.rush_until).getTime()
-      if (!inWindow && new Date().getUTCMinutes() % 10 !== 0) return
-      const token = await getCronAccessToken(log, 'BB register tick')
-      if (!token) return
+      if (!inWindow && new Date().getUTCMinutes() % 10 !== 0) {
+        const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
+        if (hour < 7 || hour >= 22) return
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(new Date())
+        const weekAgo = new Date(Date.parse(`${today}T12:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10)
+        const wish = await database('bb_tournament_wishes').where('week_start', '>=', weekAgo).first('id').catch(() => null)
+        if (!wish) return
+      }
+      if (!bbTickToken || Date.now() - bbTickToken.at > 10 * 60_000) {
+        const t = await getCronAccessToken(log, 'BB register tick')
+        if (!t) return
+        bbTickToken = { token: t, at: Date.now() }
+      }
       const res = await fetch('http://localhost:8055/kscw/admin/bb-register-tick', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${bbTickToken.token}` },
       })
+      if (res.status === 401) bbTickToken = null
       const body = await res.text()
       if (!res.ok) throw new Error(`${res.status} ${body.slice(0, 200)}`)
-      if (!/"skipped"|"pending":0/.test(body)) {
+      if (!/"skipped"|"quiet":true/.test(body)) {
         log.info(`BB register tick: ${body}`)
         await logCronRun(database, 'bb_register', { status: 'ok', durationMs: Date.now() - startedAt })
       }

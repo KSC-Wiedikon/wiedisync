@@ -14,6 +14,10 @@
  * WHEN (a per-minute cron calls POST /kscw/admin/bb-register-tick):
  *   - normally every 10 minutes, and only if a pick is still unregistered —
  *     otherwise Basketplan is not contacted at all;
+ *   - while a weekend wish (migration 400) is still waiting, every minute
+ *     between 07:00 and 22:00 Zurich: the list is re-read, and an open
+ *     tournament that fits a waiting wish becomes a pick and is registered
+ *     (bb-tournament-wishes.js). New batches open the moment they appear;
  *   - inside the opening window (rush_from..rush_until, ≤ 3 h) the list is
  *     re-read every poll_seconds (≥ 20 s), new tournaments are added to
  *     bb_tournaments, and a pick is submitted as soon as its tournament opens.
@@ -35,6 +39,7 @@
  */
 
 import { READ_PATHS, bpClient, parseTournamentDetail, parseTournamentList, planTournamentRows, syncBpTournaments } from './bp-tournaments.js'
+import { addDays, matchWishes, waitingWishes, zurichHour } from './bb-tournament-wishes.js'
 
 export const FORM_PATH = '/selectTeamForClubRegistration.do'
 export const REGISTER_PATH = '/registerTeamForTournament.do'
@@ -42,6 +47,10 @@ export const WORKER_PATHS = [...READ_PATHS, FORM_PATH, REGISTER_PATH]
 export const MODES = ['off', 'dry', 'live']
 /** Outside the opening window, look for work this often (minutes). */
 export const NORMAL_EVERY_MIN = 10
+/** Watching for weekend wishes happens in these Zurich hours (from inclusive, until exclusive). */
+export const WATCH_HOURS = [7, 22]
+/** A tournament gone from the list this long is not matched to a wish. */
+const STALE_MS = 3 * 86400000
 /** A tick must end before the next one starts. */
 const TICK_BUDGET_MS = 50_000
 /** Results that block any further live submission for the tournament + team. */
@@ -71,6 +80,11 @@ export function inWindow(settings, now) {
   if (!settings?.rush_from || !settings?.rush_until) return false
   const t = now.getTime()
   return t >= new Date(settings.rush_from).getTime() && t < new Date(settings.rush_until).getTime()
+}
+
+export function inWatchHours(now) {
+  const h = zurichHour(now)
+  return h >= WATCH_HOURS[0] && h < WATCH_HOURS[1]
 }
 
 /** Run on this tick? Inside the window always; else every NORMAL_EVERY_MIN minutes. */
@@ -104,6 +118,9 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
   const liveAllowed = env.BASKETPLAN_REGISTER_LIVE === '1'
   const clubId = String(env.BASKETPLAN_CLUB_ID || '166')
   let running = false
+  let journalled = 0
+  /** One Basketplan session, kept between ticks; logs in again once if it expired. */
+  let session = null
 
   const settings = () => database('bb_tournament_worker').where('id', 1).first()
 
@@ -115,6 +132,73 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
     if (dup) return
     const now = new Date()
     await database('bb_tournament_registrations').insert({ tournament, team, mode, result, message, attempted_at: now, finished_at: now })
+    journalled++
+  }
+
+  async function getSession(username, password) {
+    if (session) return session
+    const c = bpClient(fetchImpl, { allow: WORKER_PATHS })
+    await c.login(username, password)
+    session = {
+      ...c,
+      async getHtml(path) {
+        try {
+          return await c.getHtml(path)
+        } catch (e) {
+          if (!/not logged in/.test(e.message)) throw e
+          await c.login(username, password)
+          return c.getHtml(path)
+        }
+      },
+    }
+    return session
+  }
+
+  /** Everything matchWishes needs, or null without any current wish. */
+  async function wishContext(today) {
+    const wishes = await database('bb_tournament_wishes').where('week_start', '>=', addDays(today, -6))
+      .select('id', 'team', 'week_start', 'wished_by', 'wished_by_name')
+    if (!wishes.length) return null
+    const teamIds = [...new Set(wishes.map((w) => Number(w.team)))]
+    const [teamRows, prefs, tournaments, picks, attempts] = await Promise.all([
+      database('teams').whereIn('id', teamIds).where('active', true).select('id', 'league', 'bb_source_id'),
+      database('bb_tournament_team_prefs').whereIn('team', teamIds).select('team', 'hidden', 'avoid'),
+      database('bb_tournaments')
+        .where((q) => q.where('date', '>=', addDays(today, -6)).orWhere('end_date', '>=', today))
+        .where('last_seen_at', '>=', new Date(Date.now() - STALE_MS)),
+      database('bb_tournament_picks').whereIn('team', teamIds).select('tournament', 'team'),
+      database('bb_tournament_registrations').whereIn('team', teamIds).orderBy('attempted_at', 'desc').select('tournament', 'team', 'result'),
+    ])
+    const prefBy = new Map(prefs.map((p) => [Number(p.team), p]))
+    const teams = new Map(teamRows.map((t) => [Number(t.id), { ...t, hidden: !!prefBy.get(Number(t.id))?.hidden, avoid: prefBy.get(Number(t.id))?.avoid || [] }]))
+    return { wishes, teams, tournaments, picks, attempts, today }
+  }
+
+  /** Waiting wishes → picks (the normal flow then registers them). Returns how many. */
+  async function pickFromWishes(today, mode, fresh) {
+    const ctx = await wishContext(today)
+    if (!ctx) return 0
+    const byId = new Map(ctx.wishes.map((w) => [Number(w.id), w]))
+    let made = 0
+    for (const m of matchWishes(ctx)) {
+      const w = byId.get(m.wish)
+      const now = new Date()
+      const rows = await database('bb_tournament_picks')
+        .insert({ tournament: m.tournament, team: m.team, picked_by: w?.wished_by ?? null, picked_by_name: w?.wished_by_name ?? null, note: null, wish: m.wish, date_created: now, date_updated: now })
+        .onConflict(['tournament', 'team']).ignore()
+        .returning('id')
+      if (!rows.length) continue
+      made++
+      fresh?.add(m.tournament)
+      await note(m.tournament, m.team, mode, 'wish_picked', 'Picked from a weekend wish')
+      log.info(`[BB Worker] wish ${m.wish}: picked tournament ${m.tournament} for team ${m.team}`)
+    }
+    return made
+  }
+
+  async function hasWaitingWishes(today) {
+    const ctx = await wishContext(today)
+    return !!ctx && waitingWishes(ctx).length > 0
   }
 
   async function markRegistered(tournamentId, bp) {
@@ -172,6 +256,7 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
         .insert({ tournament: p.tournament, team: p.team, mode, result: 'submitting', message: null, attempted_at: new Date() })
         .returning('id')
       journalId = row?.id ?? row
+      journalled++
     } catch (e) {
       if (e?.code === '23505') return 'skipped'
       throw e
@@ -201,16 +286,24 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
     return result
   }
 
-  /** Re-read the list (opening window): refresh open flags, add new tournaments. */
+  /**
+   * Re-read the list (opening window, wish watch): refresh open flags, add new
+   * tournaments. Returns the ids that are open now and were not before.
+   */
   async function refreshList(client) {
     const list = parseTournamentList(await client.getHtml('/findAllTournaments.do'))
-    const known = new Set((await database('bb_tournaments').whereIn('id', list.map((t) => t.id)).pluck('id')).map(Number))
+    const knownRows = await database('bb_tournaments').whereIn('id', list.map((t) => t.id)).select('id', 'registration_open')
+    const wasOpen = new Map(knownRows.map((r) => [Number(r.id), !!r.registration_open]))
+    const known = new Set(wasOpen.keys())
+    const opened = new Set()
     const ourBp = await database('teams').where('sport', 'basketball').where('active', true).whereNot('bb_source_id', '').pluck('bb_source_id')
     const now = new Date()
     for (const t of list) {
+      const isOpen = /^Anmelden$/i.test(t.status || '')
+      if (isOpen && !wasOpen.get(t.id)) opened.add(t.id)
       if (known.has(t.id)) {
         await database('bb_tournaments').where('id', t.id).update({
-          registration_open: /^Anmelden$/i.test(t.status || ''),
+          registration_open: isOpen,
           list_status: t.status ? String(t.status).slice(0, 60) : null,
           last_seen_at: now,
         })
@@ -220,7 +313,7 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
         await database('bb_tournaments').insert({ ...row, first_seen_at: now, last_seen_at: now }).onConflict('id').ignore()
       }
     }
-    return list.length
+    return opened
   }
 
   /** One tick. Returns a summary; never throws for "nothing to do". */
@@ -229,36 +322,48 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
     const s = await settings()
     const mode = effectiveMode(s?.mode, liveAllowed)
     if (mode === 'off') return { skipped: 'off' }
-    if (!force && !shouldRun(s, now, liveAllowed)) return { skipped: 'not_due' }
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(now)
     const rush = inWindow(s, now)
+    const watch = !rush && inWatchHours(now) && await hasWaitingWishes(today)
+    if (!force && !watch && !shouldRun(s, now, liveAllowed)) return { skipped: 'not_due' }
     const username = env.BASKETPLAN_USERNAME
     const password = env.BASKETPLAN_PASSWORD
     if (!username || !password) return { skipped: 'no_credentials' }
 
     running = true
+    journalled = 0
     const started = Date.now()
     const counts = {}
+    const tally = (r, n = 1) => { if (n) counts[r] = (counts[r] || 0) + n }
     try {
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(now)
+      // Tournaments already known can answer a wish without asking Basketplan.
+      // Watching runs every minute; a pick whose tournament did not just open
+      // (or was not just picked) waits for the usual 10-minute mark.
+      const fresh = new Set()
+      const due = rush || force || now.getUTCMinutes() % NORMAL_EVERY_MIN === 0
+      tally('wish_picked', await pickFromWishes(today, mode, fresh))
       let pending = await loadPending(today)
-      if (!pending.length && !rush) return { mode, rush, pending: 0 }
+      if (!pending.length && !rush && !watch) return { mode, rush, watch, pending: 0, quiet: journalled === 0 }
 
-      const client = bpClient(fetchImpl, { allow: WORKER_PATHS })
-      await client.login(username, password)
+      const client = await getSession(username, password)
       const pollMs = Math.max(20, Number(s.poll_seconds) || 30) * 1000
       for (;;) {
-        if (rush) await refreshList(client)
+        if (rush || watch) {
+          for (const id of await refreshList(client)) fresh.add(id)
+          tally('wish_picked', await pickFromWishes(today, mode, fresh))
+        }
         pending = await loadPending(today)
-        const open = rush
+        const open = rush || watch
           ? new Set((await database('bb_tournaments').whereIn('id', pending.map((p) => p.tournament)).where('registration_open', true).pluck('id')).map(Number))
           : null
         for (const p of pending) {
           if (open && !open.has(p.tournament)) continue
+          if (!due && !fresh.has(p.tournament)) continue
           try {
             const r = await registerOne(client, p, mode)
-            counts[r] = (counts[r] || 0) + 1
+            if (r !== 'not_open') tally(r)
           } catch (e) {
-            counts.error = (counts.error || 0) + 1
+            tally('error')
             log.warn(`[BB Worker] tournament ${p.tournament} team ${p.team}: ${e.message}`)
             await note(p.tournament, p.team, mode, 'error', String(e.message).slice(0, 300))
           }
@@ -270,7 +375,11 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
         // The new registrations become calendar games now, not tomorrow morning.
         try { await syncBpTournaments(database, log, { fetchImpl }) } catch (e) { log.warn(`[BB Worker] follow-up sync: ${e.message}`) }
       }
-      return { mode, rush, counts }
+      return { mode, rush, watch, counts, quiet: journalled === 0 }
+    } catch (e) {
+      // A broken session must not stick: the next tick logs in afresh.
+      session = null
+      throw e
     } finally {
       running = false
     }
