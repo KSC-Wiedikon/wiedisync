@@ -1443,7 +1443,7 @@ export default {
           "items": [
             "Results arrive overnight from the federations, not from you.",
             "**Set deadline** sets the RSVP deadline. **Meeting time** is stored as minutes before the start, so it survives a reschedule.",
-            "**Called-up players**: **Call up players** from another team of the same sport, **Open to a whole team** or individually. They are notified and can answer; **Has a game that day** flags a clash.",
+            "**Called-up players**: **Call up players** from another team of the same sport, **Open to a whole team** (its core roster; guest players only individually) or individually. They are notified and can answer; **Has a game that day** flags a clash.",
             "**Referee expenses** (volleyball home games): record who paid the referees and how much; the home page shows **Record now** for 14 days (see the section Team finance)."
           ]
         },

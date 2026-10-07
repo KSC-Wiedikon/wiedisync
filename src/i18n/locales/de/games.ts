@@ -339,6 +339,7 @@ export default {
   guestCount_other: '{{count}} Spieler*innen',
   guestOpenTo: 'Spieler*innen aufbieten',
   guestOpenToTeam: 'Für ein ganzes Team öffnen',
+  guestOpenToTeamHint: 'Ruft nur das Stammkader des Teams auf. Gastspieler*innen (G1–G3) bleiben aussen vor — bei Bedarf unten einzeln auswählen.',
   guestOpenToMembers: 'Oder einzelne Spieler*innen wählen',
   guestSearchPlaceholder: 'Spieler*innen suchen',
   guestInvite: 'Aufbieten',

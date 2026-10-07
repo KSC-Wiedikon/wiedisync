@@ -339,6 +339,7 @@ export default {
   guestCount_other: '{{count}} joueur·euses',
   guestOpenTo: 'Convoquer des joueur·euses',
   guestOpenToTeam: 'Ouvrir à une équipe entière',
+  guestOpenToTeamHint: 'Convoque uniquement le cadre principal de l’équipe. Les joueur·euses invité·es (G1–G3) sont exclu·es — choisis-les individuellement ci-dessous si besoin.',
   guestOpenToMembers: 'Ou choisir des joueur·euses',
   guestSearchPlaceholder: 'Rechercher des joueur·euses',
   guestInvite: 'Convoquer',
