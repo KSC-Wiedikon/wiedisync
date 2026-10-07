@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-29T08:37:53.504Z
+-- Generated:   2026-10-07T09:24:29.470Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Nu6U3HZrVNdPwaujIMAjTW2hskYFNfGTLBLuiD09TmwtVWsezCvVqlcqDhH9tsu
+\restrict iiQgnvKI8ErSiIDkU9mRYrblJpBbR1O5hKboUCaLFprndhS8Nk5fPULn9YaHDTW
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -341,6 +341,7 @@ BEGIN
   SELECT NEW.game, mt.member, NEW.team, NEW.invited_by_name, NEW.invited_by_email
   FROM member_teams mt
   WHERE mt.team = NEW.team
+    AND COALESCE(mt.guest_level, 0) = 0
   ON CONFLICT (game, member) DO NOTHING;
   RETURN NULL;
 END;
@@ -974,16 +975,25 @@ END $$;
 CREATE FUNCTION public.member_teams_sync_game_guests() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  moved     boolean := false;
+  was_core  boolean := false;
+  is_core   boolean := false;
 BEGIN
-  IF TG_OP = 'INSERT' THEN
-    INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
-    SELECT gt.game, NEW.member, gt.team, gt.invited_by_name, gt.invited_by_email
-    FROM game_guest_teams gt
-    JOIN games g ON g.id = gt.game
-    WHERE gt.team = NEW.team
-      AND g.date >= CURRENT_DATE
-    ON CONFLICT (game, member) DO NOTHING;
-  ELSE
+  IF TG_OP <> 'INSERT' THEN
+    was_core := COALESCE(OLD.guest_level, 0) = 0;
+  END IF;
+  IF TG_OP <> 'DELETE' THEN
+    is_core := COALESCE(NEW.guest_level, 0) = 0;
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    moved := NEW.member IS DISTINCT FROM OLD.member OR NEW.team IS DISTINCT FROM OLD.team;
+  END IF;
+
+  -- Withdraw: left the team, moved off it, or went from regular player to guest.
+  -- A guest-to-guest level change (1 → 2) withdraws nothing — it is not a change of
+  -- standing, and it must not undo the "already said yes" rows the backfill kept.
+  IF TG_OP = 'DELETE' OR moved OR (was_core AND NOT is_core) THEN
     DELETE FROM game_guests gg
     USING games g
     WHERE gg.game = g.id
@@ -991,6 +1001,18 @@ BEGIN
       AND gg.via_team = OLD.team
       AND g.date >= CURRENT_DATE;
   END IF;
+
+  -- Call up: a regular player newly on an opened team (joined, moved on, or promoted).
+  IF is_core AND (TG_OP = 'INSERT' OR moved OR NOT was_core) THEN
+    INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
+    SELECT gt.game, NEW.member, gt.team, gt.invited_by_name, gt.invited_by_email
+    FROM game_guest_teams gt
+    JOIN games g ON g.id = gt.game
+    WHERE gt.team = NEW.team
+      AND g.date >= CURRENT_DATE
+    ON CONFLICT (game, member) DO NOTHING;
+  END IF;
+
   RETURN NULL;
 END;
 $$;
@@ -3830,6 +3852,212 @@ COMMENT ON VIEW public.bb_floor_claims_all IS 'Every physical KWI floor basketba
 
 
 --
+-- Name: bb_tournament_picks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournament_picks (
+    id integer NOT NULL,
+    tournament integer NOT NULL,
+    team integer NOT NULL,
+    picked_by integer,
+    picked_by_name character varying(200),
+    note character varying(300),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    wish integer
+);
+
+
+--
+-- Name: TABLE bb_tournament_picks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournament_picks IS 'A team''s wish to play a Basketplan tournament, ticked by its coach/TR or a basketball admin. No approval step. Whether the team is actually registered is read from bb_tournaments.kscw_bp_team_ids, never stored here. Endpoint-only (migration 398).';
+
+
+--
+-- Name: bb_tournament_picks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.bb_tournament_picks_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: bb_tournament_picks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.bb_tournament_picks_id_seq OWNED BY public.bb_tournament_picks.id;
+
+
+--
+-- Name: bb_tournament_registrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournament_registrations (
+    id integer NOT NULL,
+    tournament integer NOT NULL,
+    team integer NOT NULL,
+    mode character varying(10) NOT NULL,
+    result character varying(20) NOT NULL,
+    message character varying(300),
+    attempted_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT bb_tournament_registrations_mode_check CHECK (((mode)::text = ANY ((ARRAY['dry'::character varying, 'live'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE bb_tournament_registrations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournament_registrations IS 'Journal of the Basketplan registration worker: one row per attempt; a live attempt is written as submitting before the request (partial unique = never twice). Migration 399.';
+
+
+--
+-- Name: bb_tournament_registrations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.bb_tournament_registrations_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: bb_tournament_registrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.bb_tournament_registrations_id_seq OWNED BY public.bb_tournament_registrations.id;
+
+
+--
+-- Name: bb_tournament_team_prefs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournament_team_prefs (
+    team integer NOT NULL,
+    hidden boolean DEFAULT false NOT NULL,
+    avoid text[] DEFAULT '{}'::text[] NOT NULL,
+    updated_by_name character varying(200),
+    date_updated timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE bb_tournament_team_prefs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournament_team_prefs IS 'Per tournament team: places to avoid for weekend wishes, hidden from /tournaments. Migration 400.';
+
+
+--
+-- Name: bb_tournament_wishes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournament_wishes (
+    id integer NOT NULL,
+    team integer NOT NULL,
+    week_start date NOT NULL,
+    wished_by integer,
+    wished_by_name character varying(200),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT bb_tournament_wishes_week_start_check CHECK ((EXTRACT(isodow FROM week_start) = (1)::numeric))
+);
+
+
+--
+-- Name: TABLE bb_tournament_wishes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournament_wishes IS 'Weekends a youth basketball team wants a tournament; the registration worker picks the first open fitting one per week. Migration 400.';
+
+
+--
+-- Name: bb_tournament_wishes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.bb_tournament_wishes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: bb_tournament_wishes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.bb_tournament_wishes_id_seq OWNED BY public.bb_tournament_wishes.id;
+
+
+--
+-- Name: bb_tournament_worker; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournament_worker (
+    id integer DEFAULT 1 NOT NULL,
+    mode character varying(10) DEFAULT 'off'::character varying NOT NULL,
+    rush_from timestamp with time zone,
+    rush_until timestamp with time zone,
+    poll_seconds integer DEFAULT 30 NOT NULL,
+    updated_by_name character varying(200),
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT bb_tournament_worker_id_check CHECK ((id = 1)),
+    CONSTRAINT bb_tournament_worker_mode_check CHECK (((mode)::text = ANY ((ARRAY['off'::character varying, 'dry'::character varying, 'live'::character varying])::text[]))),
+    CONSTRAINT bb_tournament_worker_poll_seconds_check CHECK (((poll_seconds >= 20) AND (poll_seconds <= 300))),
+    CONSTRAINT bb_tournament_worker_window_ck CHECK ((((rush_from IS NULL) AND (rush_until IS NULL)) OR ((rush_from IS NOT NULL) AND (rush_until IS NOT NULL) AND (rush_until > rush_from) AND ((rush_until - rush_from) <= '03:00:00'::interval))))
+);
+
+
+--
+-- Name: TABLE bb_tournament_worker; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournament_worker IS 'Settings of the Basketplan registration worker (bb-tournament-worker.js): mode off|dry|live, opening window. Live only where BASKETPLAN_REGISTER_LIVE=1. Migration 399.';
+
+
+--
+-- Name: bb_tournaments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bb_tournaments (
+    id integer NOT NULL,
+    date date NOT NULL,
+    end_date date,
+    host_club character varying(200),
+    hall character varying(200),
+    time_from time without time zone,
+    time_to time without time zone,
+    leagues text[] DEFAULT '{}'::text[] NOT NULL,
+    deadline date,
+    registration_open boolean DEFAULT false NOT NULL,
+    registered_count integer,
+    kscw_bp_team_ids text[] DEFAULT '{}'::text[] NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    list_status character varying(60)
+);
+
+
+--
+-- Name: TABLE bb_tournaments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bb_tournaments IS 'Basketplan youth tournaments, mirrored by bp-sync (bp-tournaments.js). id = Basketplan tournamentId. No contact data. Endpoint-only (migration 398).';
+
+
+--
 -- Name: broadcasts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3976,7 +4204,7 @@ CREATE TABLE public.carpools (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     teams jsonb,
     return_time time without time zone,
-    departure_date date,
+    departure_date date NOT NULL,
     CONSTRAINT carpools_direction_check CHECK (((direction)::text = ANY ((ARRAY['there'::character varying, 'back'::character varying])::text[]))),
     CONSTRAINT carpools_kind_check CHECK (((kind)::text = ANY ((ARRAY['offer'::character varying, 'request'::character varying])::text[]))),
     CONSTRAINT carpools_one_activity CHECK ((num_nonnulls(game, training, event) = 1)),
@@ -4010,7 +4238,7 @@ COMMENT ON COLUMN public.carpools.return_time IS 'DEPRECATED (migration 393): a 
 -- Name: COLUMN carpools.departure_date; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.carpools.departure_date IS 'Day of departure for this ride (migration 393). Going: usually the activity''s first day; Return: its last. NULL = the activity''s day.';
+COMMENT ON COLUMN public.carpools.departure_date IS 'Day of departure for this ride (393). Part of the per-member unique (397): one offer and one request per activity, way and day.';
 
 
 --
@@ -6925,7 +7153,7 @@ CREATE TABLE public.game_guest_teams (
 -- Name: TABLE game_guest_teams; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.game_guest_teams IS 'A coach opening one game to another team. Materializes into game_guests by trigger. Creates NO member_teams row — the borrowed players stay off that team everywhere else.';
+COMMENT ON TABLE public.game_guest_teams IS 'A coach opening one game to another team. Materializes into game_guests by trigger — the team''s regular players only (guest_level 0, migration 401). Creates NO member_teams row — the borrowed players stay off that team everywhere else.';
 
 
 --
@@ -6974,7 +7202,7 @@ COMMENT ON TABLE public.game_guests IS 'Who is invited to a game beyond its own 
 -- Name: COLUMN game_guests.via_team; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.game_guests.via_team IS 'The game_guest_teams opening that produced this row. NULL = invited individually, which is why closing a team opening never removes a hand-picked guest.';
+COMMENT ON COLUMN public.game_guests.via_team IS 'The game_guest_teams opening that produced this row. NULL = invited individually, which is why closing a team opening never removes a hand-picked guest. A team opening brings that team''s regular players only (guest_level 0); its guests are invited by name or not at all.';
 
 
 --
@@ -11518,6 +11746,27 @@ ALTER TABLE ONLY public.basketplan_clubs ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: bb_tournament_picks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks ALTER COLUMN id SET DEFAULT nextval('public.bb_tournament_picks_id_seq'::regclass);
+
+
+--
+-- Name: bb_tournament_registrations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_registrations ALTER COLUMN id SET DEFAULT nextval('public.bb_tournament_registrations_id_seq'::regclass);
+
+
+--
+-- Name: bb_tournament_wishes id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_wishes ALTER COLUMN id SET DEFAULT nextval('public.bb_tournament_wishes_id_seq'::regclass);
+
+
+--
 -- Name: broadcasts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -12444,6 +12693,70 @@ ALTER TABLE ONLY public.basketplan_people
 
 ALTER TABLE ONLY public.basketball_club_date_prefs
     ADD CONSTRAINT bb_club_date_prefs_uniq UNIQUE (season, bp_club, kscw_team, date);
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_tournament_team_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_tournament_team_uq UNIQUE (tournament, team);
+
+
+--
+-- Name: bb_tournament_registrations bb_tournament_registrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_registrations
+    ADD CONSTRAINT bb_tournament_registrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bb_tournament_team_prefs bb_tournament_team_prefs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_team_prefs
+    ADD CONSTRAINT bb_tournament_team_prefs_pkey PRIMARY KEY (team);
+
+
+--
+-- Name: bb_tournament_wishes bb_tournament_wishes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_wishes
+    ADD CONSTRAINT bb_tournament_wishes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bb_tournament_wishes bb_tournament_wishes_team_week_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_wishes
+    ADD CONSTRAINT bb_tournament_wishes_team_week_uq UNIQUE (team, week_start);
+
+
+--
+-- Name: bb_tournament_worker bb_tournament_worker_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_worker
+    ADD CONSTRAINT bb_tournament_worker_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bb_tournaments bb_tournaments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournaments
+    ADD CONSTRAINT bb_tournaments_pkey PRIMARY KEY (id);
 
 
 --
@@ -13852,6 +14165,41 @@ CREATE INDEX bb_club_date_prefs_team_date_idx ON public.basketball_club_date_pre
 
 
 --
+-- Name: bb_tournament_picks_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_tournament_picks_team_idx ON public.bb_tournament_picks USING btree (team);
+
+
+--
+-- Name: bb_tournament_registrations_attempted_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_tournament_registrations_attempted_idx ON public.bb_tournament_registrations USING btree (attempted_at DESC);
+
+
+--
+-- Name: bb_tournament_registrations_live_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX bb_tournament_registrations_live_uq ON public.bb_tournament_registrations USING btree (tournament, team) WHERE ((result)::text = ANY ((ARRAY['submitting'::character varying, 'registered'::character varying, 'unconfirmed'::character varying])::text[]));
+
+
+--
+-- Name: bb_tournament_wishes_week_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_tournament_wishes_week_idx ON public.bb_tournament_wishes USING btree (week_start);
+
+
+--
+-- Name: bb_tournaments_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_tournaments_date_idx ON public.bb_tournaments USING btree (date);
+
+
+--
 -- Name: carpool_passengers_pair_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13873,10 +14221,10 @@ CREATE INDEX carpools_event_idx ON public.carpools USING btree (event) WHERE (ev
 
 
 --
--- Name: carpools_event_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_event_member_kind_dir_day_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_event_member_kind_dir_uq ON public.carpools USING btree (event, member, kind, direction) WHERE (event IS NOT NULL);
+CREATE UNIQUE INDEX carpools_event_member_kind_dir_day_uq ON public.carpools USING btree (event, member, kind, direction, departure_date) WHERE (event IS NOT NULL);
 
 
 --
@@ -13887,10 +14235,10 @@ CREATE INDEX carpools_game_idx ON public.carpools USING btree (game) WHERE (game
 
 
 --
--- Name: carpools_game_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_game_member_kind_dir_day_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_game_member_kind_dir_uq ON public.carpools USING btree (game, member, kind, direction) WHERE (game IS NOT NULL);
+CREATE UNIQUE INDEX carpools_game_member_kind_dir_day_uq ON public.carpools USING btree (game, member, kind, direction, departure_date) WHERE (game IS NOT NULL);
 
 
 --
@@ -13908,10 +14256,10 @@ CREATE INDEX carpools_training_idx ON public.carpools USING btree (training) WHE
 
 
 --
--- Name: carpools_training_member_kind_dir_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: carpools_training_member_kind_dir_day_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX carpools_training_member_kind_dir_uq ON public.carpools USING btree (training, member, kind, direction) WHERE (training IS NOT NULL);
+CREATE UNIQUE INDEX carpools_training_member_kind_dir_day_uq ON public.carpools USING btree (training, member, kind, direction, departure_date) WHERE (training IS NOT NULL);
 
 
 --
@@ -15962,7 +16310,7 @@ CREATE CONSTRAINT TRIGGER trg_member_guardians_unbind_push AFTER DELETE ON publi
 -- Name: member_teams trg_member_teams_sync_game_guests; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_member_teams_sync_game_guests AFTER INSERT OR DELETE ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.member_teams_sync_game_guests();
+CREATE TRIGGER trg_member_teams_sync_game_guests AFTER INSERT OR DELETE OR UPDATE OF guest_level, member, team ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.member_teams_sync_game_guests();
 
 
 --
@@ -16507,6 +16855,78 @@ ALTER TABLE ONLY public.basketball_team_rules
 
 ALTER TABLE ONLY public.basketball_team_rules
     ADD CONSTRAINT basketball_team_rules_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_picked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_picked_by_fkey FOREIGN KEY (picked_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_tournament_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_tournament_fkey FOREIGN KEY (tournament) REFERENCES public.bb_tournaments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_picks bb_tournament_picks_wish_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_picks
+    ADD CONSTRAINT bb_tournament_picks_wish_fkey FOREIGN KEY (wish) REFERENCES public.bb_tournament_wishes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: bb_tournament_registrations bb_tournament_registrations_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_registrations
+    ADD CONSTRAINT bb_tournament_registrations_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_registrations bb_tournament_registrations_tournament_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_registrations
+    ADD CONSTRAINT bb_tournament_registrations_tournament_fkey FOREIGN KEY (tournament) REFERENCES public.bb_tournaments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_team_prefs bb_tournament_team_prefs_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_team_prefs
+    ADD CONSTRAINT bb_tournament_team_prefs_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_wishes bb_tournament_wishes_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_wishes
+    ADD CONSTRAINT bb_tournament_wishes_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bb_tournament_wishes bb_tournament_wishes_wished_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bb_tournament_wishes
+    ADD CONSTRAINT bb_tournament_wishes_wished_by_fkey FOREIGN KEY (wished_by) REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --
@@ -18301,7 +18721,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Nu6U3HZrVNdPwaujIMAjTW2hskYFNfGTLBLuiD09TmwtVWsezCvVqlcqDhH9tsu
+\unrestrict iiQgnvKI8ErSiIDkU9mRYrblJpBbR1O5hKboUCaLFprndhS8Nk5fPULn9YaHDTW
 
 
 
@@ -18317,7 +18737,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 400 migration(s) already in the schema above.
+-- Migration tracker seed — 405 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -18730,6 +19150,11 @@ FROM (VALUES
   ('393-carpool-going-return-split.sql'),
   ('394-live-scores-game-channel.sql'),
   ('395-game-provisional-result.sql'),
-  ('396-game-vm-sheets.sql')
+  ('396-game-vm-sheets.sql'),
+  ('397-carpool-ride-per-day.sql'),
+  ('398-bb-tournaments.sql'),
+  ('399-bb-tournament-worker.sql'),
+  ('400-bb-tournament-wishes.sql'),
+  ('401-game-call-up-core-only.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
