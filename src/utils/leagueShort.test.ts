@@ -3,13 +3,15 @@ import { gameNumberLabel, leagueRailLabel } from './leagueShort'
 
 describe('leagueRailLabel', () => {
   it.each([
-    ['Männer 3. Liga Gruppe A', '3L'],
-    ['Frauen 2. Liga', '2L'],
-    ['Frauen U23 1. Liga', 'U23 1L'],
-    ['Männer U23 1. Stärkeklasse', 'U23 1SK'],
-    ['Männer U20', 'U20'],
+    ['Männer 3. Liga Gruppe A', '3L ♂ A'],
+    ['Frauen 2. Liga', '2L ♀'],
+    ['Frauen U23 1. Liga', 'U23 1L ♀'],
+    ['Männer U23 1. Stärkeklasse', 'U23 1SK ♂'],
+    ['Männer U20', 'U20 ♂'],
     ['Mobiliar Volley Cup — Runde 1, Spiel 28', 'SV Cup'],
     ['Züri Cup — Runde 3, Spiel 1', 'Züri Cup'],
+    ['Frauen 5. Liga Gruppe D', '5L ♀ D'],
+    ['Mobiliar Volley Cup — Tour 3, Spiel 15', 'SV Cup'],
     ['1LRAF', '1LRAF'],
     ['HU18A', 'HU18A'],
   ])('%s → %s', (league, label) => {

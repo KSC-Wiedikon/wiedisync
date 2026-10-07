@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Users, Pencil, MapPin } from 'lucide-react'
 import type { Game, Team, Hall, BaseRecord } from '../../../types'
 import { formatDayMonthZurich, formatTime, formatWeekday } from '../../../utils/dateHelpers'
-import { gameNumberLabel, leagueShort } from '../../../utils/leagueShort'
+import { gameNumberLabel } from '../../../utils/leagueShort'
+import { RailLeague } from '../../../components/RailLeague'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
 import VolleyballIcon from '../../../components/VolleyballIcon'
@@ -189,8 +190,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
       eyebrow={game.date ? formatWeekday(game.date) : undefined}
       main={game.date ? `${formatDayMonthZurich(game.date)}.` : '–'}
       sub={game.time ? formatTime(game.time) : undefined}
-      // leagueShort can hold a newline (league + group) — keep it.
-      extra={game.league ? <span className="whitespace-pre-line">{leagueShort(game.league)}</span> : undefined}
+      extra={game.league ? <RailLeague league={game.league} /> : undefined}
       matchNo={gameNumberLabel(game.game_id) || undefined}
       tone={railTone}
     />
