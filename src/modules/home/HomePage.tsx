@@ -1252,7 +1252,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
       chips={chips}
       // A duty is "this needs you" — highlighted, and the role chip says why.
       // A game gets a faint gold wash — no extra line next to the RSVP stripe.
-      className={appointment.type === 'duty' ? ROW_HIGHLIGHT.amber
+      highlight={appointment.type === 'duty' ? ROW_HIGHLIGHT.amber
         : appointment.type === 'game' ? 'rounded-md bg-gold-50/70 dark:bg-gold-400/[0.06]'
         : undefined}
     >
