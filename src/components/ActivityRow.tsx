@@ -29,7 +29,7 @@ export function RowList({ className, children }: { className?: string; children:
 
 /** Fixed-width, right-aligned left column: weekday / main line / sub lines. */
 export function DateRail({
-  eyebrow, main, sub, extra, tone = 'gray', className,
+  eyebrow, main, sub, extra, matchNo, tone = 'gray', className,
 }: {
   /** Tiny uppercase line above (weekday). */
   eyebrow?: ReactNode
@@ -39,6 +39,8 @@ export function DateRail({
   sub?: ReactNode
   /** Further small lines (league, match no.). Wraps, never truncates. */
   extra?: ReactNode
+  /** Federation match number, drawn "#406803" under the league. */
+  matchNo?: string
   tone?: RowTone
   className?: string
 }) {
@@ -48,6 +50,7 @@ export function DateRail({
       <div className={cn('text-sm font-bold tabular-nums tracking-tight sm:text-[15px]', ROW_TONE_TEXT[tone])}>{main}</div>
       {sub && <div className="text-[11px] tabular-nums text-muted-foreground">{sub}</div>}
       {extra && <div className="mt-0.5 break-words text-[10.5px] font-medium leading-snug text-muted-foreground sm:text-[11px]">{extra}</div>}
+      {matchNo && <div className="mt-0.5 break-all text-[10px] tabular-nums leading-snug text-muted-foreground/80">#{matchNo}</div>}
     </div>
   )
 }

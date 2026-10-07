@@ -68,3 +68,13 @@ export function leagueRailLabel(league: string | null | undefined): string {
   }
   return league.replace(/^(Herren|Männer|Frauen|Damen)\s+/i, '').replace(/\s*—.*$/, '').trim()
 }
+
+/**
+ * The federation's match number for the rail ("#406803"), from games.game_id:
+ * `vb_406803` → "406803", `bb_26-04956` → "26-04956". Manual games and
+ * Basketplan tournament days carry an internal key, not a number — none.
+ */
+export function gameNumberLabel(gameId: string | null | undefined): string {
+  const m = gameId?.match(/^(?:vb|bb)_(.+)$/)
+  return m ? m[1] : ''
+}

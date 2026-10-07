@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { leagueRailLabel } from './leagueShort'
+import { gameNumberLabel, leagueRailLabel } from './leagueShort'
 
 describe('leagueRailLabel', () => {
   it.each([
@@ -18,5 +18,17 @@ describe('leagueRailLabel', () => {
   it('is empty for no league', () => {
     expect(leagueRailLabel(null)).toBe('')
     expect(leagueRailLabel('')).toBe('')
+  })
+})
+
+describe('gameNumberLabel', () => {
+  it.each([
+    ['vb_406803', '406803'],
+    ['bb_26-04956', '26-04956'],
+    ['manual_182b46ae-009e-4db2-a065-9a10f987df90', ''],
+    ['bpt_438_20261101', ''],
+    [null, ''],
+  ])('%s → %s', (gameId, label) => {
+    expect(gameNumberLabel(gameId)).toBe(label)
   })
 })
