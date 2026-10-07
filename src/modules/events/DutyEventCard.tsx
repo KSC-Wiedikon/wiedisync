@@ -3,6 +3,7 @@ import { ClipboardList } from 'lucide-react'
 import type { Team } from '../../types'
 import { type MyDuty, DUTY_ROLE_LABEL_KEYS } from '../../hooks/useMyDuties'
 import { formatDate, formatDayMonthZurich, formatTime, formatWeekday } from '../../utils/dateHelpers'
+import { gameNumberLabel, leagueRailLabel } from '../../utils/leagueShort'
 import { asObj } from '../../utils/relations'
 import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
 
@@ -26,6 +27,8 @@ export default function DutyEventCard({ duty }: { duty: MyDuty }) {
           eyebrow={g.date ? formatWeekday(g.date) : undefined}
           main={g.date ? <span title={formatDate(g.date)}>{formatDayMonthZurich(g.date)}</span> : '–'}
           sub={g.time ? formatTime(g.time) : undefined}
+          extra={leagueRailLabel(g.league) || undefined}
+          matchNo={gameNumberLabel(g.game_id) || undefined}
         />
         <RowStripe tone="amber" />
         <div className="min-w-0 flex-1">

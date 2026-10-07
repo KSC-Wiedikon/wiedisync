@@ -44,7 +44,7 @@ import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notificatio
 import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
-import { leagueRailLabel } from '../../utils/leagueShort'
+import { gameNumberLabel, leagueRailLabel } from '../../utils/leagueShort'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
@@ -990,13 +990,14 @@ function kscwSide(game: ExpandedGame): 'home' | 'away' {
 /** Standard rail for a dated activity: weekday / dd.mm / time. The year is
  *  left out on purpose — these lists only look a few weeks ahead or back,
  *  and dd.mm.yyyy does not fit the one rail width. */
-function dayRail(date: string, time: string, tone: RowTone, extra?: React.ReactNode) {
+function dayRail(date: string, time: string, tone: RowTone, extra?: React.ReactNode, matchNo?: string) {
   return (
     <DateRail
       eyebrow={formatWeekday(date)}
       main={formatDayMonthZurich(date)}
       sub={time || undefined}
       extra={extra}
+      matchNo={matchNo || undefined}
       tone={tone}
     />
   )
@@ -1110,7 +1111,7 @@ function CompactGameRow({ game, showScore, onClick, participationStatus, partici
 
   return (
     <ActivityRow
-      rail={dayRail(game.date, game.time ? formatTime(game.time) : '', tone, leagueRailLabel(game.league) || undefined)}
+      rail={dayRail(game.date, game.time ? formatTime(game.time) : '', tone, leagueRailLabel(game.league) || undefined, gameNumberLabel(game.game_id))}
       tone={tone}
       onClick={onClick}
       title={<TeamPair home={game.home_team} away={game.away_team} emphasis={kscwSide(game)} />}
@@ -1196,6 +1197,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
 
   let time = ''
   let railExtra: React.ReactNode
+  let railMatchNo: string | undefined
   let title: React.ReactNode
   let chips: React.ReactNode
   let body: React.ReactNode
@@ -1206,6 +1208,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     const g = appointment.data
     if (g.time) time = formatTime(g.time)
     railExtra = leagueRailLabel(g.league) || undefined
+    railMatchNo = gameNumberLabel(g.game_id)
     title = <TeamPair home={g.home_team} away={g.away_team} emphasis={kscwSide(g)} />
     if (appointment.type === 'game') {
       coachIds = teamCoachIds(asObj<Team>(g.kscw_team))
@@ -1244,7 +1247,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
 
   return (
     <ActivityRow
-      rail={dayRail(appointment.date, time, tone, railExtra)}
+      rail={dayRail(appointment.date, time, tone, railExtra, railMatchNo)}
       tone={tone}
       onClick={onClick}
       title={title}

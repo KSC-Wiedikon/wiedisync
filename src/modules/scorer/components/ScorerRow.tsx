@@ -17,6 +17,7 @@ import { ActivityRow, DateRail, RowChip, TeamPair } from '@/components/ActivityR
 import { hasApiErrorCode } from '@/lib/apiErrorCode'
 import type { RowTone } from '@/components/activityRowTokens'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
+import { gameNumberLabel, leagueRailLabel } from '../../../utils/leagueShort'
 import { useNow } from '../../../hooks/useNow'
 import { useAuth } from '../../../hooks/useAuth'
 import RosterModal from './RosterModal'
@@ -151,7 +152,7 @@ export default function ScorerRow({
   const kscwTeam = kscwTeamObj?.name ?? ''
   const hall = asObj<Hall>(expanded.hall)
   const dateStr = game.date ? getDateFormatter().format(new Date(game.date + 'T00:00:00')) : ''
-  const gameNumber = game.game_id?.replace(/^(vb_|bb_)/, '') ?? ''
+  const gameNumber = gameNumberLabel(game.game_id)
 
   // A game is "past" once its Zurich kickoff has passed (covers same-day games
   // already played — those still sit in the upcoming list). Past games are
@@ -438,6 +439,8 @@ export default function ScorerRow({
             eyebrow={formatWeekdayZurich(game.date)}
             main={formatDayMonthZurich(game.date)}
             sub={game.time ? formatTime(game.time) : undefined}
+            extra={leagueRailLabel(game.league) || undefined}
+            matchNo={gameNumber || undefined}
           />
         }
         title={
@@ -450,7 +453,6 @@ export default function ScorerRow({
         status={<DutyStatus game={game} sport={sport} />}
         chips={<>
           {kscwTeam && <TeamChip team={kscwTeam} size="xs" />}
-          {game.league && <RowChip>{game.league}</RowChip>}
           {hall && (
             // Hall names run long ("Sporthalle Utogrund …") — the one chip
             // allowed to wrap, so it never pushes the row wider than a phone.
@@ -465,7 +467,6 @@ export default function ScorerRow({
               )}
             </RowChip>
           )}
-          {gameNumber && <RowChip>#{gameNumber}</RowChip>}
         </>}
         tools={<>
           {/* The roster (filled) leads — it's what the assigned Schreiber came for. */}
