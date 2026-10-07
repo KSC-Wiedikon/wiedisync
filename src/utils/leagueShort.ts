@@ -1,3 +1,5 @@
+import { detectCupMatch } from '../modules/spielplanung/gameChipUtils'
+
 /**
  * Shortens Swiss Volley league names for compact display.
  *
@@ -38,4 +40,31 @@ export function leagueShort(league: string): string {
 
   // Fallback: strip em-dash separators for compact display
   return league.replace(/\s*—\s*/g, '\n')
+}
+
+/**
+ * Tighter label for the activity-row date rail (one fixed narrow width):
+ * the team name beside it already says the gender, so it is left out.
+ *
+ *   "Männer 3. Liga Gruppe A"                 → "3L"
+ *   "Frauen U23 1. Liga"                      → "U23 1L"
+ *   "Männer U23 1. Stärkeklasse"              → "U23 1SK"
+ *   "Männer U20"                              → "U20"
+ *   "Mobiliar Volley Cup — Runde 1, Spiel 28" → "SV Cup"
+ *   "Züri Cup — Runde 3, Spiel 1"             → "Züri Cup"
+ *   "1LRAF" / "HU18A"                         → unchanged (already codes)
+ */
+export function leagueRailLabel(league: string | null | undefined): string {
+  if (!league) return ''
+  const cup = detectCupMatch(league)
+  if (cup === 'gold') return 'SV Cup'
+  if (cup === 'silver') return 'Züri Cup'
+
+  const youth = league.match(/\bU\d{2}\b/i)?.[0].toUpperCase()
+  const level = league.match(/(\d+)\.\s*(Liga|Stärkeklasse)/i)
+  if (level) {
+    const tier = `${level[1]}${/liga/i.test(level[2]) ? 'L' : 'SK'}`
+    return youth ? `${youth} ${tier}` : tier
+  }
+  return league.replace(/^(Herren|Männer|Frauen|Damen)\s+/i, '').replace(/\s*—.*$/, '').trim()
 }

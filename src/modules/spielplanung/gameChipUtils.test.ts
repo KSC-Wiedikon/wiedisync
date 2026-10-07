@@ -8,6 +8,9 @@ describe('detectCupMatch', () => {
   it('matches Schweizer Cup as gold', () => {
     expect(detectCupMatch('Schweizer Cup')).toBe('gold')
   })
+  it('matches Mobiliar Volley Cup (the synced name) as gold', () => {
+    expect(detectCupMatch('Mobiliar Volley Cup — Runde 1, Spiel 28')).toBe('gold')
+  })
   it('matches Züri Cup variants as silver', () => {
     expect(detectCupMatch('Züri Cup')).toBe('silver')
     expect(detectCupMatch('Zueri Cup Viertelfinale')).toBe('silver')
