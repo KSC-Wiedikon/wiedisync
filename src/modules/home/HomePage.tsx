@@ -44,6 +44,7 @@ import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notificatio
 import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
+import { leagueRailLabel } from '../../utils/leagueShort'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
@@ -1109,7 +1110,7 @@ function CompactGameRow({ game, showScore, onClick, participationStatus, partici
 
   return (
     <ActivityRow
-      rail={dayRail(game.date, game.time ? formatTime(game.time) : '', tone)}
+      rail={dayRail(game.date, game.time ? formatTime(game.time) : '', tone, leagueRailLabel(game.league) || undefined)}
       tone={tone}
       onClick={onClick}
       title={<TeamPair home={game.home_team} away={game.away_team} emphasis={kscwSide(game)} />}
@@ -1204,6 +1205,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
   if (appointment.type === 'game' || appointment.type === 'duty') {
     const g = appointment.data
     if (g.time) time = formatTime(g.time)
+    railExtra = leagueRailLabel(g.league) || undefined
     title = <TeamPair home={g.home_team} away={g.away_team} emphasis={kscwSide(g)} />
     if (appointment.type === 'game') {
       coachIds = teamCoachIds(asObj<Team>(g.kscw_team))

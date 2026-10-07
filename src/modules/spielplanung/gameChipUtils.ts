@@ -4,7 +4,7 @@ export type CupKind = 'gold' | 'silver' | null
 
 export function detectCupMatch(league: string | null | undefined): CupKind {
   const l = (league ?? '').toLowerCase()
-  if (l.includes('swiss volley cup') || l.includes('schweizer cup')) return 'gold'
+  if (l.includes('swiss volley cup') || l.includes('mobiliar volley cup') || l.includes('schweizer cup')) return 'gold'
   if (l.includes('züri cup') || l.includes('zueri cup') || l.includes('zuri cup')) return 'silver'
   return null
 }
