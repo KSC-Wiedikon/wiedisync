@@ -109,7 +109,9 @@ export function ActivityRow({
     <div
       data-testid={rest['data-testid']}
       className={cn(
-        'flex flex-wrap items-stretch py-0.5', footer && 'relative', muted && 'opacity-60', highlight,
+        'flex flex-wrap items-stretch py-0.5', footer && 'relative', muted && 'opacity-60',
+        // my-1: keep the rounded box off the list's hairlines above and below.
+        highlight && ['my-1', highlight],
         highlight && interactive && 'transition-colors has-[[data-row-body]:hover]:bg-muted dark:has-[[data-row-body]:hover]:bg-white/5',
         className,
       )}
