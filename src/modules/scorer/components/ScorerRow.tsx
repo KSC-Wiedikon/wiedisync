@@ -17,7 +17,8 @@ import { ActivityRow, DateRail, RowChip, TeamPair } from '@/components/ActivityR
 import { hasApiErrorCode } from '@/lib/apiErrorCode'
 import type { RowTone } from '@/components/activityRowTokens'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
-import { gameNumberLabel, leagueRailLabel } from '../../../utils/leagueShort'
+import { gameNumberLabel } from '../../../utils/leagueShort'
+import { RailLeague } from '@/components/RailLeague'
 import { useNow } from '../../../hooks/useNow'
 import { useAuth } from '../../../hooks/useAuth'
 import RosterModal from './RosterModal'
@@ -439,7 +440,7 @@ export default function ScorerRow({
             eyebrow={formatWeekdayZurich(game.date)}
             main={formatDayMonthZurich(game.date)}
             sub={game.time ? formatTime(game.time) : undefined}
-            extra={leagueRailLabel(game.league) || undefined}
+            extra={game.league ? <RailLeague league={game.league} /> : undefined}
             matchNo={gameNumber || undefined}
           />
         }
