@@ -82,6 +82,12 @@ export interface ActivityRowProps {
   onClick?: () => void
   /** Dim the whole row (cancelled / past). */
   muted?: boolean
+  /**
+   * Background for the whole entry (a `ROW_HIGHLIGHT.*` or a wash). Pass it
+   * here, not in `className`: the hover tint then paints this same box instead
+   * of a smaller one inset inside it.
+   */
+  highlight?: string
   className?: string
   'data-testid'?: string
 }
@@ -92,7 +98,7 @@ export interface ActivityRowProps {
  * inside it; `action`/`tools` are its siblings, never its children.
  */
 export function ActivityRow({
-  rail, tone = 'gray', title, status, chips, children, action, tools, footer, onClick, muted, className, ...rest
+  rail, tone = 'gray', title, status, chips, children, action, tools, footer, onClick, muted, highlight, className, ...rest
 }: ActivityRowProps) {
   const interactive = !!onClick
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -100,15 +106,24 @@ export function ActivityRow({
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() }
   }
   return (
-    <div data-testid={rest['data-testid']} className={cn('flex flex-wrap items-stretch py-0.5', footer && 'relative', muted && 'opacity-60', className)}>
+    <div
+      data-testid={rest['data-testid']}
+      className={cn(
+        'flex flex-wrap items-stretch py-0.5', footer && 'relative', muted && 'opacity-60', highlight,
+        highlight && interactive && 'transition-colors has-[[data-row-body]:hover]:bg-muted dark:has-[[data-row-body]:hover]:bg-white/5',
+        className,
+      )}
+    >
       <div
+        data-row-body
         role={interactive ? 'button' : undefined}
         tabIndex={interactive ? 0 : undefined}
         onClick={onClick}
         onKeyDown={interactive ? onKeyDown : undefined}
         className={cn(
           'flex min-w-0 flex-1 basis-0 items-stretch gap-2.5 px-1.5 py-2.5 text-left sm:gap-3 sm:px-2',
-          interactive && 'cursor-pointer rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/5',
+          interactive && 'cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          interactive && !highlight && 'transition-colors hover:bg-muted dark:hover:bg-white/5',
         )}
       >
         {rail}
