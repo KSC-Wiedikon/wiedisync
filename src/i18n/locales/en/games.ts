@@ -341,6 +341,7 @@ export default {
   guestCount_other: '{{count}} players',
   guestOpenTo: 'Call up players',
   guestOpenToTeam: 'Open to a whole team',
+  guestOpenToTeamHint: 'Calls up the team\'s core roster only. Guest players (G1–G3) are left out — pick them individually below if you need them.',
   guestOpenToMembers: 'Or pick individual players',
   guestSearchPlaceholder: 'Search players',
   guestInvite: 'Call up',

@@ -339,6 +339,7 @@ export default {
   guestCount_other: '{{count}} giocatori/trici',
   guestOpenTo: 'Convoca giocatori/trici',
   guestOpenToTeam: 'Apri a un’intera squadra',
+  guestOpenToTeamHint: 'Convoca solo il roster principale della squadra. I giocatori/trici ospiti (G1–G3) restano esclusi — se servono, sceglili singolarmente qui sotto.',
   guestOpenToMembers: 'Oppure scegli singoli giocatori/trici',
   guestSearchPlaceholder: 'Cerca giocatori/trici',
   guestInvite: 'Convoca',

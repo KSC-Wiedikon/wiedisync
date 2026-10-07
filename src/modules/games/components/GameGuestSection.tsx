@@ -34,8 +34,9 @@ type OpeningRow = {
  *
  * Two levers, because coaches ask for it two ways: open the whole of another team
  * (a cup game where H3 is the natural feeder), or name individuals. Both land in the
- * same invitee list; the difference is only that closing a team opening releases the
- * players it brought, while a named individual stays.
+ * same invitee list; the difference is that a team opening brings only that team's
+ * core roster (guest_level 0, migration 401) and closing it releases them, while a
+ * named individual — guest players included — is a deliberate pick and stays.
  *
  * Everyone can SEE who a game is open to — a player scanning the roster needs to know
  * why an unfamiliar name is on it. Only the game's own coach/TR can change it.
@@ -280,7 +281,8 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
         <div className="space-y-3 rounded-xl border border-hairline bg-surface-sunken p-3">
           {availableTeams.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t('guestOpenToTeam')}</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('guestOpenToTeam')}</p>
+              <p className="mb-1.5 text-xs text-muted-foreground">{t('guestOpenToTeamHint')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {availableTeams.map(tm => (
                   <Button

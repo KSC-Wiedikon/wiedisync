@@ -337,6 +337,7 @@ export default {
   guestCount_other: '{{count}} Spieler*innen',
   guestOpenTo: 'Spieler*innen ufbiete',
   guestOpenToTeam: 'Für es ganzes Team ufmache',
+  guestOpenToTeamHint: 'Rüeft nur s Stammkader vom Team uf. Gaschtspieler*inne (G1–G3) blibed usse — bi Bedarf une einzeln uswähle.',
   guestOpenToMembers: 'Oder einzelni Spieler*innen uswähle',
   guestSearchPlaceholder: 'Spieler*innen sueche',
   guestInvite: 'Ufbiete',

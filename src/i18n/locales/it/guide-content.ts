@@ -1443,7 +1443,7 @@ export default {
           "items": [
             "I risultati arrivano di notte dalle federazioni, non da te.",
             "**Imposta scadenza** fissa la scadenza di risposta. **Ritrovo** è salvato come minuti prima dell'inizio e resta valido se la partita viene spostata.",
-            "**Giocatori/trici convocati**: **Convoca giocatori/trici** da un'altra squadra dello stesso sport, **Apri a un’intera squadra** o singolarmente; vengono avvisati e rispondono. **Ha una partita quel giorno** segnala una sovrapposizione.",
+            "**Giocatori/trici convocati**: **Convoca giocatori/trici** da un'altra squadra dello stesso sport, **Apri a un’intera squadra** (il roster principale; gli ospiti solo singolarmente) o singolarmente; vengono avvisati e rispondono. **Ha una partita quel giorno** segnala una sovrapposizione.",
             "**Spese arbitrali** (partite in casa di pallavolo): registra chi ha pagato gli arbitri e quanto; la Home mostra **Registra ora** per 14 giorni (vedi la sezione Finanze della squadra)."
           ]
         },
