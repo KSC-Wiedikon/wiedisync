@@ -10,6 +10,7 @@ import { OtpInput } from '@/components/OtpInput'
 import { LANGUAGES } from '@/i18n/languageConfig'
 import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
 import SupportContact from '@/components/SupportContact'
+import LanguageDropdown from '@/components/LanguageDropdown'
 
 type Phase = 'request-link' | 'link-sent' | 'email' | 'otp' | 'set-password' | 'success'
 
@@ -204,6 +205,9 @@ export default function SetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
+        <div className="mb-2 flex justify-end">
+          <LanguageDropdown size="sm" />
+        </div>
         <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
           <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
           <div className="mb-6 flex justify-center">

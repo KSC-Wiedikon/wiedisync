@@ -20,6 +20,7 @@ import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
 import { checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '../../lib/passwordRules'
 import SupportContact from '@/components/SupportContact'
+import LanguageDropdown from '@/components/LanguageDropdown'
 
 const CLUB_SIGNUP_URL = 'https://kscw.ch/weiteres/anmeldung'
 
@@ -52,13 +53,16 @@ export default function SignUpPage() {
 
   const [step, setStep] = useState<Step>(inviteToken ? 'invite-loading' : 'email')
   const [email, setEmail] = useState('')
-  const [selectedLanguage, setSelectedLanguage] = useState<BackendLanguage>(
-    LANGUAGES.find((l) => l.code === i18n.language)?.backendValue ?? 'german',
-  )
+  // Derived from the UI language, not held separately: the page-corner
+  // LanguageDropdown changes it too, and what we send to the backend must be
+  // the language the person is actually reading.
+  const selectedLanguage: BackendLanguage =
+    LANGUAGES.find((l) => l.code === i18n.language)?.backendValue ?? 'german'
 
   function handleLanguageChange(lang: BackendLanguage) {
-    setSelectedLanguage(lang)
-    i18n.changeLanguage(backendLangToI18n(lang))
+    const code = backendLangToI18n(lang)
+    i18n.changeLanguage(code)
+    localStorage.setItem('wiedisync-lang', code)
   }
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -387,6 +391,9 @@ export default function SignUpPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
+        <div className="mb-2 flex justify-end">
+          <LanguageDropdown size="sm" />
+        </div>
         <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
           <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
           <div className="mb-6 flex justify-center">
