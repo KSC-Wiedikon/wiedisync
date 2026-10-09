@@ -376,6 +376,7 @@ export default {
   explorerRefreshedAt: 'Zletscht glade {{time}}',
   explorerSearchPlaceholder: 'Alli duresueche…',
   explorerOpenInDirectus: 'In Directus ufmache',
+  explorerOptionRequired: '{{option}} bruucht eis vo {{choices}}',
   explorerViewAsMember: 'Als das Mitglied aaluege',
   explorerBackToTree: 'Zrugg',
   explorerEmptyState: 'En Iitrag im Baum uswähle',

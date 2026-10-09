@@ -145,6 +145,7 @@ export default {
   explorerRefreshedAt: 'Dernière mise à jour {{time}}',
   explorerSearchPlaceholder: 'Tout rechercher…',
   explorerOpenInDirectus: 'Ouvrir dans Directus',
+  explorerOptionRequired: '{{option}} nécessite l\'un de {{choices}}',
   explorerViewAsMember: 'Voir en tant que ce membre',
   explorerBackToTree: 'Retour',
   explorerEmptyState: 'Sélectionner une entrée dans l\'arbre',

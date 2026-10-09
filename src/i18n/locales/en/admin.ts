@@ -949,6 +949,7 @@ export default {
   explorerRefreshedAt: 'Last loaded {{time}}',
   explorerSearchPlaceholder: 'Search all…',
   explorerOpenInDirectus: 'Open in Directus',
+  explorerOptionRequired: '{{option}} needs one of {{choices}}',
   explorerViewAsMember: 'View as this member',
   explorerBackToTree: 'Back',
   explorerEmptyState: 'Select an entry from the tree',

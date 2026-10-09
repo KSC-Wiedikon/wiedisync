@@ -936,6 +936,7 @@ export default {
   explorerRefreshedAt: 'Zuletzt geladen {{time}}',
   explorerSearchPlaceholder: 'Alle durchsuchen…',
   explorerOpenInDirectus: 'In Directus öffnen',
+  explorerOptionRequired: '{{option}} braucht eines von {{choices}}',
   explorerViewAsMember: 'Als dieses Mitglied ansehen',
   explorerBackToTree: 'Zurück',
   explorerEmptyState: 'Wähle einen Eintrag aus dem Baum',
