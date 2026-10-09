@@ -35,6 +35,9 @@ export interface PromptOptions {
   defaultValue?: string
   confirmLabel?: string
   placeholder?: string
+  /** Ask for a numeric PIN of this many digits: masked, digits only, and the
+   *  confirm button stays disabled until it is complete. */
+  pin?: number
 }
 
 export type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>

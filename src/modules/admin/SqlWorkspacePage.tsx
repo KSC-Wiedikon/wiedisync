@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { API_URL } from '@/lib/api'
+import { usePrompt } from '@/components/ConfirmProvider'
 import CodeMirrorEditor from './components/CodeMirrorEditor'
 import ResultsTable from './components/ResultsTable'
 import { didYouMean, shortType, type DidYouMean, type SqlSchemaTable } from './utils/sqlSchema'
@@ -116,14 +117,14 @@ async function fetchSchema(force = false): Promise<SchemaTable[]> {
   return data.tables
 }
 
-async function runQuery(sql: string, writeMode: boolean): Promise<ApiQueryResponse> {
+async function runQuery(sql: string, writeMode: boolean, writePin?: string): Promise<ApiQueryResponse> {
   const resp = await fetch(`${API_URL}/kscw/admin/sql`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify({ sql, write_mode: writeMode }),
+    body: JSON.stringify({ sql, write_mode: writeMode, ...(writeMode ? { write_pin: writePin } : {}) }),
   })
   const body = await resp.json().catch(() => ({}))
   if (!resp.ok) {
@@ -185,8 +186,16 @@ function applyIdentifierFix(sql: string, fix: DidYouMean, suggestion: string): s
   return sql.replace(pattern, suggestion)
 }
 
+// Server refusals of the write PIN, shown in the user's language.
+const PIN_ERROR_KEYS: Record<string, string> = {
+  write_pin_invalid: 'sqlWorkspacePinInvalid',
+  write_pin_locked: 'sqlWorkspacePinLocked',
+  write_pin_unconfigured: 'sqlWorkspacePinUnconfigured',
+}
+
 export default function SqlWorkspacePage() {
   const { t } = useTranslation('admin')
+  const prompt = usePrompt()
 
   const [sql, setSql] = useState<string>(() => {
     try { return localStorage.getItem(DRAFT_KEY) ?? '' } catch { return '' }
@@ -280,13 +289,25 @@ export default function SqlWorkspacePage() {
   const execute = useCallback(async () => {
     const text = sql.trim()
     if (!text || loading) return
+    // Write mode runs only with the 6-digit PIN — the server checks it.
+    let writePin: string | undefined
+    if (writeMode) {
+      const pin = await prompt({
+        title: t('sqlWorkspacePinTitle'),
+        message: t('sqlWorkspacePinMessage'),
+        confirmLabel: t('sqlWorkspacePinConfirm'),
+        pin: 6,
+      })
+      if (!pin) return
+      writePin = pin
+    }
     setLoading(true)
     setError(null)
     setErrorCode(null)
     setErrorHint(null)
     setErrorDetail(null)
     try {
-      const r = await runQuery(text, writeMode)
+      const r = await runQuery(text, writeMode, writePin)
       setResult(r)
       const next = [{ sql: text, ts: Date.now() }, ...recent.filter((q) => q.sql !== text)]
       setRecent(next)
@@ -295,7 +316,8 @@ export default function SqlWorkspacePage() {
       if (writeMode) void loadSchemaInto(true)
     } catch (e) {
       const ex = e as Error & { code?: string | null; hint?: string | null; detail?: string | null }
-      setError(ex.message)
+      const pinKey = ex.code ? PIN_ERROR_KEYS[ex.code] : undefined
+      setError(pinKey ? t(pinKey) : ex.message)
       setErrorCode(ex.code ?? null)
       setErrorHint(ex.hint ?? null)
       setErrorDetail(ex.detail ?? null)
@@ -304,7 +326,7 @@ export default function SqlWorkspacePage() {
     } finally {
       setLoading(false)
     }
-  }, [sql, writeMode, loading, recent, loadSchemaInto])
+  }, [sql, writeMode, loading, recent, loadSchemaInto, prompt, t])
 
   const insertTableRef = useCallback((name: string) => {
     setSql((cur) => (cur.trim() ? cur : `SELECT * FROM ${name} LIMIT 100;`))
