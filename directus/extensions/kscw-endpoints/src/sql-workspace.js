@@ -11,12 +11,14 @@
  *   - Default mode = read-only: per-statement DML keyword detector + transaction
  *     is opened with `SET LOCAL TRANSACTION READ ONLY` and auto-rolled-back
  *   - write_mode=true: still wrapped in a transaction (commits on success), still
- *     superuser only, but DML/DDL allowed
+ *     superuser only, but DML/DDL allowed — and only with the 6-digit write PIN
+ *     (`write_pin`), compared against the container env `SQL_WRITE_PIN`
  *   - statement_timeout = 15s
  *   - Auto-LIMIT 1000 appended to single bare SELECTs without LIMIT
  *   - Every call audited to JSONL via writeErrorLog (event: 'sql_workspace')
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import { writeErrorLog } from './error-log.js'
 import { writeUserLog } from './activity-log.js'
 import { loadSchemaModel, invalidateSchemaCache } from './sql-schema.js'
@@ -272,9 +274,47 @@ function shouldAutoLimit(stmt) {
   return !/\blimit\b\s+\d/i.test(stmt)
 }
 
+// ── Write PIN ────────────────────────────────────────────────────────────────
+// Every full admin (since migration 402 that includes the full-scope board) can
+// open this page, so write mode asks for a PIN on top of admin_access. It lives
+// in the container env, never in git (the repo is public) and never in a table
+// (read mode can SELECT any table). Unset or malformed = write mode refused.
+// A 6-digit PIN is only as good as its attempt limit: PIN_MAX_FAILS wrong tries
+// lock that user out of write mode for PIN_LOCK_MS.
+const PIN_MAX_FAILS = 5
+const PIN_LOCK_MS = 15 * 60 * 1000
+
+/** Per-user failure state for the write PIN. Exported for tests. */
+export function createWritePinGate({ maxFails = PIN_MAX_FAILS, lockMs = PIN_LOCK_MS } = {}) {
+  const fails = new Map() // userId → { count, lockedUntil }
+
+  /** → null when allowed, else { status, code, message }. */
+  return function checkWritePin(userId, pin, expected, now = Date.now()) {
+    if (!/^\d{6}$/.test(String(expected ?? ''))) {
+      return { status: 503, code: 'write_pin_unconfigured', message: 'Write mode is not configured on this server' }
+    }
+    const state = fails.get(userId)
+    if (state?.lockedUntil && state.lockedUntil > now) {
+      return { status: 429, code: 'write_pin_locked', message: 'Too many wrong PINs — write mode is locked for 15 minutes' }
+    }
+    const given = Buffer.from(String(pin ?? ''))
+    const want = Buffer.from(String(expected))
+    if (given.length === want.length && timingSafeEqual(given, want)) {
+      fails.delete(userId)
+      return null
+    }
+    const count = (state?.lockedUntil && state.lockedUntil <= now ? 0 : state?.count ?? 0) + 1
+    fails.set(userId, { count, lockedUntil: count >= maxFails ? now + lockMs : null })
+    return count >= maxFails
+      ? { status: 429, code: 'write_pin_locked', message: 'Too many wrong PINs — write mode is locked for 15 minutes' }
+      : { status: 403, code: 'write_pin_invalid', message: 'Wrong PIN' }
+  }
+}
+
 export function registerSqlWorkspace(router, ctx) {
   const { database, logger } = ctx
   const log = logger.child({ extension: 'kscw-sql-workspace' })
+  const checkWritePin = createWritePinGate()
 
   function requireAuth(req) {
     if (!req.accountability?.user) {
@@ -325,6 +365,19 @@ export function registerSqlWorkspace(router, ctx) {
 
       sqlText = String(req.body?.sql ?? '').trim()
       writeMode = req.body?.write_mode === true
+
+      // Before anything else in write mode: the PIN covers the whole run,
+      // including a data-modifying CTE that reads like a SELECT.
+      if (writeMode) {
+        const denied = checkWritePin(userId, req.body?.write_pin, process.env.SQL_WRITE_PIN)
+        if (denied) {
+          log.warn({ msg: 'SQL write PIN refused', userId, code: denied.code })
+          const err = new Error(denied.message)
+          err.status = denied.status
+          err.code = denied.code
+          throw err
+        }
+      }
 
       if (!sqlText) return res.status(400).json({ error: 'sql required' })
       if (sqlText.length > 100000) return res.status(400).json({ error: 'sql too large (max 100KB)' })

@@ -90,18 +90,27 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             >
               <input
                 autoFocus
-                type="text"
+                type={promptState?.pin ? 'password' : 'text'}
+                inputMode={promptState?.pin ? 'numeric' : undefined}
+                autoComplete={promptState?.pin ? 'off' : undefined}
+                maxLength={promptState?.pin}
                 aria-label={promptState?.message || promptState?.title || t('confirmTitle')}
                 value={promptValue}
                 placeholder={promptState?.placeholder}
-                onChange={(e) => setPromptValue(e.target.value)}
+                onChange={(e) => setPromptValue(promptState?.pin
+                  ? e.target.value.replace(/\D/g, '').slice(0, promptState.pin)
+                  : e.target.value)}
                 className="flex h-11 w-full rounded-lg border border-input bg-card px-3 text-base text-foreground transition-colors placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 sm:h-9 md:text-sm"
               />
               <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" size="sm" onClick={() => settlePrompt(null)}>
                   {t('cancel')}
                 </Button>
-                <Button type="submit" size="sm">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!!promptState?.pin && promptValue.length !== promptState.pin}
+                >
                   {promptState?.confirmLabel ?? t('confirm')}
                 </Button>
               </DialogFooter>

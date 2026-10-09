@@ -49,6 +49,15 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-10-09 — SQL workspace write mode needs a server-checked PIN
+
+Migration 402 made full-scope board members Directus admins, which opened `/admin/sql` — including write mode, i.e. arbitrary DML/DDL on prod — to them. Write mode now also requires a 6-digit PIN:
+- **Checked server-side** in `POST /kscw/admin/sql` (`createWritePinGate`, `timingSafeEqual`) before anything is parsed or run, for every `write_mode: true` call — not per statement, so a data-modifying CTE that reads like a SELECT cannot slip past.
+- **Stored only in the container env** (`SQL_WRITE_PIN`). Not in git (the repo is public; a 6-digit hash is no better than plaintext), not in a table (read mode can SELECT any table). Unset or not 6 digits → write mode refused (503 `write_pin_unconfigured`), fail-closed.
+- **Attempt limit**: 5 wrong PINs lock that user out of write mode for 15 minutes (429 `write_pin_locked`; in-memory, resets on container restart). Every refusal lands in the JSONL error log with its code.
+- The page asks for it in a masked numeric dialog on every write-mode run; the PIN is never stored client-side.
+- Tests: `kscw-endpoints/src/__tests__/sql-workspace-pin.test.js`.
+
 ### 2026-09-29 — identity documents: re-encoding at WhatsApp size keeps the reader set (no F12 regression); the match sheet stops logging VM in
 - **New write path: `recompress`** (`POST /identity/document` with `recompress: true`, `GET /identity/recipients/:member?recompress=1`). Stored ID documents are re-encoded at ≤1600 px JPEG 0.8 so Show IDs downloads a squad fast. The server never sees plaintext, so a key holder's client does it: the owner's app in the background (`useIdentityAutoShrink`), or a superadmin who is also a Directus admin from Show IDs. **Who may call it is unchanged** — owner or Directus admin, exactly as an upload (an admin could already replace any document). **Who may read the result is NOT widened:** `recompressRecipients()` allows the member, their teams' staff (as the repair path) and only those superadmins who *already* held an envelope — never a new superadmin (F12). Attribution (`uploaded_by`, `uploaded_by_self`) and `date_created` are carried over; every recompress is a `user_logs` row `identity_document_recompress` with the actor, `from_size`, `to_size`. A recompress never creates a document (409 `no_document`).
 - **Temporary test window — removed the same day.** Superadmins could open IDs up to 7 days before kickoff (`ID_TEST_WINDOW_*`) to measure Show IDs on real documents; deleted from client and server on 2026-09-29 once tested. The normal windows apply to everyone again (release from kickoff −6 h, display from −45 min).
