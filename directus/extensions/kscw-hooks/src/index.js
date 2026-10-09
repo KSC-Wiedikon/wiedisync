@@ -208,6 +208,9 @@ async function resolveDirectusRole(db, memberId) {
 
   const roles = Array.isArray(member.role) ? member.role : []
 
+  // A vorstand member always carries 'admin' too (migration 402 trigger), so
+  // the board lands here — the 'vorstand' branches below only see a row the
+  // trigger has not touched yet.
   if (roles.includes('superuser') || roles.includes('admin')) {
     return { userId: member.user, roleName: 'Superuser' }
   }
