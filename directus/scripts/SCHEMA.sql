@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-07T09:24:29.470Z
+-- Generated:   2026-10-09T09:31:27.201Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict iiQgnvKI8ErSiIDkU9mRYrblJpBbR1O5hKboUCaLFprndhS8Nk5fPULn9YaHDTW
+\restrict UrDdtpOmEOo58YANdK0v2JWWbr7bnkO4AENRk3Ye89mbC0eIdJRxodRM8YQa1Tl
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1145,6 +1145,24 @@ BEGIN
 
   RETURN NEW;
 END $$;
+
+
+--
+-- Name: members_vorstand_implies_admin(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.members_vorstand_implies_admin() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.role IS NOT NULL
+    AND NEW.role @> '["vorstand"]'::jsonb
+    AND NOT NEW.role ?| ARRAY['admin', 'vb_admin', 'bb_admin'] THEN
+    NEW.role := NEW.role || '["admin"]'::jsonb;
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -16370,6 +16388,13 @@ CREATE TRIGGER trg_members_user_revoke_managed AFTER UPDATE OF "user" ON public.
 
 
 --
+-- Name: members trg_members_vorstand_implies_admin; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_vorstand_implies_admin BEFORE INSERT OR UPDATE OF role ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_vorstand_implies_admin();
+
+
+--
 -- Name: news trg_news_publish_image; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18721,7 +18746,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict iiQgnvKI8ErSiIDkU9mRYrblJpBbR1O5hKboUCaLFprndhS8Nk5fPULn9YaHDTW
+\unrestrict UrDdtpOmEOo58YANdK0v2JWWbr7bnkO4AENRk3Ye89mbC0eIdJRxodRM8YQa1Tl
 
 
 
@@ -18737,7 +18762,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 405 migration(s) already in the schema above.
+-- Migration tracker seed — 407 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19155,6 +19180,8 @@ FROM (VALUES
   ('398-bb-tournaments.sql'),
   ('399-bb-tournament-worker.sql'),
   ('400-bb-tournament-wishes.sql'),
-  ('401-game-call-up-core-only.sql')
+  ('401-game-call-up-core-only.sql'),
+  ('402-vorstand-implies-admin.sql'),
+  ('403-vorstand-admin-scope.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
