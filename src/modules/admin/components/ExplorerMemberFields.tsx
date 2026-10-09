@@ -54,9 +54,9 @@ import {
 import { memberFieldLabel } from './memberFieldSearch'
 import { resolveMemberSport, sportCovers, type MemberSport } from './memberSport'
 import {
-  MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS,
+  MEMBER_MULTI_FIELDS, MEMBER_MULTI_REQUIRES, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS,
   isDepartedRegisterStatus, optionLabel,
-  type FieldOption,
+  type FieldOption, type MultiRequirement,
 } from './memberFieldOptions'
 import MemberDangerZone from './MemberDangerZone'
 import { Button } from '@/components/ui/button'
@@ -1890,7 +1890,7 @@ export function FieldEditor({
     case 'multiselect': {
       const options = MEMBER_MULTI_FIELDS[def.key]
       if (!options) return <JsonEditor value={value} onChange={onChange} />
-      return <MultiSelectEditor options={options} value={value} onChange={onChange} />
+      return <MultiSelectEditor options={options} requires={MEMBER_MULTI_REQUIRES[def.key]} value={value} onChange={onChange} />
     }
 
     case 'select': {
@@ -2082,15 +2082,19 @@ function OptionChips({
   options,
   selected,
   onToggle,
+  locked,
 }: {
   options: readonly { value: string; label: string }[]
   selected: readonly string[]
   onToggle: (value: string) => void
+  /** value → why it cannot be toggled (shown as the tooltip). */
+  locked?: Readonly<Record<string, string>>
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => {
         const active = selected.includes(o.value)
+        const lockReason = locked?.[o.value]
         return (
           <Button
             variant="outline"
@@ -2098,6 +2102,8 @@ function OptionChips({
             type="button"
             role="checkbox"
             aria-checked={active}
+            disabled={!!lockReason}
+            title={lockReason}
             onClick={() => onToggle(o.value)}
             className={
               'gap-1.5 rounded-full px-3 font-normal '
@@ -2244,13 +2250,17 @@ function SelectEditor({
 
 function MultiSelectEditor({
   options,
+  requires,
   value,
   onChange,
 }: {
   options: FieldOption[]
+  /** "ticking X needs one of Y" (MEMBER_MULTI_REQUIRES). */
+  requires?: MultiRequirement
   value: unknown
   onChange: (v: unknown) => void
 }) {
+  const { t } = useTranslation('admin')
   const selected = Array.isArray(value) ? (value as unknown[]).map(String) : []
   // Same off-list rule as SelectEditor — an unknown code keeps its checkbox.
   const shown = [
@@ -2259,12 +2269,32 @@ function MultiSelectEditor({
       .filter((c) => !options.some((o) => o.value === c))
       .map((c) => ({ value: c, label: `${c} (unrecognised)` })),
   ]
+  // The last tier a board member holds cannot be unticked while Board is.
+  const locked: Record<string, string> = {}
+  if (requires && selected.includes(requires.when)) {
+    const held = requires.oneOf.filter((c) => selected.includes(c))
+    if (held.length === 1) {
+      locked[held[0]] = t('explorerOptionRequired', {
+        option: optionLabel(options, requires.when),
+        choices: requires.oneOf.map((c) => optionLabel(options, c)).join(' / '),
+      })
+    }
+  }
   return (
     <OptionChips
       options={shown}
       selected={selected}
+      locked={locked}
       onToggle={(v) => {
-        onChange(selected.includes(v) ? selected.filter((c) => c !== v) : [...selected, v])
+        if (selected.includes(v)) {
+          onChange(selected.filter((c) => c !== v))
+          return
+        }
+        const next = [...selected, v]
+        if (requires && v === requires.when && !requires.oneOf.some((c) => next.includes(c))) {
+          next.push(requires.fallback)
+        }
+        onChange(next)
       }}
     />
   )

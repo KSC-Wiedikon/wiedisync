@@ -282,6 +282,17 @@ export const MEMBER_MULTI_FIELDS: Record<string, FieldOption[]> = {
 }
 
 /**
+ * "Ticking `when` requires at least one of `oneOf`." While `when` is ticked the
+ * last remaining `oneOf` chip is locked, and ticking `when` with none of them
+ * adds `fallback`. Mirrors the DB trigger, which is the real rule — `role`: a
+ * board member holds full, VB or BB admin rights (migrations 402/403).
+ */
+export interface MultiRequirement { when: string; oneOf: readonly string[]; fallback: string }
+export const MEMBER_MULTI_REQUIRES: Record<string, MultiRequirement> = {
+  role: { when: 'vorstand', oneOf: ['admin', 'vb_admin', 'bb_admin'], fallback: 'admin' },
+}
+
+/**
  * Free-text columns with a de-facto canonical list. Rendered as a text input
  * plus a <datalist>: suggestions, never a gate.
  *
