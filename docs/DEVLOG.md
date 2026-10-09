@@ -3,6 +3,7 @@
 Operator-facing history of backend, deploy, and migration work on the wiedisync platform.
 Newest first.
 
+- **2026-10-09** Board = admin (migration 402, dev; prod pending): trigger `trg_members_vorstand_implies_admin` adds `admin` to every `members.role` holding `vorstand` and drops it again when `vorstand` is removed; backfill + logins moved to the Superuser Directus role (dev: members 11, 263 → Superuser; 62 gained `admin`, stays Administrator). No perms change, no frontend change — all ~56 `admin` checks pick it up from the data. PERMISSIONS.md updated.
 - **2026-10-07** Game rail league in VolleyManager shape — tier, drawn ♂/♀ (`RailLeague`/`GenderMark`, as svrz_rc), group: `4L ♀ A`, `U23 1SK ♂`, cups `SV Cup`/`Züri Cup`; Games page now uses it too (was `4LD - A`, cup round dropped — the match no. identifies it) (frontend only, no bump, dev+prod)
 - **2026-10-07** Match number under the league in the game rail (`#406803`, from `games.game_id` minus `vb_`/`bb_`; none for manual/tournament rows) on Home, Games, scorer rows and duty cards; scorer row league + number chips moved into the rail (frontend only, no bump, dev+prod)
 - **2026-10-07** Home game rows show the league under the time (`leagueRailLabel`: `3L`, `U23 1L`, `SV Cup`, `Züri Cup`); `detectCupMatch` now matches "Mobiliar Volley Cup", so those games get the trophy (frontend only, no bump, dev+prod)
