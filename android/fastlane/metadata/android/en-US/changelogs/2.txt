@@ -1,0 +1,1 @@
+The status and navigation bars now take the colours of the page, in light and dark mode, instead of a blue frame.

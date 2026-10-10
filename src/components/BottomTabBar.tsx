@@ -45,7 +45,7 @@ export default function BottomTabBar({ onMoreTap, moreActive, unreadNotification
   const { user, isApproved } = useAuth()
   const visibleTabs = primaryTabs.filter((tab) => !tab.requiresAuth || (user && isApproved))
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+    <nav data-system-bar="bottom" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-stretch gap-1.5 px-2 py-2">
         {visibleTabs.map((tab) => (
           <NavLink

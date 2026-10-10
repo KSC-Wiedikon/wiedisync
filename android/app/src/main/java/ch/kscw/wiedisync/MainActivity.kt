@@ -6,7 +6,12 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -38,6 +43,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
@@ -53,6 +59,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var errorView: View
     private lateinit var bridge: NativeBridge
+    private val barsBackground = SystemBarsDrawable()
 
     /** Hosts that stay inside the app; every other link opens outside it. */
     private val appHosts = BuildConfig.APP_HOSTS.split(',').toSet()
@@ -92,25 +99,31 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge(SystemBarStyle.dark(BRAND), SystemBarStyle.dark(BRAND))
+        // The bars start in the colours the page last reported for this theme and
+        // follow the page from then on (`ui.systemBars`, NativeBridge).
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        barsBackground.top = prefs.getInt(barPref("top"), pageBackground())
+        barsBackground.bottom = prefs.getInt(barPref("bottom"), pageBackground())
+        applyBarStyle()
         super.onCreate(savedInstanceState)
         File(cacheDir, CAMERA_DIR).deleteRecursively()
         // chrome://inspect for debug builds only.
         if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
 
-        val root = FrameLayout(this).apply { setBackgroundColor(BRAND) }
+        val root = FrameLayout(this).apply { background = barsBackground }
         webView = WebView(this).apply { setBackgroundColor(pageBackground()) }
         errorView = buildErrorView()
         root.addView(webView, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(errorView, FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(root)
         // Edge-to-edge is enforced from targetSdk 35: keep the page clear of the
-        // system bars and the keyboard; the brand blue fills the bar areas.
+        // system bars and the keyboard; barsBackground fills the bar areas.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime(),
             )
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            barsBackground.bottomInset = bars.bottom
             WindowInsetsCompat.CONSUMED
         }
 
@@ -372,6 +385,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The page's edge colours (from the bridge): paint the bars and remember them for the next start. */
+    fun setSystemBarColors(top: Int, bottom: Int) {
+        if (barsBackground.top == top && barsBackground.bottom == bottom) return
+        barsBackground.top = top
+        barsBackground.bottom = bottom
+        applyBarStyle()
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit { putInt(barPref("top"), top).putInt(barPref("bottom"), bottom) }
+    }
+
+    /** Transparent bars over [barsBackground], with icons that stay readable on it. */
+    private fun applyBarStyle() {
+        fun style(color: Int) =
+            if (ColorUtils.calculateLuminance(color) > 0.5) SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            else SystemBarStyle.dark(Color.TRANSPARENT)
+        enableEdgeToEdge(style(barsBackground.top), style(barsBackground.bottom))
+        barsBackground.invalidateSelf()
+    }
+
+    /** Light and dark pages have different edges: one remembered pair per theme. */
+    private fun barPref(edge: String) = "bar_${edge}_${if (isNight()) "night" else "day"}"
+
     private fun isNight() =
         resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
@@ -390,4 +424,33 @@ class MainActivity : ComponentActivity() {
         val BRAND = Color.rgb(0x4A, 0x55, 0xA2)
         private val PAGE_DARK = Color.rgb(0x0F, 0x17, 0x2A)
     }
+}
+
+/**
+ * What shows through the transparent system bars, i.e. in the root's inset
+ * padding around the page: [top] everywhere, [bottom] along the bottom inset
+ * (navigation bar, or the keyboard while it is open).
+ */
+private class SystemBarsDrawable : Drawable() {
+    var top = Color.WHITE
+    var bottom = Color.WHITE
+    var bottomInset = 0
+        set(value) {
+            field = value
+            invalidateSelf()
+        }
+    private val paint = Paint()
+
+    override fun draw(canvas: Canvas) {
+        val b = bounds
+        canvas.drawColor(top)
+        if (bottomInset <= 0) return
+        paint.color = bottom
+        canvas.drawRect(b.left.toFloat(), (b.bottom - bottomInset).toFloat(), b.right.toFloat(), b.bottom.toFloat(), paint)
+    }
+
+    override fun setAlpha(alpha: Int) = Unit
+    override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = PixelFormat.OPAQUE
 }

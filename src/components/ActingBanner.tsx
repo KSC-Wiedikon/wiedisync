@@ -72,6 +72,7 @@ export default function ActingBanner({ topInset = false }: { topInset?: boolean 
       <div
         className={cn('relative z-30 flex shrink-0 items-stretch border-b border-black/10 text-white dark:border-white/10', bg)}
         style={topInset ? { paddingTop: SAFE_TOP } : undefined}
+        data-system-bar={topInset ? 'top' : undefined}
       >
         <button
           type="button"
