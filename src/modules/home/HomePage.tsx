@@ -42,7 +42,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus, Globe, ExternalLink } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus, Globe } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { gameNumberLabel } from '../../utils/leagueShort'
@@ -496,76 +496,60 @@ export default function HomePage() {
       <InstallBanner />
       {isInitialLoading ? null : (<>
 
-      {/* Hero with sport icons flanking logo */}
-      <div className="flex flex-col items-center pb-6 pt-2 text-center">
-        <div className="flex items-center gap-4">
-          {showSportToggle && (
-            <button
-              onClick={() => setSport('vb')}
-              className={`rounded-full p-2 transition-all ${
-                sport === 'vb' || sport === 'all'
-                  ? 'scale-110'
-                  : 'opacity-30 hover:opacity-50'
-              }`}
-              aria-label="Volleyball"
-            >
-              <VolleyballIcon className="h-9 w-9 sm:h-10 sm:w-10" filled />
-            </button>
-          )}
+      {/* Header row: shield (doubles as the "all sports" toggle, with the VB/BB
+          toggles beside it for two-sport members) · Wiedisync · kscw.ch. Three
+          equal-ish columns so the title stays centred whatever the sides hold. */}
+      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pt-1">
+        <div className="flex min-w-0 items-center gap-0.5">
           {showSportToggle ? (
             <button
               onClick={() => setSport('all')}
-              className={`rounded-xl p-1 transition-opacity ${sport === 'all' ? '' : 'opacity-60 hover:opacity-80'}`}
+              className={`shrink-0 rounded-lg p-0.5 transition-opacity ${sport === 'all' ? '' : 'opacity-60 hover:opacity-80'}`}
               aria-label="Show all sports"
             >
-              <img
-                src="/wiedisync_logo.svg"
-                alt="KSC Wiedikon"
-                className="h-20 w-auto sm:h-24"
-              />
+              <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto sm:h-11" />
             </button>
           ) : (
-            <img
-              src="/wiedisync_logo.svg"
-              alt="KSC Wiedikon"
-              className="h-20 w-auto sm:h-24"
-            />
+            <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto shrink-0 sm:h-11" />
           )}
+          {/* VB/BB stacked beside the shield — side by side they push into the
+              centred title on a 360px phone. */}
           {showSportToggle && (
-            <button
-              onClick={() => setSport('bb')}
-              className={`rounded-full p-2 transition-all ${
-                sport === 'bb' || sport === 'all'
-                  ? 'scale-110'
-                  : 'opacity-30 hover:opacity-50'
-              }`}
-              aria-label="Basketball"
-            >
-              <BasketballIcon className="h-9 w-9 sm:h-10 sm:w-10" filled />
-            </button>
+            <div className="flex flex-col">
+              <button
+                onClick={() => setSport('vb')}
+                className={`relative after:absolute after:-inset-x-2 after:-inset-y-0.5 after:content-[''] shrink-0 rounded-full p-1 transition-opacity ${sport === 'vb' || sport === 'all' ? '' : 'opacity-30 hover:opacity-50'}`}
+                aria-label="Volleyball"
+              >
+                <VolleyballIcon className="h-5 w-5" filled />
+              </button>
+              <button
+                onClick={() => setSport('bb')}
+                className={`relative after:absolute after:-inset-x-2 after:-inset-y-0.5 after:content-[''] shrink-0 rounded-full p-1 transition-opacity ${sport === 'bb' || sport === 'all' ? '' : 'opacity-30 hover:opacity-50'}`}
+                aria-label="Basketball"
+              >
+                <BasketballIcon className="h-5 w-5" filled />
+              </button>
+            </div>
           )}
         </div>
-        <div className="relative mt-3 flex items-center justify-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            KSC Wiedikon
-          </h1>
+        <div className="flex items-center gap-1">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Wiedisync</h1>
           <GuideHelpButton />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('subtitle')}
-        </p>
-        {/* Public club website — a new tab (in a PWA, the system browser). */}
-        <a
-          href={CLUB_WEBSITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={t('nav:clubWebsite')}
-          className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors sm:min-h-9 sm:px-3"
-        >
-          <Globe className="h-4 w-4" />
-          kscw.ch
-          <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-        </a>
+        <div className="flex justify-end">
+          {/* Public club website — a new tab (in a PWA, the system browser). */}
+          <a
+            href={CLUB_WEBSITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${t('nav:clubWebsite')} (kscw.ch)`}
+            className="relative after:absolute after:-inset-2 after:content-[''] inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-md bg-gold-400 px-2.5 text-xs font-semibold text-brand-900 transition-colors hover:bg-gold-500"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            kscw.ch
+          </a>
+        </div>
       </div>
 
       {/* Upcoming ticker — next 7 days across the user's own teams, admins
