@@ -1,0 +1,1 @@
+Erste Version: die Wiedisync-Mitglieder-App, mit Benachrichtigungen über UnifiedPush, Downloads und Teilen.

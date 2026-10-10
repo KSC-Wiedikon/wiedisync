@@ -1,0 +1,146 @@
+name: Android release
+
+# Builds the signed Android app (android/) and the club's F-Droid repo.
+#
+# - Tag `android-vX.Y.Z` on a prod commit → GitHub release with the APK, and the
+#   F-Droid repo (every android-v* release APK) deployed to the `kscw-fdroid`
+#   Pages project, production branch → https://fdroid.kscw.ch.
+# - Push to the `android-preview` branch (or a manual run, once this file is on
+#   prod) → the same build as a rehearsal: no GitHub release, the repo goes to
+#   the Pages preview branch `preview` (https://preview.kscw-fdroid.pages.dev).
+#   `git push -f origin HEAD:android-preview` from dev.
+#
+# Release checklist: bump versionCode + versionName in android/app/build.gradle.kts,
+# add android/fastlane/metadata/android/{en-US,de-DE}/changelogs/<versionCode>.txt,
+# land it on prod, then `git tag android-vX.Y.Z origin/prod && git push origin android-vX.Y.Z`.
+
+# Never pull_request / pull_request_target: the signing keys live in this
+# workflow's secrets and the repo is public (same rule as deploy-cloudflare-pages.yml).
+on:
+  push:
+    tags: ['android-v*']
+    branches: [android-preview]
+  workflow_dispatch:
+
+permissions:
+  contents: write # gh release create
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  # The release key's certificate — a build signed with anything else must not ship.
+  APP_CERT_SHA256: 0d79b074de19ffd087e2f556c56d09f93314e828d344fcf18501fbdcde9fe238
+  BUILD_TOOLS: 35.0.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release from prod only, tag must match versionName
+        if: github.ref_type == 'tag'
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/prod \
+            || { echo "::error::$GITHUB_REF_NAME is not on prod — releases ship from prod only"; exit 1; }
+          NAME=$(sed -n 's/^ *versionName = "\(.*\)".*/\1/p' android/app/build.gradle.kts)
+          [ "$GITHUB_REF_NAME" = "android-v$NAME" ] \
+            || { echo "::error::tag $GITHUB_REF_NAME does not match versionName $NAME"; exit 1; }
+
+      - name: Version
+        run: |
+          echo "VERSION=$(sed -n 's/^ *versionName = "\(.*\)".*/\1/p' android/app/build.gradle.kts)" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$(sed -n 's/^ *versionCode = \([0-9]*\).*/\1/p' android/app/build.gradle.kts)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle.kts
+            android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Android SDK packages
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;$BUILD_TOOLS" > /dev/null
+
+      - name: Build the signed APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          export ANDROID_KEYSTORE="$RUNNER_TEMP/release.p12"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$ANDROID_KEYSTORE"
+          (cd android && ./gradlew --no-daemon assembleProdRelease)
+          rm -f "$ANDROID_KEYSTORE"
+          mkdir -p "$RUNNER_TEMP/apks"
+          cp android/app/build/outputs/apk/prod/release/app-prod-release.apk "$RUNNER_TEMP/apks/wiedisync-$VERSION.apk"
+
+      - name: Check the signature
+        run: |
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs "$RUNNER_TEMP/apks/wiedisync-$VERSION.apk" \
+            | grep -q "SHA-256 digest: $APP_CERT_SHA256" \
+            || { echo "::error::the APK is not signed with the Wiedisync release key"; exit 1; }
+
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          M=android/fastlane/metadata/android
+          {
+            cat "$M/en-US/changelogs/$VERSION_CODE.txt"; echo
+            cat "$M/de-DE/changelogs/$VERSION_CODE.txt"; echo
+            echo "Install and update through F-Droid: https://fdroid.kscw.ch"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/apks/wiedisync-$VERSION.apk" \
+            --title "Wiedisync for Android $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Earlier releases (F-Droid keeps every version installable)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --limit 100 --json tagName --jq '.[].tagName | select(startswith("android-v"))'); do
+            # A rehearsal of an already released version keeps the fresh build.
+            [ "$tag" = "android-v$VERSION" ] && continue
+            gh release download "$tag" --pattern 'wiedisync-*.apk' --dir "$RUNNER_TEMP/apks" --skip-existing
+          done
+          ls -la "$RUNNER_TEMP/apks"
+
+      - name: fdroidserver
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fdroid-venv"
+          "$RUNNER_TEMP/fdroid-venv/bin/pip" install --quiet fdroidserver==2.4.2
+          echo "$RUNNER_TEMP/fdroid-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Build the F-Droid repo
+        env:
+          KEYSTORE_B64: ${{ secrets.FDROID_KEYSTORE_B64 }}
+          FDROID_KEYSTORE_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+          FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+        run: |
+          export FDROID_KEYSTORE="$RUNNER_TEMP/fdroid-repo.p12"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$FDROID_KEYSTORE"
+          android/fdroid/build-repo.sh "$RUNNER_TEMP/apks" "$RUNNER_TEMP/fdroid"
+          rm -f "$FDROID_KEYSTORE"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 989cbb0f25ed3f11e417908694ef8da5
+        run: |
+          BRANCH=$([ "$GITHUB_REF_TYPE" = tag ] && echo main || echo preview)
+          # Direct Upload project; created on the first run, a no-op afterwards.
+          npx wrangler@4 pages project create kscw-fdroid --production-branch main > /dev/null 2>&1 || true
+          npx wrangler@4 pages deploy "$RUNNER_TEMP/fdroid/site" \
+            --project-name kscw-fdroid --branch "$BRANCH" --commit-dirty=true
