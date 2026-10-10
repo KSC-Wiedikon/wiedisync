@@ -483,20 +483,20 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               {superAdminItems.map(renderNavItem)}
             </>
           )}
-          {/* Public club website — for everyone, signed in or not. A new tab
-              (in a PWA, the system browser). */}
+          {/* Public club website — for everyone, signed in or not. Mirrors the
+              full-width gold "Wiedisync" button in kscw.ch's phone menu. A new
+              tab (in a PWA, the system browser). */}
           <div className="my-2 border-t border-border" />
           <a
             href={CLUB_WEBSITE_URL}
             target="_blank"
             rel="noopener noreferrer"
             onClick={startClose}
-            className="flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground/85 transition-colors hover:bg-accent hover:text-foreground"
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors"
           >
             <Globe className={iconClass} />
-            <span className="flex-1">{t('clubWebsite')}</span>
-            <span className="text-xs text-muted-foreground">kscw.ch</span>
-            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+            {t('clubWebsite')} · kscw.ch
+            <ExternalLink className="h-4 w-4 opacity-70" />
           </a>
         </nav>
 

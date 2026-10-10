@@ -560,7 +560,7 @@ export default function HomePage() {
           target="_blank"
           rel="noopener noreferrer"
           title={t('nav:clubWebsite')}
-          className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-primary transition-colors hover:bg-accent dark:text-gold-400 sm:min-h-9"
+          className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors sm:min-h-9 sm:px-3"
         >
           <Globe className="h-4 w-4" />
           kscw.ch

@@ -301,17 +301,17 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
       <div className="flex shrink-0 items-center gap-0.5">
         {user && isApproved && <NotificationBell unreadCount={unreadCount} onClick={onOpenNotifications} />}
 
-        {/* Public club website — a new tab (in a PWA, the system browser). */}
+        {/* Public club website — mirrors the gold "Wiedisync" button in kscw.ch's
+            header. A new tab (in a PWA, the system browser). */}
         <a
           href={CLUB_WEBSITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`${t('clubWebsite')} (kscw.ch)`}
           title={`${t('clubWebsite')} (kscw.ch)`}
-          className={`${iconBtn} inline-flex items-center gap-1.5 xl:px-3`}
+          className="mx-1 inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Globe className="h-5 w-5" />
-          <span className="hidden text-sm font-medium xl:inline">kscw.ch</span>
+          <Globe className="h-4 w-4" />
+          kscw.ch
         </a>
 
         <NavLink
