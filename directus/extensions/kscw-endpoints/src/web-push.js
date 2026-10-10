@@ -18,12 +18,17 @@ import { FRONTEND_URL } from './email-template.js'
 // misconfigured client or an attacker trying to coerce the Worker into making
 // HTTPS requests to an attacker-controlled host (SSRF). We use suffix matches
 // so future provider sub-domains keep working without a redeploy.
+// The Android app registers through UnifiedPush; its distributor app picks the
+// push server. Only the two public ones are listed — a self-hosted ntfy is
+// rejected on purpose (an arbitrary host is exactly what this list exists to
+// refuse); the subscribe toast tells the user to use Sunup or ntfy instead.
 const PUSH_ENDPOINT_ALLOWED_SUFFIXES = [
   '.googleapis.com',          // FCM (Chrome, Edge on most platforms)
   '.push.apple.com',          // APNs (Safari, iOS)
-  '.push.services.mozilla.com', // Mozilla autopush (Firefox)
+  '.push.services.mozilla.com', // Mozilla autopush (Firefox; also the Sunup UnifiedPush distributor)
   '.windows.com',             // WNS (legacy Edge/UWP)
   '.notify.windows.com',      // WNS alternate
+  '.ntfy.sh',                 // UnifiedPush via the ntfy app's default server (2026-10-10)
 ]
 
 function isPrivateIpv4(host) {

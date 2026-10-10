@@ -2,7 +2,7 @@
 // main account acts for a linked member records that guardian login, so revoking
 // the grant unbinds her device. Stamped from the acting swap, never the body.
 import { describe, it, expect } from 'vitest'
-import { registerWebPush } from '../web-push.js'
+import { registerWebPush, validatePushEndpoint } from '../web-push.js'
 
 function setup(existing) {
   const writes = []
@@ -47,5 +47,22 @@ describe('POST /web-push/subscribe acting_guardian_user', () => {
     const { handler, writes } = setup({ id: 77 })
     await handler({ body, accountability: { user: 'u-child', kscwGuardian: { user: 'u-parent' } } }, res())
     expect(writes[0]).toMatchObject({ op: 'update', patch: { acting_guardian_user: 'u-parent' } })
+  })
+})
+
+// 2026-10-10: the Android app's UnifiedPush endpoints. Sunup lands on Mozilla
+// autopush (already listed); the ntfy app's default server is ntfy.sh. A
+// self-hosted distributor server stays refused — it is an arbitrary host.
+describe('validatePushEndpoint — UnifiedPush hosts', () => {
+  it('accepts the public ntfy server and Mozilla autopush', () => {
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc?up=1')).toEqual({ ok: true })
+    expect(validatePushEndpoint('https://updates.push.services.mozilla.com/wpush/v2/gAAAA')).toEqual({ ok: true })
+  })
+
+  it('rejects a self-hosted ntfy and look-alike hosts', () => {
+    expect(validatePushEndpoint('https://ntfy.example.org/upAbc?up=1').ok).toBe(false)
+    expect(validatePushEndpoint('https://evilntfy.sh/upAbc?up=1').ok).toBe(false)
+    expect(validatePushEndpoint('https://ntfy.sh.evil.example/upAbc').ok).toBe(false)
+    expect(validatePushEndpoint('http://ntfy.sh/upAbc?up=1').ok).toBe(false)
   })
 })
