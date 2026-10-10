@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { currentLocale, formatDateZurich } from '../../../utils/dateHelpers'
+import { saveFile } from '../../../utils/saveFile'
 import { gameStartForDate } from '../utils/slotTime'
 
 /** One offerable home slot from /terminplanung/admin/team-availability. */
@@ -146,12 +147,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
     for (const r of mergeDateRanges(data.blocked_away_strict)) rows.push(esc(r))
     // Leading BOM (\uFEFF) so Excel reads the umlauts correctly.
     const blob = new Blob([`\uFEFF${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `kscw-${kscwTeamName.toLowerCase().replace(/\s+/g, '-')}-slots.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, `kscw-${kscwTeamName.toLowerCase().replace(/\s+/g, '-')}-slots.csv`)
   }
 
   return (

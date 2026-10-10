@@ -10,6 +10,7 @@
  */
 import type { TFunction } from 'i18next'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { saveFile } from '../../utils/saveFile'
 import type { Fine, FineActivityType, FineRule, FineResetWindow } from '../../types'
 
 export interface FinesSummaryMember {
@@ -297,5 +298,5 @@ export async function exportFinesSummaryPdf(model: FinesSummaryModel, t: TFuncti
     doc.text(`${i} / ${pages}`, pw - M, ph - 22, { align: 'right' })
   }
   doc.setTextColor(0)
-  doc.save(`${model.filename}.pdf`)
+  saveFile(doc.output('blob'), `${model.filename}.pdf`)
 }

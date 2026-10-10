@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import IconButton from '@/components/IconButton'
 import { Button } from '@/components/ui/button'
+import { saveFile } from '@/utils/saveFile'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, MessageSquare, X } from 'lucide-react'
 import { useCollection } from '../../lib/query'
@@ -130,12 +131,7 @@ export default function VolleyFeedbackPage() {
 
     const csv = '\uFEFF' + headers.join(';') + '\n' + rows.join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'kscw-volley-feedback-2025-2026.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, 'kscw-volley-feedback-2025-2026.csv')
   }
 
   return (

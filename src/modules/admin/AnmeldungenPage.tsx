@@ -15,6 +15,7 @@ import { formatDate } from '../../utils/dateHelpers'
 import { currentSeasonShort } from '../../utils/season'
 import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
 import { localizeCountryName } from '../../utils/countryName'
+import { saveFile } from '../../utils/saveFile'
 import {
   countryNameDe, countryOptions,
   parseCountryCodes, serializeCountryCodes,
@@ -271,12 +272,7 @@ function buildClubDeskCSV(items: Registration[]): string {
 function downloadCSV(items: Registration[]) {
   const csv = buildClubDeskCSV(items)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `registrations_clubdesk_${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(blob, `registrations_clubdesk_${new Date().toISOString().slice(0, 10)}.csv`)
 }
 
 // ── Sport section colors ───────────────────────────────────────

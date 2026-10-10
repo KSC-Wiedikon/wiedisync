@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { saveFile } from '@/utils/saveFile'
 import { kscwApi } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import type { Event } from '../../types'
@@ -67,12 +68,7 @@ function downloadCsv(filename: string, rows: string[][]): void {
   // as a single column, and drops the accents without the BOM.
   const body = rows.map((r) => r.join(';')).join('\r\n')
   const blob = new Blob([`\ufeff${body}`], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(blob, filename)
 }
 
 /**
