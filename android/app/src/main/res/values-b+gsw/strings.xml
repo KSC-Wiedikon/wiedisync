@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="saved_to_downloads">I de Downloads gspeicheret: %1$s</string>
+    <string name="save_failed">D Datei hät nöd chöne gspeicheret werde</string>
+    <string name="downloading">Wird abeglade…</string>
+    <string name="channel_general">Benachrichtigunge</string>
+    <string name="offline_title">Wiedisync isch nöd erreichbar</string>
+    <string name="offline_body">Prüef dini Internetverbindig und probiers nomal.</string>
+    <string name="retry">Nomal probiere</string>
+    <string name="no_app">Kei App gfunde, wo dä Link cha uftue</string>
+</resources>
