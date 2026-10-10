@@ -1,0 +1,11 @@
+# Metadata for the club's own F-Droid repo (fdroid.kscw.ch), built by
+# .github/workflows/android-release.yml. Texts + icon: android/fastlane/.
+Categories:
+  - Sports & Health
+License: AGPL-3.0-only
+AuthorName: KSC Wiedikon
+WebSite: https://wiedisync.kscw.ch
+SourceCode: https://github.com/KSC-Wiedikon/wiedisync/tree/prod/android
+IssueTracker: https://github.com/KSC-Wiedikon/wiedisync/issues
+Changelog: https://github.com/KSC-Wiedikon/wiedisync/releases
+AutoName: Wiedisync

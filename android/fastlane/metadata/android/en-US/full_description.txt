@@ -1,0 +1,10 @@
+Wiedisync is the member app of KSC Wiedikon, the volleyball and basketball club in Zurich. You need a KSC Wiedikon member account to use it.
+
+<ul>
+<li>Trainings, games and events, with sign-up and absences</li>
+<li>Duties, car pooling, hall plans and club news</li>
+<li>Notifications without Google: they arrive through UnifiedPush. Install a free UnifiedPush app such as Sunup or ntfy (both on F-Droid), then turn notifications on in Wiedisync.</li>
+<li>Exports (CSV, PDF, calendar files) save straight to your Downloads folder</li>
+</ul>
+
+The app shows the same site as wiedisync.kscw.ch, so it is always up to date. Source code (AGPL-3.0): https://github.com/KSC-Wiedikon/wiedisync

@@ -1,0 +1,10 @@
+Wiedisync ist die Mitglieder-App des KSC Wiedikon, des Volleyball- und Basketballvereins in Zürich. Du brauchst ein Mitgliederkonto des KSC Wiedikon.
+
+<ul>
+<li>Trainings, Spiele und Events, mit Anmeldung und Absenzen</li>
+<li>Einsätze, Fahrgemeinschaften, Hallenplan und Vereinsnews</li>
+<li>Benachrichtigungen ohne Google: Sie kommen über UnifiedPush. Installiere eine kostenlose UnifiedPush-App wie Sunup oder ntfy (beide auf F-Droid) und schalte dann in Wiedisync die Benachrichtigungen ein.</li>
+<li>Exporte (CSV, PDF, Kalenderdateien) landen direkt in deinem Download-Ordner</li>
+</ul>
+
+Die App zeigt dieselbe Seite wie wiedisync.kscw.ch und ist darum immer aktuell. Quellcode (AGPL-3.0): https://github.com/KSC-Wiedikon/wiedisync
