@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { nativeAppPlatform } from '../../../utils/pwa'
 import { detectPlatform, type Platform } from './platform'
 
 function readPlatform(): Platform {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') return 'desktop'
+  // The native apps count as installed: no install banner, no install steps.
   const standalone =
+    nativeAppPlatform() !== null ||
     (navigator as unknown as { standalone?: boolean }).standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches
   return detectPlatform({
