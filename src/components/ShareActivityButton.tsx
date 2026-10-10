@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { activityLink, type ShareableActivity } from '../utils/activityLinks'
+import { hasNativeBridge, hasNativeFeature, nativeRequest } from '../lib/nativeBridge'
+import { captureApiError } from '../lib/sentry'
 import IconButton from './IconButton'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -36,7 +38,20 @@ export default function ShareActivityButton({ kind, id, title, iconOnly, classNa
     e.stopPropagation()
     const url = activityLink(kind, id)
 
-    // The native sheet is the better mobile affordance (WhatsApp, Signal, mail
+    // Inside the Android app: its WebView has no navigator.share, so the bridge
+    // opens the system share sheet. A failure falls through to the clipboard.
+    // The sync presence check first keeps a browser's click free of any await
+    // before navigator.share (Safari drops the user gesture across awaits).
+    if (hasNativeBridge() && (await hasNativeFeature('share'))) {
+      try {
+        await nativeRequest('share', { title: title || undefined, url })
+        return
+      } catch (err) {
+        captureApiError(err, { operation: 'ShareActivityButton.nativeShare' })
+      }
+    }
+
+    // The Web Share sheet is the better mobile affordance (WhatsApp, Signal, mail
     // in one tap) but is absent on desktop Chrome/Firefox, and the user can
     // dismiss it — an AbortError is a cancel, not a failure, so it must not
     // fall through to the clipboard toast and claim it copied something.
