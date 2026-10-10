@@ -74,6 +74,7 @@ export default {
   clubStats: 'Statistiques',
   anmeldungen: 'Inscriptions',
   guide: 'Guide',
+  clubWebsite: 'Site du club',
   adminExplorer: 'Base de données',
   announcements: 'Annonces',
   clubMailbox: 'Messagerie du club',
