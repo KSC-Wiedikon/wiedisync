@@ -28,6 +28,29 @@ export function initSentry() {
     // Performance — sample 20% of transactions in prod, 100% in preview
     tracesSampleRate: isProd ? 0.2 : 1.0,
 
+    // v11 streams spans by default, and then beforeSendTransaction (the token
+    // redaction below) never runs. Keep the transaction model until that
+    // redaction moves to a stream-mode beforeSendSpan.
+    traceLifecycle: 'static',
+
+    // v11 collects user info, cookies and HTTP bodies when this is unset.
+    // Pin the v10 baseline (sendDefaultPii off): the app renders member data,
+    // and the privacy policy covers error tracking only.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+        response: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    },
+
     // Session replay — ONLY on error, never on a healthy session.
     //
     // Was 0.1, i.e. one in ten ordinary sessions of an internal tool was screen-recorded
