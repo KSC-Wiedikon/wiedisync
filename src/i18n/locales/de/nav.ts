@@ -77,6 +77,7 @@ export default {
   volleyFeedback: 'Volley Feedback',
   anmeldungen: 'Anmeldungen',
   guide: 'Anleitung',
+  clubWebsite: 'Vereinswebsite',
   adminExplorer: 'Datenbank',
   announcements: 'Mitteilungen',
   clubMailbox: 'Vereinspostfach',

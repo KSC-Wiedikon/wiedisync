@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid, ArrowLeftRight, Check,
+  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid, ArrowLeftRight, Check, Globe,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useHouseholdSwitcher } from '../hooks/useHouseholdSwitcher'
@@ -15,6 +15,7 @@ import { asObj, memberDisplayName, memberFirstName } from '../utils/relations'
 import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
 import type { MemberTeam, Team } from '../types'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
+import { CLUB_WEBSITE_URL } from '../lib/clubWebsite'
 import NotificationBell from './NotificationBell'
 import AdminToggle from './AdminToggle'
 import SwitchToggle from '@/components/SwitchToggle'
@@ -299,6 +300,19 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
       {/* Right: actions */}
       <div className="flex shrink-0 items-center gap-0.5">
         {user && isApproved && <NotificationBell unreadCount={unreadCount} onClick={onOpenNotifications} />}
+
+        {/* Public club website — a new tab (in a PWA, the system browser). */}
+        <a
+          href={CLUB_WEBSITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${t('clubWebsite')} (kscw.ch)`}
+          title={`${t('clubWebsite')} (kscw.ch)`}
+          className={`${iconBtn} inline-flex items-center gap-1.5 xl:px-3`}
+        >
+          <Globe className="h-5 w-5" />
+          <span className="hidden text-sm font-medium xl:inline">kscw.ch</span>
+        </a>
 
         <NavLink
           to="/guide"

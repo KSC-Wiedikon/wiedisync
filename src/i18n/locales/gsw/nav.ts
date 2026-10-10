@@ -74,6 +74,7 @@ export default {
   clubStats: 'Vereinsstatistik',
   anmeldungen: 'Amäldigä',
   guide: 'Aleitig',
+  clubWebsite: 'Vereinswebsite',
   adminExplorer: 'Datebank',
   announcements: 'Mitteilige',
   clubMailbox: 'Vereinsposchtfach',

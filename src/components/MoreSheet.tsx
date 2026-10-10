@@ -13,7 +13,7 @@ import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
 import { Button } from '@/components/ui/button'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight, Trophy } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight, Trophy, Globe, ExternalLink } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN } from '../lib/api'
@@ -21,6 +21,7 @@ import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../l
 import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/financeNav'
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
+import { CLUB_WEBSITE_URL } from '../lib/clubWebsite'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useShowTournaments } from '../modules/tournaments/tournamentsApi'
 
@@ -482,6 +483,21 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               {superAdminItems.map(renderNavItem)}
             </>
           )}
+          {/* Public club website — for everyone, signed in or not. A new tab
+              (in a PWA, the system browser). */}
+          <div className="my-2 border-t border-border" />
+          <a
+            href={CLUB_WEBSITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={startClose}
+            className="flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground/85 transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Globe className={iconClass} />
+            <span className="flex-1">{t('clubWebsite')}</span>
+            <span className="text-xs text-muted-foreground">kscw.ch</span>
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+          </a>
         </nav>
 
         {/* Divider */}

@@ -7,6 +7,7 @@ import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useCollection } from '../../lib/query'
 import { useMyAbsences } from '../../hooks/useMyCoveringAbsence'
 import { fetchSeasons } from '../../lib/api'
+import { CLUB_WEBSITE_URL } from '../../lib/clubWebsite'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotificationsContext } from '../../hooks/NotificationsContext'
 import { useSportPreference } from '../../hooks/useSportPreference'
@@ -41,7 +42,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus, Globe, ExternalLink } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { gameNumberLabel } from '../../utils/leagueShort'
@@ -553,6 +554,18 @@ export default function HomePage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {t('subtitle')}
         </p>
+        {/* Public club website — a new tab (in a PWA, the system browser). */}
+        <a
+          href={CLUB_WEBSITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t('nav:clubWebsite')}
+          className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-primary transition-colors hover:bg-accent dark:text-gold-400 sm:min-h-9"
+        >
+          <Globe className="h-4 w-4" />
+          kscw.ch
+          <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+        </a>
       </div>
 
       {/* Upcoming ticker — next 7 days across the user's own teams, admins
