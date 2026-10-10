@@ -113,3 +113,11 @@ See `CLAUDE.md` (Branches & Dev-First Workflow) and `INFRA.md` for the full flow
 
 - [KSCW Website](https://github.com/Lucanepa/kscw-website) — Public club website
 - [Directus API](https://directus.kscw.ch) — Backend API
+
+## License
+
+Copyright © KSC Wiedikon and contributors.
+
+Wiedisync is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). If you run a modified version as a network service, you must offer its source code to its users (AGPL §13).
+
+Not covered by this license: the KSC Wiedikon and Wiedisync names, logos and crests. They identify the club and may not be used for forks or derived apps.
