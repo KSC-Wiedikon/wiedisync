@@ -116,7 +116,9 @@ jobs:
       - name: fdroidserver
         run: |
           python3 -m venv "$RUNNER_TEMP/fdroid-venv"
-          "$RUNNER_TEMP/fdroid-venv/bin/pip" install --quiet fdroidserver==2.4.2
+          # androguard 4.x crashes parsing our v2/v3 signature block ('NoOverwriteDict'
+          # has no 'append'); 3.4.0a1 is what Debian ships with fdroidserver 2.4.2.
+          "$RUNNER_TEMP/fdroid-venv/bin/pip" install --quiet fdroidserver==2.4.2 androguard==3.4.0a1
           echo "$RUNNER_TEMP/fdroid-venv/bin" >> "$GITHUB_PATH"
 
       - name: Build the F-Droid repo
