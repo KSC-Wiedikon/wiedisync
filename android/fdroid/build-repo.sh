@@ -4,8 +4,9 @@
 #   android/fdroid/build-repo.sh <dir-with-release-apks> <out-dir>
 #
 # Every APK in <dir> becomes a version in the repo (CI passes all GitHub
-# release APKs, so older versions stay installable). Needs fdroidserver,
-# ANDROID_HOME, and the repo signing key: FDROID_KEYSTORE (path),
+# release APKs, so older versions stay installable). Needs fdroidserver
+# (Debian's package: its androguard is patched for current APKs, PyPI's is
+# not), keytool, and the repo signing key: FDROID_KEYSTORE (path),
 # FDROID_KEYSTORE_PASSWORD, FDROID_KEY_ALIAS. Writes <out-dir>/site/ — the
 # only thing to upload; the config holding the key password never leaves
 # <out-dir>/work/.
@@ -16,7 +17,7 @@ OUT=$2
 HERE=$(cd "$(dirname "$0")" && pwd)
 APP=ch.kscw.wiedisync
 
-: "${ANDROID_HOME:?}" "${FDROID_KEYSTORE:?}" "${FDROID_KEYSTORE_PASSWORD:?}" "${FDROID_KEY_ALIAS:?}"
+: "${FDROID_KEYSTORE:?}" "${FDROID_KEYSTORE_PASSWORD:?}" "${FDROID_KEY_ALIAS:?}"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/work/repo" "$OUT/work/metadata/$APP" "$OUT/site"
@@ -42,12 +43,14 @@ repo_description: >-
   Apps of KSC Wiedikon, the volleyball and basketball club in Zurich.
 repo_icon: icon.png
 archive_older: 0
-sdk_path: $ANDROID_HOME
 keystore: $FDROID_KEYSTORE
 repo_keyalias: $FDROID_KEY_ALIAS
 keystorepass: $FDROID_KEYSTORE_PASSWORD
 keypass: $FDROID_KEYSTORE_PASSWORD
 EOF
+
+# Without an SDK, fdroid uses the apksigner on PATH (Debian: apt install apksigner).
+[ -n "${ANDROID_HOME:-}" ] && echo "sdk_path: $ANDROID_HOME" >> "$WORK/config.yml"
 
 (cd "$WORK" && fdroid update --rename-apks --use-date-from-apk)
 
