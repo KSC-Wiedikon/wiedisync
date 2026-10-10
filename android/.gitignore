@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+# Signing material never enters the repo — CI reads it from secrets,
+# local builds from ~/.config/wiedisync-android/ (see android/README.md).
+*.jks
+*.keystore
+*.p12
+keystore.properties

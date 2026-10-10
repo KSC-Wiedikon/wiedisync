@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light/dark parents make the page's prefers-color-scheme follow the system. -->
+    <style name="Theme.Wiedisync" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/brand</item>
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorAccent">@color/brand</item>
+    </style>
+</resources>

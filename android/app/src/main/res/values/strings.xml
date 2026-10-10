@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Wiedisync</string>
+    <string name="saved_to_downloads">Saved to Downloads: %1$s</string>
+    <string name="save_failed">Could not save the file</string>
+    <string name="downloading">Downloading…</string>
+    <string name="channel_general">Notifications</string>
+    <string name="offline_title">Can\'t reach Wiedisync</string>
+    <string name="offline_body">Check your internet connection and try again.</string>
+    <string name="retry">Try again</string>
+    <string name="no_app">No app found to open this link</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="saved_to_downloads">In Downloads gespeichert: %1$s</string>
+    <string name="save_failed">Die Datei konnte nicht gespeichert werden</string>
+    <string name="downloading">Wird heruntergeladen…</string>
+    <string name="channel_general">Benachrichtigungen</string>
+    <string name="offline_title">Wiedisync ist nicht erreichbar</string>
+    <string name="offline_body">Prüfe deine Internetverbindung und versuche es erneut.</string>
+    <string name="retry">Erneut versuchen</string>
+    <string name="no_app">Keine App gefunden, die diesen Link öffnen kann</string>
+</resources>
