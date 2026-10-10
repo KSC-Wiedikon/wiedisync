@@ -49,6 +49,12 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-10-10 — deliberate WIDENING (not a hardening): push endpoints on `ntfy.sh` are accepted
+
+The Android app (a WebView, no Push API) registers through UnifiedPush, and the user's distributor app picks the push server. Sunup lands on Mozilla autopush (`.push.services.mozilla.com`, already allowed); the ntfy app's default server is `ntfy.sh`, now added to both allowlists — `PUSH_ENDPOINT_ALLOWED_SUFFIXES` (`kscw-endpoints/src/web-push.js`, checked on `/web-push/subscribe`) and `ALLOWED_PUSH_HOSTS` (`workers/push/src/index.ts`, checked before every outbound push; needs its own `wrangler deploy`).
+- **Self-hosted UnifiedPush servers stay rejected on purpose.** A user-chosen ntfy host is an arbitrary host, which is exactly the SSRF primitive these lists exist to refuse (2026-05-12). The app shows "This push server is not supported" and points to Sunup or ntfy instead. Do not "fix" this by widening to a pattern.
+- `ntfy.sh` is matched as the exact host or a dot-suffixed subdomain, never a substring (`evilntfy.sh`, `ntfy.sh.evil.example` refuse). Tests: `kscw-endpoints/src/__tests__/web-push-subscribe.test.js`.
+
 ### 2026-10-09 — SQL workspace write mode needs a server-checked PIN
 
 Migration 402 made full-scope board members Directus admins, which opened `/admin/sql` — including write mode, i.e. arbitrary DML/DDL on prod — to them. Write mode now also requires a 6-digit PIN:

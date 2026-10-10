@@ -132,11 +132,14 @@ function rateLimitOk(key: string): boolean {
 // dot-suffixed subdomain — anchored, not a substring match).
 // FCM is pinned to its own host: `googleapis.com` as a suffix admitted every
 // Google API (storage, sheets, …) as a fetch target (2026-09-28 audit).
+// Keep in step with PUSH_ENDPOINT_ALLOWED_SUFFIXES (kscw-endpoints/web-push.js):
+// a host stored there but missing here is a subscription that never delivers.
 const ALLOWED_PUSH_HOSTS = [
   'fcm.googleapis.com',
-  'push.services.mozilla.com',
+  'push.services.mozilla.com', // also the Sunup UnifiedPush distributor (Android app)
   'push.apple.com',
   'notify.windows.com',
+  'ntfy.sh',                   // UnifiedPush via the ntfy app's default server (2026-10-10)
 ]
 
 function isAllowedPushEndpoint(endpoint: string): boolean {
@@ -196,7 +199,9 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
     try {
       const response = await sendWebPush(sub, payload, env)
 
-      if (response.status === 201) {
+      // RFC 8030 says 201, but the UnifiedPush server spec has application
+      // servers accept any 2xx (ntfy's publish API answers 200).
+      if (response.ok) {
         result.sent++
       } else if (response.status === 404 || response.status === 410) {
         // Subscription expired or unsubscribed — caller should delete it
