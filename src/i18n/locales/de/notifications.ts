@@ -71,6 +71,8 @@ export default {
   pushErrorGeneric: 'Push-Dienst nicht erreichbar. Prüfe deine Browser-Einstellungen oder verwende Chrome/Firefox.',
   pushSubscribeFailed: 'Push-Benachrichtigungen konnten nicht aktiviert werden.',
   pushUnsubscribeFailed: 'Push-Benachrichtigungen konnten nicht deaktiviert werden.',
+  pushNoDistributor: 'Für Benachrichtigungen brauchst du eine kostenlose UnifiedPush-App. Installiere Sunup oder ntfy aus F-Droid und versuche es dann erneut.',
+  pushServerNotSupported: 'Dieser Push-Server wird nicht unterstützt. Bitte verwende Sunup oder ntfy als UnifiedPush-App.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} ungelesen',
   unreadShort_other: '{{count}} ungelesen',

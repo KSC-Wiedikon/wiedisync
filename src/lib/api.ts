@@ -20,6 +20,7 @@ import {
 // this one. Re-exported so existing `from './api'` call sites keep working.
 export { isSessionExpired } from './sessionError'
 import { isRefreshRejected } from './sessionError'
+import { hasNativeBridge, hasNativeFeature, nativeRequest, type NativePushState } from './nativeBridge'
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -212,17 +213,32 @@ export async function login(email: string, password: string) {
  * The server row is removed first (needs the session), then the browser side.
  * When acting for a household member, both the owner's and the acting member's
  * row are targeted — the subscription may have been registered as either.
+ * Inside the Android app the device is a UnifiedPush registration held by the
+ * app, not a PushManager one: same server POSTs, then the bridge drops it.
  */
 const LOGOUT_PUSH_TIMEOUT_MS = 3000
 
 async function unbindPushDevice(actingId: number | null): Promise<void> {
+  if (hasNativeBridge() && (await hasNativeFeature('push'))) {
+    const { subscription } = await nativeRequest<NativePushState>('push.state')
+    if (!subscription) return
+    await unsubscribePushEndpoint(subscription.endpoint, actingId)
+    await nativeRequest('push.unsubscribe').catch(() => undefined)
+    return
+  }
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
   // getRegistration(), not `.ready`: `.ready` never settles when no worker is
   // registered (dev, Safari private mode) and would stall the timeout.
   const reg = await navigator.serviceWorker.getRegistration()
   const sub = await reg?.pushManager?.getSubscription()
   if (!sub) return
-  const body = JSON.stringify({ endpoint: sub.endpoint })
+  await unsubscribePushEndpoint(sub.endpoint, actingId)
+  await sub.unsubscribe().catch(() => false)
+}
+
+/** Remove the server rows for `endpoint` — the owner's and, when acting, the acting member's. */
+async function unsubscribePushEndpoint(endpoint: string, actingId: number | null): Promise<void> {
+  const body = JSON.stringify({ endpoint })
   const post = (headers: Record<string, string>) => fetch(`${API_URL}/kscw/web-push/unsubscribe`, {
     method: 'POST',
     credentials: 'include',
@@ -232,7 +248,6 @@ async function unbindPushDevice(actingId: number | null): Promise<void> {
   const calls = [post({})]
   if (actingId != null) calls.push(post({ [ACTING_HEADER]: String(actingId) }))
   await Promise.allSettled(calls)
-  await sub.unsubscribe().catch(() => false)
 }
 
 /**

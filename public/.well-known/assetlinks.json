@@ -1,0 +1,18 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ch.kscw.wiedisync",
+      "sha256_cert_fingerprints": ["0D:79:B0:74:DE:19:FF:D0:87:E2:F5:56:C5:6D:09:F9:33:14:E8:28:D3:44:FC:F1:85:01:FB:DC:DE:9F:E2:38"]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ch.kscw.wiedisync.dev",
+      "sha256_cert_fingerprints": ["0D:79:B0:74:DE:19:FF:D0:87:E2:F5:56:C5:6D:09:F9:33:14:E8:28:D3:44:FC:F1:85:01:FB:DC:DE:9F:E2:38"]
+    }
+  }
+]
