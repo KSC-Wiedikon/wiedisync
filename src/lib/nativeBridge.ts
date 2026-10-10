@@ -19,7 +19,7 @@
  */
 import { captureApiError } from './sentry'
 
-export type NativeFeature = 'saveFile' | 'share' | 'push'
+export type NativeFeature = 'saveFile' | 'share' | 'push' | 'systemBars'
 
 /** A UnifiedPush registration, shaped like `PushSubscription.toJSON()`. */
 export interface NativePushSubscription {

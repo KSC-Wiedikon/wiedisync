@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initSentry } from './lib/sentry'
+import { startNativeSystemBars } from './lib/nativeSystemBars'
 import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow, stripCacheBustParam } from './lib/chunkReload'
 // Pre-boot watchdog handshake — see public/boot-watchdog.js.
 import { BootSignal } from './lib/BootSignal'
@@ -27,6 +28,8 @@ window.addEventListener('vite:preloadError', (e) => {
 })
 
 initSentry()
+// Android app: status + navigation bars in the page's colours (no-op elsewhere).
+void startNativeSystemBars()
 
 const root = createRoot(document.getElementById('root')!)
 

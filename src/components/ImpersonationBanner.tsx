@@ -21,6 +21,7 @@ export default function ImpersonationBanner({ topInset = false }: { topInset?: b
     <div
       className="relative z-30 flex shrink-0 items-center justify-center gap-3 border-b border-orange-300 bg-orange-50 px-4 py-1.5 text-xs font-medium text-orange-800 dark:border-orange-800/60 dark:bg-orange-950/60 dark:text-orange-200"
       style={topInset ? { paddingTop: 'calc(0.375rem + env(safe-area-inset-top, 0px))' } : undefined}
+      data-system-bar={topInset ? 'top' : undefined}
     >
       <Eye className="h-4 w-4 shrink-0" />
       <span className="truncate" title={t('impersonationBanner', { name })}>{t('impersonationBanner', { name })}</span>

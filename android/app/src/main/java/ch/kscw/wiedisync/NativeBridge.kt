@@ -6,6 +6,7 @@ import android.os.Looper
 import android.util.Base64
 import android.webkit.WebView
 import android.widget.Toast
+import androidx.core.graphics.toColorInt
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -21,6 +22,9 @@ import java.util.concurrent.Executors
  *   page → app   {id, type, …params}
  *   app  → page  {id, ok: true, result} | {id, ok: false, error, message?}
  *                {event: "push-endpoint", subscription | null}   (unsolicited)
+ *
+ * `ui.systemBars` {top, bottom: "#rrggbb"} paints the status and navigation
+ * bars in the page's edge colours (src/lib/nativeSystemBars.ts).
  *
  * The app can only answer a page that has written to it, so the site sends
  * `hello` first. Web side of the protocol: src/lib/nativeBridge.ts.
@@ -66,7 +70,7 @@ class NativeBridge(
                 JSONObject()
                     .put("platform", "android")
                     .put("appVersion", BuildConfig.VERSION_NAME)
-                    .put("features", JSONArray(listOf("saveFile", "share", "push"))),
+                    .put("features", JSONArray(listOf("saveFile", "share", "push", "systemBars"))),
             )
             "saveFile" -> saveFile(id, msg)
             "share" -> share(id, msg)
@@ -77,6 +81,7 @@ class NativeBridge(
                 PushStore.clear(activity)
                 ok(id, JSONObject().put("unsubscribed", true))
             }
+            "ui.systemBars" -> systemBars(id, msg)
             else -> fail(id, "unknown_type")
         }
     }
@@ -111,6 +116,20 @@ class NativeBridge(
         activity.startActivity(Intent.createChooser(send, null))
         ok(id, JSONObject().put("shown", true))
     }
+
+    // ── Window ───────────────────────────────────────────────────────────────
+
+    private fun systemBars(id: Int, msg: JSONObject) {
+        val top = parseHex(msg.str("top"))
+        val bottom = parseHex(msg.str("bottom"))
+        if (top == null || bottom == null) return fail(id, "invalid_color")
+        activity.setSystemBarColors(top, bottom)
+        ok(id, JSONObject().put("applied", true))
+    }
+
+    /** `#rrggbb` only: the page composites alpha itself, and the parser throws on anything odd. */
+    private fun parseHex(value: String): Int? =
+        if (HEX.matches(value)) value.toColorInt() else null
 
     // ── Push (UnifiedPush) ───────────────────────────────────────────────────
 
@@ -186,4 +205,8 @@ class NativeBridge(
 
     /** optString turns a JSON null into the string "null"; treat it as absent. */
     private fun JSONObject.str(key: String): String = if (isNull(key)) "" else optString(key)
+
+    private companion object {
+        val HEX = Regex("^#[0-9a-fA-F]{6}$")
+    }
 }

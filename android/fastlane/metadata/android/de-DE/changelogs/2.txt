@@ -1,0 +1,1 @@
+Status- und Navigationsleiste übernehmen jetzt die Farben der Seite, im hellen und im dunklen Modus, statt eines blauen Rahmens.
