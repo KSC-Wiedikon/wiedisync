@@ -31,7 +31,10 @@ let ctx: CanvasRenderingContext2D | null | undefined
 
 /**
  * Any CSS colour → Rgba, via a 1×1 canvas: computed styles serialise Tailwind
- * v4 colours as `oklch()` / `color(srgb …)` / `color-mix()` results, not rgb().
+ * v4 colours as `oklch()` / `oklab(… / 0.95)` etc., not rgb(). The colour is
+ * painted over black and over white and solved for colour and alpha, so only
+ * opaque pixels are read; a translucent pixel would come back with the
+ * rounding of the canvas's premultiplied storage.
  */
 function parseColor(css: string): Rgba | null {
   if (ctx === undefined) {
@@ -39,13 +42,20 @@ function parseColor(css: string): Rgba | null {
     canvas.width = canvas.height = 1
     ctx = canvas.getContext('2d', { willReadFrequently: true })
   }
-  if (!ctx) return null
-  ctx.clearRect(0, 0, 1, 1)
-  ctx.fillStyle = '#000'
-  ctx.fillStyle = css // an unparseable value is ignored and leaves black
-  ctx.fillRect(0, 0, 1, 1)
-  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
-  return [r, g, b, a / 255]
+  const c = ctx
+  if (!c) return null
+  const over = (base: string) => {
+    c.fillStyle = base
+    c.fillRect(0, 0, 1, 1)
+    c.fillStyle = css // an unparseable value is ignored: base stays, alpha comes out 0
+    c.fillRect(0, 0, 1, 1)
+    return c.getImageData(0, 0, 1, 1).data
+  }
+  const k = over('#000')
+  const w = over('#fff')
+  const a = 1 - (w[0] - k[0] + w[1] - k[1] + w[2] - k[2]) / (3 * 255)
+  if (a <= 0) return null
+  return [k[0] / a, k[1] / a, k[2] / a, Math.min(a, 1)]
 }
 
 function background(el: Element): Rgba | null {
