@@ -4,6 +4,7 @@
  */
 
 import { parseSqlTemporal, formatSqlTemporal, sqlTemporalToExcelDate } from './sqlCellDates'
+import { saveFile } from '../../../utils/saveFile'
 
 /** Text form of a cell. Temporal strings come out Swiss (`dd.mm.yyyy`,
  *  `dd.mm.yyyy HH:MM:SS`, instants in Europe/Zurich) so the file says what
@@ -188,17 +189,9 @@ export async function toXlsx(
   })
 }
 
+/** Kept for its many callers; the download itself goes through `saveFile`. */
 export function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // Defer the revoke: tearing down the object URL synchronously can abort the
-  // download of a larger binary blob in some browsers before it has started.
-  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  saveFile(blob, filename)
 }
 
 export function downloadText(

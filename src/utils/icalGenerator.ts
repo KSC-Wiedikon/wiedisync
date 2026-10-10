@@ -1,4 +1,5 @@
 import type { CalendarEntry } from '../types/calendar'
+import { saveFile } from './saveFile'
 
 /**
  * Generate a valid iCalendar (.ics) string from calendar entries.
@@ -96,14 +97,7 @@ export function downloadICal(
 ): void {
   const content = generateICal(entries)
   const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  saveFile(blob, filename)
 }
 
 // --- Internal helpers ---

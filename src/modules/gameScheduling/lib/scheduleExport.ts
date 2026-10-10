@@ -2,6 +2,7 @@ import { fetchAllItems, kscwApi } from '../../../lib/api'
 import type { Derby, GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
 import { fetchTeamAbsences } from '../../../hooks/teamAbsencesFetch'
 import { buildAbsencesByDate, type AbsentMember } from '../../spielplanung/utils/absencesByDate'
+import { saveFile } from '../../../utils/saveFile'
 
 // Shared schedule-export engine. Used by:
 //  - the all-teams export bar (ExcelExportButton, no teamId)
@@ -465,13 +466,7 @@ export function exportFilename(ext: string, teamName?: string | null): string {
 }
 
 export function downloadBytes(bytes: Uint8Array, mime: string, filename: string) {
-  const blob = new Blob([bytes as BlobPart], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(new Blob([bytes as BlobPart], { type: mime }), filename)
 }
 
 // Bytes → base64 (chunked to stay clear of the argument-count limit on btoa).

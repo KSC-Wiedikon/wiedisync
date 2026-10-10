@@ -4,6 +4,7 @@
  * stays unaffected for users who never open Export.
  */
 import { toCSV, downloadText } from '../modules/admin/utils/exportResults'
+import { saveFile } from './saveFile'
 
 export type RosterExportRow = {
   name: string
@@ -181,7 +182,7 @@ function shouldDebug(): boolean {
 export async function exportRosterImage(node: HTMLElement, meta: RosterExportMeta): Promise<void> {
   const debug = shouldDebug()
   const lib = await loadHtmlToImage()
-  const { toPng, toSvg } = lib
+  const { toBlob, toSvg } = lib
   if (document.fonts?.ready) await document.fonts.ready
 
   if (debug) {
@@ -205,24 +206,24 @@ export async function exportRosterImage(node: HTMLElement, meta: RosterExportMet
     } catch (svgErr) { console.error('toSvg threw:', svgErr) }
   }
 
-  const dataUrl = await toPng(node, {
+  // toBlob rather than toPng: saveFile takes a Blob, and a data: URL can't be
+  // fetch()ed back into one under our CSP (connect-src has no data:).
+  const blob = await toBlob(node, {
     pixelRatio: 2,
     backgroundColor: '#ffffff',
     cacheBust: true,
   })
 
   if (debug) {
-    console.log('toPng dataURL length:', dataUrl.length)
-    console.log('toPng head:', dataUrl.slice(0, 80))
+    console.log('toBlob size:', blob?.size ?? null)
+    console.log('toBlob type:', blob?.type ?? null)
     console.groupEnd()
   }
 
-  const a = document.createElement('a')
-  a.href = dataUrl
-  a.download = buildExportFilename(meta, 'png')
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+  if (!blob) {
+    throw new Error('Could not render the image — your browser ran out of memory for this roster. Try exporting fewer rows, or use CSV / a desktop browser.')
+  }
+  saveFile(blob, buildExportFilename(meta, 'png'))
 }
 
 /** Marks an element in the printable view as un-splittable. Every table row
@@ -318,5 +319,5 @@ export async function exportRosterPdf(node: HTMLElement, meta: RosterExportMeta)
     }
   }
 
-  pdf.save(buildExportFilename(meta, 'pdf'))
+  saveFile(pdf.output('blob'), buildExportFilename(meta, 'pdf'))
 }

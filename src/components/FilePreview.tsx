@@ -28,6 +28,7 @@ import {
 import { sanitizeUrl } from '../utils/sanitizeUrl'
 import { captureApiError } from '../lib/sentry'
 import { classify, safeBlobType, type PreviewKind } from '../utils/filePreviewKind'
+import { saveFile } from '../utils/saveFile'
 
 /** Extension for the download name when the caller's filename has none. */
 function extFor(mime: string, kind: PreviewKind): string {
@@ -72,7 +73,7 @@ export function FilePreview({
   frameClassName = 'h-[60vh] sm:h-[70vh]',
 }: FilePreviewProps) {
   const { t } = useTranslation('common')
-  const [preview, setPreview] = useState<{ url: string; kind: PreviewKind; ext: string } | null>(null)
+  const [preview, setPreview] = useState<{ url: string; file: Blob; kind: PreviewKind; ext: string } | null>(null)
   const [failed, setFailed] = useState(false)
   const src = url ? safeSource(url) : ''
 
@@ -89,12 +90,13 @@ export function FilePreview({
       // the iframe. These are user-uploaded documents.
       // Same for images: only a vetted raster type is ever stamped (SVG becomes
       // octet-stream — see filePreviewKind.ts, audit F67).
-      objectUrl = URL.createObjectURL(new Blob([bytes], { type: safeBlobType(mime) }))
+      const file = new Blob([bytes], { type: safeBlobType(mime) })
+      objectUrl = URL.createObjectURL(file)
       if (cancelled) {
         URL.revokeObjectURL(objectUrl)
         return
       }
-      setPreview({ url: objectUrl, kind, ext: extFor(mime || '', kind) })
+      setPreview({ url: objectUrl, file, kind, ext: extFor(mime || '', kind) })
     }
 
     void (async () => {
@@ -172,14 +174,14 @@ export function FilePreview({
             {t('filePreviewOpenTab')}
           </a>
           {filename && preview && (
-            <a
-              href={preview.url}
-              download={filename.includes('.') ? filename : `${filename}.${preview.ext}`}
-              className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary underline decoration-primary/40 hover:decoration-primary dark:text-brand-300"
+            <button
+              type="button"
+              onClick={() => saveFile(preview.file, filename.includes('.') ? filename : `${filename}.${preview.ext}`)}
+              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 text-sm text-primary underline decoration-primary/40 hover:decoration-primary dark:text-brand-300"
             >
               <Download className="h-3.5 w-3.5" />
               {t('filePreviewDownload')}
-            </a>
+            </button>
           )}
         </div>
       )}

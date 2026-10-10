@@ -3,6 +3,8 @@
 // swissqrbill/pdf draws onto pdfkit's self-contained browser bundle (lazy-loaded,
 // ~1.5 MB chunk, no node polyfills); output is a Blob download. True vector.
 
+import { saveFile } from '../../utils/saveFile'
+
 /** Minimal pdfkit surface we use (the standalone build ships no types). */
 interface PdfDoc {
   page: { height: number }
@@ -59,12 +61,7 @@ export async function downloadQrBillPdf(o: QrBillOptions): Promise<void> {
   doc.end()
   await done
 
-  const url = URL.createObjectURL(new Blob(chunks, { type: 'application/pdf' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = o.filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  saveFile(new Blob(chunks, { type: 'application/pdf' }), o.filename)
 }
 
 /** One invoice QR-bill in a batch (member pays the club). */
@@ -112,10 +109,5 @@ export async function downloadInvoiceBillsPdf(bills: InvoiceBill[], filename: st
   doc.end()
   await done
 
-  const url = URL.createObjectURL(new Blob(chunks, { type: 'application/pdf' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  saveFile(new Blob(chunks, { type: 'application/pdf' }), filename)
 }

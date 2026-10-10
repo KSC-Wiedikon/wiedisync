@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { saveFile } from '@/utils/saveFile'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import type { RefereeExpense, Game, Team, Member, BaseRecord } from '../../types'
@@ -89,12 +90,7 @@ export default function RefereeExpensesPage() {
     // (notes / team names are user-controllable).
     const csv = toCSV(header, rows)
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `referee-expenses${seasonFilter ? `-${seasonFilter}` : ''}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    saveFile(blob, `referee-expenses${seasonFilter ? `-${seasonFilter}` : ''}.csv`)
   }
 
   return (

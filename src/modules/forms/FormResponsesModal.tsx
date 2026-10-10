@@ -66,7 +66,7 @@ async function exportTablePdf(node: HTMLElement, filename: string) {
     pdf.addImage(dataUrl, 'PNG', 0, position, imgW, imgH)
     heightLeft -= pageH
   }
-  pdf.save(filename)
+  downloadBlob(pdf.output('blob'), filename)
 }
 
 export default function FormResponsesModal({ open, form, onClose }: Props) {

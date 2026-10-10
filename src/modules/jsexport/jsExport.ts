@@ -12,6 +12,7 @@
 
 import { kscwApi } from '../../lib/api'
 import { zurichParts } from '../../utils/season'
+import { saveFile } from '../../utils/saveFile'
 
 export interface JsActivityRow {
   type: string
@@ -89,14 +90,7 @@ export function downloadJsCsv(filename: string, headers: readonly string[], rows
     .map((r) => r.map(esc).join(';'))
     .join('\r\n')
   const blob = new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  saveFile(blob, filename.endsWith('.csv') ? filename : `${filename}.csv`)
 }
 
 /** English filename slug (per the exports-are-English convention). */

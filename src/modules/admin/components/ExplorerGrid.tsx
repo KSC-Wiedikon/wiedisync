@@ -1430,7 +1430,7 @@ export default function ExplorerGrid({
         styles: { fontSize: 7, cellPadding: 1.5 },
         headStyles: { fillColor: [74, 85, 162] }, // KSCW brand blue
       })
-      doc.save(exportName('pdf'))
+      downloadBlob(doc.output('blob'), exportName('pdf'))
     } catch {
       toast.error(t('admin:explorerGridExportFailed'))
     } finally {

@@ -4,6 +4,8 @@
  * three generators. The heavy libs (jspdf, exceljs, pptxgenjs) are dynamically
  * imported so they stay out of the main app bundle.
  */
+import { saveFile } from '../../utils/saveFile'
+
 export type ReportColType = 'text' | 'money'
 export interface ReportColumn { label: string; type: ReportColType }
 export interface ReportRow { cells: (string | number)[]; bold?: boolean }
@@ -28,13 +30,6 @@ const money = (n: number | string) => {
   return new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Object.is(x, -0) ? 0 : x)
 }
 const todayZ = () => new Date().toLocaleDateString('de-CH')
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
-}
 
 // ── Excel (exceljs) — real numeric cells with a currency format ──────────
 async function exportXlsx(report: FinanceReport, filename: string) {
@@ -75,7 +70,7 @@ async function exportXlsx(report: FinanceReport, filename: string) {
   }
   report.columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.type === 'money' ? 16 : 36 })
   const buf = await wb.xlsx.writeBuffer()
-  downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename + '.xlsx')
+  saveFile(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename + '.xlsx')
 }
 
 // ── PDF (jspdf + autotable) — one styled table per section ───────────────
@@ -109,7 +104,7 @@ async function exportPdf(report: FinanceReport, filename: string) {
   }
   doc.setFontSize(8); doc.setTextColor(150)
   doc.text(`wiedisync · ${todayZ()}`, M, doc.internal.pageSize.getHeight() - 22)
-  doc.save(filename + '.pdf')
+  saveFile(doc.output('blob'), filename + '.pdf')
 }
 
 // ── PowerPoint (pptxgenjs) — title slide + table slide ───────────────────
@@ -131,7 +126,7 @@ async function exportPptx(report: FinanceReport, filename: string) {
   }
   slide.addTable(rows as never, { x: 0.4, y: 0.8, w: 9.2, fontSize: 10, border: { type: 'solid', color: 'E5E7EB', pt: 0.5 }, autoPage: true, autoPageRepeatHeader: true })
   const blob = (await pptx.write({ outputType: 'blob' })) as Blob
-  downloadBlob(blob, filename + '.pptx')
+  saveFile(blob, filename + '.pptx')
 }
 
 export function exportReport(format: ExportFormat, report: FinanceReport, filename: string) {
