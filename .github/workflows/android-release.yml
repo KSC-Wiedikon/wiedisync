@@ -113,13 +113,32 @@ jobs:
           done
           ls -la "$RUNNER_TEMP/apks"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: ${{ runner.temp }}/apks
+          retention-days: 3
+
+  fdroid-repo:
+    needs: release
+    runs-on: ubuntu-latest
+    # Debian's fdroidserver: its androguard is patched for current APKs — the
+    # PyPI one crashes on ours (resources.arsc / v3 signature block).
+    container: debian:trixie
+    timeout-minutes: 15
+    steps:
       - name: fdroidserver
         run: |
-          python3 -m venv "$RUNNER_TEMP/fdroid-venv"
-          # androguard 4.x crashes parsing our v2/v3 signature block ('NoOverwriteDict'
-          # has no 'append'); 3.4.0a1 is what Debian ships with fdroidserver 2.4.2.
-          "$RUNNER_TEMP/fdroid-venv/bin/pip" install --quiet fdroidserver==2.4.2 androguard==3.4.0a1
-          echo "$RUNNER_TEMP/fdroid-venv/bin" >> "$GITHUB_PATH"
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            fdroidserver apksigner openjdk-21-jre-headless git ca-certificates > /dev/null
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: apks
 
       - name: Build the F-Droid repo
         env:
@@ -129,8 +148,25 @@ jobs:
         run: |
           export FDROID_KEYSTORE="$RUNNER_TEMP/fdroid-repo.p12"
           printf '%s' "$KEYSTORE_B64" | base64 -d > "$FDROID_KEYSTORE"
-          android/fdroid/build-repo.sh "$RUNNER_TEMP/apks" "$RUNNER_TEMP/fdroid"
+          android/fdroid/build-repo.sh apks "$RUNNER_TEMP/fdroid"
           rm -f "$FDROID_KEYSTORE"
+
+      # Only the public site leaves this job — never the work dir with the config.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fdroid-site
+          path: ${{ runner.temp }}/fdroid/site
+          retention-days: 3
+
+  deploy:
+    needs: fdroid-repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fdroid-site
+          path: site
 
       - uses: actions/setup-node@v4
         with:
@@ -144,5 +180,4 @@ jobs:
           BRANCH=$([ "$GITHUB_REF_TYPE" = tag ] && echo main || echo preview)
           # Direct Upload project; created on the first run, a no-op afterwards.
           npx wrangler@4 pages project create kscw-fdroid --production-branch main > /dev/null 2>&1 || true
-          npx wrangler@4 pages deploy "$RUNNER_TEMP/fdroid/site" \
-            --project-name kscw-fdroid --branch "$BRANCH" --commit-dirty=true
+          npx wrangler@4 pages deploy site --project-name kscw-fdroid --branch "$BRANCH" --commit-dirty=true
