@@ -10,7 +10,6 @@ import { fetchSeasons } from '../../lib/api'
 import { CLUB_WEBSITE_URL } from '../../lib/clubWebsite'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotificationsContext } from '../../hooks/NotificationsContext'
-import { useSportPreference } from '../../hooks/useSportPreference'
 import { formatTime, formatWeekday, formatDayMonthZurich, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -24,7 +23,6 @@ import { stripHtml } from '../../utils/stripHtml'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import NotificationPanel from '../../components/NotificationPanel'
-import { GuideHelpButton } from '../guide/GuideHelpButton'
 import GameDetailModal from '../games/components/GameDetailModal'
 import TrainingDetailModal from '../trainings/TrainingDetailModal'
 import EventDetailModal from '../events/EventDetailModal'
@@ -119,9 +117,11 @@ export default function HomePage() {
     try { localStorage.setItem(ibanNudgeKey, '1') } catch { /* ignore */ }
     setIbanNudgeBump((n) => n + 1)
   }
-  const { sport, setSport } = useSportPreference()
-  // Hide sport toggle for users who play only one sport
-  const showSportToggle = primarySport === 'both'
+  // No sport toggle on Home: two-sport members see both, single-sport members
+  // their own. Derived from primarySport, not the stored app-wide preference —
+  // with no toggle here, a stored 'vb'/'bb' would filter Home with no way out.
+  const sport: 'vb' | 'bb' | 'all' =
+    primarySport === 'volleyball' ? 'vb' : primarySport === 'basketball' ? 'bb' : 'all'
   const [selectedGame, setSelectedGame] = useState<ExpandedGame | null>(null)
   // Which section GameDetailModal opens expanded. Set by the referee-expense
   // nudge's "Record now", cleared on close so a plain row click opens collapsed.
@@ -496,47 +496,11 @@ export default function HomePage() {
       <InstallBanner />
       {isInitialLoading ? null : (<>
 
-      {/* Header row: shield (doubles as the "all sports" toggle, with the VB/BB
-          toggles beside it for two-sport members) · Wiedisync · kscw.ch. Three
-          equal-ish columns so the title stays centred whatever the sides hold. */}
+      {/* Header row: shield · Wiedisync · kscw.ch. Equal side columns keep the
+          title centred. */}
       <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pt-1">
-        <div className="flex min-w-0 items-center gap-0.5">
-          {showSportToggle ? (
-            <button
-              onClick={() => setSport('all')}
-              className={`shrink-0 rounded-lg p-0.5 transition-opacity ${sport === 'all' ? '' : 'opacity-60 hover:opacity-80'}`}
-              aria-label="Show all sports"
-            >
-              <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto sm:h-11" />
-            </button>
-          ) : (
-            <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto shrink-0 sm:h-11" />
-          )}
-          {/* VB/BB stacked beside the shield — side by side they push into the
-              centred title on a 360px phone. */}
-          {showSportToggle && (
-            <div className="flex flex-col">
-              <button
-                onClick={() => setSport('vb')}
-                className={`relative after:absolute after:-inset-x-2 after:-inset-y-0.5 after:content-[''] shrink-0 rounded-full p-1 transition-opacity ${sport === 'vb' || sport === 'all' ? '' : 'opacity-30 hover:opacity-50'}`}
-                aria-label="Volleyball"
-              >
-                <VolleyballIcon className="h-5 w-5" filled />
-              </button>
-              <button
-                onClick={() => setSport('bb')}
-                className={`relative after:absolute after:-inset-x-2 after:-inset-y-0.5 after:content-[''] shrink-0 rounded-full p-1 transition-opacity ${sport === 'bb' || sport === 'all' ? '' : 'opacity-30 hover:opacity-50'}`}
-                aria-label="Basketball"
-              >
-                <BasketballIcon className="h-5 w-5" filled />
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Wiedisync</h1>
-          <GuideHelpButton />
-        </div>
+        <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto sm:h-11" />
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Wiedisync</h1>
         <div className="flex justify-end">
           {/* Public club website — a new tab (in a PWA, the system browser). */}
           <a
@@ -544,7 +508,7 @@ export default function HomePage() {
             target="_blank"
             rel="noopener noreferrer"
             title={`${t('nav:clubWebsite')} (kscw.ch)`}
-            className="relative after:absolute after:-inset-2 after:content-[''] inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-md bg-gold-400 px-2.5 text-xs font-semibold text-brand-900 transition-colors hover:bg-gold-500"
+            className="relative inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-md bg-gold-400 px-2.5 text-xs font-semibold text-brand-900 transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-gold-500"
           >
             <Globe className="h-3.5 w-3.5" />
             kscw.ch
