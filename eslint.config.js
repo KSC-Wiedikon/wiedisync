@@ -12,7 +12,6 @@ export default defineConfig([
   globalIgnores([
     'dist',
     '.claude/**',
-    'src/components/aceternity/**',
     'src/components/magicui/**',
     'src/components/ui/**',
   ]),

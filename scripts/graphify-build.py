@@ -282,7 +282,6 @@ def build_bridge(nodes: list[dict]) -> tuple[list[dict], dict]:
 # --------------------------------------------------------------------------- #
 _PRETTY = {
     "src/components/ui": "shadcn UI primitives",
-    "src/components/aceternity": "Aceternity effects",
     "src/components/magicui": "Magic UI components",
     "src/i18n": "i18n locale bundles",
     "src/lib": "Directus API client",
