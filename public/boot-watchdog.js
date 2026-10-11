@@ -55,12 +55,22 @@
 
   // Never let a URL carry a secret into the log: reset links are
   // `/set-password?token=…`, invites `/signup?token=…`. Query strings and
-  // fragments are dropped wholesale and long hex path segments masked (same
-  // rule as redactTokens in src/lib/sentry.ts).
+  // fragments are dropped wholesale and token path segments masked (same
+  // rules as redactTokens in src/lib/sentry.ts): the base64url event share
+  // link `/e/<token>`, any whole ≥ 24-char segment that looks random (a
+  // hashed asset ends at `.js`, so it is not whole), and long hex runs.
+  function looksLikeToken(s) {
+    return (/\d/.test(s) && /[A-Za-z]/.test(s)) || (/[a-z]/.test(s) && /[A-Z]/.test(s))
+  }
   function scrubUrl(u) {
     try {
       u = String(u).split('#')[0].split('?')[0]
-      return u.replace(/\/[0-9a-f]{16,}(?![0-9a-f])/gi, '/:token')
+      return u
+        .replace(/\/(e|public\/events)\/[A-Za-z0-9_-]+/g, '/$1/:token')
+        .replace(/\/([A-Za-z0-9_-]{24,})(?=[\/?#:;,'"`)\]\s]|$)/g, function (m, seg) {
+          return looksLikeToken(seg) ? '/:token' : m
+        })
+        .replace(/\/[0-9a-f]{16,}(?![0-9a-f])/gi, '/:token')
     } catch (e) { return '' }
   }
   function relative(u) { return scrubUrl(u).replace(window.location.origin, '') }
