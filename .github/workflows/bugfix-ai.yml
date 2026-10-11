@@ -53,12 +53,12 @@ jobs:
           [[ "$ERROR_HASH" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "::error::Invalid error_hash"; exit 1; }
           printf '%s' "$ERROR_CONTEXT" | python3 -c "import sys,json; json.load(sys.stdin)" || { echo "::error::Invalid JSON in error_context"; exit 1; }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: dev
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -73,7 +73,7 @@ jobs:
         run: printf '%s' "$ERROR_CONTEXT" > .bugfix-context.json
 
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
@@ -124,7 +124,7 @@ jobs:
       # Uploaded BEFORE the build: the build runs model-edited code (package.json
       # scripts, vite.config.ts) and could otherwise rewrite the patch file. If the
       # build fails this job fails, so `publish` never runs and the artifact is unused.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bugfix-patch
           path: ${{ runner.temp }}/bugfix/
@@ -142,12 +142,12 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: dev
           persist-credentials: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: bugfix-patch
           path: ${{ runner.temp }}/bugfix
