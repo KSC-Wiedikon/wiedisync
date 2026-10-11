@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.27.1 — 2026-10-11
+
+### Fixed
+
+- Only the players on a game's squad and called-up guests can now enter its result or keep its live score.
+- Entering a result and live scoring are no longer available while answering for a linked family member.
+- Passwords and other sensitive form fields are never included in error reports.
+- ID documents saved for offline Show IDs are now removed from the device after the game and whenever you sign out.
+- Club sponsors can be added to a team page only by the board and the admins.
+
 ## v2.27.0 — 2026-10-02
 
 ### New

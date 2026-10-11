@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.27.0'
+const APP_VERSION = '2.27.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.27.1',
+    date: '11.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          "Only the players on a game's squad and called-up guests can now enter its result or keep its live score.",
+          "Entering a result and live scoring are no longer available while answering for a linked family member.",
+          "Passwords and other sensitive form fields are never included in error reports.",
+          "ID documents saved for offline Show IDs are now removed from the device after the game and whenever you sign out.",
+          "Club sponsors can be added to a team page only by the board and the admins.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.27.0',
     date: '02.10.2026',
