@@ -65,4 +65,20 @@ describe('validatePushEndpoint — UnifiedPush hosts', () => {
     expect(validatePushEndpoint('https://ntfy.sh.evil.example/upAbc').ok).toBe(false)
     expect(validatePushEndpoint('http://ntfy.sh/upAbc?up=1').ok).toBe(false)
   })
+
+  // 2026-10-11 audit: ntfy's publish API takes features in the URL, and the
+  // Worker POSTs to the stored endpoint as is.
+  it('accepts only a bare ntfy topic, optionally ?up=1', () => {
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc_12-x').ok).toBe(true)
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc?email=a@example.org').ok).toBe(false)
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc?up=1&call=%2B41790000000').ok).toBe(false)
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc?delay=1d').ok).toBe(false)
+    expect(validatePushEndpoint('https://ntfy.sh/upAbc/publish').ok).toBe(false)
+    expect(validatePushEndpoint('https://ntfy.sh/').ok).toBe(false)
+    expect(validatePushEndpoint('https://user:pw@ntfy.sh/upAbc').ok).toBe(false)
+  })
+
+  it('leaves the query of other providers alone (WNS carries its token there)', () => {
+    expect(validatePushEndpoint('https://db5p.notify.windows.com/w/?token=AwYAAAB').ok).toBe(true)
+  })
 })
