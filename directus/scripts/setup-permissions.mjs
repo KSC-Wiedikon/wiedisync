@@ -458,6 +458,57 @@ async function auditAdministratorRole(roleMap) {
 }
 
 /**
+ * §3e (report-only, audit 2026-10-11): two ways to hold a privileged policy that
+ * §3b/§3c never look at.
+ *   1. A login on `Superuser` / `Sport Admin` whose members.role does not justify
+ *      it (resolveDirectusRole only runs on items-API writes; a raw-SQL role edit
+ *      or a hand-picked role in the Directus UI is never corrected — prod had a
+ *      member with no app role on Sport Admin).
+ *   2. A USER-level directus_access row on a policy that is not managed per user.
+ *      It survives every role change, so a demoted admin would keep admin_access
+ *      through it — and no role-based view shows it (SECURITY.md gotcha 13).
+ * Never revokes; same non-fatal rule as §3c.
+ */
+const PER_USER_POLICIES = new Set(['KSCW Team Responsible', 'KSCW Terminplanung', 'KSCW Finance', 'KSCW Spielplaner', 'KSCW Vorstand'])
+const SERVICE_POLICY_HOLDERS = { 'KSCW LedBox Publisher': new Set(['ledbox-board@kscw.ch']) }
+const ROLE_NEEDS_APP_ROLE = { Superuser: ['admin', 'superuser'], 'Sport Admin': ['vb_admin', 'bb_admin', 'admin', 'superuser'] }
+
+async function auditPrivilegedAccess(roleMap) {
+  const issues = []
+  for (const [roleName, needs] of Object.entries(ROLE_NEEDS_APP_ROLE)) {
+    const roleId = roleMap[roleName]
+    if (!roleId) continue
+    const users = await api('GET', `/users?filter[role][_eq]=${roleId}&filter[status][_eq]=active&fields=id,email&limit=-1`) || []
+    if (!users.length) continue
+    const ids = users.map(u => encodeURIComponent(u.id)).join(',')
+    const members = await api('GET', `/items/members?filter[user][_in]=${ids}&fields=id,user,role&limit=-1`) || []
+    const byUser = Object.fromEntries(members.map(m => [m.user, m]))
+    for (const u of users) {
+      const m = byUser[u.id]
+      const app = Array.isArray(m?.role) ? m.role : []
+      if (!app.some(r => needs.includes(r))) {
+        issues.push(`${roleName} held by ${m ? `member ${m.id}` : u.email} with app role [${app.join(', ')}] — needs one of ${needs.join('/')}`)
+      }
+    }
+  }
+  const rows = await api('GET', '/access?filter[user][_nnull]=true&fields=id,user.id,user.email,policy.name,policy.admin_access&limit=-1') || []
+  for (const r of rows) {
+    const name = r.policy?.name
+    if (!name || PER_USER_POLICIES.has(name)) continue
+    const email = String(r.user?.email || '').toLowerCase()
+    if (SERVICE_POLICY_HOLDERS[name]?.has(email)) continue
+    issues.push(`user-level "${name}"${r.policy?.admin_access ? ' (admin_access!)' : ''} on ${r.user?.email || r.user?.id} — access row ${r.id}`)
+  }
+  if (!issues.length) {
+    console.log('  ✓ No unjustified Superuser/Sport Admin holders, no stray user-level policy rows')
+    return
+  }
+  console.warn(`  ⚠ ${issues.length} privileged access row(s) no code path grants:`)
+  for (const i of issues) console.warn(`      ${i}`)
+  console.warn('    Fix by hand (Directus UI or SQL + a user_logs row); this pass never revokes.')
+}
+
+/**
  * Fully remove a legacy/orphan policy by name: detach it from every role/user
  * (directus_access), delete its permission rows, then delete the policy.
  * Idempotent — a no-op once the policy is gone. Used to retire the old
@@ -1487,6 +1538,14 @@ async function main() {
     console.warn(`  ⚠ Folder audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
   }
 
+  // ── 3e. Audit privileged access outside the role model (report-only) ──
+  console.log('\n3e. Auditing privileged role holders + user-level policy rows...')
+  try {
+    await auditPrivilegedAccess(roleMap)
+  } catch (e) {
+    console.warn(`  ⚠ Privileged-access audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
+  }
+
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
   console.log('\n4. Clearing old permissions...')
@@ -1626,9 +1685,9 @@ async function main() {
     await setPerm(PUBLIC_POLICY, 'feedback', 'create', null,
       ['type', 'title', 'description', 'source', 'source_url', 'status', 'name', 'email', 'screenshot', 'screenshots'])
 
-    // Mixed tournament signups — public create (kscw-website form, validated by Turnstile hook)
-    await setPerm(PUBLIC_POLICY, 'mixed_tournament_signups', 'create', null,
-      ['name', 'email', 'sex', 'position_1', 'position_2', 'position_3', 'teams', 'notes', 'is_member', 'member_id'])
+    // (Mixed tournament signups: the public create row is gone — the table was
+    // dropped in migration 014, and an anonymous create grant on a name somebody
+    // might reuse is a latent hole. Audit 2026-10-11.)
 
     // Files — an ALLOW-list since 2026-09-28 (audit F01, Critical). The rule
     // used to be `folder IS NULL` on the theory that "a folder assignment ===
