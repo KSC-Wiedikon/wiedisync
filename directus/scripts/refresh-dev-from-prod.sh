@@ -15,7 +15,7 @@
 #      as the psql superuser, so such a function would too (security review
 #      2026-10-11, H5). Re-checked on prod right before the dump and on the
 #      fresh clone before its first UPDATE. Allowed owners:
-#      KSCW_PREFLIGHT_ALLOWED_OWNERS (comma-separated), default supabase_admin.
+#      KSCW_PREFLIGHT_ALLOWED_OWNERS (comma-separated), default supabase_admin,postgres.
 #   1. Capture dev's service-account creds (admin@ / cron-service@ passwords +
 #      static tokens) so dev automation keeps working after the clone.
 #   2. Safety-dump the current dev DB to /data/backups (recoverable rollback);
@@ -69,7 +69,7 @@ PREFLIGHT_FILE=directus/scripts/preflight-no-foreign-functions.sql
 PREFLIGHT_B64=$(base64 -w0 "$PREFLIGHT_FILE")
 # Same default and validation as preflight-no-foreign-functions.mjs. It travels
 # as a positional argument through ssh's remote shell, so plain names only.
-PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin}
+PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin,postgres}
 if ! [[ "$PREFLIGHT_OWNERS" =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]] \
    || [[ ",$PREFLIGHT_OWNERS," =~ ,directus_(prod|dev), ]]; then
   echo "KSCW_PREFLIGHT_ALLOWED_OWNERS='$PREFLIGHT_OWNERS' is not a list of plain role names (or names a Directus role)" >&2
