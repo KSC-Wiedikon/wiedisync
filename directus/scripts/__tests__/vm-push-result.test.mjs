@@ -299,41 +299,37 @@ describe('the run itself (source checks — main() needs VM, which tests never t
   });
 });
 
-describe('dev-database write guard', () => {
+describe('fail-closed write guard (KSCW_EXTERNAL_WRITES)', () => {
   // VolleyManager has no staging: dev and prod authenticate against the same real Swiss
-  // Volley system. A dev "Report result" would file a real report. The worker therefore
-  // forces DRY_RUN whenever DB_DATABASE looks like the dev database.
+  // Volley system. A dev "Report result" would file a real report. The worker writes ONLY
+  // when spawnResultPush passes KSCW_EXTERNAL_WRITES=1, which it does only on prod
+  // (kscw-endpoints/src/external-accounts.js). Anything else is a dry run.
   // Re-imported per case because the flag is computed at module load.
   const loadWith = async (env) => {
     const saved = { ...process.env };
     Object.assign(process.env, env);
-    const mod = await import(`../vm-push-result.mjs?dev-guard=${encodeURIComponent(JSON.stringify(env))}`);
+    const mod = await import(`../vm-push-result.mjs?write-guard=${encodeURIComponent(JSON.stringify(env))}`);
     process.env = saved;
     return mod;
   };
 
-  test('the dev database name trips the guard', async () => {
-    const m = await loadWith({ DB_DATABASE: 'directus_kscw_dev', VM_RESULT_ALLOW_DEV_WRITE: '', DRY_RUN: '' });
-    assert.equal(m.isDryRun(), true, 'dev DB must force DRY_RUN');
+  test('no flag → dry run (fail closed), whatever DB_DATABASE says', async () => {
+    assert.equal((await loadWith({ KSCW_EXTERNAL_WRITES: '', DB_DATABASE: '', DRY_RUN: '' })).isDryRun(), true);
+    assert.equal((await loadWith({ KSCW_EXTERNAL_WRITES: '', DB_DATABASE: 'postgres', DRY_RUN: '' })).isDryRun(), true);
   });
 
-  test('the prod database name does not', async () => {
-    const m = await loadWith({ DB_DATABASE: 'postgres', VM_RESULT_ALLOW_DEV_WRITE: '', DRY_RUN: '' });
-    assert.equal(m.isDryRun(), false, 'prod DB must be allowed to write');
+  test('the flag from the spawner → a real write', async () => {
+    const m = await loadWith({ KSCW_EXTERNAL_WRITES: '1', DRY_RUN: '' });
+    assert.equal(m.isDryRun(), false);
   });
 
-  test('an explicit override unlocks a supervised dev write', async () => {
-    const m = await loadWith({ DB_DATABASE: 'directus_kscw_dev', VM_RESULT_ALLOW_DEV_WRITE: '1', DRY_RUN: '' });
-    assert.equal(m.isDryRun(), false, 'the override must be honoured');
-  });
-
-  test('the nomination override does NOT unlock result writes', async () => {
-    const m = await loadWith({ DB_DATABASE: 'directus_kscw_dev', VM_RESULT_ALLOW_DEV_WRITE: '', VM_NOMINATION_ALLOW_DEV_WRITE: '1', DRY_RUN: '' });
+  test('the old dev-DB override alone no longer unlocks a write', async () => {
+    const m = await loadWith({ KSCW_EXTERNAL_WRITES: '', DB_DATABASE: 'directus_kscw_dev', VM_RESULT_ALLOW_DEV_WRITE: '1', DRY_RUN: '' });
     assert.equal(m.isDryRun(), true);
   });
 
-  test('DRY_RUN=1 on prod is honoured', async () => {
-    const m = await loadWith({ DB_DATABASE: 'postgres', VM_RESULT_ALLOW_DEV_WRITE: '', DRY_RUN: '1' });
+  test('DRY_RUN=1 wins over the flag', async () => {
+    const m = await loadWith({ KSCW_EXTERNAL_WRITES: '1', DRY_RUN: '1' });
     assert.equal(m.isDryRun(), true);
   });
 });

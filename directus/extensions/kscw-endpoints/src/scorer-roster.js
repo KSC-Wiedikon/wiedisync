@@ -78,6 +78,7 @@
 import { writeUserLog } from './activity-log.js'
 import { loadVmCheck, runVmCheck, VM_CHECK_LEAD_MS } from './vm-sheet-check.js'
 import { isSvrzRcBlackout } from './vm-windows.js'
+import { refuseExternalOnDev } from './external-accounts.js'
 import { seasonForYmd } from './season.js'
 
 // SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
@@ -676,6 +677,8 @@ export function registerScorerRoster(router, { database, logger }) {
       if (!String(game.game_id ?? '').startsWith('vb_')) {
         return res.status(422).json({ error: 'Not a Volleymanager game', code: 'not_vm' })
       }
+      // Prod only (external-accounts.js): dev shares the VM login and would switch its role.
+      if (refuseExternalOnDev(res)) return
       if (isSvrzRcBlackout()) {
         return res.status(409).json({ error: 'Volleymanager is in use by the SVRZ sync — try again in a few minutes', code: 'vm_window' })
       }

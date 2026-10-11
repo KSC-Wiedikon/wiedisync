@@ -11,6 +11,8 @@
  *   DIRECTUS_URL                  — http://127.0.0.1:8055
  *   DIRECTUS_SYNC_EMAIL/PASSWORD  — sync admin (mints a bearer token)
  *   GAME_ID                       — games.id to file
+ *   KSCW_EXTERNAL_WRITES=1        — REQUIRED for a real write; without it this is a dry run.
+ *                                   Set only by the spawner, only on prod (external-accounts.js)
  *   DRY_RUN=1                     — build + log the payload, write NOTHING
  *
  * Writes back onto the game: vm_nomination_status / _list_id / _count /
@@ -43,12 +45,12 @@ const log = (...a) => console.log(new Date().toISOString(), '[vm-nom]', ...a);
 // Swiss Volley system with the same club credentials. So a dev cron left armed would
 // file real Einsatzlisten for real games — indistinguishable from prod doing it.
 //
-// Refuse to write from the dev database. `DB_DATABASE` is 'directus_kscw_dev' on dev
-// and 'postgres' on prod, and the hook forwards it to us. Set
-// VM_NOMINATION_ALLOW_DEV_WRITE=1 to deliberately override for a supervised test.
-const IS_DEV_DB = /dev/i.test(process.env.DB_DATABASE || '');
-const DEV_WRITE_ALLOWED = !!process.env.VM_NOMINATION_ALLOW_DEV_WRITE;
-const FORCED_DRY = IS_DEV_DB && !DEV_WRITE_ALLOWED;
+// FAIL CLOSED: write only when the spawner says so. The cron and the manual push pass
+// KSCW_EXTERNAL_WRITES=1 only on prod — or on dev with KSCW_ALLOW_EXTERNAL_ON_DEV=1 AND
+// VM_NOMINATION_ALLOW_DEV_WRITE=1, for a supervised test (kscw-endpoints/src/external-accounts.js).
+// A missing or renamed variable is a dry run, never a write. (Until 2026-10 this sniffed
+// DB_DATABASE for "dev" and so wrote whenever that variable was absent.)
+const FORCED_DRY = process.env.KSCW_EXTERNAL_WRITES !== '1';
 const DRY_RUN = !!process.env.DRY_RUN || FORCED_DRY;
 
 /** Exposed so the guard above is actually testable rather than merely asserted in a comment. */
@@ -280,8 +282,8 @@ export function buildListPairs(list, { nominations, officials }) {
 // ─── main ────────────────────────────────────────────────────────────
 async function main() {
   if (FORCED_DRY) {
-    log('DEV DATABASE — forcing DRY_RUN. VolleyManager has no staging, so a real write from '
-      + 'dev would file a real Einsatzliste. Set VM_NOMINATION_ALLOW_DEV_WRITE=1 to override.');
+    log('KSCW_EXTERNAL_WRITES not set — forcing DRY_RUN. VolleyManager has no staging, so only '
+      + 'the production spawner may write (external-accounts.js).');
   }
   await dlogin();
 

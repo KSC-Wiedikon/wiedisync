@@ -6,6 +6,7 @@
 
 import crypto from 'crypto'
 import { claimVmAccount, vmAccountHeldBy, VM_LEASE_MS } from './vm-account-lock.js'
+import { externalWritesEnv, refuseExternalOnDev, skipExternalJob } from './external-accounts.js'
 import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { SCHEDULING_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
@@ -291,6 +292,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       log.warn('VM push skipped: VM_USERNAME/VM_PASSWORD not set')
       return
     }
+    // Prod only (external-accounts.js): even the worker's dry run logs in to the
+    // shared VM account. Recorded on the booking so it does not sit at 'queued'.
+    if (skipExternalJob('terminplanung:vm-push', log)) {
+      await database('game_scheduling_bookings').where('id', bookingId)
+        .update({ vm_push_status: 'failed', vm_push_error: 'VolleyManager push is disabled on this server (production only)' })
+        .catch(() => {})
+      return
+    }
     if (!process.env.DIRECTUS_SYNC_EMAIL || !process.env.DIRECTUS_SYNC_PASSWORD) {
       log.warn('VM push skipped: DIRECTUS_SYNC_EMAIL/PASSWORD not set')
       return
@@ -335,6 +344,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
         BOOKING_ID: String(bookingId),
         ...(svrzId ? { FORCE_SVRZ_ID: String(svrzId) } : {}),
+        // The worker writes only with KSCW_EXTERNAL_WRITES=1 (prod) — VM has no staging.
+        ...externalWritesEnv('VM_GAME_ALLOW_DEV_WRITE'),
       }
       child = spawn('node', ['/directus/scripts/vm-push-game.mjs'], { env, detached: true, stdio: ['ignore', logOut, logErr] })
     } catch (e) {
@@ -4788,6 +4799,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   router.post('/admin/terminplanung/vm-push', async (req, res) => {
     try {
       if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+      if (refuseExternalOnDev(res)) return
       const { booking_id, svrz_persistence_id } = req.body || {}
       if (!booking_id) return res.status(400).json({ error: 'booking_id required' })
       const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
@@ -5515,6 +5527,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // already emits to Sentry via logCronError on non-zero exit.
   router.post('/admin/terminplanung/svrz-sync', async (req, res) => {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    if (refuseExternalOnDev(res)) return
     try {
       const { season_uuid, season_name } = req.body || {}
       // The spielplanung app authenticates via the .kscw.ch session cookie
@@ -6304,6 +6317,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (jar) return true
         if (vmBusy) return false
         try {
+          // Prod only (external-accounts.js) — falls back to the synced contacts.
+          if (skipExternalJob('terminplanung:invites-import', log)) return false
           const vm = await import('/directus/scripts/vm-client.mjs')
           if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return false
           if (!releaseVm) {

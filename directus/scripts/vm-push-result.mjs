@@ -19,6 +19,8 @@
  *                                   stored it (NOT re-read from provisional_sets_json: a
  *                                   submit landing mid-run must not change what we file)
  *   FORCE=1                       — report ours even though the opponent's report differs
+ *   KSCW_EXTERNAL_WRITES=1        — REQUIRED for a real write; without it this is a dry run.
+ *                                   Set only by the spawner, only on prod (external-accounts.js)
  *   DRY_RUN=1                     — every read + VM's validation, never the POST/PUT
  *
  * Writes back onto the game: vm_result_status / _error / _pushed_at / _report_id /
@@ -66,12 +68,12 @@ const log = (...a) => console.log(new Date().toISOString(), '[vm-result]', ...a)
 // file a real report for a real game — and in a 'bothteams' league possibly make a
 // real result official.
 //
-// Refuse to write from the dev database. `DB_DATABASE` is 'directus_kscw_dev' on dev
-// and 'postgres' on prod, and the endpoint forwards it to us. Set
-// VM_RESULT_ALLOW_DEV_WRITE=1 to deliberately override for a supervised test.
-const IS_DEV_DB = /dev/i.test(process.env.DB_DATABASE || '');
-const DEV_WRITE_ALLOWED = !!process.env.VM_RESULT_ALLOW_DEV_WRITE;
-const FORCED_DRY = IS_DEV_DB && !DEV_WRITE_ALLOWED;
+// FAIL CLOSED: write only when the spawner says so. spawnResultPush passes
+// KSCW_EXTERNAL_WRITES=1 only on prod — or on dev with KSCW_ALLOW_EXTERNAL_ON_DEV=1 AND
+// VM_RESULT_ALLOW_DEV_WRITE=1, for a supervised test (kscw-endpoints/src/external-accounts.js).
+// A missing or renamed variable is a dry run, never a write. (Until 2026-10 this sniffed
+// DB_DATABASE for "dev" and so wrote whenever that variable was absent.)
+const FORCED_DRY = process.env.KSCW_EXTERNAL_WRITES !== '1';
 const DRY_RUN = !!process.env.DRY_RUN || FORCED_DRY;
 
 /** Exposed so the guard above is actually testable rather than merely asserted in a comment. */
@@ -446,8 +448,8 @@ async function readVmGame(gameUuid) {
 // ─── main ────────────────────────────────────────────────────────────
 async function main() {
   if (FORCED_DRY) {
-    log('DEV DATABASE — forcing DRY_RUN. VolleyManager has no staging, so a real write from '
-      + 'dev would file a real result report. Set VM_RESULT_ALLOW_DEV_WRITE=1 to override.');
+    log('KSCW_EXTERNAL_WRITES not set — forcing DRY_RUN. VolleyManager has no staging, so only '
+      + 'the production spawner may write (external-accounts.js).');
   }
   await dlogin();
 

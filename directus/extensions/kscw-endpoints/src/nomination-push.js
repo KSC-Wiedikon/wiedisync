@@ -31,6 +31,7 @@
  */
 import { writeUserLog } from './activity-log.js'
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
+import { externalWritesEnv, refuseExternalOnDev } from './external-accounts.js'
 import { gameStartMs } from './scorer-roster.js'
 
 // ⚠ MIRROR of pickOfficials() in directus/scripts/vm-push-nomination.mjs — the
@@ -200,9 +201,8 @@ export function registerNominationPush(router, { database, logger }) {
         DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
         DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
         GAME_ID: String(gameId),
-        // Lets the worker refuse to write from the dev DB — VM has no staging.
-        DB_DATABASE: process.env.DB_DATABASE || '',
-        VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
+        // The worker writes only with KSCW_EXTERNAL_WRITES=1 (prod) — VM has no staging.
+        ...externalWritesEnv('VM_NOMINATION_ALLOW_DEV_WRITE'),
       },
     })
     child.unref()
@@ -274,6 +274,8 @@ export function registerNominationPush(router, { database, logger }) {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
       return res.status(503).json({ error: 'Volleymanager is not configured', code: 'vm_unconfigured' })
     }
+    // Prod only (external-accounts.js): even a dry run logs in to the shared account.
+    if (refuseExternalOnDev(res)) return
 
     // The reads below run before any claim is taken, so a DB error here has
     // nothing to hand back — but it must become a 500, not an unhandled
