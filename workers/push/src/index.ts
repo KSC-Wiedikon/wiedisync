@@ -143,15 +143,24 @@ const ALLOWED_PUSH_HOSTS = [
 ]
 
 function isAllowedPushEndpoint(endpoint: string): boolean {
+  let u: URL
   let host: string
   try {
-    const u = new URL(endpoint)
+    u = new URL(endpoint)
     if (u.protocol !== 'https:') return false
+    if (u.username || u.password) return false
     host = u.host.toLowerCase()
   } catch {
     return false
   }
-  return ALLOWED_PUSH_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+  if (!ALLOWED_PUSH_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false
+  // ntfy's publish API takes features in the URL (`?email=`, `?call=`, `?delay=`,
+  // `?attach=`). A UnifiedPush endpoint is one topic, optionally `?up=1` — nothing
+  // else is delivered to (2026-10-11 audit). Same rule in web-push.js.
+  if (host === 'ntfy.sh' || host.endsWith('.ntfy.sh')) {
+    return /^\/[A-Za-z0-9_-]{1,64}$/.test(u.pathname) && (u.search === '' || u.search === '?up=1')
+  }
+  return true
 }
 
 function isValidSubscription(sub: unknown): sub is PushSubscription {

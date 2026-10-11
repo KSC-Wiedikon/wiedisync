@@ -77,7 +77,18 @@ export function validatePushEndpoint(endpoint) {
   }
   const allowed = PUSH_ENDPOINT_ALLOWED_SUFFIXES.some(s => host === s.slice(1) || host.endsWith(s))
   if (!allowed) return { ok: false, error: 'endpoint host not allowed' }
+  if (u.username || u.password) return { ok: false, error: 'endpoint must not carry credentials' }
+  if (isNtfyHost(host) && !isNtfyTopicUrl(u)) return { ok: false, error: 'endpoint path not allowed' }
   return { ok: true }
+}
+
+// ntfy's publish API takes features in the URL — `?email=` mails anyone, `?call=`
+// phones a number, `?delay=`/`?attach=` — and the Worker POSTs to the stored URL as
+// is. A UnifiedPush endpoint is only ever one topic, optionally `?up=1`, so that is
+// all we store (2026-10-11 audit). Same rule in workers/push/src/index.ts.
+const isNtfyHost = (host) => host === 'ntfy.sh' || host.endsWith('.ntfy.sh')
+function isNtfyTopicUrl(u) {
+  return /^\/[A-Za-z0-9_-]{1,64}$/.test(u.pathname) && (u.search === '' || u.search === '?up=1')
 }
 
 // Fail loudly on missing VAPID config rather than silently falling back to a
