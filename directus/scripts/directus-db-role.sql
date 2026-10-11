@@ -22,6 +22,16 @@
 -- supabase_admin: `apply-migrations.mjs` does it after every applied batch, and
 -- the nightly dev refresh after it restores the prod clone. Functions keep their
 -- owner (none is SECURITY DEFINER, so triggers already run as the caller).
+--
+-- Also (migration 404, audit 2026-10-11 H4b): re-grants the SQL workspace's
+-- reader role kscw_sql_reader — membership for this env's login role, and
+-- SELECT on this database minus the credential tables/columns. This file holds
+-- the LIVING deny list; re-running it after every batch is what covers tables
+-- created after 404. A no-op (NOTICE) until 404 has created the role.
+
+-- This runs as the superuser, and the Directus role owns `public`: resolve
+-- nothing through it (a planted public.format() would otherwise be a way up).
+SET search_path = pg_catalog;
 
 SELECT set_config('kscw.directus_role', :'role', false) AS directus_role \gset
 
@@ -82,4 +92,75 @@ BEGIN
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO %I', r);
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO %I', r);
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO %I', r);
+
+  -- The SQL workspace's reader role (migration 404): SET ROLE into it only,
+  -- never inherit it — Directus itself does not use it.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kscw_sql_reader') THEN
+    EXECUTE format('GRANT kscw_sql_reader TO %I WITH INHERIT FALSE, SET TRUE', r);
+  END IF;
 END $$;
+
+-- ── Reader grants (kscw_sql_reader) — the living copy; migration 404 ran the
+--    same block once ────────────────────────────────────────────────────────
+DO $grant$
+DECLARE
+  -- No SELECT at all.
+  deny_tables constant text[] := ARRAY[
+    'directus_sessions', 'directus_shares',
+    'password_reset_tokens', 'email_verifications',
+    'identity_documents', 'identity_document_keys',
+    'game_vm_sheets'
+  ];
+  -- Bearer secrets whose names do not say so (table.column).
+  deny_columns constant text[] := ARRAY[
+    'directus_users.token', 'directus_settings.mapbox_key',
+    'members.ical_token',
+    'push_subscriptions.keys_auth', 'push_subscriptions.keys_p256dh',
+    'newsletter_subscribers.verify_token', 'newsletter_subscribers.unsubscribe_token'
+  ];
+  -- Any column of any table or view whose NAME says credential: directus_users
+  -- .password/.tfa_secret/.auth_data, directus_settings.*_api_key,
+  -- members.e2ee_private_key/.e2ee_kdf_salt, email_accounts.password_enc,
+  -- signup_tokens.token_hash — and the next one somebody adds.
+  deny_name_re constant text :=
+    '(^|_)(password|passwd|pwd|secret|private_?key|privkey|api_?key|kdf_salt|token_hash|auth_data|otp)s?(_|$)';
+  rel record;
+  cols text;
+  n_denied int;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kscw_sql_reader') THEN
+    RAISE NOTICE 'kscw_sql_reader does not exist (migration 404) — no reader grants';
+    RETURN;
+  END IF;
+
+  -- Start from nothing, so a table or column added to a deny list loses the
+  -- grant it had. Revoking a table privilege revokes its column privileges.
+  EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM kscw_sql_reader';
+  EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM kscw_sql_reader';
+  EXECUTE 'GRANT USAGE ON SCHEMA public TO kscw_sql_reader';
+
+  FOR rel IN
+    SELECT c.oid, c.relname
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+     ORDER BY c.relname
+  LOOP
+    CONTINUE WHEN rel.relname = ANY (deny_tables);
+    SELECT count(*) FILTER (WHERE x.denied),
+           string_agg(quote_ident(x.attname), ', ' ORDER BY x.attnum) FILTER (WHERE NOT x.denied)
+      INTO n_denied, cols
+      FROM (SELECT a.attname, a.attnum,
+                   (a.attname ~* deny_name_re OR (rel.relname || '.' || a.attname) = ANY (deny_columns)) AS denied
+              FROM pg_attribute a
+             WHERE a.attrelid = rel.oid AND a.attnum > 0 AND NOT a.attisdropped) x;
+    IF n_denied = 0 THEN
+      EXECUTE format('GRANT SELECT ON TABLE public.%I TO kscw_sql_reader', rel.relname);
+    ELSIF cols IS NOT NULL THEN
+      EXECUTE format('GRANT SELECT (%s) ON TABLE public.%I TO kscw_sql_reader', cols, rel.relname);
+    END IF;
+  END LOOP;
+
+  EXECUTE 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO kscw_sql_reader';
+  EXECUTE 'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO kscw_sql_reader';
+END $grant$;

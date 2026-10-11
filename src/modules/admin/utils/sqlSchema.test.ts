@@ -5,6 +5,8 @@ import {
   suggestSimilar,
   parseMissingIdentifier,
   didYouMean,
+  quoteIdent,
+  starterSelect,
   type SqlSchemaTable,
 } from './sqlSchema'
 
@@ -174,5 +176,27 @@ describe('didYouMean', () => {
 
   it('returns null when nothing is close enough', () => {
     expect(didYouMean('column "xyzzy_qqq" does not exist', QUERY, tables)).toBeNull()
+  })
+})
+
+describe('starterSelect', () => {
+  it('uses SELECT * on a fully readable table', () => {
+    expect(starterSelect({ name: 'teams', columns: [{ name: 'id' }, { name: 'name' }] }))
+      .toBe('SELECT * FROM teams LIMIT 100;')
+  })
+
+  it('names the readable columns where read mode hides credential columns', () => {
+    // members.ical_token / e2ee_private_key are not in the model at all; "*" would hit them.
+    expect(starterSelect({
+      name: 'members',
+      restricted: true,
+      columns: [{ name: 'id' }, { name: 'first_name' }, { name: 'user' }, { name: 'position' }],
+    })).toBe('SELECT id, first_name, "user", "position" FROM members LIMIT 100;')
+  })
+
+  it('quotes identifiers that are not plain lower-case names', () => {
+    expect(quoteIdent('Email')).toBe('"Email"')
+    expect(quoteIdent('a"b')).toBe('"a""b"')
+    expect(quoteIdent('vm_vb_spielplan_contact')).toBe('vm_vb_spielplan_contact')
   })
 })

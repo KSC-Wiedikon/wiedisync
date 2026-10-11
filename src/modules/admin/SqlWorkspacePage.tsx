@@ -18,7 +18,7 @@ import { API_URL } from '@/lib/api'
 import { usePrompt } from '@/components/ConfirmProvider'
 import CodeMirrorEditor from './components/CodeMirrorEditor'
 import ResultsTable from './components/ResultsTable'
-import { didYouMean, shortType, type DidYouMean, type SqlSchemaTable } from './utils/sqlSchema'
+import { didYouMean, shortType, starterSelect, type DidYouMean, type SqlSchemaTable } from './utils/sqlSchema'
 import { toCSV, toXlsx, copyAsTable, downloadBlob, downloadText } from './utils/exportResults'
 
 interface SchemaColumn {
@@ -34,6 +34,8 @@ interface SchemaColumn {
 }
 interface SchemaTable {
   name: string
+  /** Read mode cannot see some of its columns (credentials) — `SELECT *` fails. */
+  restricted?: boolean
   columns: SchemaColumn[]
 }
 interface ApiSchemaResponse {
@@ -328,8 +330,8 @@ export default function SqlWorkspacePage() {
     }
   }, [sql, writeMode, loading, recent, loadSchemaInto, prompt, t])
 
-  const insertTableRef = useCallback((name: string) => {
-    setSql((cur) => (cur.trim() ? cur : `SELECT * FROM ${name} LIMIT 100;`))
+  const insertTableRef = useCallback((table: SchemaTable) => {
+    setSql((cur) => (cur.trim() ? cur : starterSelect(table)))
     setSchemaSheetOpen(false)
   }, [])
 
@@ -473,7 +475,7 @@ export default function SqlWorkspacePage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => insertTableRef(tb.name)}
+                        onClick={() => insertTableRef(tb)}
                         title={t('sqlWorkspaceInsertSelect')}
                         className="font-mono text-[10px] text-primary"
                       >

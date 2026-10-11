@@ -7,12 +7,20 @@
  *   POST /admin/sql         — execute SQL: { sql, write_mode? } → { columns, rows, ... }
  *
  * Safety guarantees:
- *   - Auth: superuser only (directus_roles.name='Superuser')
- *   - Default mode = read-only: per-statement DML keyword detector + transaction
- *     is opened with `SET LOCAL TRANSACTION READ ONLY` and auto-rolled-back
+ *   - Auth: full admins only (`accountability.admin`)
+ *   - Both modes: statements that change session state on the pooled
+ *     connection (SET/RESET/DISCARD/LISTEN/…, transaction control, temp
+ *     tables) and functions that do (set_config, advisory locks, dblink,
+ *     query_to_xml & co.) are refused before anything runs — see
+ *     checkStatementPolicy(). So are functions, triggers, rules, roles,
+ *     grants and ownership changes: those belong in a reviewed migration.
+ *   - Default mode = read-only: leading-keyword allowlist, then a
+ *     `SET LOCAL TRANSACTION READ ONLY` transaction as the restricted role
+ *     `kscw_sql_reader` (no credential tables/columns) that is ALWAYS rolled
+ *     back, never committed (sql-reader.js)
  *   - write_mode=true: still wrapped in a transaction (commits on success), still
- *     superuser only, but DML/DDL allowed — and only with the 6-digit write PIN
- *     (`write_pin`), compared against the container env `SQL_WRITE_PIN`
+ *     admin only, DML and ordinary DDL allowed — and only with the 6-digit write
+ *     PIN (`write_pin`), compared against the container env `SQL_WRITE_PIN`
  *   - statement_timeout = 15s
  *   - Auto-LIMIT 1000 appended to single bare SELECTs without LIMIT
  *   - Every call audited to JSONL via writeErrorLog (event: 'sql_workspace')
@@ -22,6 +30,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { writeErrorLog } from './error-log.js'
 import { writeUserLog } from './activity-log.js'
 import { loadSchemaModel, invalidateSchemaCache } from './sql-schema.js'
+import { withReadOnlyReader } from './sql-reader.js'
 
 const STATEMENT_TIMEOUT_MS = 15000
 const DEFAULT_ROW_CAP = 1000
@@ -99,16 +108,18 @@ const WRITE_KEYWORDS = new Set([
 const READ_KEYWORDS = new Set(['SELECT', 'WITH', 'VALUES', 'SHOW', 'TABLE', 'EXPLAIN'])
 
 const IDENT_CHAR = /[A-Za-z0-9_$\u0080-￿]/
+const SPACE = /\s/
 
-/** Split SQL into statements at top-level `;`, ignoring those inside string
- *  literals (incl. E'…' backslash escapes and $tag$…$tag$ dollar quotes),
- *  identifiers, line comments, and NESTED block comments — the same lexing
- *  Postgres does. Any disagreement with Postgres is a way to hide a second
- *  statement from the read-only check, so an unterminated literal/comment
- *  throws instead of guessing. Returns trimmed non-empty statements. */
-export function splitStatements(sql) {
-  const out = []
-  let buf = ''
+/** Lex SQL into tokens the way Postgres does: string literals (incl. E'…'
+ *  backslash escapes and $tag$…$tag$ dollar quotes), quoted identifiers, line
+ *  comments and NESTED block comments are single tokens, so nothing inside
+ *  them is ever read as code. Any disagreement with Postgres is a way to hide
+ *  code from the guards below, so an unterminated literal/comment throws
+ *  instead of guessing. Token types: ws, comment, string, qident, word,
+ *  semicolon, other (one punctuation/operator character). Concatenating every
+ *  token's `text` gives back the input exactly. */
+export function lexSql(sql) {
+  const tokens = []
   let i = 0
   const n = sql.length
   const fail = () => {
@@ -117,6 +128,10 @@ export function splitStatements(sql) {
     err.code = 'unterminated'
     throw err
   }
+  const push = (type, end) => {
+    tokens.push({ type, text: sql.slice(i, end) })
+    i = end
+  }
   while (i < n) {
     const c = sql[i]
     const next = sql[i + 1]
@@ -124,9 +139,7 @@ export function splitStatements(sql) {
     // Line comment
     if (c === '-' && next === '-') {
       const nl = sql.indexOf('\n', i)
-      const end = nl === -1 ? n : nl + 1
-      buf += sql.slice(i, end)
-      i = end
+      push('comment', nl === -1 ? n : nl + 1)
       continue
     }
     // Block comment — Postgres nests them.
@@ -139,8 +152,7 @@ export function splitStatements(sql) {
         j++
       }
       if (depth !== 0) fail()
-      buf += sql.slice(i, j)
-      i = j
+      push('comment', j)
       continue
     }
     // E'…' escape string: backslash escapes the next char ('' still works too).
@@ -158,8 +170,7 @@ export function splitStatements(sql) {
         j++
       }
       if (!closed) fail()
-      buf += sql.slice(i, j)
-      i = j
+      push('string', j)
       continue
     }
     // Standard string (standard_conforming_strings = on: no backslash escapes).
@@ -176,8 +187,7 @@ export function splitStatements(sql) {
         j++
       }
       if (!closed) fail()
-      buf += sql.slice(i, j)
-      i = j
+      push('string', j)
       continue
     }
     // Quoted identifier
@@ -194,8 +204,7 @@ export function splitStatements(sql) {
         j++
       }
       if (!closed) fail()
-      buf += sql.slice(i, j)
-      i = j
+      push('qident', j)
       continue
     }
     // Dollar quote $tag$…$tag$ (not $1 params, not mid-identifier like a$b).
@@ -205,21 +214,46 @@ export function splitStatements(sql) {
         const tag = m[0]
         const close = sql.indexOf(tag, i + tag.length)
         if (close === -1) fail()
-        const end = close + tag.length
-        buf += sql.slice(i, end)
-        i = end
+        push('string', close + tag.length)
         continue
       }
     }
-    if (c === ';') {
+    if (c === ';') { push('semicolon', i + 1); continue }
+    if (SPACE.test(c)) {
+      let j = i + 1
+      while (j < n && SPACE.test(sql[j])) j++
+      push('ws', j)
+      continue
+    }
+    // A run of identifier characters. None of the constructs above can start
+    // inside the run: each needs a non-identifier character or a
+    // non-identifier predecessor, so the run ends exactly where the
+    // character-by-character scan would have found one.
+    if (IDENT_CHAR.test(c)) {
+      let j = i + 1
+      while (j < n && IDENT_CHAR.test(sql[j])) j++
+      push('word', j)
+      continue
+    }
+    push('other', i + 1)
+  }
+  return tokens
+}
+
+/** Split SQL into statements at top-level `;` (see lexSql — a `;` inside a
+ *  literal, identifier or comment is not a boundary). Returns trimmed
+ *  non-empty statements. */
+export function splitStatements(sql) {
+  const out = []
+  let buf = ''
+  for (const tok of lexSql(sql)) {
+    if (tok.type === 'semicolon') {
       const trimmed = buf.trim()
       if (trimmed) out.push(trimmed)
       buf = ''
-      i++
       continue
     }
-    buf += c
-    i++
+    buf += tok.text
   }
   const tail = buf.trim()
   if (tail) out.push(tail)
@@ -274,11 +308,201 @@ function shouldAutoLimit(stmt) {
   return !/\blimit\b\s+\d/i.test(stmt)
 }
 
+// ── Statement policy (both modes) ────────────────────────────────────────────
+// READ ONLY stops writes to tables, not everything that outlives a request:
+// knex hands the connection back to the pool afterwards, so a session-level
+// SET / set_config(…, false), an advisory lock or a LISTEN carried over into
+// whichever request — anyone's — drew that connection next. The DB guards
+// (kscw.publish_file, kscw.allow_junction_repoint, kscw.signup_slug_write,
+// kscw.allow_deactivated_at_edit) are exactly such settings (2026-10-11 audit,
+// H4a). Read mode now always rolls back, which undoes SET; these refusals cover
+// what a rollback does not (locks, terminated backends), write mode (which
+// commits), and SET ROLE's way back out of the reader role. They also keep
+// code — functions, triggers, rules, DO — out of the database: write mode runs
+// as the schema owner, and anything planted there later runs inside superuser
+// host tooling (migrations, the nightly dev refresh). Schema changes of that
+// kind belong in a reviewed migration (H5).
+//
+// Matching runs on lexSql() tokens, so string literals and comments never
+// match, quoted identifiers are unwrapped, and every part of a schema-qualified
+// name is checked. All names are lower-cased (an upper-case quoted name is a
+// different, nonexistent function — refusing it costs nothing).
+
+const MIGRATION_HINT = 'Functions, triggers, rules, roles, grants and ownership changes belong in a numbered migration ' +
+  '(directus/scripts/NNN-*.sql), where they are reviewed — code created here would later run inside superuser tooling.'
+/** Read mode: what a 42501 from the reader role means. */
+const CREDENTIAL_DENIED_HINT = 'Read mode cannot see passwords, tokens, 2FA secrets, private keys, sessions, shares, ' +
+  'reset/verification codes, identity documents or VM sheets. SELECT * fails on a table that has such a column ' +
+  '(directus_users, members, …) — list the columns you need instead; the schema sidebar shows only readable columns.'
+const POOLED_HINT = 'The workspace borrows a pooled database connection that later requests reuse, so nothing it runs may ' +
+  'leave session state behind.'
+
+const TX_CONTROL = 'each run is already exactly one transaction (read mode always rolls back, write mode commits once ' +
+  'at the end) — remove the transaction control'
+/** Leading keywords refused in both modes → why. */
+const SESSION_STATEMENTS = new Map([
+  ['set', 'changes a setting on the connection — read one with SHOW or current_setting()'],
+  ['reset', 'changes a setting on the connection — read one with SHOW or current_setting()'],
+  ['discard', 'resets session state on the connection'],
+  ['listen', 'subscribes the connection to notifications'],
+  ['unlisten', 'changes the connection\'s notification subscriptions'],
+  ['notify', 'sends a notification'],
+  ['load', 'loads a server library'],
+  ['copy', 'copies to or from the server — export from the result grid instead'],
+  ['prepare', 'creates a prepared statement or transaction that outlives the request'],
+  ['deallocate', 'drops prepared statements on the connection'],
+  ['execute', 'runs a prepared statement'],
+  ['begin', TX_CONTROL], ['start', TX_CONTROL], ['commit', TX_CONTROL], ['end', TX_CONTROL],
+  ['rollback', TX_CONTROL], ['abort', TX_CONTROL], ['savepoint', TX_CONTROL], ['release', TX_CONTROL],
+])
+
+/** Functions refused in both modes: [pattern, why]. */
+const BLOCKED_FUNCTIONS = [
+  [/^set_config$/, 'changes a setting on the connection'],
+  [/^pg_(try_)?advisory_/, 'takes an advisory lock that can outlive the request'],
+  [/^pg_(terminate|cancel)_backend$/, 'stops other database sessions'],
+  [/^pg_(reload_conf|rotate_logfile)$/, 'administers the server'],
+  [/_to_xml(schema|_and_xmlschema)?$/, 'runs SQL passed to it as text'],
+  [/^ts_(stat|rewrite)$/, 'runs SQL passed to it as text'],
+  [/^dblink/, 'opens connections to other databases'],
+  [/^lo_|^lo(read|write)$/, 'reads or writes large objects and server files'],
+  [/^pg_read_(binary_)?file$|^pg_ls_|^pg_stat_file$|^pg_file_/, 'reads or writes server files'],
+  [/^pg_notify$/, 'sends a notification'],
+  [/^pg_(create|drop|copy)_|^pg_(logical|replication)_/, 'administers replication'],
+  [/^pg_(switch_wal|promote|backup_start|backup_stop|start_backup|stop_backup|import_system_collations|log_backend_memory_contexts)$|^pg_stat_reset/, 'administers the server'],
+]
+
+/** CREATE / ALTER / DROP of these objects is refused in both modes. */
+const DDL_VERBS = new Set(['create', 'alter', 'drop'])
+/** Words between the verb and the object (`CREATE OR REPLACE TRUSTED LANGUAGE`,
+ *  `CREATE CONSTRAINT TRIGGER`, `ALTER DEFAULT PRIVILEGES`, `CREATE TEMP …`). */
+const DDL_MODIFIERS = new Set([
+  'or', 'replace', 'constraint', 'trusted', 'procedural', 'default',
+  'global', 'local', 'temp', 'temporary', 'unlogged', 'recursive',
+])
+const DDL_OBJECTS = new Set([
+  'function', 'procedure', 'routine', 'trigger', 'event', 'rule', 'aggregate',
+  'operator', 'cast', 'language', 'extension', 'transform', 'conversion',
+  'role', 'user', 'group', 'policy', 'privileges', 'owned', 'system', 'database',
+  'tablespace', 'server', 'foreign', 'publication', 'subscription', 'access', 'large',
+])
+
+function refusal(code, message, hint) {
+  return { code, message, hint }
+}
+
+/** A word or quoted identifier's name, lower-cased; null for anything else. */
+function tokenName(tok) {
+  if (tok.type === 'word') return tok.text.toLowerCase()
+  if (tok.type === 'qident') return tok.text.slice(1, -1).replace(/""/g, '"').toLowerCase()
+  return null
+}
+
+/**
+ * Refuse a single statement that would leave state behind on the pooled
+ * connection, reach outside the database, or plant code/privileges — in BOTH
+ * modes. Pure; exported for the unit test.
+ * @returns {null | { code: string, message: string, hint: string }}
+ */
+export function checkStatementPolicy(stmt) {
+  const raw = lexSql(stmt)
+
+  // U&"…" identifiers spell names with escapes (U&"set\005fconfig"); nothing
+  // legitimate needs one, so refuse it rather than decode it.
+  for (let k = 0; k + 2 < raw.length; k++) {
+    if (raw[k].type === 'word' && /[uU]$/.test(raw[k].text)
+      && raw[k + 1].type === 'other' && raw[k + 1].text === '&' && raw[k + 2].type === 'qident') {
+      return refusal('statement_not_allowed', 'Unicode-escaped identifiers (U&"…") are not allowed in the SQL workspace',
+        'Write the identifier plainly.')
+    }
+  }
+
+  // Significant tokens only: whitespace and comments dropped; strings kept as
+  // opaque placeholders so they never match a name.
+  const sig = raw.filter((t) => t.type !== 'ws' && t.type !== 'comment')
+  const isWord = (k, ...words) => sig[k]?.type === 'word' && words.includes(sig[k].text.toLowerCase())
+  const names = sig.map(tokenName).filter((v) => v !== null)
+
+  let lead = 0
+  while (sig[lead]?.type === 'other' && sig[lead].text === '(') lead++
+  const leadWord = sig[lead]?.type === 'word' ? sig[lead].text.toLowerCase() : ''
+
+  // SET CONSTRAINTS only defers FK checks to the end of this transaction.
+  // Every other SET form — SET LOCAL included — could switch the statement
+  // timeout, the READ ONLY mode or the reader role back off mid-run.
+  const setConstraints = leadWord === 'set' && isWord(lead + 1, 'constraints')
+  if (SESSION_STATEMENTS.has(leadWord) && !setConstraints) {
+    return refusal('statement_not_allowed',
+      `${leadWord.toUpperCase()} is not allowed in the SQL workspace: it ${SESSION_STATEMENTS.get(leadWord)}`, POOLED_HINT)
+  }
+  if (leadWord === 'declare' && names.includes('hold')) {
+    return refusal('statement_not_allowed', 'DECLARE … WITH HOLD is not allowed in the SQL workspace: the cursor outlives the request',
+      POOLED_HINT)
+  }
+  if (leadWord === 'do' || leadWord === 'reassign' || leadWord === 'import') {
+    return refusal('ddl_not_allowed', `${leadWord.toUpperCase()} is not allowed in the SQL workspace`, MIGRATION_HINT)
+  }
+
+  for (const name of names) {
+    for (const [re, why] of BLOCKED_FUNCTIONS) {
+      if (re.test(name)) {
+        return refusal('function_not_allowed', `Function "${name}" is not allowed in the SQL workspace: it ${why}`, POOLED_HINT)
+      }
+    }
+    if (/^pg_temp(_\d+)?$/.test(name)) {
+      return refusal('statement_not_allowed', 'Temporary objects are not allowed in the SQL workspace', POOLED_HINT)
+    }
+  }
+
+  // pg_settings has an UPDATE rule that calls set_config — it is SET by another
+  // name, and write mode commits it onto the pooled connection. (Read mode's
+  // READ ONLY refuses the rewritten query; refused there too for one rule.)
+  if (names.includes('pg_settings') && names.includes('update')) {
+    return refusal('statement_not_allowed', 'Updating pg_settings is not allowed in the SQL workspace: it changes settings on the connection',
+      POOLED_HINT)
+  }
+
+  for (let k = 0; k < sig.length; k++) {
+    // Temporary tables survive a commit on the pooled connection and are found
+    // before public tables of the same name by every later request.
+    if (isWord(k, 'temp', 'temporary') && isWord(k - 1, 'create', 'replace', 'local', 'global', 'into')) {
+      return refusal('statement_not_allowed', 'Temporary tables are not allowed in the SQL workspace: they outlive the request on the connection',
+        POOLED_HINT)
+    }
+    if (isWord(k, ...DDL_VERBS)) {
+      let j = k + 1
+      while (isWord(j, ...DDL_MODIFIERS)) j++
+      if (sig[j]?.type === 'word' && DDL_OBJECTS.has(sig[j].text.toLowerCase())) {
+        return refusal('ddl_not_allowed',
+          `${sig[k].text.toUpperCase()} ${sig[j].text.toUpperCase()} is not allowed in the SQL workspace`, MIGRATION_HINT)
+      }
+    }
+    if (isWord(k, 'enable', 'disable')) {
+      let j = k + 1
+      while (isWord(j, 'replica', 'always')) j++
+      if (isWord(j, 'trigger', 'rule')) {
+        return refusal('ddl_not_allowed',
+          `${sig[k].text.toUpperCase()} ${sig[j].text.toUpperCase()} is not allowed in the SQL workspace: triggers and rules are the database's guards`,
+          MIGRATION_HINT)
+      }
+    }
+    if (isWord(k, 'owner') && isWord(k + 1, 'to')) {
+      return refusal('ddl_not_allowed', 'Ownership changes (OWNER TO) are not allowed in the SQL workspace', MIGRATION_HINT)
+    }
+    if (isWord(k, 'grant', 'revoke', 'authorization')) {
+      return refusal('ddl_not_allowed', `${sig[k].text.toUpperCase()} is not allowed in the SQL workspace`, MIGRATION_HINT)
+    }
+  }
+  return null
+}
+
 // ── Write PIN ────────────────────────────────────────────────────────────────
 // Every full admin (since migration 402 that includes the full-scope board) can
 // open this page, so write mode asks for a PIN on top of admin_access. It lives
 // in the container env, never in git (the repo is public) and never in a table
-// (read mode can SELECT any table). Unset or malformed = write mode refused.
+// (read mode can SELECT nearly every table). Unset or malformed = write mode
+// refused. Write mode runs as the Directus login role, not kscw_sql_reader, so
+// the PIN is also what stands between an admin and the credential columns.
 // A 6-digit PIN is only as good as its attempt limit: PIN_MAX_FAILS wrong tries
 // lock that user out of write mode for PIN_LOCK_MS.
 const PIN_MAX_FAILS = 5
@@ -385,9 +609,23 @@ export function registerSqlWorkspace(router, ctx) {
       const statements = splitStatements(sqlText)
       if (statements.length === 0) return res.status(400).json({ error: 'no executable statements' })
 
-      // Reject writes in read-only mode (per-statement check) — fail before
-      // any execution so a partially-applied multi-statement script can't
-      // happen.
+      // Every check runs on every statement before anything executes, so a
+      // multi-statement script is refused whole, never half-applied.
+      // Session state, code and privileges: refused in BOTH modes.
+      for (let i = 0; i < statements.length; i++) {
+        const refused = checkStatementPolicy(statements[i])
+        if (refused) {
+          log.warn({ msg: 'SQL workspace statement refused', userId, code: refused.code, writeMode })
+          const err = new Error(refused.message)
+          err.status = 400
+          err.code = refused.code
+          err.hint = refused.hint
+          err.statementIndex = i
+          throw err
+        }
+      }
+
+      // Reject writes in read-only mode (per-statement check).
       if (!writeMode) {
         for (const stmt of statements) {
           const kw = leadingKeyword(stmt)
@@ -412,10 +650,7 @@ export function registerSqlWorkspace(router, ctx) {
       let totalRowCount = 0
       let truncated = false
 
-      await database.transaction(async (trx) => {
-        await trx.raw(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
-        if (!writeMode) await trx.raw('SET LOCAL TRANSACTION READ ONLY')
-
+      const runStatements = async (trx) => {
         for (let i = 0; i < statements.length; i++) {
           let stmt = statements[i]
           if (i === lastIdx && shouldAutoLimit(stmt)) {
@@ -436,6 +671,14 @@ export function registerSqlWorkspace(router, ctx) {
             wrapped.hint = pgErr?.hint ?? null
             wrapped.position = pgErr?.position ?? null
             wrapped.statementIndex = i
+            // Read mode runs as kscw_sql_reader, which has no SELECT on
+            // credential tables/columns — Postgres reports that as 42501.
+            if (!writeMode && pgErr?.code === '42501') {
+              wrapped.message = `${pgMessage} — the SQL workspace cannot read credential tables or columns`
+              wrapped.code = 'credential_column_denied'
+              wrapped.detail = pgMessage
+              wrapped.hint = CREDENTIAL_DENIED_HINT
+            }
             throw wrapped
           }
           // For non-SELECT statements, pg returns rowCount/command without
@@ -462,7 +705,18 @@ export function registerSqlWorkspace(router, ctx) {
             }
           }
         }
-      })
+      }
+
+      if (writeMode) {
+        // Commits when the handler resolves — the one mode meant to.
+        await database.transaction(async (trx) => {
+          await trx.raw(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
+          await runStatements(trx)
+        })
+      } else {
+        // READ ONLY, as kscw_sql_reader, and rolled back even on success.
+        await withReadOnlyReader(database, runStatements, { statementTimeoutMs: STATEMENT_TIMEOUT_MS })
+      }
 
       // Write mode may have been DDL — the cached schema model is stale now.
       if (writeMode) invalidateSchemaCache()
