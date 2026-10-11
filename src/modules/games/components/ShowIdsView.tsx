@@ -263,7 +263,8 @@ async function buildCard(
 /**
  * Re-encode the squad's stored documents that are still above WhatsApp size (idShrink.ts),
  * from the copies this reveal just decrypted. Superadmins only, and the server takes it
- * only from a Directus admin (or the owner): readers are carried forward, never widened
+ * only from a Directus admin (or the owner) who holds a key to the current document:
+ * readers are carried forward, never widened
  * (`recompress`, identityUpload.ts). Runs after the deck is built, one at a time; a no-op
  * once the squad is small. The device keeps its (old) cached copies — they still open.
  */
