@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.27.2 — 2026-10-12
+
+### Fixed
+
+- Basketball youth tournament days stay in the calendar when Basketplan's tournament page cannot be read, instead of disappearing.
+- A member added as co-coach or team responsible and removed again no longer keeps the free (Gratis) membership fee category. Every automatic change to the fee category is in the audit log.
+- Security hardening for push notifications, live updates and stored ID documents.
+
 ## v2.27.1 — 2026-10-11
 
 ### Fixed

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.27.1'
+const APP_VERSION = '2.27.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.27.2',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          "Basketball youth tournament days stay in the calendar when Basketplan's tournament page cannot be read, instead of disappearing.",
+          "A member added as co-coach or team responsible and removed again no longer keeps the free (Gratis) membership fee category. Every automatic change to the fee category is in the audit log.",
+          "Security hardening for push notifications, live updates and stored ID documents.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.27.1',
     date: '11.10.2026',
