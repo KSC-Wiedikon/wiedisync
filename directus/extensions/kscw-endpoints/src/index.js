@@ -52,7 +52,7 @@ import { registerPublicFeedback } from './public-feedback.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
-import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii, capLogged } from './error-log.js'
+import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii, scrubJsonString, redactUrlTokens, capLogged } from './error-log.js'
 import { registerStats } from './stats.js'
 import { registerHallenfinder } from './hallenfinder.js'
 import { registerRegistration } from './registration.js'
@@ -165,15 +165,11 @@ function validatePassword(password) {
 }
 
 // ── PII scrubbing for request body logging ─────────────────────
-const PII_KEYS = new Set(['email', 'password', 'phone', 'birthdate', 'first_name', 'last_name', 'token', 'otp', 'code', 'turnstile_token'])
-
+// The shared recursive scrubber. This used to be a shallow exact-key copy, so a
+// failing route's `new_password`, `current_password`, nested `e2ee.private_key`
+// or `ahv_nummer` went to the container log verbatim (security audit 2026-10, H2).
 function scrubBody(body) {
-  if (!body || typeof body !== 'object') return body
-  const safe = {}
-  for (const [k, v] of Object.entries(body)) {
-    safe[k] = PII_KEYS.has(k) ? '[REDACTED]' : v
-  }
-  return safe
+  return scrubPii(body)
 }
 
 // ── Structured error logging ───────────────────────────────────
@@ -264,10 +260,12 @@ function str(v, max) {
  * must not reach a 30-day log file just because the sender was out of date
  * (audit 2026-08-08, finding 14).
  *
- * ⚠ Keep the pattern in step with the frontend copy.
+ * The hex-only copy that lived here missed the base64url share tokens
+ * (`/e/<token>`, `/public/events/<token>`) — it is the error log's own redactor
+ * now, so there is one pattern set to keep in step with the frontend.
  */
 function redactTokens(v) {
-  return typeof v === 'string' ? v.replace(/\/([0-9a-f]{16,})(?![0-9a-f])/gi, '/:token') : v
+  return redactUrlTokens(v)
 }
 
 function capPayload(payload, max = 500) {
@@ -509,17 +507,29 @@ export default {
           action: str(body.action, 100),
           page: redactTokens(str(body.page, 300)),
           userAgent: str(body.userAgent, 300),
-          responseBody: typeof body.responseBody === 'string' ? body.responseBody.slice(0, 1000) : null,
+          // Scrubbed HERE, not trusted to the sender: an old cached bundle (or
+          // the kscw-website logger) scrubs less than the current one, and the
+          // pre-2026-10 client shipped `current_password` / `new_password` / the
+          // E2EE key straight through (security audit 2026-10, H2). Scrub
+          // before capping, so a cut can never land mid-way through a secret's
+          // redaction. Token redaction on the strings too: the exception message
+          // is `API <path>: <status>`, path tokens included.
+          responseBody: typeof body.responseBody === 'string'
+            ? redactTokens(scrubJsonString(body.responseBody.slice(0, 20_000))).slice(0, 1000)
+            : null,
           // Cap payload size — uncapped attacker-controlled payloads can fill
           // the JSONL log over time (30 req/min × big payload × 30 days).
           // The pre-boot watchdog (public/boot-watchdog.js) is the one caller
           // whose payload IS the finding — up to 20 resource timings that say
           // which asset stalled — so its `boot_*` events get 4 KB, still well
           // under writeErrorLog's 16 KB line ceiling.
-          payload: capPayload(body.payload, /^boot_[a-z]+$/.test(String(body.event)) ? 4000 : 500),
-          error: typeof body.error === 'string' ? body.error.slice(0, 1000) : null,
+          payload: capPayload(
+            typeof body.payload === 'string' ? scrubJsonString(body.payload.slice(0, 20_000)) : scrubPii(body.payload),
+            /^boot_[a-z]+$/.test(String(body.event)) ? 4000 : 500,
+          ),
+          error: typeof body.error === 'string' ? redactTokens(body.error.slice(0, 1000)) : null,
           type: typeof body.type === 'string' ? body.type.slice(0, 200) : null,
-          stack: typeof body.stack === 'string' ? body.stack.slice(0, 2000) : null,
+          stack: typeof body.stack === 'string' ? redactTokens(body.stack.slice(0, 2000)) : null,
         })
 
         res.status(204).end()

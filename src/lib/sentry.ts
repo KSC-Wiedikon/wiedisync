@@ -403,8 +403,11 @@ export function captureApiError(
     return
   }
 
-  // Scrub PII from payload before sending
-  const safePayload = context.payload ? scrubPii(context.payload) : undefined
+  // Scrub PII from payload + response before sending. Both copies: the JSONL
+  // entry and the console line (which Sentry's console breadcrumbs pick up) took
+  // the raw response body while only the Sentry context scrubbed it.
+  const safePayload = context.payload ? scrubValue(context.payload) : undefined
+  const safeResponse = context.responseBody ? scrubResponseBody(context.responseBody) : undefined
 
   Sentry.withScope((scope) => {
     scope.setTag('error.operation', context.operation)
@@ -418,7 +421,7 @@ export function captureApiError(
       endpoint: context.endpoint ?? null,
       method: context.method ?? null,
       status: context.status ?? null,
-      responseBody: context.responseBody ? scrubResponseBody(context.responseBody).slice(0, 2000) : null,
+      responseBody: safeResponse?.slice(0, 2000) ?? null,
       payload: safePayload ?? null,
       page: window.location.pathname,
     })
@@ -439,7 +442,7 @@ export function captureApiError(
       endpoint: context.endpoint,
       method: context.method,
       page: window.location.pathname,
-      response: context.responseBody?.slice(0, 500),
+      response: safeResponse?.slice(0, 500),
       payload: safePayload,
       error: err.message,
     },
@@ -456,7 +459,7 @@ export function captureApiError(
     endpoint: context.endpoint,
     method: context.method,
     status: context.status,
-    responseBody: context.responseBody?.slice(0, 1000),
+    responseBody: safeResponse?.slice(0, 1000),
     payload: safePayload,
     page: window.location.pathname,
     userAgent: navigator.userAgent,
@@ -595,19 +598,56 @@ export function clearBreadcrumbs() {
 const PII_FIELDS = new Set([
   'email', 'password', 'phone', 'birthdate', 'first_name', 'last_name',
   'address', 'iban', 'token', 'access_token', 'refresh_token', 'otp',
+  // Exact key only: `error_code` / `status_code` are diagnostics worth keeping,
+  // but a bare `code` is the e-mail OTP on /verify-email/confirm.
+  'code',
 ])
 
 /**
+ * Matched anywhere in the key once case and separators are gone, so
+ * `current_password`, `newPassword`, `e2ee_private_key` and `ahvNummer` all hit.
+ * Any key containing `e2ee` takes its whole value with it — that is how
+ * /change-password carries the re-wrapped private key and its salt.
+ */
+const PII_FRAGMENTS = [
+  'password', 'passwd', 'secret', 'token', 'ticket', 'cookie', 'authorization',
+  'privatekey', 'wrappedkey', 'apikey', 'e2ee',
+  'email', 'phone', 'iban', 'ahv', 'birth', 'geburt',
+  'address', 'adresse', 'street', 'strasse', 'postcode', 'postal',
+]
+
+/**
+ * Matched as a whole word only. As fragments these sit inside ordinary keys —
+ * `otp` in "footprint", `pin` in "mapping"/"shipping", `ort` in "sort"/"report" —
+ * and redacting those would blind the log for nothing.
+ */
+const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'zip', 'dob'])
+
+/**
+ * Whether a payload key holds something that must not reach Sentry or the JSONL log.
+ *
  * An exact-key set missed the prefixed variants the scheduling flow actually
  * sends — `proposer_email`, `contact_name`, `recipient_name` — so those reached
- * both sinks in full (finding 14). Suffix matching catches the family without
- * having to enumerate it.
+ * both sinks in full (finding 14). The suffix rules below fixed that family, but
+ * still let `current_password`, `new_password`, `private_key`, `salt`,
+ * `ahv_nummer`, `adresse`, `plz` and `ort` through: a failed /change-password
+ * shipped both plaintext passwords and the re-wrapped E2EE key to Sentry
+ * (security audit 2026-10, H2). Exported for the unit test.
  */
-function isPiiKey(key: string): boolean {
-  if (PII_FIELDS.has(key)) return true
+export function isPiiKey(key: string): boolean {
   const k = key.toLowerCase()
-  return k.endsWith('email') || k.endsWith('_name') || k.endsWith('phone')
-    || k.endsWith('token') || k.endsWith('iban')
+  if (PII_FIELDS.has(k)) return true
+  if (k.endsWith('_name') || /[a-z0-9]Name$/.test(key)) return true
+  const flat = k.replace(/[^a-z0-9]/g, '')
+  if (PII_FRAGMENTS.some((f) => flat.includes(f))) return true
+  // camelCase → words too, so `writePin` and `kdfSalt` split like `write_pin`.
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/)
+  return words.some((w) => PII_WORDS.has(w))
+}
+
+/** Recursively redact PII keys in a request body / parsed response. Exported for the unit test. */
+export function scrubPayload(val: unknown): unknown {
+  return scrubValue(val)
 }
 
 function scrubPii(obj: Record<string, unknown>): Record<string, unknown> {
@@ -638,7 +678,7 @@ function scrubResponseBody(body: string): string {
   try {
     const parsed = JSON.parse(body)
     if (parsed && typeof parsed === 'object') {
-      return JSON.stringify(scrubPii(parsed as Record<string, unknown>))
+      return JSON.stringify(scrubValue(parsed))
     }
   } catch { /* not JSON — fall through to regex scrub */ }
   // Plain-text fallback: redact email-like strings
@@ -681,6 +721,25 @@ const API_BASE = (typeof window !== 'undefined' && window.location.hostname === 
 // also appears mid-sentence in `API /team-invites/info/<token>: 400`, where the
 // next character is a colon. A `[/?#]|$` lookahead missed exactly that case.
 const TOKEN_IN_PATH = /\/([0-9a-f]{16,})(?![0-9a-f])/gi
+// Not every token is hex. The public event share page `/e/<token>` and its API
+// `/public/events/<token>` use `randomBytes(32).toString('base64url')`
+// (public-event-signup.js), which the hex rule above never matched.
+const SHARE_TOKEN_IN_PATH = /\/(e|public\/events)\/[A-Za-z0-9_-]+/g
+// …and a token minted later in some other alphabet must not need a new rule
+// first: any whole path segment of ≥ 24 url-safe chars that LOOKS random (see
+// looksLikeToken) goes too. Whole segment only — the run must end at a path or
+// sentence boundary, never at a `.`, so a hashed asset in a stack frame
+// (`/assets/SpielplanungAdminPage-Dk3j4kLm.js:1:2`) stays readable.
+const LONG_SEGMENT_IN_PATH = /\/([A-Za-z0-9_-]{24,})(?=[/?#:;,'"`)\]\s]|$)/g
+/**
+ * Random-looking, not a route slug. Slugs here are lowercase words and hyphens
+ * (`clubdesk-registration-status`); a 43-char base64url token has a digit, or
+ * both cases, with near certainty. A UUID also qualifies — the same "safe
+ * direction to err in for a log" as the hex rule. Exported for the unit test.
+ */
+export function looksLikeToken(segment: string): boolean {
+  return (/\d/.test(segment) && /[A-Za-z]/.test(segment)) || (/[a-z]/.test(segment) && /[A-Z]/.test(segment))
+}
 // Query-string credentials: the password-reset link is `/set-password?token=<jwt>`
 // (a JWT, not hex — TOKEN_IN_PATH never matched it), and OAuth / invite flows use
 // `code`, `key`, `invite`, `access_token`, `refresh_token`. Redact the VALUE of
@@ -688,7 +747,12 @@ const TOKEN_IN_PATH = /\/([0-9a-f]{16,})(?![0-9a-f])/gi
 const TOKEN_IN_QUERY = /([?&](?:token|t|code|key|invite|access_token|refresh_token)=)[^&#\s]+/gi
 export function redactTokens<T>(value: T): T {
   if (typeof value !== 'string') return value
+  // Whole-segment rules first: the hex rule stops where the hex run stops, so on
+  // a base64url token that happens to open with 16 hex chars it would leave the
+  // tail behind (`/e/:tokenXy…`) for the later rules to miss.
   return value
+    .replace(SHARE_TOKEN_IN_PATH, '/$1/:token')
+    .replace(LONG_SEGMENT_IN_PATH, (m, seg: string) => (looksLikeToken(seg) ? '/:token' : m))
     .replace(TOKEN_IN_PATH, '/:token')
     .replace(TOKEN_IN_QUERY, '$1[redacted]') as unknown as T
 }

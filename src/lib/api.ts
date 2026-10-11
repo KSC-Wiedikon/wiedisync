@@ -1013,8 +1013,42 @@ const EXPECTED_VALIDATION_ENDPOINTS = new Set([
   '/verify-email',
   '/verify-email/confirm',
   '/set-password',
+  // Wrong current password, a refused new one, unchanged — all inline in
+  // ChangePasswordModal. Was missing, so every typo filed an `api_error`.
+  '/change-password',
   '/register',
 ])
+
+// Endpoints whose request body IS a credential or key material: passwords
+// (/change-password carries the current AND the new one), the E2EE private key
+// and its salt (/identity/keys, and the re-wrap riding on /change-password), the
+// e-mail OTP, the SQL workspace's write PIN, a mailbox password, a push
+// subscription's keys. kscwApi attached the raw body to every error report it
+// filed, and the key scrubber only knew `password` exactly — so a 5xx on
+// /change-password put both plaintext passwords into Sentry and the 30-day JSONL
+// log (security audit 2026-10, H2). No scrubber is trusted with these: the body
+// is simply never attached. A 5xx still reports, without it.
+//
+// Prefix match — `/signup` covers `/signup-invites/redeem` (the invitee's
+// password), `/identity/` every identity route, `/admin/sql` `/admin/sql/ask`.
+const CREDENTIAL_ENDPOINT_PREFIXES = [
+  '/change-password',
+  '/set-password',
+  '/password-request',
+  '/verify-email',
+  '/check-email',
+  '/signup',
+  '/identity/',
+  '/admin/sql',
+  '/email-accounts',
+  '/web-push/',
+]
+
+/** True when a kscwApi path's body must never be attached to an error report. Exported for the unit test. */
+export function isCredentialEndpoint(path: string): boolean {
+  const p = path.split('?')[0]
+  return CREDENTIAL_ENDPOINT_PREFIXES.some((prefix) => p.startsWith(prefix))
+}
 
 // Same carve-out, matched on the response's `code` instead of the path, for
 // endpoints whose URL carries a record id (`/identity/document/:id`) and so can
@@ -1085,6 +1119,17 @@ const EXPECTED_ERROR_CODES = new Set([
   'not_participant',
   // Scorer duty self-claim (scorer-claim.js): already on a clashing seat.
   'duty_clash',
+  // Password flows (change-password.js, validatePassword in index.js): a rule the
+  // new password breaks, the same password again, a wrong current one, a client
+  // that did not send the re-wrapped key, an account that already has a password.
+  // Each has its own inline message — /signup-invites/redeem returns them too.
+  'password_too_short',
+  'password_too_common',
+  'password_weak',
+  'password_already_set',
+  'unchanged',
+  'bad_password',
+  'rewrap_required',
 ])
 
 /**
@@ -1103,6 +1148,8 @@ export async function kscwApi<T = unknown>(
 ): Promise<T> {
   const method = options?.method || 'GET'
   const anonymous = options?.anonymous === true
+  // What an error report may carry of the request — see CREDENTIAL_ENDPOINT_PREFIXES.
+  const reportPayload = isCredentialEndpoint(path) ? undefined : options?.body as Record<string, unknown> | undefined
   // `asOwner`: the session owner's own view even while acting (e.g. her
   // household list — as the child it would be empty).
   const asOwnerCall = options?.asOwner === true
@@ -1152,7 +1199,7 @@ export async function kscwApi<T = unknown>(
       operation: 'kscwApi',
       endpoint: path,
       method,
-      payload: options?.body as Record<string, unknown> | undefined,
+      payload: reportPayload,
     })
     throw err
   }
@@ -1205,7 +1252,7 @@ export async function kscwApi<T = unknown>(
       method,
       status: res.status,
       responseBody,
-      payload: options?.body as Record<string, unknown> | undefined,
+      payload: reportPayload,
     })
     throw err
   }

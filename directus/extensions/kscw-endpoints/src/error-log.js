@@ -290,17 +290,43 @@ export function capLogged(obj, max) {
 const URLISH_FIELDS = ['endpoint', 'url', 'path', 'route', 'href', 'referrer', 'page']
 
 // Route families whose path segment AFTER the prefix is a bearer secret. Keep in
-// step with the routers: public-events.js, game-scheduling.js / basketball-portal.js
+// step with the routers: public-events.js / public-event-signup.js (and the app's
+// share page `/e/<token>`), game-scheduling.js / basketball-portal.js
 // (terminplanung, slots), signup-invites.js.
-const TOKEN_PATH_RE = /(\/(?:public\/events|signup-invites\/info|slots|terminplanung(?:\/bb)?(?:\/club)?(?:\/(?:note|propose-away|propose-home|propose|respond|set-language|slots))?)\/)(?!:)([^/?#\s]+)/gi
+const TOKEN_PATH_RE = /(\/(?:e|public\/events|signup-invites\/info|slots|terminplanung(?:\/bb)?(?:\/club)?(?:\/(?:note|propose-away|propose-home|propose|respond|set-language|slots))?)\/)(?!:)([^/?#\s]+)/gi
+// Hex tokens anywhere in a path (`randomBytes(8+)`; UUIDs and long hex ids go too).
+// The boundary is "the hex run ends" so `API /x/<token>: 400` is caught as well.
+const HEX_TOKEN_RE = /\/([0-9a-f]{16,})(?![0-9a-f])/gi
+// Any whole path segment of ≥ 24 url-safe chars that looks random — a route family
+// added later must not leak until someone remembers this file. Whole segment: the
+// run must end at a path or sentence boundary, never a `.`, so a hashed asset in a
+// stack frame (`/assets/SpielplanungAdminPage-Dk3j4kLm.js`) stays readable.
+const LONG_SEGMENT_RE = /\/([A-Za-z0-9_-]{24,})(?=[/?#:;,'"`)\]\s]|$)/g
 // Query-string secrets (`?token=…`, `?ticket=…`, `?reference=…&email=…`).
 const TOKEN_QUERY_RE = /([?&](?:token|ticket|share|key|secret|code|otp|reference|email)=)[^&#\s]*/gi
 
+/**
+ * Random-looking rather than a route slug: slugs are lowercase words and hyphens
+ * (`clubdesk-registration-status`), a 43-char base64url token has a digit, or both
+ * cases, with near certainty. Same rule as `looksLikeToken` in src/lib/sentry.ts.
+ */
+function looksLikeToken(seg) {
+  return (/\d/.test(seg) && /[A-Za-z]/.test(seg)) || (/[a-z]/.test(seg) && /[A-Z]/.test(seg))
+}
+
 /** Redact bearer tokens in a URL or path string. Route PATTERNS (`:token`) pass
- *  through untouched. Pure; exported for the unit test. */
+ *  through untouched. Pure; exported for the unit test.
+ *  ⚠ Keep in step with `redactTokens` in src/lib/sentry.ts and `scrubUrl` in
+ *  public/boot-watchdog.js. */
 export function redactUrlTokens(str) {
   if (typeof str !== 'string' || !str) return str
-  return str.replace(TOKEN_PATH_RE, '$1[REDACTED]').replace(TOKEN_QUERY_RE, '$1[REDACTED]')
+  // Whole-segment rules before the hex one, which stops where the hex run stops and
+  // would leave the tail of a base64url token that happens to open with hex.
+  return str
+    .replace(TOKEN_PATH_RE, '$1[REDACTED]')
+    .replace(LONG_SEGMENT_RE, (m, seg) => (looksLikeToken(seg) ? '/:token' : m))
+    .replace(HEX_TOKEN_RE, '/:token')
+    .replace(TOKEN_QUERY_RE, '$1[REDACTED]')
 }
 
 const PII_KEYS = new Set([
@@ -308,18 +334,68 @@ const PII_KEYS = new Set([
   'token', 'otp', 'code', 'turnstile_token', 'access_token', 'refresh_token',
 ])
 
-export function scrubPii(obj) {
+// Matched anywhere in the key once case and separators are gone (`current_password`,
+// `newPassword`, `e2ee_private_key`, `ahvNummer`). A key containing `e2ee` takes its
+// whole value with it. Same families as `isPiiKey` in src/lib/sentry.ts.
+const PII_FRAGMENTS = [
+  'password', 'passwd', 'secret', 'token', 'ticket', 'cookie', 'authorization',
+  'privatekey', 'wrappedkey', 'apikey', 'e2ee',
+  'email', 'phone', 'iban', 'ahv', 'birth', 'geburt',
+  'address', 'adresse', 'street', 'strasse', 'postcode', 'postal',
+]
+// Whole words only — as fragments they sit inside ordinary keys (`otp` in
+// "footprint", `pin` in "mapping", `ort` in "sort"/"report").
+const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'zip', 'dob'])
+
+/** Whether a logged key holds a secret or PII. Pure; exported for the unit test. */
+export function isSensitiveKey(key) {
+  const k = String(key)
+  const lower = k.toLowerCase()
+  if (PII_KEYS.has(lower)) return true
+  if (lower.endsWith('_name') || /[a-z0-9]Name$/.test(k)) return true
+  const flat = lower.replace(/[^a-z0-9]/g, '')
+  if (PII_FRAGMENTS.some((f) => flat.includes(f))) return true
+  const words = k.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/)
+  return words.some((w) => PII_WORDS.has(w))
+}
+
+/**
+ * Recursively redact sensitive keys — through nested objects AND arrays (a bulk
+ * body is an array of member rows; the old version passed arrays through whole).
+ * Bounded depth: the input is attacker-controlled on /client-error.
+ */
+export function scrubPii(obj, depth = 0) {
   if (!obj || typeof obj !== 'object') return obj
+  if (depth > 20) return '[TRUNCATED]'
+  if (Array.isArray(obj)) return obj.map((v) => scrubPii(v, depth + 1))
   const safe = {}
   for (const [k, v] of Object.entries(obj)) {
-    // Any *token* / *secret* / *password* key too (share_token, ticket_token …).
-    if (PII_KEYS.has(k) || /token|secret|password|ticket/i.test(k)) {
-      safe[k] = '[REDACTED]'
-    } else if (v && typeof v === 'object' && !Array.isArray(v)) {
-      safe[k] = scrubPii(v)
-    } else {
-      safe[k] = v
-    }
+    safe[k] = isSensitiveKey(k) ? '[REDACTED]' : scrubPii(v, depth + 1)
   }
   return safe
+}
+
+// `"key": <string or scalar>` inside text that is not (or no longer) valid JSON. Object
+// and array values are not consumed, so the keys nested inside them are still visited.
+const JSON_PAIR_RE = /"((?:[^"\\]|\\.)*)"(\s*:\s*)("(?:[^"\\]|\\.)*"?|[^,{}[\]\s"]+)/g
+
+/**
+ * A logged string that may be JSON (a response body, a client-sent payload string):
+ * parsed and key-scrubbed when it is. The client cuts `responseBody` to 1000 chars
+ * before sending, so a longer JSON body arrives truncated and no longer parses — then
+ * the `"key": value` pairs are scrubbed in the text instead. E-mail addresses are
+ * masked either way. Mirrors `scrubResponseBody` in src/lib/sentry.ts — the server
+ * cannot assume the sender ran it. Pure; exported for the unit test.
+ */
+export function scrubJsonString(str) {
+  if (typeof str !== 'string' || !str) return str
+  let out = null
+  try {
+    const parsed = JSON.parse(str)
+    if (parsed && typeof parsed === 'object') out = JSON.stringify(scrubPii(parsed))
+  } catch { /* not JSON, or cut mid-way */ }
+  if (out == null) {
+    out = str.replace(JSON_PAIR_RE, (m, key, sep) => (isSensitiveKey(key) ? `"${key}"${sep}"[REDACTED]"` : m))
+  }
+  return out.replace(/[\w.+-]+@[\w.-]+\.\w+/g, '[REDACTED]')
 }
