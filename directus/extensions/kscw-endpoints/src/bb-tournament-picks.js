@@ -146,8 +146,8 @@ export function cleanAvoid(raw) {
 export function registerBbTournamentPicks(router, { database, logger }) {
   const log = logger.child({ endpoint: 'bb-tournaments' })
   const worker = createBbTournamentWorker({ database, log })
-  /** After a pick: try it now rather than at the next 10-minute mark. Best effort. */
-  const kick = () => { worker.run({ force: true }).catch((e) => log.warn(`[BB Worker] kick: ${e.message}`)) }
+  /** After a pick: try it now rather than at the next 10-minute mark. Best effort, throttled (worker.kick). */
+  const kick = () => worker.kick()
 
   const fail = (res, err, route) => {
     const status = err?.status || 500

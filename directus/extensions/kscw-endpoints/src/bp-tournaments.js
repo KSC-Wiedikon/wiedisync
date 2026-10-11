@@ -10,7 +10,8 @@
  *
  * SOURCE OF TRUTH is Basketplan: a team withdrawn there loses the row on the
  * next run (future days only — history stays). Rows carry source
- * `basketplan_tournament`, game_id `bpt_<tournamentId>_<yyyymmdd>`.
+ * `basketplan_tournament`, game_id `bpt_<tournamentId>_<yyyymmdd>`. A run whose
+ * parse looks broken deletes nothing, though (planRemovals — the deletion floor).
  *
  * Once Basketplan publishes the tournament's real games, bp-sync imports them
  * as ordinary `basketplan` rows; the placeholder for that team and day is then
@@ -29,9 +30,16 @@
 
 import { createHash } from 'node:crypto'
 import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
+import { logCronRun } from './error-log.js'
 
 const BP_BASE = 'https://www.basketplan.ch'
 export const SOURCE = 'basketplan_tournament'
+/** sync_runs key of this sync's heartbeat (a suspicious run lands as status 'error'). */
+export const SYNC_SOURCE = 'bp_tournaments'
+/** The deletion floor (planRemovals): a run never drops more than this share of the stored future days… */
+export const MAX_DROP_SHARE = 0.5
+/** …once that is at least this many (one withdrawal out of two days is ordinary). */
+export const MASS_DROP_MIN = 3
 export const READ_PATHS = ['/showLogin.do', '/authenticate.do', '/findAllTournaments.do', '/findTournamentById.do']
 /** Never in any allow-list: Basketplan withdraws a team with a plain GET to this. */
 export const WITHDRAW_PATH = '/withdrawTeamFromTournament.do'
@@ -191,6 +199,44 @@ const norm = (f, v) => {
   if (f === 'away_hall_json') return typeof v === 'string' ? v : JSON.stringify(v)
   return String(v)
 }
+const rowKey = (r) => `${r.game_id}:${r.kscw_team}`
+
+/**
+ * Which stored tournament rows this run removes. Pure — unit-tested.
+ *
+ * THE DELETION FLOOR. Basketplan is the source of truth, but a page that
+ * stopped parsing — a layout change, an error page that still says "Logout" —
+ * reads exactly like "every team withdrawn", and the run would wipe the
+ * season's tournament days off the calendar. The parse cannot tell the two
+ * apart (an empty list or registrations table carries no "this failed"
+ * marker), so the rows only the parse wants gone ('dropped') are kept when
+ *   - the parse found no KSCW tournament day at all ('empty_parse'), or
+ *   - they are more than MAX_DROP_SHARE of the stored future days of synced
+ *     teams, and at least MASS_DROP_MIN rows ('mass_drop').
+ * Rows whose removal does not hang on the parse still go: the day has real
+ * games now (bp-sync), or the team is no longer synced (inactive, no
+ * bb_source_id). A real withdrawal is applied by the next run that is not
+ * suspicious — after an 'empty_parse', any run that finds a KSCW day again; a
+ * mass withdrawal the floor keeps holding is for a person (the run warns and
+ * journals itself as suspicious every time).
+ *
+ *   existing:      every `basketplan_tournament` games row (id, game_id, kscw_team, date)
+ *   wantedKeys:    rowKey of every row the parse wants (minus days with real games)
+ *   desiredCount:  KSCW tournament days the parse found, before that subtraction
+ *   realKeys:      `${kscw_team}:${yyyy-mm-dd}` of future real Basketplan games
+ *   syncedTeamIds: Set of the teams this sync covers
+ */
+export function planRemovals(existing, { wantedKeys, desiredCount, realKeys, syncedTeamIds, today }) {
+  const future = existing.filter((r) => norm('date', r.date) >= today)
+  const synced = (r) => syncedTeamIds.has(Number(r.kscw_team))
+  const stale = future.filter((r) => !wantedKeys.has(rowKey(r)))
+  const sure = stale.filter((r) => !synced(r) || realKeys.has(`${r.kscw_team}:${norm('date', r.date)}`))
+  const dropped = stale.filter((r) => !sure.includes(r))
+  let suspicious = null
+  if (dropped.length && !desiredCount) suspicious = 'empty_parse'
+  else if (dropped.length >= MASS_DROP_MIN && dropped.length > future.filter(synced).length * MAX_DROP_SHARE) suspicious = 'mass_drop'
+  return { remove: suspicious ? sure : stale, held: suspicious ? dropped : [], suspicious }
+}
 
 /**
  * A tiny cookie-carrying client restricted to an allow-list of paths — the
@@ -298,13 +344,12 @@ export async function syncBpTournaments(db, log, {
 
   const existing = await db('games').where('source', SOURCE)
     .select('id', 'game_id', 'kscw_team', ...COMPARE)
-  const key = (r) => `${r.game_id}:${r.kscw_team}`
-  const existingByKey = new Map(existing.map((r) => [key(r), r]))
-  const wantedKeys = new Set(wanted.map(key))
+  const existingByKey = new Map(existing.map((r) => [rowKey(r), r]))
+  const wantedKeys = new Set(wanted.map(rowKey))
 
   let created = 0, updated = 0, unchanged = 0, removed = 0
   for (const row of wanted) {
-    const cur = existingByKey.get(key(row))
+    const cur = existingByKey.get(rowKey(row))
     if (cur) {
       if (COMPARE.every((f) => norm(f, cur[f]) === norm(f, row[f]))) { unchanged++; continue }
       await db('games').where('id', cur.id).update({ ...row, date_updated: new Date() })
@@ -320,13 +365,26 @@ export async function syncBpTournaments(db, log, {
       created++
     }
   }
-  // Withdrawn on Basketplan, or superseded by the real games: drop future rows only.
-  const stale = existing.filter((r) => !wantedKeys.has(key(r)) && norm('date', r.date) >= today)
-  if (stale.length) {
-    removed = await db('games').whereIn('id', stale.map((r) => r.id)).del()
+  // Withdrawn on Basketplan, or superseded by the real games: drop future rows
+  // only — and nothing on the word of a parse that looks broken (planRemovals).
+  const { remove, held, suspicious } = planRemovals(existing, {
+    wantedKeys, desiredCount: desired.length, realKeys, syncedTeamIds: new Set(teams.map((t) => Number(t.id))), today,
+  })
+  if (remove.length) {
+    removed = await db('games').whereIn('id', remove.map((r) => r.id)).del()
   }
 
-  log.info(`[BP Tournaments] ${list.length} tournaments, ${desired.length} KSCW days → ${created} created, ${updated} updated, ${unchanged} unchanged, ${removed} removed`)
+  const summary = `${list.length} tournaments, ${desired.length} KSCW days → ${created} created, ${updated} updated, ${unchanged} unchanged, ${removed} removed`
+  if (suspicious) {
+    log.warn(`[BP Tournaments] suspicious parse (${suspicious}): kept ${held.length} future tournament day(s) Basketplan no longer seems to list — ${summary}`)
+  } else {
+    log.info(`[BP Tournaments] ${summary}`)
+  }
+  await logCronRun(db, SYNC_SOURCE, {
+    status: suspicious ? 'error' : 'ok',
+    rowsChanged: created + updated + removed,
+    errorMessage: suspicious ? `Suspicious Basketplan parse (${suspicious}): ${held.length} future tournament day(s) kept, not deleted` : null,
+  })
   if (created > 0) await sweepGameAutoConfirm(db, log)
-  return { tournaments: list.length, kscwDays: desired.length, created, updated, unchanged, removed }
+  return { tournaments: list.length, kscwDays: desired.length, created, updated, unchanged, removed, suspicious, held: held.length }
 }

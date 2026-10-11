@@ -23,7 +23,12 @@
  *     (bb-tournament-wishes.js). New batches open the moment they appear;
  *   - inside the opening window (rush_from..rush_until, ≤ 3 h) the list is
  *     re-read every poll_seconds (≥ 20 s), new tournaments are added to
- *     bb_tournaments, and a pick is submitted as soon as its tournament opens.
+ *     bb_tournaments, and a pick is submitted as soon as its tournament opens;
+ *   - a saved pick / wish / avoid list kick()s a forced run — at most one per
+ *     KICK_GAP_MS: a kick inside the gap waits for its end, and every further
+ *     kick meanwhile folds into that same one run.
+ * One run at a time: a call while one is in flight answers 'busy' (a kick
+ * waits for it instead).
  *
  * NEVER TWICE: a live attempt writes its journal row as 'submitting' before
  * the request leaves; a partial unique index (migration 399) refuses a second
@@ -57,6 +62,8 @@ export const WATCH_HOURS = [7, 22]
 const STALE_MS = 3 * 86400000
 /** A tick must end before the next one starts. */
 const TICK_BUDGET_MS = 50_000
+/** Kicked runs start at least this far apart (each one may log in to Basketplan). */
+export const KICK_GAP_MS = 60_000
 /** Results that block any further live submission for the tournament + team. */
 export const FINAL_LIVE = ['submitting', 'registered', 'unconfirmed']
 
@@ -121,7 +128,11 @@ export function pendingPicks(picks, tournaments, teams, blocked, today) {
 export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env = process.env, sleepImpl = sleep }) {
   const liveAllowed = env.BASKETPLAN_REGISTER_LIVE === '1' && externalAccountsEnabled(env)
   const clubId = String(env.BASKETPLAN_CLUB_ID || '166')
-  let running = false
+  /** The run in flight (tick or kick), or null. Claimed with no await before it, so two callers cannot both pass. */
+  let inFlight = null
+  /** When the last kicked run started, and whether a kick is already waiting. */
+  let kickedAt = 0
+  let kickWaiting = false
   let journalled = 0
   /** One Basketplan session, kept between ticks; logs in again once if it expired. */
   let session = null
@@ -321,10 +332,39 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
   }
 
   /** One tick. Returns a summary; never throws for "nothing to do". */
-  async function run({ now = new Date(), force = false } = {}) {
+  function run(opts = {}) {
     // Prod only: the club's Basketplan login is shared with prod (external-accounts.js).
-    if (!externalAccountsEnabled(env)) return { skipped: EXTERNAL_DISABLED_CODE }
-    if (running) return { skipped: 'busy' }
+    if (!externalAccountsEnabled(env)) return Promise.resolve({ skipped: EXTERNAL_DISABLED_CODE })
+    if (inFlight) return Promise.resolve({ skipped: 'busy' })
+    // Check and claim in one synchronous step, with no await in between, so two
+    // callers can never both pass. Released when the run settles: it is all
+    // in-process fetches — no detached child still holding the Basketplan
+    // session after we let go.
+    inFlight = runOnce(opts).finally(() => { inFlight = null })
+    return inFlight
+  }
+
+  /**
+   * "Try it now" after a pick, wish or avoid list is saved. Best effort, never
+   * throws. A kick inside KICK_GAP_MS of the last kicked run (or while any run
+   * is in flight) waits for the gap / that run to end; kicks meanwhile fold
+   * into the one waiting — one extra run, neither dropped nor queued N times.
+   */
+  function kick() {
+    if (kickWaiting) return
+    kickWaiting = true
+    const fire = () => {
+      if (inFlight) { inFlight.then(fire, fire); return }
+      const wait = kickedAt + KICK_GAP_MS - Date.now()
+      if (wait > 0) { setTimeout(fire, wait); return }
+      kickWaiting = false
+      kickedAt = Date.now()
+      run({ force: true }).catch((e) => log.warn(`[BB Worker] kick: ${e.message}`))
+    }
+    fire()
+  }
+
+  async function runOnce({ now = new Date(), force = false } = {}) {
     const s = await settings()
     const mode = effectiveMode(s?.mode, liveAllowed)
     if (mode === 'off') return { skipped: 'off' }
@@ -336,7 +376,6 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
     const password = env.BASKETPLAN_PASSWORD
     if (!username || !password) return { skipped: 'no_credentials' }
 
-    running = true
     journalled = 0
     const started = Date.now()
     const counts = {}
@@ -386,10 +425,8 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
       // A broken session must not stick: the next tick logs in afresh.
       session = null
       throw e
-    } finally {
-      running = false
     }
   }
 
-  return { run, liveAllowed }
+  return { run, kick, liveAllowed }
 }
