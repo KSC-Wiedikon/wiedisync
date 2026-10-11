@@ -9,7 +9,8 @@
 # not), keytool, and the repo signing key: FDROID_KEYSTORE (path),
 # FDROID_KEYSTORE_PASSWORD, FDROID_KEY_ALIAS. Writes <out-dir>/site/ — the
 # only thing to upload; the config holding the key password never leaves
-# <out-dir>/work/.
+# <out-dir>/work/. CI uses $RUNNER_TEMP; locally use android/fdroid/out (the
+# one in-tree location that is gitignored) or a directory outside the repo.
 set -euo pipefail
 
 APKS=$(cd "$1" && pwd)

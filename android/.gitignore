@@ -11,3 +11,6 @@ captures/
 *.keystore
 *.p12
 keystore.properties
+# Local F-Droid repo builds (android/fdroid/build-repo.sh <apks> android/fdroid/out):
+# <out>/work/config.yml carries the repo keystore password in clear.
+/fdroid/out/

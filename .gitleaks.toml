@@ -55,6 +55,49 @@ allowlists = [
   { regexes = ['''(?i)(your[_\- ]|example|placeholder|sample|dummy|xxx+|change[_\- ]?me|replace[_\- ]?me|redacted|_here|test|fake|foo|bar|\.\.\.|<[^>]+>|\$\{?[A-Z_]+\}?|process\.env|import\.meta\.env|secrets\.)'''], regexTarget = "match" },
 ]
 
+# ── Unquoted assignments (security review 2026-10-11) ──────────────────────
+# generic-credential-assignment above needs a QUOTED value, so the three forms
+# credentials actually take in this stack's files slipped through:
+#   VM_PASSWORD=…  /  export BASKETPLAN_PASSWORD=…   (.env, shell, compose)
+#   storePassword=…  /  keyPassword = …              (Gradle .properties)
+#   keystorepass: …  /  keypass: …                   (F-Droid config.yml)
+# Each rule matches a WHOLE line (`^KEY=VALUE$`), so URLs (`?token=`) and code
+# (`password = form.password()`) stay out. A value starting with `$`, `<`, `{`
+# or `(` is a reference, not a secret: `${{ secrets.X }}`, `$VAR`, `$(rbw get …)`,
+# `<placeholder>` never match; the allowlists catch the spelled-out placeholders.
+
+[[rules]]
+id = "unquoted-env-credential"
+description = "KEY=value line whose key names a password / secret / token (.env, shell, compose)"
+regex = '''(?im)^[ \t]*(?:-[ \t]+)?(?:export[ \t]+)?([a-z0-9_]*(?:password|passwd|secret|token|api_?key|private_?key|_pass)[a-z0-9_]*)=([^\s"'$<>{}()`#;|&\\]{8,})[ \t]*$'''
+secretGroup = 2
+keywords = ["password", "passwd", "secret", "token", "apikey", "api_key", "private_key", "privatekey", "_pass"]
+allowlists = [
+  { regexes = ['''(?i)(your[_\-]|example|placeholder|sample|dummy|xxx+|change[_\-]?me|replace[_\-]?(me|with)|redacted|_here$|^(true|false|null|none|required|optional|undefined)$)'''], regexTarget = "secret" },
+]
+
+[[rules]]
+id = "unquoted-properties-credential"
+description = "Java/Gradle .properties line whose key names a password / secret / token"
+regex = '''(?im)^[ \t]*([a-z0-9_.-]*(?:password|passwd|secret|token|api_?key|pass)[a-z0-9_.-]*)[ \t]*[=:][ \t]*([^\s"'$<>{}]{8,})[ \t]*$'''
+path = '''\.properties$'''
+secretGroup = 2
+keywords = ["pass", "secret", "token", "apikey", "api_key"]
+allowlists = [
+  { regexes = ['''(?i)(your[_\-]|example|placeholder|sample|dummy|xxx+|change[_\-]?me|replace[_\-]?(me|with)|redacted|_here$)'''], regexTarget = "secret" },
+]
+
+[[rules]]
+id = "unquoted-yaml-credential"
+description = "YAML `key: value` whose key names a password / secret / token (F-Droid config.yml keystorepass, compose, CI)"
+regex = '''(?im)^[ \t]*(?:-[ \t]+)?([a-z0-9_.-]*(?:password|passwd|pass|secret|token|api[_-]?key|private[_-]?key)[a-z0-9_.-]*)[ \t]*:[ \t]+([^\s"'$<>{}()`#&*!|\[\]]{8,})[ \t]*(?:#.*)?$'''
+path = '''\.ya?ml$'''
+secretGroup = 2
+keywords = ["pass", "secret", "token", "apikey", "api_key", "api-key", "private_key", "private-key"]
+allowlists = [
+  { regexes = ['''(?i)(your[_\-]|example|placeholder|sample|dummy|xxx+|change[_\-]?me|replace[_\-]?(me|with)|redacted|_here$|^(true|false|null|none|required|optional|undefined)$)'''], regexTarget = "secret" },
+]
+
 # Lockfiles, vendored deps and build output are noise, not history worth purging.
 [allowlist]
 # Season-health check registry: every entry is `key: 'tr_expected_missing_28d'`,
