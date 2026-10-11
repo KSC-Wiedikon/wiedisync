@@ -2,10 +2,12 @@
 <resources>
     <string name="saved_to_downloads">Salvato in Download: %1$s</string>
     <string name="save_failed">Impossibile salvare il file</string>
+    <string name="file_too_large">Il file è troppo grande per essere salvato</string>
     <string name="downloading">Download in corso…</string>
     <string name="channel_general">Notifiche</string>
     <string name="offline_title">Wiedisync non è raggiungibile</string>
     <string name="offline_body">Controlla la connessione a Internet e riprova.</string>
     <string name="retry">Riprova</string>
     <string name="no_app">Nessuna app trovata per aprire questo link</string>
+    <string name="open_failed">Impossibile aprire questo link</string>
 </resources>

@@ -26,6 +26,10 @@ import java.util.concurrent.Executors
  * `ui.systemBars` {top, bottom: "#rrggbb"} paints the status and navigation
  * bars in the page's edge colours (src/lib/nativeSystemBars.ts).
  *
+ * `saveFile` {filename, mime, base64} takes up to [Downloads.MAX_SAVE_BYTES] of
+ * an allow-listed type ([Downloads.savableType]); errors `too_large`,
+ * `unsupported_type`, `write_failed`.
+ *
  * The app can only answer a page that has written to it, so the site sends
  * `hello` first. Web side of the protocol: src/lib/nativeBridge.ts.
  */
@@ -46,7 +50,7 @@ class NativeBridge(
             WebViewCompat.addWebMessageListener(webView, "WiedisyncNative", origins) { _, message, _, isMainFrame, replyProxy ->
                 if (!isMainFrame) return@addWebMessageListener
                 proxy = replyProxy
-                message.data?.let(::handle)
+                message.data?.let(::receive)
             }
         }
         PushStore.addListener(pushListener)
@@ -57,13 +61,33 @@ class NativeBridge(
         io.shutdown()
     }
 
-    private fun handle(raw: String) {
-        val msg = try {
-            JSONObject(raw)
-        } catch (_: Exception) {
-            return
+    /**
+     * On the UI thread. An export arrives as one base64 string of up to tens of
+     * MB, so nothing is parsed here: an oversized message is refused unread, the
+     * rest is parsed on [io] and handled back on the UI thread — except
+     * `saveFile`, which stays on [io] for the decode and the write.
+     */
+    private fun receive(raw: String) {
+        if (io.isShutdown) return
+        if (raw.length > MAX_MESSAGE_CHARS) return refuseUnread(raw)
+        io.execute {
+            val msg = try {
+                JSONObject(raw)
+            } catch (_: Exception) {
+                return@execute
+            }
+            val id = msg.optInt("id", -1).takeIf { it >= 0 } ?: return@execute
+            if (msg.optString("type") == "saveFile") saveFile(id, msg) else main.post { handle(id, msg) }
         }
-        val id = msg.optInt("id", -1).takeIf { it >= 0 } ?: return
+    }
+
+    /** Too big to parse. The page puts `id` and `type` last (nativeRequest), so the request can still be answered. */
+    private fun refuseUnread(raw: String) {
+        val id = TAIL_ID.find(raw.takeLast(96))?.groupValues?.get(1)?.toIntOrNull() ?: return
+        saveFailed(id, "too_large")
+    }
+
+    private fun handle(id: Int, msg: JSONObject) {
         when (msg.optString("type")) {
             "hello" -> ok(
                 id,
@@ -72,7 +96,6 @@ class NativeBridge(
                     .put("appVersion", BuildConfig.VERSION_NAME)
                     .put("features", JSONArray(listOf("saveFile", "share", "push", "systemBars"))),
             )
-            "saveFile" -> saveFile(id, msg)
             "share" -> share(id, msg)
             "push.state" -> ok(id, pushState())
             "push.subscribe" -> pushSubscribe(id, msg.str("vapidPublicKey"))
@@ -88,24 +111,33 @@ class NativeBridge(
 
     // ── Files and sharing ────────────────────────────────────────────────────
 
+    /** On [io]: checked before anything is decoded, then decoded and written off the UI thread. */
     private fun saveFile(id: Int, msg: JSONObject) {
-        val filename = msg.str("filename").ifBlank { "download" }
-        val mime = msg.str("mime").ifBlank { "application/octet-stream" }
+        val mime = Downloads.savableType(msg.str("mime"))
+        val filename = Downloads.savableName(msg.str("filename"))
         val data = msg.str("base64")
-        io.execute {
-            val result = runCatching { Downloads.save(activity, filename, mime, Base64.decode(data, Base64.DEFAULT)) }
-            main.post {
-                result
-                    .onSuccess { name ->
-                        Toast.makeText(activity, activity.getString(R.string.saved_to_downloads, name), Toast.LENGTH_SHORT).show()
-                        ok(id, JSONObject().put("saved", true))
-                    }
-                    .onFailure {
-                        Toast.makeText(activity, R.string.save_failed, Toast.LENGTH_LONG).show()
-                        fail(id, "write_failed", it.message)
-                    }
-            }
+        if (mime == null || filename == null) return refuse(id, "unsupported_type")
+        // Base64 is 4 characters per 3 bytes.
+        if (data.length.toLong() * 3 / 4 > Downloads.MAX_SAVE_BYTES) return refuse(id, "too_large")
+        val result = runCatching { Downloads.save(activity, filename, mime, Base64.decode(data, Base64.DEFAULT)) }
+        main.post {
+            result
+                .onSuccess { name ->
+                    Toast.makeText(activity, activity.getString(R.string.saved_to_downloads, name), Toast.LENGTH_SHORT).show()
+                    ok(id, JSONObject().put("saved", true))
+                }
+                .onFailure { saveFailed(id, "write_failed", it.message) }
         }
+    }
+
+    private fun refuse(id: Int, code: String) {
+        main.post { saveFailed(id, code) }
+    }
+
+    /** On the UI thread. */
+    private fun saveFailed(id: Int, code: String, message: String? = null) {
+        Toast.makeText(activity, if (code == "too_large") R.string.file_too_large else R.string.save_failed, Toast.LENGTH_LONG).show()
+        fail(id, code, message)
     }
 
     private fun share(id: Int, msg: JSONObject) {
@@ -208,5 +240,9 @@ class NativeBridge(
 
     private companion object {
         val HEX = Regex("^#[0-9a-fA-F]{6}$")
+        /** A `saveFile` of [Downloads.MAX_SAVE_BYTES] in base64, plus room for the rest of the message. */
+        val MAX_MESSAGE_CHARS = Downloads.MAX_SAVE_BYTES / 3 * 4 + 64 * 1024
+        /** The end of `JSON.stringify({ ...params, id, type })`. */
+        val TAIL_ID = Regex("\"id\":(\\d+),\"type\":\"[^\"]*\"\\}$")
     }
 }

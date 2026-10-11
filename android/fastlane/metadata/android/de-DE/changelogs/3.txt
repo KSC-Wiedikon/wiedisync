@@ -1,0 +1,1 @@
+Mehr Sicherheit: Links aus anderen Apps, Datei-Uploads, Downloads und Links in andere Apps werden strenger geprüft.

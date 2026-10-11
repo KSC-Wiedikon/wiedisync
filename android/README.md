@@ -6,10 +6,10 @@ A small Kotlin app around the live site. It is one WebView on
 | Feature | How |
 |---|---|
 | Push notifications | [UnifiedPush](https://unifiedpush.org) (no Google). The member installs a distributor app, e.g. Sunup or ntfy from F-Droid. Endpoints are plain Web Push, so the existing `kscw-push` worker sends to them. |
-| Downloads | Exports from `saveFile()` (`src/utils/saveFile.ts`) arrive over the bridge and go to the public Downloads folder. Real `https` downloads go through DownloadManager. |
+| Downloads | Exports from `saveFile()` (`src/utils/saveFile.ts`) arrive over the bridge and go to the public Downloads folder: at most 25 MB, only the types the site exports (`Downloads.SAVABLE_TYPES`; a new export type has to be added there), never an app package. Real `https` downloads go through DownloadManager, with the WebView's cookies only for our own hosts. |
 | Share | The Android share sheet. |
-| File upload | The system file picker, plus the camera for image inputs. |
-| Links | Our hosts stay in the app; everything else (mail, phone, TWINT, other sites) opens outside. `https://wiedisync.kscw.ch` links open in the app (App Links, `public/.well-known/assetlinks.json`). |
+| File upload | The system file picker, plus the camera for image inputs. Only `content://` files reach the page. |
+| Links | Our hosts stay in the app; everything else (mail, phone, TWINT, other sites) opens outside, and only on a tap. `https://wiedisync.kscw.ch` links open in the app (App Links, `public/.well-known/assetlinks.json`). Other apps can only open our own pages; a notification's URL only counts from our own notification. |
 
 Releases ship only when the shell itself changes. Site changes reach the app with every Cloudflare deploy.
 
