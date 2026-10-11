@@ -148,6 +148,10 @@ export function registerLiveScoring(router, { database, logger }) {
 
   router.post('/live-scoring/game/:gameId', async (req, res) => {
     try {
+      // Same rule as the result report (game-result.js): not while acting.
+      if (req.accountability?.kscwGuardian) {
+        return fail(res, 403, 'Not available while using another account', 'acting_forbidden')
+      }
       const auth = await authorize(req)
       if (auth.status) return fail(res, auth.status, auth.error, auth.code)
       const { game, member } = auth

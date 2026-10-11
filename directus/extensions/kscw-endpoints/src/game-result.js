@@ -53,6 +53,9 @@ import { isSvrzRcBlackout } from './vm-windows.js'
 const HOUR = 60 * 60 * 1000
 // Opens three hours AFTER kickoff (a negative "before"), closes two weeks after it.
 export const OPENS_AFTER_MS = 3 * HOUR
+// Every push logs in to the shared VM account and holds it until its worker exits;
+// back-to-back submits for one game would keep it busy for every other job.
+export const RESUBMIT_COOLDOWN_MS = 5 * 60 * 1000
 export const CLOSES_AFTER_MS = 14 * 24 * HOUR
 
 const MESSAGES = {
@@ -411,15 +414,35 @@ export async function dispatchQueuedResultPushes({ database, log, max = 5, now =
     .whereNull('vm_result_claimed_at')
     .orderBy('provisional_at', 'asc')
     .limit(max)
-    .select('id', 'provisional_sets_json')
+    .select('id', 'provisional_sets_json', 'provisional_at', 'status', 'date', 'time')
   let dispatched = 0
   for (const row of rows) {
     // A long worker can run the sweep into the next window; stop, the rest keep.
     if (isSvrzRcBlackout(now())) break
+    const drop = (status, error) => database('games').where('id', row.id).where('vm_result_status', 'pending')
+      .update({ vm_result_status: status, vm_result_error: error, vm_result_claimed_at: null })
     const sets = parseJson(row.provisional_sets_json)
     if (!Array.isArray(sets) || !sets.length) {
-      await database('games').where('id', row.id).where('vm_result_status', 'pending')
-        .update({ vm_result_status: 'failed', vm_result_error: 'no_sets', vm_result_claimed_at: null })
+      await drop('failed', 'no_sets')
+      continue
+    }
+    // The row is only a queue entry: re-check what POST /game-result checked, so a
+    // row that did not come through it is never filed (audit 2026-10-11, H3).
+    if (row.status === 'completed') { await drop('skipped', 'already_official'); continue }
+    const startMs = gameStartMs(row)
+    if (startMs == null || now().getTime() < startMs + OPENS_AFTER_MS) {
+      log.warn(`[game-result] queued push for ${row.id} refused: before kickoff +3 h`)
+      await drop('failed', 'outside_window')
+      continue
+    }
+    if (!validateSets(sets, null).ok) { await drop('failed', 'invalid_sets'); continue }
+    const entered = await database('user_logs')
+      .where('action', 'result_entered').where('collection_name', 'games').where('record_id', String(row.id))
+      .where('date_created', '>=', row.provisional_at ?? new Date(0))
+      .first('id')
+    if (!entered) {
+      log.warn(`[game-result] queued push for ${row.id} refused: no result_entered audit row`)
+      await drop('failed', 'not_entered')
       continue
     }
     const r = await spawnResultPush({ database, log, gameId: row.id, sets, force: false, spawn })
@@ -527,6 +550,11 @@ export function registerGameResult(router, { database, logger }) {
 
   router.post('/game-result/:gameId', async (req, res) => {
     try {
+      // Attesting a result is personal, like a poll vote or a scorer duty: a main
+      // account acting as a linked member must not file one in their name.
+      if (req.accountability?.kscwGuardian) {
+        return fail(res, 403, 'Not available while using another account', 'acting_forbidden')
+      }
       const auth = await authorize(req)
       if (auth.status) return fail(res, auth.status, auth.error, auth.code)
       const { game } = auth
@@ -538,6 +566,11 @@ export function registerGameResult(router, { database, logger }) {
       const startMs = gameStartMs(game)
       if (startMs == null || Date.now() < startMs + OPENS_AFTER_MS) {
         return fail(res, 403, 'The result can be entered 3 hours after kickoff', 'outside_window')
+      }
+
+      const lastAt = game.provisional_at ? new Date(game.provisional_at).getTime() : null
+      if (lastAt != null && Date.now() - lastAt < RESUBMIT_COOLDOWN_MS && game.vm_result_status !== 'failed') {
+        return fail(res, 429, 'A result was just entered — try again in a few minutes', 'too_soon')
       }
 
       const uuid = await vmGameUuid(game)
