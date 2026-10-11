@@ -97,13 +97,60 @@ export interface CachedDoc {
   mime: string | null
   envelope: { eph_public_key: string; wrap_iv: string; wrapped_key: string }
   cachedAt: number
+  /** The session owner who downloaded it — whose device key opens the envelope. */
+  owner: number
+  /** Epoch ms after which it is swept: the end of the display window (kickoff). */
+  expiresAt: number
 }
 
-export async function cacheDocument(doc: Omit<CachedDoc, 'id' | 'cachedAt'>): Promise<void> {
+// ── lifetime ──────────────────────────────────────────────────────────────────
+//
+// The only wipe used to be ShowIdsView's, which fires only if THAT game's view is
+// opened again after kickoff, plus AuthProvider's logout button — so a squad's IDs
+// outlived their game on a phone whose coach never reopened it, and outlived the
+// session on every other way out (a rejected refresh, a member-less session, the
+// set-password page) and across a different member logging in on the same device
+// (security audit 2026-10, M4). Every entry now records its owner and an expiry,
+// swept at boot and whenever a member is established.
+
+/**
+ * The server hands a document out from 6 h before kickoff (identity-document.js,
+ * PRELOAD_BEFORE_MS), so kickoff is at most this far after the download. The
+ * expiry when the caller does not know the kickoff, and for entries written
+ * before `expiresAt` existed.
+ */
+export const CACHE_FALLBACK_TTL_MS = 6 * 60 * 60 * 1000
+
+/** When an entry cached now should go: the window end if known, else the fallback. */
+export function cacheExpiry(windowEndMs: number | null | undefined, now: number = Date.now()): number {
+  return windowEndMs != null && Number.isFinite(windowEndMs) ? windowEndMs : now + CACHE_FALLBACK_TTL_MS
+}
+
+/**
+ * Whether a cached doc/sheet must be dropped: past its expiry, or — when `owner` is
+ * given — downloaded by somebody else. Entries from before owner/expiry were stored
+ * count as foreign and expire on the fallback. Pure; exported for the unit test.
+ */
+export function isStaleCacheEntry(
+  entry: { cachedAt?: number; expiresAt?: number; owner?: number },
+  now: number,
+  owner?: number,
+): boolean {
+  const expiresAt = entry.expiresAt ?? (entry.cachedAt ?? 0) + CACHE_FALLBACK_TTL_MS
+  if (now > expiresAt) return true
+  return owner != null && entry.owner !== owner
+}
+
+export async function cacheDocument(
+  doc: Omit<CachedDoc, 'id' | 'cachedAt' | 'expiresAt'> & { windowEndMs: number | null },
+): Promise<void> {
+  const { windowEndMs, ...rest } = doc
+  const now = Date.now()
   await tx(DOCS, 'readwrite', (s) => s.put({
-    ...doc,
+    ...rest,
     id: `${doc.gameId}:${doc.memberId}`,
-    cachedAt: Date.now(),
+    cachedAt: now,
+    expiresAt: cacheExpiry(windowEndMs, now),
   }))
 }
 
@@ -168,11 +215,18 @@ export interface CachedSheet {
   players: number
   liberos: number
   cachedAt: number
+  /** Same meaning as on CachedDoc. */
+  owner: number
+  expiresAt: number
 }
 
-export async function cacheSheet(sheet: Omit<CachedSheet, 'cachedAt'>): Promise<void> {
+export async function cacheSheet(
+  sheet: Omit<CachedSheet, 'cachedAt' | 'expiresAt'> & { windowEndMs: number | null },
+): Promise<void> {
+  const { windowEndMs, ...rest } = sheet
+  const now = Date.now()
   try {
-    await tx(SHEETS, 'readwrite', (s) => s.put({ ...sheet, cachedAt: Date.now() }))
+    await tx(SHEETS, 'readwrite', (s) => s.put({ ...rest, cachedAt: now, expiresAt: cacheExpiry(windowEndMs, now) }))
   } catch {
     // Best effort — without it the deck just needs signal, as before.
   }
@@ -225,5 +279,27 @@ export async function clearAllCachedDocuments(): Promise<void> {
     await tx(SHEETS, 'readwrite', (s) => s.clear())
   } catch {
     // Best effort — logout must never fail because a wipe did.
+  }
+}
+
+/**
+ * Drop every cached doc/sheet that is past its window — and, given `owner`, every one
+ * another member downloaded. Run at boot (no owner yet: expiry only) and whenever a
+ * member is established (session restore, login), which is what wipes a coach's squad
+ * when somebody else logs in on the same device.
+ */
+export async function sweepCachedDocuments(owner?: number): Promise<void> {
+  try {
+    const now = Date.now()
+    for (const store of [DOCS, SHEETS]) {
+      const entries = await tx<(CachedDoc | CachedSheet)[]>(store, 'readonly', (s) => s.getAll())
+      for (const e of entries) {
+        if (!isStaleCacheEntry(e, now, owner)) continue
+        const key = store === DOCS ? (e as CachedDoc).id : (e as CachedSheet).gameId
+        await tx(store, 'readwrite', (s) => s.delete(key))
+      }
+    }
+  } catch {
+    // Best effort — a failed sweep leaves the per-game and logout wipes in place.
   }
 }

@@ -20,6 +20,7 @@ import {
 // this one. Re-exported so existing `from './api'` call sites keep working.
 export { isSessionExpired } from './sessionError'
 import { isRefreshRejected } from './sessionError'
+import { clearAllCachedDocuments } from './e2eeStore'
 import { hasNativeBridge, hasNativeFeature, nativeRequest, type NativePushState } from './nativeBridge'
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -217,6 +218,8 @@ export async function login(email: string, password: string) {
  * app, not a PushManager one: same server POSTs, then the bridge drops it.
  */
 const LOGOUT_PUSH_TIMEOUT_MS = 3000
+/** Upper bound on the identity-document wipe at logout — see `logout()`. */
+const LOGOUT_WIPE_TIMEOUT_MS = 2000
 
 async function unbindPushDevice(actingId: number | null): Promise<void> {
   if (hasNativeBridge() && (await hasNativeFeature('push'))) {
@@ -263,6 +266,17 @@ export async function logout(opts: { unbindPush?: boolean } = {}) {
   // Captured now: the caller tears the acting state down synchronously right
   // after this function yields at its first await.
   const actingAtLogout = _actingMemberId
+  // Pre-loaded identity documents + match sheets (Show IDs), FIRST. Only the
+  // logout button wiped them; the other ways a session ends all land here — a
+  // member-less or rejected session restore, SetPasswordPage — and left a squad's
+  // IDs on the device for whoever used the browser next (security audit 2026-10,
+  // M4). Swallows its own errors; bounded because an IndexedDB open that never
+  // settles (a wedged WebKit store) must not hold the session open. A wipe that
+  // is merely slow keeps running past the bound and still completes.
+  await Promise.race([
+    clearAllCachedDocuments(),
+    new Promise<void>((resolve) => setTimeout(resolve, LOGOUT_WIPE_TIMEOUT_MS)),
+  ])
   if (opts.unbindPush) {
     try {
       await Promise.race([

@@ -83,7 +83,7 @@ interface Card {
   role?: string | null
 }
 
-type Sheet = Omit<CachedSheet, 'gameId' | 'cachedAt'>
+type Sheet = Omit<CachedSheet, 'gameId' | 'cachedAt' | 'owner' | 'expiresAt'>
 
 /** The fields the deck shows — picked one by one, so nothing else (birthdates) is ever saved. */
 const pickRow = (r: SheetRow & { member: number }): CachedSheetRow => ({
@@ -322,6 +322,9 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
   // members in a dep array make the React Compiler bail on the memoization.
   const viewerFirstName = realUser?.first_name ?? ''
   const viewerLastName = realUser?.last_name ?? ''
+  // Whose device key opens what is pre-loaded — recorded on every cached entry so a
+  // different member logging in on this device sweeps it (e2eeStore, `owner`).
+  const ownerId = realUser?.id != null ? Number(realUser.id) : null
 
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -417,7 +420,16 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
         setSheetFailed(false)
         setVmCheck(res.data.vm_check ?? null)
         // Keep the saved copy current — only where there are documents to show with it.
-        void loadCachedDocuments(gameId).then((docs) => { if (docs.length) void cacheSheet({ gameId, ...sheet }) })
+        // It goes with them: same owner, and gone at the same kickoff.
+        void loadCachedDocuments(gameId).then((docs) => {
+          if (!docs.length) return
+          void cacheSheet({
+            gameId,
+            ...sheet,
+            owner: docs[0].owner,
+            windowEndMs: gameKickoffMs(sheet.game.date, sheet.game.time) ?? docs[0].expiresAt,
+          })
+        })
       })
       .catch((err) => {
         trace(`sheet for game ${gameId} failed after ${since(t0)} ms:`, err)
@@ -448,6 +460,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
 
   /** Pull ciphertext + envelopes onto the device. Do this while you still have signal. */
   const preload = useCallback(async () => {
+    if (ownerId == null) return
     setBusy(true)
     const t0 = performance.now()
     let ok = 0
@@ -479,6 +492,9 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
           iv: meta.data.iv,
           mime: meta.data.mime,
           envelope: meta.data.envelope,
+          owner: ownerId,
+          // The display window ends at kickoff — after that the copy has no use here.
+          windowEndMs: kickoffMs ?? (meta.data.kickoff ? Date.parse(meta.data.kickoff) : null),
         })
         trace(`download #${member}: ${meta.data.mime ?? '?'} ${kb(ciphertext.byteLength)} · meta ${metaMs} ms`
           + ` · bytes ${bytesMs} ms (first byte ${firstByteMs} ms) · store ${since(tc)} ms · done at +${since(t0)} ms`)
@@ -522,6 +538,8 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
           rows: roster.filter((r): r is SheetRow & { member: number } => r.member != null).map(pickRow),
           players: sheetCount.players,
           liberos: sheetCount.liberos,
+          owner: ownerId,
+          windowEndMs: kickoffMs,
         })
       }
       toast.success(t('idsDownloaded', { count: ok }))
@@ -530,7 +548,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
     } finally {
       setBusy(false)
     }
-  }, [gameId, roster, t, sheetGame, sheetCount])
+  }, [gameId, roster, t, sheetGame, sheetCount, ownerId, kickoffMs])
 
   /** Decrypt what is on the device. Works with no connection at all. */
   const reveal = useCallback(async () => {
