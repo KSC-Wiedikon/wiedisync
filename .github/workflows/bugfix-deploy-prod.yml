@@ -24,10 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: prod
           fetch-depth: 0
+          # Credentials stay persisted on purpose: the next step fetches dev and
+          # pushes the release/bugfix-* branch with this token.
 
       - name: Cherry-pick bugfix to prod
         env:

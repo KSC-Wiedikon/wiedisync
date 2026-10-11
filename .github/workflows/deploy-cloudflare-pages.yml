@@ -45,9 +45,12 @@ jobs:
             dev_only: true
     name: ${{ matrix.project }} (${{ github.ref_name }})
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Nothing here pushes; `npm ci` runs dependency scripts next to a token.
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
@@ -156,7 +159,9 @@ jobs:
             echo "::error::Repo secret CLOUDFLARE_API_TOKEN is not set. It must be a KSCW-account token with Account · Cloudflare Pages · Edit."
             exit 1
           fi
-          npx wrangler@4 pages deploy dist \
+          # Exact version: this step holds CLOUDFLARE_API_TOKEN, so it must not
+          # pull whatever wrangler 4.x is newest at run time.
+          npx wrangler@4.149.0 pages deploy dist \
             --project-name='${{ matrix.project }}' \
             --branch='${{ github.ref_name }}' \
             --commit-hash='${{ github.sha }}'
