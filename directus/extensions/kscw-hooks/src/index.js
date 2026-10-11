@@ -6845,6 +6845,27 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     await assertManualGamesInScope(db, accountability, meta?.keys || [], payloadTeam)
     return payload
   })
+
+  // ── Endpoint-owned games columns: never through /items below full admin ──
+  // The provisional result (migration 395) and the VolleyManager result /
+  // Einsatzliste journals are written only by the endpoints (raw knex) and by the
+  // vm-push-* workers (as the sync admin). The hourly :35 sweep files whatever a
+  // 'pending' row holds, so a Sport Admin PATCHing these columns — `games` is
+  // fields:* for that policy — could file any score in VolleyManager under the
+  // club account (audit 2026-10-11, H3). Refused, not stripped: a silent strip
+  // would hide the attempt.
+  const GAME_ENDPOINT_OWNED = /^(provisional_|vm_result_|vm_opponent_report$|vm_nomination_)/
+  const refuseEndpointOwnedGameFields = (payload, accountability) => {
+    if (!accountability || accountability.admin) return payload
+    if (!payload || typeof payload !== 'object') return payload
+    const hit = Object.keys(payload).filter((k) => GAME_ENDPOINT_OWNED.test(k))
+    if (hit.length) {
+      throw kscwScopeError(`Not writable here: ${hit.join(', ')}`, 403, 'FIELD_NOT_WRITABLE')
+    }
+    return payload
+  }
+  filter('games.items.create', async (payload, _meta, { accountability }) => refuseEndpointOwnedGameFields(payload, accountability))
+  filter('games.items.update', async (payload, _meta, { accountability }) => refuseEndpointOwnedGameFields(payload, accountability))
   filter('games.items.delete', async (keys, _meta, { accountability, database: db }) => {
     await assertManualGamesInScope(db, accountability, keys || [])
     return keys
@@ -7628,9 +7649,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           throw kscwScopeError('This sponsor belongs to another team', 403, 'NOT_TEAM_LEADER')
         }
       }
+      // A sponsor with no team link is a club sponsor (shown on kscw.ch). Linking it
+      // would hand the coach the LEADER update/delete on it (audit 2026-10-11, M6).
+      // A coach's own new sponsor is created in the same request as its link
+      // (TeamSponsorsEditor), so a row that is seconds old is theirs.
+      if (sponsorId != null && !links.length && !(await actorHasClubRole(db, accountability, SPONSOR_CLUB_ROLES))) {
+        const sp = await db('sponsors').where('id', sponsorId).first('date_created')
+        const ageMs = sp?.date_created ? Date.now() - new Date(sp.date_created).getTime() : Infinity
+        if (sp && !(ageMs >= 0 && ageMs < 2 * 60 * 1000)) {
+          throw kscwScopeError('This is a club sponsor', 403, 'NOT_TEAM_LEADER')
+        }
+      }
     }
     return payload
   })
+  const SPONSOR_CLUB_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser', 'website_admin']
 
   // event_sessions: only for an event the caller created or whose team they lead.
   async function actorManagesEvent(db, accountability, eventId) {
