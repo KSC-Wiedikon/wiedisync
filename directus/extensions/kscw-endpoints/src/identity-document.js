@@ -752,6 +752,18 @@ export function registerIdentityDocument(router, ctx) {
       if (!isAdmin && Number(me?.id) !== target) {
         return res.status(403).json({ error: 'Not your document', code: 'not_owner' })
       }
+      // A re-encoding is made from the decrypted original, so only someone holding a key
+      // to the CURRENT document can have made one. Without this any Directus admin (incl. a
+      // bare admin session) could swap a member's document for their own ciphertext while it
+      // keeps reading "uploaded by the member" (2026-10-11 audit).
+      if (recompress) {
+        const holder = me && await database('identity_documents as d')
+          .join('identity_document_keys as k', 'k.document', 'd.id')
+          .where('d.member', target)
+          .where('k.recipient', Number(me.id))
+          .first('d.id')
+        if (!holder) return res.status(403).json({ error: 'Only a key holder may re-encode this document', code: 'not_key_holder' })
+      }
 
       // The file must be the ciphertext we just took in, in the private folder — not an
       // arbitrary uuid pointed at someone else's asset.
