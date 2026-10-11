@@ -1,0 +1,1 @@
+Security hardening: links from other apps, file uploads, downloads and links to other apps are checked more strictly.

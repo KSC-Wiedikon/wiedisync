@@ -3,6 +3,7 @@ package ch.kscw.wiedisync
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -17,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Message
 import android.provider.MediaStore
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -44,10 +46,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.graphics.ColorUtils
+import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
+import java.net.URI
 import java.net.URISyntaxException
+import java.util.Locale
 
 /**
  * The whole app: one WebView on the live site (BuildConfig.START_URL), plus the
@@ -61,7 +66,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var bridge: NativeBridge
     private val barsBackground = SystemBarsDrawable()
 
-    /** Hosts that stay inside the app; every other link opens outside it. */
+    /**
+     * Hosts that stay inside the app; every other link opens outside it. Also the
+     * bridge's origins, the only pages an intent may open, and the only download
+     * hosts that get the WebView's cookies.
+     */
     private val appHosts = BuildConfig.APP_HOSTS.split(',').toSet()
 
     private var fileCallback: ValueCallback<Array<Uri>>? = null
@@ -80,15 +89,14 @@ class MainActivity : ComponentActivity() {
         val data = result.data
         val clip = data?.clipData
         val picked = data?.data
-        callback.onReceiveValue(
-            when {
-                clip != null -> Array(clip.itemCount) { clip.getItemAt(it).uri }
-                picked != null -> arrayOf(picked)
-                // The camera app returns no data: the photo is where we told it to write.
-                photo != null -> arrayOf(photo)
-                else -> null
-            },
-        )
+        val uris = when {
+            clip != null -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+            picked != null -> listOf(picked)
+            // The camera app returns no data: the photo is where we told it to write.
+            photo != null -> listOf(photo)
+            else -> emptyList()
+        }.filter { isPickedFile(it, photo) }
+        callback.onReceiveValue(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
     }
 
     private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -144,7 +152,7 @@ class MainActivity : ComponentActivity() {
         webView.webViewClient = Client()
         webView.webChromeClient = Chrome()
         webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
-            Downloads.enqueue(this, url, userAgent, contentDisposition, mimeType)
+            Downloads.enqueue(this, url, userAgent, contentDisposition, mimeType, ownHost = isAppUrl(url.toUri()))
         }
         // Must be installed before the first load so the page sees window.WiedisyncNative.
         bridge = NativeBridge(this, webView, appHosts.map { "https://$it" }.toSet())
@@ -216,53 +224,103 @@ class MainActivity : ComponentActivity() {
 
     // ── Navigation ───────────────────────────────────────────────────────────
 
-    private fun isAppUrl(uri: Uri) = uri.scheme == "https" && uri.host in appHosts
+    /** For URLs the WebView produced (already canonical): navigations, downloads. */
+    private fun isAppUrl(uri: Uri) = uri.scheme == "https" && uri.host in appHosts && uri.port == -1
 
-    /** A notification tap or an App Link — only ever one of our own pages. */
+    /**
+     * A notification tap or an App Link — only ever one of our own pages. The
+     * activity is exported, so any app can start it with any extras: [EXTRA_URL]
+     * only counts on a tap on our own notification ([Notifications.isOwnTap]), an
+     * App Link is the VIEW data, and either way the URL must pass [strictAppUrl].
+     */
     private fun appUrlFrom(intent: Intent?): String? {
-        val raw = intent?.getStringExtra(EXTRA_URL) ?: intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString
-        val uri = raw?.let(Uri::parse) ?: return null
-        return uri.toString().takeIf { isAppUrl(uri) }
+        intent ?: return null
+        // A hostile Bundle can throw while it is unparcelled.
+        val raw = runCatching {
+            intent.getStringExtra(EXTRA_URL)?.takeIf { Notifications.isOwnTap(this, intent) }
+                ?: intent.takeIf { it.action == Intent.ACTION_VIEW }?.dataString
+        }.getOrNull()
+        return raw?.let(::strictAppUrl)
     }
 
-    /** Hand a link to whatever app handles it: browser, mail, phone, TWINT, … */
+    /**
+     * [raw] as one of our pages, or null — for URLs from outside the WebView.
+     * android.net.Uri is lenient where Chromium is not (`https://evil\@our.host/`
+     * is our host to Uri, evil to Chromium); java.net.URI refuses such input
+     * outright, and the WebView loads the URL rebuilt from what was checked.
+     */
+    private fun strictAppUrl(raw: String): String? {
+        val uri = try {
+            URI(raw)
+        } catch (_: URISyntaxException) {
+            return null
+        }
+        if (!uri.scheme.equals("https", ignoreCase = true) || uri.rawUserInfo != null) return null
+        if (uri.port != -1 && uri.port != 443) return null
+        val host = uri.host?.lowercase(Locale.ROOT)?.takeIf { it in appHosts } ?: return null
+        return buildString {
+            append("https://").append(host).append(uri.rawPath.orEmpty().ifEmpty { "/" })
+            uri.rawQuery?.let { append('?').append(it) }
+            uri.rawFragment?.let { append('#').append(it) }
+        }
+    }
+
+    /**
+     * Hand a link to whatever app handles it: browser, mail, phone, TWINT, …
+     * Callers only do this on a tap: a page can't send the member to another app on its own.
+     */
     fun openOutside(uri: Uri) {
-        val intent = when (uri.scheme?.lowercase()) {
-            "http", "https", "tel", "sms", "smsto", "geo" -> Intent(Intent.ACTION_VIEW, uri)
-            "mailto" -> Intent(Intent.ACTION_SENDTO, uri)
-            "intent" -> {
-                openIntentLink(uri)
-                return
-            }
+        when (uri.scheme?.lowercase()) {
+            "http", "https", "tel", "sms", "smsto", "geo" -> launch(Intent(Intent.ACTION_VIEW, uri))
+            "mailto" -> launch(Intent(Intent.ACTION_SENDTO, uri))
+            "intent" -> openIntentLink(uri)
             // Nothing outside the app can open these.
-            null, "blob", "data", "javascript", "file", "content", "about" -> return
-            else -> Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
-        }
-        try {
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.no_app, Toast.LENGTH_SHORT).show()
+            null, "blob", "data", "javascript", "file", "content", "about" -> Unit
+            else -> launch(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
         }
     }
 
-    /** `intent:` links, defanged: never an explicit component or selector. */
+    /**
+     * `intent:` links, defanged the way Chrome does it: browsable activities only,
+     * never an explicit component or selector, never us, and no flags — a
+     * URI-permission grant would hand the target app files of ours.
+     */
     private fun openIntentLink(uri: Uri) {
         val parsed = try {
             Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
-        } catch (_: URISyntaxException) {
+        } catch (_: Exception) {
+            // URISyntaxException, but also e.g. NumberFormatException for bad launchFlags.
             return
         }
+        val dataScheme = parsed.data?.scheme?.lowercase()
+        if (parsed.`package` == packageName || dataScheme == "file" || dataScheme == "content") return
         parsed.component = null
         parsed.selector = null
+        parsed.flags = 0
         parsed.addCategory(Intent.CATEGORY_BROWSABLE)
-        try {
-            startActivity(parsed)
-        } catch (_: ActivityNotFoundException) {
-            parsed.getStringExtra("browser_fallback_url")?.let(Uri::parse)
+        launch(parsed) {
+            val fallback = runCatching { parsed.getStringExtra("browser_fallback_url") }.getOrNull()
+                ?.let(Uri::parse)
                 ?.takeIf { it.scheme == "https" }
-                ?.let { openOutside(it) }
+            if (fallback != null) launch(Intent(Intent.ACTION_VIEW, fallback)) else toast(R.string.no_app)
         }
     }
+
+    /** startActivity that never takes the app down: no handler → [onNotFound], any other refusal → a toast. */
+    private fun launch(intent: Intent, onNotFound: () -> Unit = { toast(R.string.no_app) }) {
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            onNotFound()
+        } catch (e: Exception) {
+            // A SecurityException from a handler we may not start, a bad extra, …
+            // Only the scheme is logged: the URL may carry a token.
+            Log.w(TAG, "Could not open a ${intent.scheme ?: intent.action} link", e)
+            toast(R.string.open_failed)
+        }
+    }
+
+    private fun toast(text: Int) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
     // Lint misses the Kotlin override below (androidx.webkit lint, 1.17.1).
     @SuppressLint("MissingOnRenderProcessGone")
@@ -270,7 +328,11 @@ class MainActivity : ComponentActivity() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             // Frames (Turnstile, embeds) navigate freely; only the top page is routed.
             if (!request.isForMainFrame || isAppUrl(request.url)) return false
-            openOutside(request.url)
+            if (request.hasGesture()) {
+                openOutside(request.url)
+            } else {
+                Log.w(TAG, "Not opening a ${request.url.scheme} link without a tap")
+            }
             return true
         }
 
@@ -306,7 +368,8 @@ class MainActivity : ComponentActivity() {
             return try {
                 pickFiles.launch(chooser)
                 true
-            } catch (_: ActivityNotFoundException) {
+            } catch (e: Exception) {
+                Log.w(TAG, "No file picker", e)
                 fileCallback = null
                 cameraUri = null
                 false
@@ -315,11 +378,16 @@ class MainActivity : ComponentActivity() {
 
         @SuppressLint("MissingOnRenderProcessGone") // implemented on the catcher below
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-            // A throwaway WebView catches the new window's first URL and routes it.
+            // A throwaway WebView catches the new window's first URL and routes it:
+            // our pages load in the app, another app only opens if window.open came from a tap.
             val catcher = WebView(this@MainActivity)
             catcher.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
-                    if (isAppUrl(request.url)) webView.loadUrl(request.url.toString()) else openOutside(request.url)
+                    when {
+                        isAppUrl(request.url) -> webView.loadUrl(request.url.toString())
+                        isUserGesture -> openOutside(request.url)
+                        else -> Log.w(TAG, "Not opening a ${request.url.scheme} window without a tap")
+                    }
                     v.post { v.destroy() }
                     return true
                 }
@@ -334,6 +402,14 @@ class MainActivity : ComponentActivity() {
             return true
         }
     }
+
+    /**
+     * Only content:// goes to the page, and of our own provider only the photo we
+     * asked the camera for: a picker answering with file:// (or another of our
+     * URIs) would have the page upload a file out of the app's private storage.
+     */
+    private fun isPickedFile(uri: Uri, photo: Uri?): Boolean =
+        uri.scheme == ContentResolver.SCHEME_CONTENT && (uri.authority != "$packageName.files" || uri == photo)
 
     private fun acceptsImages(params: WebChromeClient.FileChooserParams): Boolean {
         val types = params.acceptTypes.flatMap { it.split(',') }.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -416,6 +492,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_URL = "ch.kscw.wiedisync.URL"
+        private const val TAG = "MainActivity"
         private const val PREFS = "app"
         private const val PREF_NOTIFICATIONS_DENIED = "notifications_denied"
         private const val CAMERA_DIR = "camera"
