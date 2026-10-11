@@ -17,7 +17,16 @@
  *
  * Everything except the column list is best-effort: a failing catalog query
  * degrades the response, it never fails it.
+ *
+ * The column list is read AS the workspace's reader role (kscw_sql_reader, see
+ * sql-reader.js). information_schema only shows a role the columns it holds a
+ * privilege on, so credential tables and columns — which read mode cannot
+ * SELECT — are not advertised in the sidebar, the autocomplete or the prompt
+ * the model writes SQL from. Keys and value hints are only ever attached to a
+ * listed column, so they follow the same filter.
  */
+
+import { withReadOnlyReader } from './sql-reader.js'
 
 const VALUE_HINT_MAX = 40
 /** Sample values only for columns with at most this many distinct values —
@@ -29,10 +38,13 @@ const CACHE_TTL_MS = 60_000
 
 let cache = null // { at: number, model: SchemaModel }
 
-/** Base columns of every public BASE TABLE, in ordinal order. */
+/** Base columns of every public BASE TABLE, in ordinal order. Run as the
+ *  reader role: only its readable columns come back, and `full_select` is
+ *  false where it holds column grants only — `SELECT *` fails there. */
 async function loadColumns(database) {
   const result = await database.raw(`
-    SELECT c.table_name, c.column_name, c.data_type, c.udt_name, c.is_nullable, c.ordinal_position
+    SELECT c.table_name, c.column_name, c.data_type, c.udt_name, c.is_nullable, c.ordinal_position,
+           has_table_privilege(format('%I.%I', c.table_schema, c.table_name), 'SELECT') AS full_select
     FROM information_schema.columns c
     JOIN information_schema.tables t
       ON t.table_schema = c.table_schema AND t.table_name = c.table_name
@@ -42,7 +54,10 @@ async function loadColumns(database) {
   const byTable = new Map()
   for (const r of result.rows) {
     let entry = byTable.get(r.table_name)
-    if (!entry) { entry = { name: r.table_name, columns: [] }; byTable.set(r.table_name, entry) }
+    if (!entry) {
+      entry = { name: r.table_name, columns: [], restricted: r.full_select === false }
+      byTable.set(r.table_name, entry)
+    }
     entry.columns.push({
       name: r.column_name,
       // `USER-DEFINED` is what information_schema calls every enum and domain —
@@ -172,7 +187,9 @@ async function loadValueHints(database, log) {
 export async function loadSchemaModel(database, log, force = false) {
   if (!force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.model
 
-  const byTable = await loadColumns(database)
+  // Fails closed: without the reader role there is no model (503), never a
+  // model that lists columns read mode cannot read.
+  const byTable = await withReadOnlyReader(database, (trx) => loadColumns(trx))
   const [keys, values] = await Promise.all([
     loadKeys(database, log),
     loadValueHints(database, log),
@@ -182,6 +199,9 @@ export async function loadSchemaModel(database, log, force = false) {
   for (const entry of byTable.values()) {
     tables.push({
       name: entry.name,
+      // Some columns are hidden from read mode (credentials): the sidebar's
+      // starter query must name columns instead of `SELECT *`.
+      ...(entry.restricted ? { restricted: true } : {}),
       columns: entry.columns.map((c) => {
         const key = `${entry.name}.${c.name}`
         const k = keys.get(key)

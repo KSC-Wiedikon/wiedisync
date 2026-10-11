@@ -32,6 +32,7 @@ Rules:
 - Target PostgreSQL 15.8 specifically. Use PG-native syntax (ILIKE, ::cast, JSONB operators ->/->>/@>, COALESCE, FILTER, etc.).
 - Default to read-only SELECT/CTE queries. Do not write INSERT/UPDATE/DELETE/DDL unless the user explicitly asks for a write and clearly understands they need to flip "Write mode" in the UI.
 - Always include a sensible LIMIT (default 100) unless the user explicitly asks for all rows or an aggregate.
+- Never write \`SELECT *\` or \`alias.*\` — always name the columns. Queries run as a restricted role that cannot read credential columns (passwords, tokens, key material); those columns are left out of the schema below, and \`*\` on a table that has one (directus_users, members, …) fails with "permission denied". Only use columns the schema lists.
 - IMPORTANT: members.role and members.position are stored as PostgreSQL \`json\` (not \`jsonb\`). The \`@>\` containment operator and most JSONB functions are only defined on \`jsonb\` — you MUST cast first. Patterns that work:
   - \`role::jsonb @> '["admin"]'::jsonb\`
   - \`'admin' IN (SELECT json_array_elements_text(role))\`

@@ -41,6 +41,48 @@ export function shortType(dataType: string | undefined): string {
   return SHORT_TYPES[dataType] ?? dataType
 }
 
+/** Postgres keywords a column name cannot be written bare with (the reserved
+ *  ones plus the column-name keywords), e.g. `members."user"`. */
+const KEYWORDS = new Set([
+  'all', 'analyse', 'analyze', 'and', 'any', 'array', 'as', 'asc', 'asymmetric', 'authorization',
+  'between', 'bigint', 'binary', 'bit', 'boolean', 'both', 'case', 'cast', 'char', 'character',
+  'check', 'coalesce', 'collate', 'collation', 'column', 'concurrently', 'constraint', 'create',
+  'cross', 'current_catalog', 'current_date', 'current_role', 'current_schema', 'current_time',
+  'current_timestamp', 'current_user', 'dec', 'decimal', 'default', 'deferrable', 'desc',
+  'distinct', 'do', 'else', 'end', 'except', 'exists', 'extract', 'false', 'fetch', 'float', 'for',
+  'foreign', 'freeze', 'from', 'full', 'grant', 'greatest', 'group', 'grouping', 'having', 'ilike',
+  'in', 'initially', 'inner', 'inout', 'int', 'integer', 'intersect', 'interval', 'into', 'is',
+  'isnull', 'join', 'lateral', 'leading', 'least', 'left', 'like', 'limit', 'localtime',
+  'localtimestamp', 'national', 'natural', 'nchar', 'none', 'normalize', 'not', 'notnull', 'null',
+  'nullif', 'numeric', 'offset', 'on', 'only', 'or', 'order', 'out', 'outer', 'overlaps', 'overlay',
+  'placing', 'position', 'precision', 'primary', 'real', 'references', 'returning', 'right', 'row',
+  'select', 'session_user', 'setof', 'similar', 'smallint', 'some', 'substring', 'symmetric',
+  'system_user', 'table', 'tablesample', 'then', 'time', 'timestamp', 'to', 'trailing', 'treat',
+  'trim', 'true', 'union', 'unique', 'user', 'using', 'values', 'varchar', 'variadic', 'verbose',
+  'when', 'where', 'window', 'with',
+])
+
+/** An identifier as Postgres needs it written: bare when it is a plain
+ *  lower-case name and no keyword, double-quoted otherwise (`"user"`, `"Email"`). */
+export function quoteIdent(name: string): string {
+  return /^[a-z_][a-z0-9_$]*$/.test(name) && !KEYWORDS.has(name) ? name : `"${name.replace(/"/g, '""')}"`
+}
+
+/** The starter query the schema sidebar's SELECT button puts in the editor.
+ *  Read mode cannot see credential columns (passwords, tokens, key material),
+ *  and on a table that has some — `restricted` — `SELECT *` fails with
+ *  "permission denied", so the readable columns are spelled out there. */
+export function starterSelect(table: {
+  name: string
+  restricted?: boolean
+  columns: readonly { name: string }[]
+}): string {
+  const cols = table.restricted && table.columns.length > 0
+    ? table.columns.map((c) => quoteIdent(c.name)).join(', ')
+    : '*'
+  return `SELECT ${cols} FROM ${quoteIdent(table.name)} LIMIT 100;`
+}
+
 /** A table brought into scope by a FROM/JOIN/UPDATE/INTO clause. */
 export interface TableRef {
   /** How the query refers to it — the alias if there is one, else the name. */
