@@ -24,7 +24,7 @@ import { dirname, join } from 'node:path'
 export const PREFLIGHT_SQL_FILE = 'preflight-no-foreign-functions.sql'
 export const ALLOWED_OWNERS_ENV = 'KSCW_PREFLIGHT_ALLOWED_OWNERS'
 /** Every migration, the baseline and the dev restore run as this role. */
-export const DEFAULT_ALLOWED_OWNERS = Object.freeze(['supabase_admin'])
+export const DEFAULT_ALLOWED_OWNERS = Object.freeze(['supabase_admin', 'postgres'])
 /** The Directus login roles (F29) — the roles this check exists to distrust. */
 export const DIRECTUS_LOGIN_ROLES = Object.freeze(['directus_prod', 'directus_dev'])
 /** The exact, whole answer of a clean database. */

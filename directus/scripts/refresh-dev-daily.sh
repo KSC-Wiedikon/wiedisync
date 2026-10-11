@@ -62,7 +62,8 @@
 #   [4b/7] the fresh clone, before its first UPDATE -> rollback.
 #   rollback: the restored safety dump, before its scrub -> dev left STOPPED.
 # Allowed owners: KSCW_PREFLIGHT_ALLOWED_OWNERS (comma-separated), default
-# supabase_admin — the same contract as apply-migrations.mjs.
+# supabase_admin,postgres (postgres owns the pgcrypto + unaccent functions on
+# prod) — the same contract as apply-migrations.mjs.
 #
 set -uo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:${PATH:-}
@@ -104,7 +105,7 @@ done
 
 # Same default and validation as preflight-no-foreign-functions.mjs. The SQL
 # also refuses any entry that is not a superuser or that a Directus role can act as.
-PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin}
+PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin,postgres}
 if ! [[ "$PREFLIGHT_OWNERS" =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]] \
    || [[ ",$PREFLIGHT_OWNERS," =~ ,directus_(prod|dev), ]]; then
   log "!! KSCW_PREFLIGHT_ALLOWED_OWNERS='$PREFLIGHT_OWNERS' is not a list of plain role names (or names a Directus role) — aborting (dev untouched)."

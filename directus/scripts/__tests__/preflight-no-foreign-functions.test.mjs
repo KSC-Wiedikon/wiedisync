@@ -39,10 +39,10 @@ const manual = read('refresh-dev-from-prod.sh')
 
 // ── Owner list ───────────────────────────────────────────────────────────────
 test('allowed owners: default, override, dedupe', () => {
-  assert.deepEqual(DEFAULT_ALLOWED_OWNERS, ['supabase_admin'])
-  assert.deepEqual(resolveAllowedOwners(undefined), ['supabase_admin'])
-  assert.deepEqual(resolveAllowedOwners(''), ['supabase_admin'])
-  assert.deepEqual(resolveAllowedOwners('  '), ['supabase_admin'])
+  assert.deepEqual(DEFAULT_ALLOWED_OWNERS, ['supabase_admin', 'postgres'])
+  assert.deepEqual(resolveAllowedOwners(undefined), ['supabase_admin', 'postgres'])
+  assert.deepEqual(resolveAllowedOwners(''), ['supabase_admin', 'postgres'])
+  assert.deepEqual(resolveAllowedOwners('  '), ['supabase_admin', 'postgres'])
   assert.deepEqual(resolveAllowedOwners('supabase_admin, postgres'), ['supabase_admin', 'postgres'])
   assert.deepEqual(resolveAllowedOwners('postgres,postgres'), ['postgres'])
 })
@@ -187,7 +187,7 @@ test('manual refresh: same pre-flight, same placement', () => {
 
 test('JS, nightly and manual agree on the default owner and the all-clear line', () => {
   for (const [name, src] of [['daily', daily], ['manual', manual]]) {
-    assert.match(src, /PREFLIGHT_OWNERS=\$\{KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin\}/, `${name}: default drifted`)
+    assert.ok(src.includes(`PREFLIGHT_OWNERS=\${KSCW_PREFLIGHT_ALLOWED_OWNERS:-${DEFAULT_ALLOWED_OWNERS.join(',')}}`), `${name}: default drifted`)
     assert.ok(src.includes(`[ "$rc" -eq 0 ] && [ "$out" = "${ALL_CLEAR}" ] && return 0`), `${name}: all-clear comparison drifted`)
   }
   assert.equal(PREFLIGHT_SQL_FILE, 'preflight-no-foreign-functions.sql')

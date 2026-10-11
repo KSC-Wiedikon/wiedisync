@@ -47,7 +47,7 @@
 -- psql variable (required — an unset variable leaves the literal `:'allowed_owners'`
 -- below, a syntax error, so the check fails CLOSED):
 --   allowed_owners   comma-separated role names. The callers fill it from
---                    KSCW_PREFLIGHT_ALLOWED_OWNERS, default `supabase_admin`
+--                    KSCW_PREFLIGHT_ALLOWED_OWNERS, default `supabase_admin,postgres` (postgres owns the pgcrypto + unaccent functions on prod)
 --                    (the role every migration and restore runs as).
 --
 -- OUTPUT (formatting is pinned below, whatever flags the caller passed):
