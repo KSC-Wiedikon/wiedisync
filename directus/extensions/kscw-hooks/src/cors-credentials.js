@@ -53,6 +53,25 @@ export function mayUseCredentials(origin, allowed, allowLocal = true) {
   return allowed.has(origin) || (allowLocal && LOCAL_ORIGIN.test(origin))
 }
 
+// The WebSocket upgrade never passes through the middleware above, and Directus's own
+// upgrade Origin check (websocket/utils/is-origin-allowed) admits every CORS_ORIGIN
+// entry — kscw.ch included — and then authenticates the socket from the session
+// cookie. A same-site page sends that cookie, so an XSS on the website could open
+// wss://directus.kscw.ch/websocket as the visiting member (2026-10-11 audit, H8).
+// Same rule as for HTTP: a non-app origin keeps its (anonymous, or bearer via the
+// handshake) socket, but never the cookie. Run as the FIRST 'upgrade' listener;
+// Directus's handler reads the header after an await, so the strip always wins.
+export function createWebSocketCookieGuard(env = process.env) {
+  const allowed = credentialedOrigins(env)
+  const allowLocal = !isProdInstance(env)
+  return (request) => {
+    const origin = request.headers.origin
+    if (request.headers.cookie && !mayUseCredentials(origin, allowed, allowLocal)) {
+      delete request.headers.cookie
+    }
+  }
+}
+
 export function createCorsCredentialsMiddleware(env = process.env) {
   const allowed = credentialedOrigins(env)
   const allowLocal = !isProdInstance(env)
