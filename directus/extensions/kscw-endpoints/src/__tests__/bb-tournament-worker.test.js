@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { effectiveMode, inWindow, parseRegisterForm, pendingPicks, shouldRun, WORKER_PATHS } from '../bb-tournament-worker.js'
+import { describe, it, expect, vi } from 'vitest'
+import { createBbTournamentWorker, effectiveMode, inWindow, KICK_GAP_MS, parseRegisterForm, pendingPicks, shouldRun, WORKER_PATHS } from '../bb-tournament-worker.js'
 import { bpClient, WITHDRAW_PATH } from '../bp-tournaments.js'
 
 // Shape copied from basketplan.ch (04.10.2026).
@@ -57,5 +57,72 @@ describe('bb tournament worker', () => {
     await expect(c.request('/registerTeamForTournament.do', { method: 'POST' })).resolves.toMatchObject({ status: 200 })
     expect(WORKER_PATHS).not.toContain(WITHDRAW_PATH)
     expect(calls.some((u) => u.includes('withdraw'))).toBe(false)
+  })
+
+  describe('one run at a time', () => {
+    const ENV = { PUBLIC_URL: 'https://directus.kscw.ch', BASKETPLAN_USERNAME: 'u', BASKETPLAN_PASSWORD: 'p' }
+    const quiet = { info() {}, warn() {}, error() {} }
+    // 04:00 Zurich: outside the wish-watch hours, so a forced run reads no wishes.
+    const NIGHT = new Date('2026-11-02T03:00:00Z')
+    /** Every run starts by reading the settings row — so those reads count the runs. */
+    function workerDb(settings = Promise.resolve({ id: 1, mode: 'off' })) {
+      const reads = []
+      const db = (name) => {
+        reads.push(name)
+        const q = { where: () => q, whereIn: () => q, orderBy: () => q, select: () => Promise.resolve([]) }
+        q.first = () => (name === 'bb_tournament_worker' ? settings : Promise.resolve(undefined))
+        return q
+      }
+      return { db, runs: () => reads.filter((n) => n === 'bb_tournament_worker').length }
+    }
+
+    it('two runs at once: the second answers busy and reads nothing', async () => {
+      let release
+      const { db, runs } = workerDb(new Promise((r) => { release = r }))
+      const w = createBbTournamentWorker({ database: db, log: quiet, env: ENV })
+      const first = w.run({ force: true, now: NIGHT })
+      const second = w.run({ force: true, now: NIGHT })
+      await expect(second).resolves.toEqual({ skipped: 'busy' })
+      release({ id: 1, mode: 'dry' })
+      await expect(first).resolves.toMatchObject({ mode: 'dry', pending: 0 })
+      expect(runs()).toBe(1)
+      // Released once settled: the next call runs.
+      await w.run({ force: true, now: NIGHT })
+      expect(runs()).toBe(2)
+    })
+
+    it('kicks: one run now, then one more per gap however often it is kicked', async () => {
+      vi.useFakeTimers()
+      try {
+        const { db, runs } = workerDb()
+        const w = createBbTournamentWorker({ database: db, log: quiet, env: ENV })
+        w.kick()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(runs()).toBe(1)
+        w.kick()
+        w.kick()
+        await vi.advanceTimersByTimeAsync(KICK_GAP_MS - 1)
+        expect(runs()).toBe(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(runs()).toBe(2)
+        await vi.advanceTimersByTimeAsync(10 * KICK_GAP_MS)
+        expect(runs()).toBe(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('a kick during a running tick waits for it instead of being dropped as busy', async () => {
+      let release
+      const { db, runs } = workerDb(new Promise((r) => { release = r }))
+      const w = createBbTournamentWorker({ database: db, log: quiet, env: ENV })
+      const tick = w.run()
+      w.kick()
+      expect(runs()).toBe(1)
+      release({ id: 1, mode: 'off' })
+      await tick
+      await new Promise((r) => setImmediate(r))
+      expect(runs()).toBe(2)
+    })
   })
 })
