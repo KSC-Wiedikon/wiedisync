@@ -46,8 +46,14 @@
 -- F14). ⚠ If you add a column to the clubdesk_export block, add it to
 -- CLUBDESK_EXPORT_SCRUB in that module too — refresh-dev-scrub.test.mjs fails
 -- until both agree. NOT covered: the dev VM / Basketplan checks
--- (sv_vm_check.birthday/email, basketplan_people.birthdate) still write live
--- values until the next 03:00 run.
+-- (sv_vm_check.birthday/email, basketplan_people.birthdate, a dev Einsatzliste
+-- read into game_vm_sheets.list) still write live values until the next 03:00
+-- run.
+--
+-- ⚠ A new table or column holding a date of birth, AHV number or IBAN needs a
+-- line in the PII block below — refresh-dev-scrub.test.mjs reads SCHEMA.sql and
+-- fails until it has one. PII inside JSON is invisible to that scan: list such
+-- tables in its JSON_PII map by hand (game_vm_sheets is the example).
 
 -- Normalise scrub_pii through SQL. psql's own `\if` does NOT honour
 -- ON_ERROR_STOP on a bad or unset value — it warns, treats it as false and
@@ -136,6 +142,51 @@ CREATE FUNCTION pg_temp.kscw_strip(j jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE
     WHEN j->>'field' = ANY (pg_temp.kscw_pii_keys())
       THEN (j - pg_temp.kscw_pii_keys()) - ARRAY['value','proposed_value','current_value','old','new','from','to']
     ELSE j - pg_temp.kscw_pii_keys()
+  END
+$$;
+
+-- A date of birth held as TEXT in JSON: ISO 'yyyy-mm-dd' (what Volleymanager's
+-- formattedAndTimezoneIndependentBirthday carries; a trailing time part is
+-- dropped) or 'dd.mm.yyyy'. Same salted shift as every other DoB, so it still
+-- equals the shifted members.birthdate of the same person. Anything else → NULL.
+CREATE FUNCTION pg_temp.kscw_shift_dob_text(t text) RETURNS text LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF t IS NULL THEN RETURN NULL; END IF;
+  IF t ~ '^\d{4}-\d{2}-\d{2}' THEN
+    RETURN to_char(pg_temp.kscw_shift_date(to_date(substr(t, 1, 10), 'YYYY-MM-DD')), 'YYYY-MM-DD');
+  END IF;
+  RETURN pg_temp.kscw_shift_ddmmyyyy(t);
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END $$;
+
+-- One person of a Volleymanager list ({license_nr, last_name, first_initial,
+-- birthdate, …}): birthdate shifted, and every key kscw_pii_keys() names
+-- (email, phone, other DoB spellings …) dropped should VM ever send one.
+CREATE FUNCTION pg_temp.kscw_vm_person(e jsonb) RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT CASE
+    WHEN e IS NULL OR jsonb_typeof(e) <> 'object' THEN e
+    WHEN e ? 'birthdate'
+      THEN (e - pg_temp.kscw_pii_keys()) || jsonb_build_object('birthdate', pg_temp.kscw_shift_dob_text(e->>'birthdate'))
+    ELSE e - pg_temp.kscw_pii_keys()
+  END
+$$;
+
+CREATE FUNCTION pg_temp.kscw_vm_people(a jsonb) RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT coalesce(jsonb_agg(pg_temp.kscw_vm_person(e) ORDER BY i), '[]'::jsonb)
+    FROM jsonb_array_elements(a) WITH ORDINALITY AS x(e, i)
+$$;
+
+-- game_vm_sheets.list = { players: [...], coaches: [...], closed_at }. Every
+-- ARRAY in it is treated as a list of people — players, officials and whatever
+-- VM adds next — so a new key cannot slip past the scrub; scalars pass through.
+CREATE FUNCTION pg_temp.kscw_vm_list(l jsonb) RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT CASE jsonb_typeof(l)
+    WHEN 'array'  THEN pg_temp.kscw_vm_people(l)
+    WHEN 'object' THEN coalesce((
+        SELECT jsonb_object_agg(k, CASE WHEN jsonb_typeof(v) = 'array' THEN pg_temp.kscw_vm_people(v) ELSE v END)
+          FROM jsonb_each(l - pg_temp.kscw_pii_keys()) AS kv(k, v)), '{}'::jsonb)
+    ELSE l
   END
 $$;
 
@@ -269,6 +320,13 @@ UPDATE sv_vm_check           SET birthday  = pg_temp.kscw_shift_date(birthday)  
 UPDATE basketplan_people     SET birthdate = pg_temp.kscw_shift_date(birthdate) WHERE birthdate IS NOT NULL;
 UPDATE game_rosters          SET birthdate = pg_temp.kscw_shift_date(birthdate) WHERE birthdate IS NOT NULL;
 UPDATE game_roster_officials SET birthdate = pg_temp.kscw_shift_date(birthdate) WHERE birthdate IS NOT NULL;
+-- The Volleymanager Einsatzliste as read at kickoff −45 min (migration 396):
+-- licence number, last name, initial and full DoB of every player and official
+-- on the sheet — minors included. DoBs are shifted (not nulled) so the dev match
+-- sheet keeps showing one, and it still matches members.birthdate. license_nr
+-- and last_name stay, like members.license_nr / last_name: the sheet joins on
+-- the licence.
+UPDATE game_vm_sheets        SET list      = pg_temp.kscw_vm_list(list)        WHERE list      IS NOT NULL;
 
 -- ── Finance: bank details + real send targets ──────────────────────────────
 -- ⚠ recipient_email is a SEND target: without this a dev "send invoice" mails
