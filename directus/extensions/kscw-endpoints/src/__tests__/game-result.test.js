@@ -301,6 +301,23 @@ describe('POST /game-result/:gameId', () => {
     expect([res.statusCode, res.body.code]).toEqual([403, 'outside_window'])
     expect(updates).toEqual([])
   })
+  it('refuses while a guardian acts as a linked member (audit 2026-10-11, M2)', async () => {
+    const res = makeRes()
+    await R.routes['POST /game-result/:gameId']({ accountability: { user: 'u-12', kscwGuardian: 'u-1' }, params: { gameId: '541' }, body: { sets: three } }, res)
+    expect([res.statusCode, res.body.code]).toEqual([403, 'acting_forbidden'])
+    expect(updates).toEqual([])
+  })
+  it('refuses a resubmit within 5 minutes of the last one, unless that push failed (M1)', async () => {
+    game.provisional_at = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    for (const status of ['pending', 'skipped', 'ok']) {
+      game.vm_result_status = status
+      const res = await post({ sets: three })
+      expect([res.statusCode, res.body.code]).toEqual([429, 'too_soon'])
+    }
+    expect(updates).toEqual([])
+    game.vm_result_status = 'failed'
+    expect((await post({ sets: three })).statusCode).not.toBe(429)
+  })
   it('refuses once the official result is in', async () => {
     game.status = 'completed'
     const res = await post({ sets: three })
@@ -534,17 +551,22 @@ describe('dispatchQueuedResultPushes', () => {
   let queue
   let updates
   let selectWheres
+  let entered
   const db = fakeDb((op, table, wheres, data) => {
     if (op === 'select') { selectWheres = wheres; return queue }
+    if (op === 'first') return table === 'user_logs' && entered ? { id: 1 } : undefined
     updates.push({ wheres, data })
     return 1
   })
-  beforeEach(() => { updates = []; queue = [] })
+  beforeEach(() => { updates = []; queue = []; entered = true })
+  // A game played on 28.09 (kickoff 20:45), entered through POST /game-result.
+  const played = { status: 'scheduled', date: '2026-09-28', time: '20:45:00', provisional_at: '2026-09-29T08:00:00Z' }
+  const won = '[{"home":25,"away":20},{"home":25,"away":20},{"home":25,"away":20}]'
   afterEach(() => { globalThis.__kscw_vm_account_holder = null })
   const noon = () => new Date(Date.UTC(2026, 8, 29, 12, 0))
 
   it('does nothing inside a window', async () => {
-    queue = [{ id: 1, provisional_sets_json: '[{"home":25,"away":20}]' }]
+    queue = [{ id: 1, ...played, provisional_sets_json: won }]
     const { spawn, calls } = fakeSpawn()
     const r = await dispatchQueuedResultPushes({ database: db, log: logger, spawn, now: () => new Date(Date.UTC(2026, 8, 29, 23, 0)) })
     expect(r).toEqual({ queued: 0, dispatched: 0 })
@@ -560,8 +582,8 @@ describe('dispatchQueuedResultPushes', () => {
   })
   it('sends them one worker at a time, without FORCE, with the stored sets', async () => {
     queue = [
-      { id: 1, provisional_sets_json: '[{"home":25,"away":20},{"home":25,"away":20},{"home":25,"away":20}]' },
-      { id: 2, provisional_sets_json: [{ home: 20, away: 25 }, { home: 20, away: 25 }, { home: 20, away: 25 }] },
+      { id: 1, ...played, provisional_sets_json: won },
+      { id: 2, ...played, provisional_sets_json: [{ home: 20, away: 25 }, { home: 20, away: 25 }, { home: 20, away: 25 }] },
     ]
     const { spawn, calls } = fakeSpawn()
     const run = dispatchQueuedResultPushes({ database: db, log: logger, spawn, now: noon })
@@ -576,7 +598,7 @@ describe('dispatchQueuedResultPushes', () => {
     expect(JSON.parse(calls[1].opts.env.SETS_JSON)[0]).toEqual({ home: 20, away: 25 })
   })
   it('stops when the shared account is busy — the next hour tries again', async () => {
-    queue = [{ id: 1, provisional_sets_json: '[{"home":25,"away":20}]' }, { id: 2, provisional_sets_json: '[{"home":25,"away":20}]' }]
+    queue = [{ id: 1, ...played, provisional_sets_json: won }, { id: 2, ...played, provisional_sets_json: won }]
     const release = claimVmAccount('vm_sync')
     const { spawn, calls } = fakeSpawn()
     expect(await dispatchQueuedResultPushes({ database: db, log: logger, spawn, now: noon })).toEqual({ queued: 2, dispatched: 0 })
@@ -589,6 +611,21 @@ describe('dispatchQueuedResultPushes', () => {
     await dispatchQueuedResultPushes({ database: db, log: logger, spawn, now: noon })
     expect(calls).toEqual([])
     expect(updates[0].data).toMatchObject({ vm_result_status: 'failed', vm_result_error: 'no_sets' })
+  })
+  // Audit 2026-10-11, H3: the queue row is re-checked, never trusted.
+  it.each([
+    ['before kickoff +3 h', { date: '2026-09-29', time: '13:00:00' }, true, 'failed', 'outside_window'],
+    ['no time at all', { time: null }, true, 'failed', 'outside_window'],
+    ['an official result already in', { status: 'completed' }, true, 'skipped', 'already_official'],
+    ['an impossible score', { provisional_sets_json: '[{"home":25,"away":20}]' }, true, 'failed', 'invalid_sets'],
+    ['no result_entered audit row (written past the endpoint)', {}, false, 'failed', 'not_entered'],
+  ])('refuses a queued row with %s', async (_label, patch, audit, status, error) => {
+    entered = audit
+    queue = [{ id: 9, ...played, provisional_sets_json: won, ...patch }]
+    const { spawn, calls } = fakeSpawn()
+    expect(await dispatchQueuedResultPushes({ database: db, log: logger, spawn, now: noon })).toEqual({ queued: 1, dispatched: 0 })
+    expect(calls).toEqual([])
+    expect(updates[0].data).toMatchObject({ vm_result_status: status, vm_result_error: error })
   })
 })
 
@@ -606,8 +643,9 @@ describe('authorizeGameParticipant — who gets the Einsatzliste consulted', () 
       if (table === 'members') return { id: 12, first_name: 'Anna', last_name: 'Muster' }
       if (table === 'teams_coaches' || table === 'teams_responsibles') return undefined
       if (table === 'game_guest_teams') return []
-      if (table === 'member_teams') return squad ? { id: 1 } : undefined
-      if (table === 'game_guests') return guest ? { id: 1 } : undefined
+      // `first` = squadLinked's existence check; `select` = squadRows' member list.
+      if (table === 'member_teams') return op === 'select' ? (squad ? [{ id: 12 }] : []) : (squad ? { id: 1 } : undefined)
+      if (table === 'game_guests') return op === 'select' ? (guest ? [{ id: 12 }] : []) : (guest ? { id: 1 } : undefined)
       if (table === 'game_rosters') return sheet
       if (table === 'participations') return rsvps
       // loadVmRoster's only step: the list stored at kickoff −45 min (migration 396)
@@ -626,11 +664,18 @@ describe('authorizeGameParticipant — who gets the Einsatzliste consulted', () 
     expect((await authorizeGameParticipant(db, logger, req, opts)).code).toBe('not_participant')
     expect(seen).not.toContain('game_vm_sheets')
   })
-  it('…but a confirmed RSVP still counts for them', async () => {
+  it('…and a confirmed RSVP alone does not make them a participant (audit 2026-10-11, H1)', async () => {
     at()
     const { db, seen } = makeDb({ rsvps: [12] })
-    expect((await authorizeGameParticipant(db, logger, req, opts)).status).toBeUndefined()
+    expect((await authorizeGameParticipant(db, logger, req, opts)).code).toBe('not_participant')
     expect(seen).not.toContain('game_vm_sheets')
+  })
+  it('a confirmed RSVP counts for a squad member or a called-up guest when no sheet is stored', async () => {
+    at()
+    for (const link of [{ squad: true }, { guest: true }]) {
+      const { db } = makeDb({ ...link, rsvps: [12] })
+      expect((await authorizeGameParticipant(db, logger, req, opts)).status).toBeUndefined()
+    }
   })
   it('a squad member or a called-up guest gets the Einsatzliste consulted', async () => {
     at()
@@ -646,7 +691,7 @@ describe('authorizeGameParticipant — who gets the Einsatzliste consulted', () 
     const cache = new Map()
     const first = makeDb()
     await authorizeGameParticipant(first.db, logger, req, { ...opts, cache })
-    const second = makeDb({ rsvps: [12] })
+    const second = makeDb({ squad: true, rsvps: [12] })
     expect((await authorizeGameParticipant(second.db, logger, req, { ...opts, cache })).code).toBe('not_participant')
     expect(second.seen).not.toContain('participations')
     vi.setSystemTime(Date.now() + 2 * 60 * 1000 + 1)

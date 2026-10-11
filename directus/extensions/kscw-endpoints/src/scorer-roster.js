@@ -530,12 +530,17 @@ export async function gameSheetMemberIds(database, log, game, { vm: useVm = true
   if (vm && vm.roster.length) {
     return new Set(vm.roster.filter((r) => r.member != null).map((r) => r.member))
   }
+  // Confirmed RSVPs count only from the squad (roster ∪ called-up guests), exactly
+  // as loadRsvpRoster builds the sheet. Any member may RSVP to any game, so the bare
+  // RSVP list let a stranger become a "participant" and file the club's result in
+  // VolleyManager (audit 2026-10-11, H1).
   const rows = await database('participations')
     .where('activity_type', 'game')
     .where('activity_id', String(game.id))
     .where('status', 'confirmed')
     .pluck('member')
-  return new Set(rows.filter((x) => x != null).map(Number))
+  const squad = new Set((await squadRows(database, game.kscw_team, null, game.id)).map((r) => Number(r.id)))
+  return new Set(rows.filter((x) => x != null).map(Number).filter((id) => squad.has(id)))
 }
 
 export function registerScorerRoster(router, { database, logger }) {
