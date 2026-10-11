@@ -1412,8 +1412,12 @@ async function main() {
   // LedBox scoreboard publisher (migration 272). Held by ONE service user via a
   // static token, never attached to a role — the hall's LED board authenticates
   // with it to PATCH its own `live_scores` row. Scoped to that collection alone
-  // (create/read/update, no delete) and no app access: a leaked board token can
-  // rewrite the scoreboard and nothing else.
+  // (create/read/update, no delete) and no app access. Through /items a leaked
+  // board token can rewrite the scoreboard and nothing else — but since v2.26.2
+  // the same login also reads the home match sheet incl. players' birthdates
+  // through /kscw/scorer/game/:id/roster (the `board` audience in
+  // scorer-roster.js: home games, kickoff −6 h…+3 h, every read logged), so
+  // treat the token as PII-bearing (SECURITY.md, 2026-10-11 audit M3).
   const LEDBOX_POLICY = await findOrCreatePolicy('KSCW LedBox Publisher', { icon: 'scoreboard', app_access: false })
 
   /**

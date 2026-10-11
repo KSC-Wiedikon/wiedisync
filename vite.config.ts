@@ -37,7 +37,10 @@ export default defineConfig({
     }),
   ],
   build: {
-    sourcemap: 'hidden',  // Emitted for the Sentry upload, then deleted (see above)
+    // Emitted for the Sentry upload, then deleted (see above). Without the token the
+    // plugin is disabled and deletes nothing, so the maps would ship — a Pages project
+    // missing SENTRY_AUTH_TOKEN served them (2026-10-11 audit). No token, no maps.
+    sourcemap: process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false,
   },
   resolve: {
     alias: {

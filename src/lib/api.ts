@@ -149,8 +149,13 @@ export const client = createDirectus(SDK_BASE, { globals: { fetch: actingAwareFe
     // visible by the time we get here.
     // A command built with `asMember()` already names its member (the family
     // view) and keeps it — see resolveActingHeaders for the precedence.
+    //
+    // `no-store`: authenticated `/items` JSON must not sit in the browser's disk cache,
+    // where it outlives the logout (2026-10-11 audit) — and a 304 would replay the stored
+    // headers, the same acting-echo trap kscwApi documents below.
     onRequest: (options) => ({
       ...options,
+      cache: 'no-store',
       headers: resolveActingHeaders({ ...(options.headers as Record<string, string>) }, _actingMemberId, NO_ACTING_MARKER),
     }),
   }))
