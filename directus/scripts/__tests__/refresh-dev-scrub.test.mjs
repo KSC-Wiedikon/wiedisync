@@ -18,7 +18,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
@@ -269,4 +269,89 @@ test('import-clubdesk-finance: a dev target scrubs recipient_email; prod is unch
   assert.ok(prod.stdout.includes("'petra@example.ch'"), 'prod finance import must keep the recipient email')
   const scrubbed = `scrub_${createHash('md5').update('petra@example.ch').digest('hex').slice(0, 16)}@devsink.invalid`
   assert.equal(dev.stdout.replace(scrubbed, 'petra@example.ch'), prod.stdout)
+})
+
+// ── Every table holding a DoB / AHV / IBAN has a scrub line (M5) ────────────
+// game_vm_sheets (migration 396) carried the birthdates of minors to dev every
+// night because nobody remembered the scrub when the table was added. This
+// reads the schema instead of relying on memory: a column that NAMES sensitive
+// PII must be assigned in an UPDATE of its table inside the PII block. PII
+// inside JSON has no column name to find, so those tables are listed by hand.
+const SENSITIVE_COLUMN = /^(birthdate|birthday|geburtsdatum|date_of_birth|ahv_nummer|ahv|[a-z_]*iban)$/
+// table → the JSON column(s) carrying PII. Add a table here when its JSON holds
+// a date of birth, an ID number or contact data.
+const JSON_PII = {
+  game_vm_sheets: ['list'], // VM Einsatzliste: DoB + licence per player / official
+  directus_revisions: ['data', 'delta'],
+  user_logs: ['data'],
+  clubdesk_sync_proposals: ['payload'],
+}
+// table → why it is deliberately NOT scrubbed. Keep it empty unless a reviewer
+// would accept the reason.
+const EXEMPT = {}
+
+const schemaSql = read('SCHEMA.sql')
+const piiBlock = scrub.slice(scrub.indexOf('\\if :scrub_pii'), scrub.indexOf('\\endif'))
+const columnsOf = (body) => body.split('\n')
+  .map((line) => line.trim().match(/^"?([A-Za-z_]\w*)"?\s/)?.[1])
+  .filter((c) => c && !/^(CONSTRAINT|PRIMARY|UNIQUE|CHECK|FOREIGN|EXCLUDE|LIKE)$/i.test(c))
+  .map((c) => c.toLowerCase())
+const tableBlocks = (src) => [...src.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(?:public\.)?"?(\w+)"? \(([\s\S]*?)\n\);/g)]
+
+const sensitiveColumns = () => {
+  const found = new Map()
+  const add = (table, col) => {
+    if (!SENSITIVE_COLUMN.test(col)) return
+    if (!found.has(table)) found.set(table, new Set())
+    found.get(table).add(col)
+  }
+  for (const [, table, body] of tableBlocks(schemaSql)) for (const c of columnsOf(body)) add(table, c)
+  // Migrations newer than the baseline (not yet in its kscw_migrations seed).
+  const baked = new Set([...schemaSql.matchAll(/\('(\d{3}-[^']+\.sql)'\)/g)].map((m) => m[1]))
+  const dir = resolve(HERE, '..')
+  for (const f of readdirSync(dir).filter((n) => /^\d{3}-.+\.sql$/.test(n) && !baked.has(n))) {
+    const src = readFileSync(resolve(dir, f), 'utf-8')
+    for (const [, table, body] of tableBlocks(src)) for (const c of columnsOf(body)) add(table, c)
+    for (const m of src.matchAll(/ALTER TABLE (?:IF EXISTS )?(?:ONLY )?(?:public\.)?"?(\w+)"?\s+ADD COLUMN (?:IF NOT EXISTS )?"?(\w+)"?/gi)) add(m[1], m[2].toLowerCase())
+  }
+  return found
+}
+
+const writesOf = (table) => [...piiBlock.matchAll(new RegExp(`(?:UPDATE|TRUNCATE|DELETE FROM)\\s+${table}\\b[\\s\\S]*?;`, 'g'))].map((m) => m[0])
+
+test('every column naming a DoB / AHV / IBAN is scrubbed in the PII block', () => {
+  const cols = sensitiveColumns()
+  assert.ok(cols.get('members')?.has('birthdate'), 'schema scan broken: members.birthdate not found')
+  assert.ok(cols.get('registrations')?.has('ahv_nummer'), 'schema scan broken: registrations.ahv_nummer not found')
+  const missing = []
+  for (const [table, set] of cols) {
+    if (EXEMPT[table]) continue
+    const stmts = writesOf(table)
+    for (const col of set) {
+      if (!stmts.some((s) => /^(TRUNCATE|DELETE)/.test(s) || new RegExp(`\\b${col}\\s*=`).test(s))) missing.push(`${table}.${col}`)
+    }
+  }
+  assert.deepEqual(missing, [], `refresh-dev-scrub.sql does not scrub ${missing.join(', ')} — add it to the PII block (or an EXEMPT entry with a reason)`)
+})
+
+test('tables with PII inside JSON are scrubbed too (game_vm_sheets, M5)', () => {
+  for (const [table, cols] of Object.entries(JSON_PII)) {
+    // directus_* system tables are not in the baseline (Directus creates them).
+    if (!table.startsWith('directus_')) {
+      assert.ok(schemaSql.includes(`CREATE TABLE public.${table} (`), `${table} no longer exists — drop it from JSON_PII`)
+    }
+    const stmts = writesOf(table)
+    for (const col of cols) {
+      assert.ok(stmts.some((s) => new RegExp(`\\b${col}\\s*=`).test(s)), `${table}.${col} is not scrubbed in the PII block`)
+    }
+  }
+  assert.match(writesOf('game_vm_sheets').join('\n'), /SET list\s+= pg_temp\.kscw_vm_list\(list\)/)
+  // Each person's birthdate goes through the same salted shift as
+  // members.birthdate (so dev still matches); other PII keys are dropped.
+  assert.match(scrub, /jsonb_build_object\('birthdate', pg_temp\.kscw_shift_dob_text\(e->>'birthdate'\)\)/)
+  assert.match(scrub, /\(e - pg_temp\.kscw_pii_keys\(\)\)/)
+  assert.match(scrub, /pg_temp\.kscw_shift_date\(to_date\(substr\(t, 1, 10\), 'YYYY-MM-DD'\)\)/)
+  // Every array in the list is people — a new VM key cannot slip past.
+  assert.match(scrub, /CASE WHEN jsonb_typeof\(v\) = 'array' THEN pg_temp\.kscw_vm_people\(v\) ELSE v END/)
+  assert.ok(scrub.indexOf('CREATE FUNCTION pg_temp.kscw_vm_list') < scrub.indexOf('UPDATE game_vm_sheets'))
 })
