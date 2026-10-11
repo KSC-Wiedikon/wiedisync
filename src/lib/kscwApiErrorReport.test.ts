@@ -1,13 +1,19 @@
 // kscwApi attached the raw request body to every error report it filed. For the
 // credential routes that body IS the secret — /change-password carries the current
 // and the new password plus the re-wrapped E2EE key — and a 5xx shipped all of it to
-// Sentry and the JSONL log (security audit 2026-10, H2).
+// Sentry and the JSONL log (security audit 2026-10, H2). And only the logout button
+// wiped the pre-loaded Show IDs documents; every other way a session ended left them
+// (M4). Both now live in api.ts, so both are pinned here.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const { captureApiError } = vi.hoisted(() => ({ captureApiError: vi.fn() }))
+const { captureApiError, clearAllCachedDocuments } = vi.hoisted(() => ({
+  captureApiError: vi.fn(),
+  clearAllCachedDocuments: vi.fn(async () => {}),
+}))
 vi.mock('./sentry', async (importOriginal) => ({ ...(await importOriginal<object>()), captureApiError }))
+vi.mock('./e2eeStore', () => ({ clearAllCachedDocuments }))
 
-import { isCredentialEndpoint, kscwApi } from './api'
+import { isCredentialEndpoint, kscwApi, logout } from './api'
 
 const respond = (status: number, body: unknown = {}) =>
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status })))
@@ -20,6 +26,7 @@ const pwBody = {
 
 beforeEach(() => {
   captureApiError.mockClear()
+  clearAllCachedDocuments.mockClear()
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -79,5 +86,25 @@ describe('kscwApi error reports', () => {
     const body = { team: 3, ahv_nummer: '756.1234.5678.97' }
     await expect(kscwApi('/clubdesk-update', { method: 'POST', body })).rejects.toThrow()
     expect(captureApiError.mock.calls[0][1].payload).toEqual(body)
+  })
+})
+
+describe('logout', () => {
+  it('wipes the pre-loaded identity documents on every path through it', async () => {
+    const store = () => {
+      const m = new Map<string, string>()
+      return {
+        get length() { return m.size },
+        key: (i: number) => [...m.keys()][i] ?? null,
+        getItem: (k: string) => m.get(k) ?? null,
+        setItem: (k: string, v: string) => { m.set(k, v) },
+        removeItem: (k: string) => { m.delete(k) },
+      }
+    }
+    vi.stubGlobal('localStorage', store())
+    vi.stubGlobal('sessionStorage', store())
+    respond(204)
+    await logout()
+    expect(clearAllCachedDocuments).toHaveBeenCalledTimes(1)
   })
 })

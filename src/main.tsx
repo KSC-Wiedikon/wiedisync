@@ -57,7 +57,13 @@ async function bootstrap() {
     // Identity-document PDFs render through lazy pdf.js; the app only runs
     // offline inside a page lifetime that started online, so warm it now if this
     // device holds a cached PDF ID (see pdfRaster.ts). Best effort, never blocks.
-    void import('./lib/pdfRaster').then((m) => m.armPdfRasterWarmup()).catch(() => {})
+    // Expired documents are swept first, so a squad whose game is over neither
+    // stays on the device nor makes this boot warm pdf.js for it (e2eeStore).
+    void import('./lib/e2eeStore')
+      .then((s) => s.sweepCachedDocuments())
+      .then(() => import('./lib/pdfRaster'))
+      .then((m) => m.armPdfRasterWarmup())
+      .catch(() => {})
   }
 }
 

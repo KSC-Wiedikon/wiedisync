@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, setActingMemberId, getActingMemberId, setActingDeniedHandler, isActingDeniedError, readMeAsOwner, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
-import { clearDeviceKey, clearAllCachedDocuments } from '../lib/e2eeStore'
+import { clearAllCachedDocuments, clearDeviceKey, sweepCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs, isTransientNetworkMessage } from '../lib/sentry'
 import i18n from '../i18n'
@@ -278,7 +278,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Init ────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!isAuthenticated()) return
+    if (!isAuthenticated()) {
+      // No session on this device: nobody's pre-loaded identity documents belong
+      // here — a session that ended without a logout (expired, refused) left them.
+      void clearAllCachedDocuments()
+      return
+    }
     ;(async () => {
       try {
         await refreshAuth()
@@ -287,6 +292,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRealUser(member)
           setIsSpielplaner(!!member.is_spielplaner)
           setCurrentMemberId(member.id)
+          // Documents another member pre-loaded on this device, or past their window, go.
+          void sweepCachedDocuments(Number(member.id))
           addBreadcrumb('auth.init', { memberId: member.id })
           setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
           setLastActingId(readLastActing(member.id))
@@ -375,6 +382,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRealUser(member)
       setIsSpielplaner(!!member.is_spielplaner)
       setCurrentMemberId(member.id)
+      // A different member logging in on this device must not inherit the previous
+      // one's pre-loaded squad (security audit 2026-10, M4). Same sweep as boot.
+      void sweepCachedDocuments(Number(member.id))
       addBreadcrumb('auth.login_success', { memberId: member.id })
       setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
       setLastActingId(readLastActing(member.id))
@@ -407,11 +417,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // deck decryptable by the next person to use the browser profile.
     //
     // Awaited, not fire-and-forget: this is the one teardown whose failure is a
-    // data-exposure, so it goes first and the rest of logout waits for it. Both
-    // helpers swallow their own errors, so logout cannot be blocked by a wipe.
+    // data-exposure, so it goes first and the rest of logout waits for it. The
+    // helper swallows its own errors, so logout cannot be blocked by a wipe.
+    // The cached documents themselves are wiped by apiLogout() below, as its
+    // first step — there, every way a session ends wipes them, not just this one.
     try {
       if (realUser?.id) await clearDeviceKey(Number(realUser.id))
-      await clearAllCachedDocuments()
     } catch { /* never block logout */ }
 
     // User-initiated: also unbind this device's push subscription (F37).
