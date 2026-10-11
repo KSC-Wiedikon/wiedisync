@@ -46,7 +46,7 @@ import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
-import { createCorsCredentialsMiddleware } from './cors-credentials.js'
+import { createCorsCredentialsMiddleware, createWebSocketCookieGuard } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
 import { forbiddenError } from './directus-error.js'
 import { approvedFeeCategory } from './fee-category.js'
@@ -302,6 +302,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const token = req.headers['x-turnstile-token'] || ''
       turnstileStore.run({ turnstileToken: token }, next)
     })
+  })
+
+  // The WebSocket upgrade bypasses the middleware above: strip the session cookie
+  // from upgrades by non-app origins (H8, cors-credentials.js). 'server.start' fires
+  // after Directus attached its own upgrade listener, so ours is prepended.
+  action('server.start', ({ server }) => {
+    server.prependListener('upgrade', createWebSocketCookieGuard())
   })
 
   // ── 0b. Acting-member swap (households, migration 348) ─────────

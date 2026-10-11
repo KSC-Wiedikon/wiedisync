@@ -5,7 +5,7 @@
  * Since the 2026-10-11 audit the list is per instance (prod vs dev).
  */
 import { describe, it, expect } from 'vitest'
-import { createCorsCredentialsMiddleware, credentialedOrigins, mayUseCredentials } from '../cors-credentials.js'
+import { createCorsCredentialsMiddleware, createWebSocketCookieGuard, credentialedOrigins, mayUseCredentials } from '../cors-credentials.js'
 
 const PROD = { PUBLIC_URL: 'https://directus.kscw.ch' }
 const DEV = { PUBLIC_URL: 'https://directus-dev.kscw.ch' }
@@ -74,5 +74,33 @@ describe('cors credentials allow-list', () => {
     const allowed = credentialedOrigins(DEV)
     expect(mayUseCredentials('http://localhost.evil.example', allowed)).toBe(false)
     expect(mayUseCredentials('https://localhost:5173', allowed)).toBe(false)
+  })
+})
+
+// H8 (2026-10-11): Directus's own upgrade check admits every CORS_ORIGIN entry and
+// then authenticates the socket from the session cookie.
+describe('websocket cookie guard', () => {
+  const upgrade = (origin, env) => {
+    const request = { headers: { cookie: 'kscw_session=abc; other=1', ...(origin ? { origin } : {}) } }
+    createWebSocketCookieGuard(env)(request)
+    return request.headers.cookie
+  }
+
+  it('strips the cookie from the website and foreign origins', () => {
+    for (const o of ['https://kscw.ch', 'https://kscw-website.pages.dev', 'https://evil.example', 'https://forms.kscw.ch']) {
+      expect(upgrade(o, PROD)).toBeUndefined()
+      expect(upgrade(o, DEV)).toBeUndefined()
+    }
+  })
+
+  it('keeps the cookie for the app origins of the instance', () => {
+    expect(upgrade('https://wiedisync.kscw.ch', PROD)).toBe('kscw_session=abc; other=1')
+    expect(upgrade('https://wiedisync-dev.kscw.ch', DEV)).toBe('kscw_session=abc; other=1')
+    expect(upgrade('https://wiedisync-dev.kscw.ch', PROD)).toBeUndefined()
+    expect(upgrade('http://localhost:5173', PROD)).toBeUndefined()
+  })
+
+  it('leaves non-browser upgrades (no Origin) alone', () => {
+    expect(upgrade(null, PROD)).toBe('kscw_session=abc; other=1')
   })
 })
