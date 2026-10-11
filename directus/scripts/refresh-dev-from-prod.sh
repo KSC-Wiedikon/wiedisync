@@ -8,6 +8,14 @@
 # data ever leaves the VPS.
 #
 # What it does, in order:
+#   0. Pre-flight (preflight-no-foreign-functions.sql — the SAME file the
+#      nightly cron and apply-migrations.mjs run): abort, dev untouched, if prod
+#      or dev holds a function owned by anyone but the allowed superuser(s), or
+#      a trigger / CHECK / DEFAULT / index that calls one. Every step below runs
+#      as the psql superuser, so such a function would too (security review
+#      2026-10-11, H5). Re-checked on prod right before the dump and on the
+#      fresh clone before its first UPDATE. Allowed owners:
+#      KSCW_PREFLIGHT_ALLOWED_OWNERS (comma-separated), default supabase_admin.
 #   1. Capture dev's service-account creds (admin@ / cron-service@ passwords +
 #      static tokens) so dev automation keeps working after the clone.
 #   2. Safety-dump the current dev DB to /data/backups (recoverable rollback);
@@ -55,6 +63,18 @@ SCRUB_B64=$(base64 -w0 "$SCRUB_FILE")
 ROLE_FILE=directus/scripts/directus-db-role.sql
 [ -s "$ROLE_FILE" ] || { echo "Missing $ROLE_FILE" >&2; exit 1; }
 ROLE_B64=$(base64 -w0 "$ROLE_FILE")
+# H5 pre-flight — shared with refresh-dev-daily.sh and apply-migrations.mjs.
+PREFLIGHT_FILE=directus/scripts/preflight-no-foreign-functions.sql
+[ -s "$PREFLIGHT_FILE" ] || { echo "Missing $PREFLIGHT_FILE" >&2; exit 1; }
+PREFLIGHT_B64=$(base64 -w0 "$PREFLIGHT_FILE")
+# Same default and validation as preflight-no-foreign-functions.mjs. It travels
+# as a positional argument through ssh's remote shell, so plain names only.
+PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin}
+if ! [[ "$PREFLIGHT_OWNERS" =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]] \
+   || [[ ",$PREFLIGHT_OWNERS," =~ ,directus_(prod|dev), ]]; then
+  echo "KSCW_PREFLIGHT_ALLOWED_OWNERS='$PREFLIGHT_OWNERS' is not a list of plain role names (or names a Directus role)" >&2
+  exit 1
+fi
 
 SSH_HOST=hetzner
 PGC=kscw-postgres
@@ -102,7 +122,7 @@ echo "==> Running clone + scrub on the VPS (this can take a minute) ..."
 # Quoted heredoc => nothing is expanded locally; config is passed as positional
 # args to the remote bash. Every `docker exec` that is NOT a file/pipe redirect
 # gets </dev/null so it can't swallow the script stream.
-ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER $SCRUB_B64 $ROLE_B64" <<'REMOTE'
+ssh "$SSH_HOST" "sudo bash -s -- $DO_SCRUB $PGC $PROD_DB $DEV_DB $DEV_CONTAINER $SCRUB_B64 $ROLE_B64 $PREFLIGHT_B64 $PREFLIGHT_OWNERS" <<'REMOTE'
 set -uo pipefail
 DO_SCRUB="$1"; PGC="$2"; PROD_DB="$3"; DEV_DB="$4"; DEV_CONTAINER="$5"
 # Root-only output (captured creds, safety dump), scratch in a private dir that
@@ -123,12 +143,45 @@ printf '%s' "$6" | base64 -d > "$SCRUB" 2>/dev/null
 if [ ! -s "$SCRUB" ]; then
   echo "!! Scrub SQL did not arrive — aborting (dev untouched)."; exit 1
 fi
+PREFLIGHT_SQL="$WORK/preflight.sql"
+PREFLIGHT_OWNERS="$9"
+printf '%s' "$8" | base64 -d > "$PREFLIGHT_SQL" 2>/dev/null
+if [ ! -s "$PREFLIGHT_SQL" ]; then
+  echo "!! Pre-flight SQL did not arrive — aborting (dev untouched)."; exit 1
+fi
+# H5 pre-flight on database $1. Passes ONLY on the exact line `PREFLIGHT|0` from
+# a psql that exited 0: findings, a psql error or a truncated answer all fail
+# CLOSED. Output is
+# printable-only and capped (identifiers are attacker-chosen).
+# ⚠ Keep identical in behaviour to preflight() in refresh-dev-daily.sh.
+preflight(){
+  local out rc
+  out=$(docker exec -i "$PGC" psql -U supabase_admin -d "$1" -X -v ON_ERROR_STOP=1 \
+          -v allowed_owners="$PREFLIGHT_OWNERS" < "$PREFLIGHT_SQL" 2>&1); rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = "PREFLIGHT|0" ] && return 0
+  echo "!! PRE-FLIGHT FAILED on $1: a function not owned by ($PREFLIGHT_OWNERS) is in public or"
+  echo "   wired into it — superuser tooling would run it. Findings / psql output:"
+  printf '%s\n' "$out" | tr -cd '[:print:]\n' | cut -c1-300 | head -n 40 | sed 's/^/      /'
+  return 1
+}
 
 # Emails kept REAL after scrub (admin/cron logins + your own OAuth account).
 # Used both as the scrub allowlist and as the re-pin filter.
 ALLOW_SQL="'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com','cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'"
 # Quotes doubled, for use INSIDE a SQL string literal (the guard below).
 ALLOW_SQL_LIT=${ALLOW_SQL//\'/\'\'}
+
+echo "[0/7] Pre-flight: no function a non-superuser could have written (prod + dev)"
+# Ownership is the only evidence and `pg_dump --no-owner` erases it (the clone
+# and the safety dump re-create every function as supabase_admin), so the
+# SOURCES are checked, before anything below reads them as superuser.
+for db in "$PROD_DB" "$DEV_DB"; do
+  if ! preflight "$db"; then
+    echo "!! Aborting BEFORE touching dev (dev untouched). Find out who created those"
+    echo "   functions before running anything else as superuser against $db."
+    exit 1
+  fi
+done
 
 echo "[1/7] Capturing dev service-account creds (for re-pin after clone)"
 # id is captured FIRST and used as the re-pin key: it survives the PII scrub
@@ -188,8 +241,22 @@ for ext in unaccent; do
 done
 
 echo "[4/7] Cloning prod -> dev (public schema)"
+# Prod again, right before its dump: the restore's COPY evaluates every CHECK
+# as superuser.
+if ! preflight "$PROD_DB"; then
+  echo "!! Pre-flight on prod FAILED right before the clone — dev left STOPPED (schema already dropped)."
+  echo "   Safety backup: $BACKUP"
+  exit 1
+fi
 docker exec "$PGC" pg_dump -U supabase_admin -d "$PROD_DB" -n public --no-owner --no-acl </dev/null \
   | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q -v ON_ERROR_STOP=0 > "$RLOG" 2>&1 || true
+
+echo "[4b/7] Pre-flight on the fresh clone (before its first UPDATE)"
+if ! preflight "$DEV_DB"; then
+  echo "!! Pre-flight on the clone FAILED — dev left STOPPED (the scrub must not run on it)."
+  echo "   Safety backup: $BACKUP"
+  exit 1
+fi
 
 echo "[5/7] Verifying restore (row-count gate)"
 fail=0

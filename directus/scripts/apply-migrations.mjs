@@ -10,6 +10,13 @@
  *   <env> ∈ { dev, prod }
  *
  * What it does:
+ *   0. Pre-flight (preflight-no-foreign-functions.sql): refuses to run — in
+ *      every mode, before the tracker INSERT — when `public` holds a function
+ *      owned by anyone but the allowed superuser(s), or a trigger / rule /
+ *      CHECK / DEFAULT / index that calls one. Everything below runs as the
+ *      cluster superuser, so such a function would too (security review
+ *      2026-10-11, H5). Allowed owners: KSCW_PREFLIGHT_ALLOWED_OWNERS
+ *      (comma-separated), default `supabase_admin`. Exit code 4.
  *   1. Ensures kscw_migrations tracker table exists (bootstrap from
  *      _migrations-tracker.sql).
  *   2. Lists numbered migrations on disk (`0NN-*.sql`).
@@ -28,6 +35,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, basename } from 'node:path'
+import {
+  ALLOWED_OWNERS_ENV, formatPreflightFailure, readPreflightSql, resolveAllowedOwners, runPreflight,
+} from './preflight-no-foreign-functions.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SCRIPTS_DIR = __dirname
@@ -101,6 +111,32 @@ function discoverMigrations() {
   })
 }
 
+// ── Pre-flight: no function a non-superuser could have written ────
+// Runs BEFORE the first statement that can fire anything (the tracker
+// bootstrap INSERTs). Fail-closed: findings, a psql error or an incomplete
+// answer all stop the run. Exit 4.
+function preflight() {
+  let owners
+  try {
+    owners = resolveAllowedOwners()
+  } catch (err) {
+    console.error(`[migrate] ✗ ${err.message}`)
+    process.exit(4)
+  }
+  let result
+  try {
+    result = runPreflight(psqlQuery, { sqlText: readPreflightSql(SCRIPTS_DIR), owners })
+  } catch (err) {
+    console.error(`[migrate] ✗ pre-flight could not run — refusing to continue (fail-closed):\n${err.message}`)
+    process.exit(4)
+  }
+  if (!result.ok) {
+    console.error(`[migrate] ✗ ${formatPreflightFailure(result, { target: `${envName} (db=${env.database})`, owners })}`)
+    process.exit(4)
+  }
+  console.log(`[migrate] ✓ Pre-flight: no function in public, or called from it, owned outside ${owners.join(', ')}${process.env[ALLOWED_OWNERS_ENV] ? ` (${ALLOWED_OWNERS_ENV})` : ''}`)
+}
+
 // ── Bootstrap tracker table ───────────────────────────────────────
 function bootstrapTracker() {
   const trackerSql = readFileSync(join(SCRIPTS_DIR, '_migrations-tracker.sql'), 'utf-8')
@@ -122,6 +158,7 @@ function getApplied() {
 async function main() {
   console.log(`[migrate] Target: ${envName} (db=${env.database})\n`)
 
+  preflight()
   bootstrapTracker()
   const applied = getApplied()
   const onDisk = discoverMigrations()

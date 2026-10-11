@@ -48,6 +48,22 @@
 # still identical to prod's except on the allowlisted dev logins (accepted
 # residual, see [1b/7]).
 #
+# Pre-flight (security review 2026-10-11, H5): everything here runs as the psql
+# SUPERUSER, and dev/prod Directus log in as roles that own the tables in
+# `public`. A function such a role created and hung on a trigger / CHECK /
+# DEFAULT / index would run as superuser the moment this script touches the
+# table. preflight-no-foreign-functions.sql (next to this file, root-only like
+# the scrub) refuses that, fail-closed:
+#   [0/7]  prod AND dev, before anything reads either. Ownership is the only
+#          evidence and `pg_dump --no-owner` erases it — the clone and the
+#          safety dump both re-create every function as supabase_admin — so the
+#          SOURCES are what count. Failure = abort, dev untouched.
+#   [4/7]  prod again, right before the dump (minutes have passed) -> rollback.
+#   [4b/7] the fresh clone, before its first UPDATE -> rollback.
+#   rollback: the restored safety dump, before its scrub -> dev left STOPPED.
+# Allowed owners: KSCW_PREFLIGHT_ALLOWED_OWNERS (comma-separated), default
+# supabase_admin — the same contract as apply-migrations.mjs.
+#
 set -uo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:${PATH:-}
 # Everything this run writes — captured dev creds, the safety dump — is
@@ -69,12 +85,13 @@ SELF="$(readlink -f "$0")"
 SELF_DIR="$(dirname "$SELF")"
 SCRUB_SQL="$SELF_DIR/refresh-dev-scrub.sql"
 ROLE_SQL="$SELF_DIR/directus-db-role.sql"
+PREFLIGHT_SQL="$SELF_DIR/preflight-no-foreign-functions.sql"
 
 log(){ echo "[$(date -u +%F_%H:%M:%SZ)] $*"; }
 
 # Root-only location check (F72, see header). Checked for the directory, this
 # file and the scrub SQL: a writable directory alone lets someone swap either.
-for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL" "$ROLE_SQL"; do
+for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL" "$ROLE_SQL" "$PREFLIGHT_SQL"; do
   [ -e "$f" ] || continue          # a missing scrub file is reported below
   read -r own mode < <(stat -c '%u %a' "$f")
   if [ "$own" != 0 ] || (( 8#$mode & 8#022 )); then
@@ -84,6 +101,15 @@ for f in "$SELF_DIR" "$SELF" "$SCRUB_SQL" "$ROLE_SQL"; do
     exit 1
   fi
 done
+
+# Same default and validation as preflight-no-foreign-functions.mjs. The SQL
+# also refuses any entry that is not a superuser or that a Directus role can act as.
+PREFLIGHT_OWNERS=${KSCW_PREFLIGHT_ALLOWED_OWNERS:-supabase_admin}
+if ! [[ "$PREFLIGHT_OWNERS" =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]] \
+   || [[ ",$PREFLIGHT_OWNERS," =~ ,directus_(prod|dev), ]]; then
+  log "!! KSCW_PREFLIGHT_ALLOWED_OWNERS='$PREFLIGHT_OWNERS' is not a list of plain role names (or names a Directus role) — aborting (dev untouched)."
+  exit 1
+fi
 
 # Pre-refresh dumps and this log hold prod-derived data; runs before F71
 # created them 0644. Tighten whatever is already there on every run.
@@ -122,6 +148,20 @@ pguard(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_
 # otherwise dev cannot alter its tables and reads ZERO rows from every table
 # that still carries Supabase-era RLS. A no-op until the role exists.
 ownrole(){ docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -X -v ON_ERROR_STOP=1 -v role=directus_dev -q < "$ROLE_SQL"; }
+# H5 pre-flight on database $1 (see header). Passes ONLY on the exact line
+# `PREFLIGHT|0` from a psql that exited 0: findings, a psql error or a truncated
+# answer all fail CLOSED.
+# Findings are logged printable-only and capped (identifiers are attacker-chosen).
+preflight(){
+  local out rc
+  out=$(docker exec -i "$PGC" psql -U supabase_admin -d "$1" -X -v ON_ERROR_STOP=1 \
+          -v allowed_owners="$PREFLIGHT_OWNERS" < "$PREFLIGHT_SQL" 2>&1); rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = "PREFLIGHT|0" ] && return 0
+  log "!! PRE-FLIGHT FAILED on $1: a function not owned by ($PREFLIGHT_OWNERS) is in public or"
+  log "   wired into it — superuser tooling would run it. Findings / psql output:"
+  printf '%s\n' "$out" | tr -cd '[:print:]\n' | cut -c1-300 | head -n 40 | sed 's/^/      /'
+  return 1
+}
 
 # Restore dev from the safety dump + restart it. Used on any post-wipe failure
 # so an unattended run never leaves dev down (or serving unscrubbed PII).
@@ -142,6 +182,12 @@ rollback(){
     -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO supabase_admin; GRANT USAGE ON SCHEMA public TO anon, authenticated;" >/dev/null 2>&1
   if ! zcat "$BACKUP" | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q >/dev/null 2>&1; then
     log "ROLLBACK FAILED: dev left STOPPED. Safety dump: $BACKUP"
+    return 1
+  fi
+  # The dump was taken after [0/7] passed on dev; check the restore before the
+  # scrub fires anything on it anyway (H5).
+  if ! preflight "$DEV_DB"; then
+    log "ROLLBACK: pre-flight failed on the restored dump — dev left STOPPED. Safety dump: $BACKUP"
     return 1
   fi
   if scrub; then
@@ -165,6 +211,27 @@ rollback(){
 }
 
 log "===== refresh-dev-daily START (prod=$PROD_DB -> dev=$DEV_DB) ====="
+
+# Everything the scrub needs is checked BEFORE dev is touched: a missing scrub
+# file or guard would otherwise only surface after the wipe.
+for req in "$SCRUB_SQL" "$ROLE_SQL" "$PREFLIGHT_SQL"; do
+  if [ ! -s "$req" ]; then
+    log "!! $req missing/empty — aborting BEFORE touching dev (dev untouched)."
+    log "   It ships with this script: npm run scripts:deploy:dev"
+    exit 1
+  fi
+done
+
+log "[0/7] Pre-flight: no function a non-superuser could have written (prod + dev)"
+# Before [1/7]/[1b/7] read either database as superuser, and before [2/7] dumps
+# dev: that dump is what a rollback restores, and it carries no owners.
+for db in "$PROD_DB" "$DEV_DB"; do
+  if ! preflight "$db"; then
+    log "!! Aborting BEFORE touching dev (dev untouched). Find out who created those"
+    log "   functions before running anything else as superuser against $db."
+    exit 1
+  fi
+done
 
 log "[1/7] Capturing dev service-account creds (for re-pin after clone)"
 # id is captured FIRST and used as the re-pin key: it survives the PII scrub
@@ -192,16 +259,6 @@ awk -F'|' '
     if(s!="") printf "UPDATE directus_users SET %s WHERE id=%s;\n", s, q($1)
   }
 ' "$CREDS" > "$REPIN"
-
-# Everything the scrub needs is checked BEFORE dev is touched: a missing scrub
-# file or guard would otherwise only surface after the wipe.
-for req in "$SCRUB_SQL" "$ROLE_SQL"; do
-  if [ ! -s "$req" ]; then
-    log "!! $req missing/empty — aborting BEFORE touching dev (dev untouched)."
-    log "   It ships with this script: npm run scripts:deploy:dev"
-    exit 1
-  fi
-done
 
 log "[1b/7] Fingerprinting prod credentials (prod-equality guard)"
 # One UPDATE per credential kind, listing md5() of every PROD token / password
@@ -276,8 +333,25 @@ for ext in unaccent; do
 done
 
 log "[4/7] Cloning prod -> dev (public schema)"
+# Prod again, right before its dump: the restore's COPY evaluates every CHECK
+# as superuser, and [0/7] was minutes ago.
+if ! preflight "$PROD_DB"; then
+  log "!! Pre-flight on prod FAILED right before the clone — rolling back."
+  rollback || true
+  exit 1
+fi
 docker exec "$PGC" pg_dump -U supabase_admin -d "$PROD_DB" -n public --no-owner --no-acl </dev/null \
   | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q -v ON_ERROR_STOP=0 > "$RLOG" 2>&1 || true
+
+log "[4b/7] Pre-flight on the fresh clone (before its first UPDATE)"
+# The restore re-created every function as supabase_admin, so this mostly
+# proves the clone is what [4/7] checked; the binding checks are the source
+# ones above. Cheap, and it is the last look before the scrub fires triggers.
+if ! preflight "$DEV_DB"; then
+  log "!! Pre-flight on the clone FAILED — rolling back (the scrub must not run on it)."
+  rollback || true
+  exit 1
+fi
 
 log "[5/7] Verifying restore (row-count gate)"
 fail=0
