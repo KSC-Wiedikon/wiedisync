@@ -30,6 +30,7 @@ import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
 import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result.js'
 import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
+import { externalWritesEnv, skipExternalJob } from '../../kscw-endpoints/src/external-accounts.js'
 import { runVmCheck, VM_CHECK_LEAD_MS } from '../../kscw-endpoints/src/vm-sheet-check.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
@@ -4840,6 +4841,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // instead of a fresh login — and a session row — per minute.
   let bbTickToken = null
   schedule('* * * * *', async () => {
+    // Prod only: the club's Basketplan login is shared with dev (external-accounts.js).
+    if (skipExternalJob('bb_register', log)) return
     const startedAt = Date.now()
     try {
       const s = await database('bb_tournament_worker').where('id', 1).first('mode', 'rush_from', 'rush_until')
@@ -4940,6 +4943,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.warn('VM sync skipped: VM_USERNAME or VM_PASSWORD not set')
       return
     }
+    // Prod only (external-accounts.js): dev shares the VM login and its role.
+    if (skipExternalJob('vm_sync', log)) return
     if (vmSyncRunning) {
       log.info(`VM sync (${reason}) skipped: a run is already in progress`)
       return
@@ -5079,6 +5084,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // (DEFER_RETRY_CAP is declared above runVmSync — both halves read it.)
   schedule('*/30 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    if (skipExternalJob('vm_sync', log)) return
     try {
       const row = await database('sync_runs').where({ source: 'vm_sync' }).first()
       if (!row || !row.last_run_at) return
@@ -5113,6 +5119,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.warn('SVRZ sync skipped: VM_USERNAME or VM_PASSWORD not set')
       return
     }
+    // Prod only (external-accounts.js): dev shares the VM login and its role.
+    if (skipExternalJob('svrz_sync', log)) return
     const releaseSvrzVmAccount = claimVmAccount('svrz_sync')
     if (!releaseSvrzVmAccount) {
       // Deliberate skip, not a failure: a VM sync is mid-run and would be
@@ -8334,9 +8342,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // by ~T-40, so the last useful attempt is around then; after that the coach files
   // it by hand. Anything already `closed` or `skipped` is never touched again.
   //
-  // ⚠ This writes into the real Swiss Volley production system on BOTH dev and prod
-  // — there is no VM staging. The worker refuses to close a list that VM flags with
-  // an unresolved fineable issue (too few players, no coach); see vm-push-nomination.mjs.
+  // ⚠ This writes into the real Swiss Volley production system — there is no VM
+  // staging — so it runs on prod only (external-accounts.js), and the worker writes
+  // only when handed KSCW_EXTERNAL_WRITES=1. It refuses to close a list that VM flags
+  // with an unresolved fineable issue (too few players, no coach); see vm-push-nomination.mjs.
   const NOMINATION_LEAD_MS = 65 * 60 * 1000
   const NOMINATION_FLOOR_MS = 35 * 60 * 1000
   let nominationRunning = false
@@ -8357,10 +8366,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
       DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
       GAME_ID: String(gameId),
-      // Lets the worker refuse to write from the dev DB — VM has no staging, so a dev
-      // push would file a real Einsatzliste. See vm-push-nomination.mjs.
-      DB_DATABASE: process.env.DB_DATABASE || '',
-      VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
+      // The worker writes only with KSCW_EXTERNAL_WRITES=1 (prod) — VM has no staging,
+      // so a dev push would file a real Einsatzliste. See vm-push-nomination.mjs.
+      ...externalWritesEnv('VM_NOMINATION_ALLOW_DEV_WRITE'),
       ...(process.env.VM_NOMINATION_DRY_RUN ? { DRY_RUN: '1' } : {}),
     }
     const child = spawn('node', ['/directus/scripts/vm-push-nomination.mjs'], {
@@ -8388,6 +8396,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   schedule('*/5 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    // Prod only (external-accounts.js): even a dry run logs in to the shared account.
+    if (skipExternalJob('vm_nomination', log)) return
     if (nominationRunning) {
       log.info({ msg: '[vm-nomination] tick skipped: a run is already in progress', event: 'vm_nomination_cron_busy' })
       return
@@ -8587,12 +8597,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Shared VM account (CLAUDE.md, INFRA.md → "The shared VolleyManager account"):
   // each read claims it via readOwnNominationList and never waits; the whole tick is
   // skipped inside svrz_rc's windows (the game is picked up at the next tick outside
-  // them). PROD ONLY: dev holds a copy of prod's games and the same credentials, and two
-  // containers' locks cannot see each other — dev would log in at the same moment.
+  // them). PROD ONLY (external-accounts.js, fail-closed): dev holds a copy of prod's games
+  // and the same credentials, and two containers' locks cannot see each other — dev would
+  // log in at the same moment.
   let vmSheetCheckRunning = false
   schedule('2-59/5 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
-    if (process.env.PUBLIC_URL?.includes('directus-dev')) return
+    if (skipExternalJob('vm_sheet_check', log)) return
     if (vmSheetCheckRunning || isSvrzRcBlackout()) return
     vmSheetCheckRunning = true
     const startedAt = Date.now()
@@ -8681,6 +8692,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   schedule('35 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    // Prod only (external-accounts.js): the reads and the queued pushes both log in.
+    if (skipExternalJob('vm_result_sweep', log)) return
     if (vmResultSweepRunning) return
     const startedAt = Date.now()
 

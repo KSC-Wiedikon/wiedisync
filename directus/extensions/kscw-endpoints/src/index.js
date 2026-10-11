@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process'
 import { syncSvGames, syncSvRankings } from './sv-sync.js'
 import { syncBpGames, syncBpRankings, sweepSupersededManualGames } from './bp-sync.js'
 import { syncBpTournaments } from './bp-tournaments.js'
+import { refuseExternalOnDev, skipExternalJob, EXTERNAL_DISABLED_CODE } from './external-accounts.js'
 import { registerPasswordReset } from './password-reset.js'
 import { registerSignupInvites } from './signup-invites.js'
 import { registerICalFeed } from './ical-feed.js'
@@ -1203,9 +1204,13 @@ export default {
         // Youth tournament days (DU12/HU12/MU10/MU8 — no league). Runs after the
         // games so a day with published real games drops its placeholder. Its
         // failure (login, Basketplan down) must not fail the league sync.
+        // The tournament pages need the club's Basketplan LOGIN, which only prod may
+        // use (external-accounts.js); the league sync above reads public pages.
         let tournaments
         try {
-          tournaments = await syncBpTournaments(database, log)
+          tournaments = skipExternalJob('bp_tournaments', log)
+            ? { skipped: EXTERNAL_DISABLED_CODE }
+            : await syncBpTournaments(database, log)
         } catch (e) {
           log.warn(`[BP Tournaments] ${e.message}`)
           tournaments = { error: e.message }
@@ -1348,6 +1353,7 @@ export default {
     router.post('/admin/vm-sync', async (req, res) => {
       try {
         requireAdmin(req, log)
+        if (refuseExternalOnDev(res)) return
         const r = await triggerChildSync('vm_sync', '/directus/scripts/vm-sync-check.mjs')
         if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason, holder: r.holder ?? null })
         log.info('Manual VM sync triggered')
@@ -1361,6 +1367,7 @@ export default {
     router.post('/admin/svrz-sync', async (req, res) => {
       try {
         requireAdmin(req, log)
+        if (refuseExternalOnDev(res)) return
         // Resolve the current season's SVRZ uuid the same way the cron does.
         const seasonName = currentSeasonLong()
         const known = await database('svrz_spielplaner_contacts')

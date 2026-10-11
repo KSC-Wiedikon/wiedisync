@@ -432,6 +432,8 @@ export async function runTeamAssignment({ username, password, wanted, dryRun = t
 // node vm-team-players.mjs
 //   VM_USERNAME / VM_PASSWORD            VolleyManager login
 //   DRY_RUN=1                            (default when unset — pass DRY_RUN=0 to write)
+//   KSCW_EXTERNAL_WRITES=1               ALSO required to write (fail closed, like every VM
+//                                        writer — kscw-endpoints/src/external-accounts.js)
 //   ROSTER_FILE=/path/rows.json          flat rows (see buildWanted) — skips Directus
 //   DIRECTUS_URL + DIRECTUS_TOKEN        or DIRECTUS_SYNC_EMAIL / DIRECTUS_SYNC_PASSWORD
 //   TEAM_IDS=80,94                       restrict to these wiedisync team ids
@@ -473,7 +475,7 @@ async function loadRowsFromDirectus() {
 
 if (IS_ENTRYPOINT) {
   (async () => {
-    const dryRun = process.env.DRY_RUN !== '0';
+    const dryRun = process.env.DRY_RUN !== '0' || process.env.KSCW_EXTERNAL_WRITES !== '1';
     const rows = process.env.ROSTER_FILE
       ? JSON.parse(readFileSync(process.env.ROSTER_FILE, 'utf8'))
       : await loadRowsFromDirectus();

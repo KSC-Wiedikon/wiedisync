@@ -49,6 +49,7 @@ import { authorizeGameParticipant } from './game-participant.js'
 import { gameStartMs } from './scorer-roster.js'
 import { readVmGameResult, cachedVmGameResult } from './vm-game-result.js'
 import { isSvrzRcBlackout } from './vm-windows.js'
+import { externalAccountsEnabled, externalWritesEnv } from './external-accounts.js'
 
 const HOUR = 60 * 60 * 1000
 // Opens three hours AFTER kickoff (a negative "before"), closes two weeks after it.
@@ -278,7 +279,9 @@ export function liveOf(row) {
 }
 
 const memberName = (m) => (m ? `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || null : null)
-const vmConfigured = () => !!(process.env.VM_USERNAME && process.env.VM_PASSWORD)
+// Not prod (external-accounts.js) counts as not configured: the score is stored and
+// the VM read / push is skipped, so dev never logs in to the shared account.
+const vmConfigured = () => !!(process.env.VM_USERNAME && process.env.VM_PASSWORD) && externalAccountsEnabled()
 
 // ── Spawning the worker (endpoint + the :35 sweep's queue) ──────────────────
 
@@ -351,9 +354,8 @@ export async function spawnResultPush({ database, log, gameId, sets, force = fal
         GAME_ID: String(gameId),
         SETS_JSON: JSON.stringify(sets),
         FORCE: force ? '1' : '',
-        // Lets the worker refuse to write from the dev DB — VM has no staging.
-        DB_DATABASE: process.env.DB_DATABASE || '',
-        VM_RESULT_ALLOW_DEV_WRITE: process.env.VM_RESULT_ALLOW_DEV_WRITE || '',
+        // The worker writes only with KSCW_EXTERNAL_WRITES=1 (prod) — VM has no staging.
+        ...externalWritesEnv('VM_RESULT_ALLOW_DEV_WRITE'),
       },
     })
   } catch (err) {

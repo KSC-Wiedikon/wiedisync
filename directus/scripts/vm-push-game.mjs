@@ -14,10 +14,16 @@
  *   BOOKING_ID                        — game_scheduling_bookings.id to push
  *   FORCE_SVRZ_ID                     — (optional) svrz_persistence_id to push,
  *                                       bypassing fixture auto-match (manual pick)
+ *   KSCW_EXTERNAL_WRITES=1            — REQUIRED for a real write. Without it the run is a
+ *                                       dry run (and the booking is marked failed, so it does
+ *                                       not sit at 'queued'). Set only by the spawner, only on
+ *                                       prod (kscw-endpoints/src/external-accounts.js)
+ *   DRY_RUN=1                         — operator rehearsal: match + validate, no write-back
  *
  * Writes back onto the booking: vm_game_id, vm_pushed_at, vm_push_status,
  * vm_push_error. NEVER changes game status / finalizes (no validateGames).
  */
+import { pathToFileURL } from 'node:url';
 import { vmLogin, csrfFromPage, registerWindow, VM_BASE, UA } from './vm-client.mjs';
 import { resolveVmHall, hallIdsOf } from './vm-halls.mjs';
 
@@ -27,10 +33,23 @@ const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530';
 const BOOKING_ID = process.env.BOOKING_ID;
 const FORCE_SVRZ_ID = process.env.FORCE_SVRZ_ID || null;
 
+// There is no VolleyManager staging, and dev holds the same club credentials. FAIL
+// CLOSED: write only when the spawner (game-scheduling.js → runVmPush) passes
+// KSCW_EXTERNAL_WRITES=1, which it does only on prod — or on dev with
+// KSCW_ALLOW_EXTERNAL_ON_DEV=1 AND VM_GAME_ALLOW_DEV_WRITE=1 for a supervised test.
+const FORCED_DRY = process.env.KSCW_EXTERNAL_WRITES !== '1';
+const DRY_RUN = !!process.env.DRY_RUN || FORCED_DRY;
+
+/** Exposed so the guard above is testable rather than merely asserted in a comment. */
+export const isDryRun = () => DRY_RUN;
+
+// Run only when invoked as a script, so the guard can be imported by the unit tests.
+const IS_ENTRYPOINT = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
 const log = (...a) => console.log(new Date().toISOString(), '[vm-push]', ...a);
 const idOf = (x) => (x && typeof x === 'object' ? (x.__identity || x.persistenceObjectIdentifier || '') : '');
 const normName = (s) => String(s || '').trim().toLowerCase();
-if (!BOOKING_ID) { console.error('[vm-push] BOOKING_ID required'); process.exit(1); }
+if (IS_ENTRYPOINT && !BOOKING_ID) { console.error('[vm-push] BOOKING_ID required'); process.exit(1); }
 
 // ─── Directus REST ───────────────────────────────────────────────────
 let DTOKEN = '';
@@ -277,12 +296,17 @@ async function main() {
   const pairs = gameToPairs(g, startingDateTime, vmHallId);
 
   // DRY_RUN: prove match + payload + datetime + hall + validate WITHOUT writing.
-  // validateGame is a read-only GET, so it's safe to call. No write-back.
-  if (process.env.DRY_RUN) {
+  // validateGame is a read-only GET, so it's safe to call. An operator's DRY_RUN=1
+  // leaves the booking alone; a FORCED dry run (no KSCW_EXTERNAL_WRITES) records why
+  // nothing was pushed, so the booking does not sit at 'queued' looking in flight.
+  if (DRY_RUN) {
     const codes = await vmValidate(pairs);
     log(`DRY_RUN: would push #${g.number} ${g.encounter?.teamHomeName} vs ${g.encounter?.teamAwayName}`);
     log(`DRY_RUN:   svrz ${svrzId}  ${g.startingDateTime} → ${startingDateTime}  hall ${g.hall?.name || '(unset)'} → ${vmHallId || '(unmapped)'}`);
     log(`DRY_RUN:   validate issue codes [${codes.join(', ') || 'none'}], status=${g.status}`);
+    if (FORCED_DRY && !process.env.DRY_RUN) {
+      return finish('failed', { error: 'Not pushed: external writes are disabled on this server (dry run only)', vmGameId: svrzId });
+    }
     process.exit(0);
   }
 
@@ -316,4 +340,7 @@ async function main() {
   try { await finish('failed', { error: err.message }); } catch { process.exit(1); }
  }
 }
-main();
+if (IS_ENTRYPOINT) {
+  if (FORCED_DRY) log('KSCW_EXTERNAL_WRITES not set — forcing DRY_RUN (external-accounts.js).');
+  main();
+}

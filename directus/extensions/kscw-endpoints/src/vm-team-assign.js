@@ -24,21 +24,23 @@
  * last result — the audit trail (`user_logs`) and the `sync_runs` heartbeat
  * survive it.
  *
- * ⚠ There is no VM staging. On the dev database the run is forced to a dry
- * run unless VM_TEAM_ASSIGN_ALLOW_DEV_WRITE=1, same guard as the nomination
- * push — dev holds a clone of prod's rosters, so a "test" from dev would be a
- * real assignment in the real Swiss Volley system.
+ * ⚠ There is no VM staging. Off prod the run is refused outright (503
+ * external_disabled_on_dev — even a preview logs in to the shared account); a
+ * supervised dev test needs KSCW_ALLOW_EXTERNAL_ON_DEV=1, and its run is still
+ * forced to a dry run unless VM_TEAM_ASSIGN_ALLOW_DEV_WRITE=1 as well — dev holds
+ * a clone of prod's rosters, so a "test" from dev would be a real assignment in
+ * the real Swiss Volley system. (external-accounts.js)
  */
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
 import { writeUserLog } from './activity-log.js'
 import { logCronRun } from './error-log.js'
+import { externalWritesEnabled, refuseExternalOnDev } from './external-accounts.js'
 
 const VM_TEAM_PLAYERS = '/directus/scripts/vm-team-players.mjs'
 const SYNC_SOURCE = 'vm_team_assign'
 
-const IS_DEV_DB = /dev/i.test(process.env.DB_DATABASE || '')
-const DEV_WRITE_ALLOWED = !!process.env.VM_TEAM_ASSIGN_ALLOW_DEV_WRITE
-export const FORCED_DRY = IS_DEV_DB && !DEV_WRITE_ALLOWED
+/** Fail closed: a real write only on prod, or on dev with both opt-ins (external-accounts.js). */
+export const forcedDry = (env = process.env) => !externalWritesEnabled('VM_TEAM_ASSIGN_ALLOW_DEV_WRITE', env)
 
 /** Same gate as licence-status: Directus admin, or a club / sport admin member. */
 async function adminGate(database, req) {
@@ -177,7 +179,7 @@ export function registerVmTeamAssign(router, { database, logger }) {
         lastRun: publicRun(state.last),
         heartbeat: heartbeat ? { lastRunAt: heartbeat.last_run_at, status: heartbeat.status, rowsChanged: heartbeat.rows_changed, error: heartbeat.error_message } : null,
         vmConfigured: !!(process.env.VM_USERNAME && process.env.VM_PASSWORD),
-        forcedDryRun: FORCED_DRY,
+        forcedDryRun: forcedDry(),
         vmAccountHeldBy: vmAccountHeldBy(),
       })
     } catch (err) {
@@ -192,11 +194,13 @@ export function registerVmTeamAssign(router, { database, logger }) {
       if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
         return res.status(503).json({ error: 'Volleymanager is not configured', code: 'vm_unconfigured' })
       }
+      if (refuseExternalOnDev(res)) return
       if (state.running) {
         return res.status(409).json({ error: 'A run is already in progress', code: 'run_in_flight' })
       }
       const wantDry = req.body?.dry_run === true || req.body?.dry_run === 1 || req.body?.dry_run === '1'
-      const dryRun = wantDry || FORCED_DRY
+      const forced = forcedDry()
+      const dryRun = wantDry || forced
       const teamIds = Array.isArray(req.body?.team_ids)
         ? req.body.team_ids.map(Number).filter(Number.isInteger)
         : null
@@ -224,7 +228,7 @@ export function registerVmTeamAssign(router, { database, logger }) {
       const actor = await actorName(database, req)
       const accountability = req.accountability
       const run = {
-        status: 'running', dryRun, forcedDryRun: FORCED_DRY && !wantDry, startedAt: new Date().toISOString(),
+        status: 'running', dryRun, forcedDryRun: forced && !wantDry, startedAt: new Date().toISOString(),
         actor, progress: { done: 0, total: wanted.length, team: '' }, log: [], teamIds,
       }
       state.running = run

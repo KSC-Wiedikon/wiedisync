@@ -25,6 +25,7 @@
  */
 
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
+import { skipExternalJob } from './external-accounts.js'
 
 // Absolute container path: `directus/scripts/` is a separate bind-mount, deployed
 // via `npm run scripts:deploy:*`, not by `ext:deploy`. Same import as vm-nomination-list.js.
@@ -209,6 +210,9 @@ export function cachedVmGameResult(gameUuid) {
  * }>}  null when VM is busy or unusable — the caller shows its stored state.
  */
 export async function readVmGameResult(gameUuid, log) {
+  // Prod only (external-accounts.js): elsewhere this is the "VM unusable" case and
+  // every caller already shows its stored state.
+  if (skipExternalJob('vm-result:read', log)) return null
   const hit = cachedVmGameResult(gameUuid)
   if (hit) return hit
 

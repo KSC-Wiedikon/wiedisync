@@ -10,6 +10,9 @@
  *   live — submits. ⚠ Only where the container env has
  *          BASKETPLAN_REGISTER_LIVE=1 (prod). Dev's DB is a nightly prod clone
  *          and shares the club login, so without the flag 'live' runs as 'dry'.
+ *   And none of it off prod: dev does not log in to Basketplan at all unless
+ *   KSCW_ALLOW_EXTERNAL_ON_DEV=1 (external-accounts.js), and a dev 'live' then
+ *   still needs BASKETPLAN_REGISTER_LIVE=1 too.
  *
  * WHEN (a per-minute cron calls POST /kscw/admin/bb-register-tick):
  *   - normally every 10 minutes, and only if a pick is still unregistered —
@@ -40,6 +43,7 @@
 
 import { READ_PATHS, bpClient, parseTournamentDetail, parseTournamentList, planTournamentRows, syncBpTournaments } from './bp-tournaments.js'
 import { addDays, matchWishes, waitingWishes, zurichHour } from './bb-tournament-wishes.js'
+import { externalAccountsEnabled, EXTERNAL_DISABLED_CODE } from './external-accounts.js'
 
 export const FORM_PATH = '/selectTeamForClubRegistration.do'
 export const REGISTER_PATH = '/registerTeamForTournament.do'
@@ -115,7 +119,7 @@ export function pendingPicks(picks, tournaments, teams, blocked, today) {
 }
 
 export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env = process.env, sleepImpl = sleep }) {
-  const liveAllowed = env.BASKETPLAN_REGISTER_LIVE === '1'
+  const liveAllowed = env.BASKETPLAN_REGISTER_LIVE === '1' && externalAccountsEnabled(env)
   const clubId = String(env.BASKETPLAN_CLUB_ID || '166')
   let running = false
   let journalled = 0
@@ -318,6 +322,8 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
 
   /** One tick. Returns a summary; never throws for "nothing to do". */
   async function run({ now = new Date(), force = false } = {}) {
+    // Prod only: the club's Basketplan login is shared with prod (external-accounts.js).
+    if (!externalAccountsEnabled(env)) return { skipped: EXTERNAL_DISABLED_CODE }
     if (running) return { skipped: 'busy' }
     const s = await settings()
     const mode = effectiveMode(s?.mode, liveAllowed)

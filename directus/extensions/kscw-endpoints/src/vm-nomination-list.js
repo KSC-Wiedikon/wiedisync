@@ -30,6 +30,7 @@
  */
 
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
+import { skipExternalJob, EXTERNAL_DISABLED_CODE } from './external-accounts.js'
 
 // Absolute container path: `directus/scripts/` is a separate bind-mount, deployed
 // via `npm run scripts:deploy:*`, not by `ext:deploy`. Same import as game-scheduling.js.
@@ -127,6 +128,9 @@ export async function readOwnNominationList(gameUuid, log, { side = null } = {})
 
 async function readNominationList(gameUuid, log, side) {
   let body
+  // Prod only (external-accounts.js). The cron and the Recheck route are gated
+  // already; this is the backstop for any other caller.
+  if (skipExternalJob('vm-nomination:read', log)) return { status: 'unavailable', error: EXTERNAL_DISABLED_CODE }
   // The shared VM account (CLAUDE.md → "The shared VolleyManager account"): a login
   // or read here while vm_sync / svrz_sync / nomination-push holds it can run under
   // their role. Never wait — the sheet is being opened at the table, and a busy
