@@ -195,7 +195,10 @@ async function isSuperadmin(database, accountability) {
   return callerRoles(caller).includes('superuser')
 }
 
-/** Sport Admin / Vorstand may READ households; they may not create links. */
+/**
+ * Sport Admin / Vorstand may READ households; they may not create links.
+ * Club-wide on purpose, not sport-scoped (M7, 2026-10-12): households are board work.
+ */
 async function mayReadHouseholds(database, accountability) {
   if (await isSuperadmin(database, accountability)) return true
   const userId = accountability?.user
