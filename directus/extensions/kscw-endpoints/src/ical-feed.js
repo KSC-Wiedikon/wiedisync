@@ -209,11 +209,23 @@ export function registerICalFeed(router, { database, logger }) {
           ? (await database('game_guests').where('member', tokenMember.id).select('game')).map((r) => r.game)
           : []
 
+        // Games another team owns but one of THESE teams was called up for. The
+        // Mobiliar Cup is entered under H1's name and played by H3, so `kscw_team`
+        // says H1 forever and the filter above alone never shows H3 the tie.
+        // `game_guest_teams` is the club's statement of the call-up — the table the
+        // in-app team calendar reads (useTeamGuestGameIds). Team-level on purpose:
+        // the per-member `game_guests` rows above only reach a tokened link of a
+        // regular player, never a token-less team link or a coach. Leaks nothing a
+        // team feed doesn't already publish — only that this team plays the game.
         let q = database('games').where('date', '>=', from)
         if (teamIds.length) {
-          q = guestGameIds.length
-            ? q.where((qb) => qb.whereIn('kscw_team', teamIds).orWhereIn('id', guestGameIds))
-            : q.whereIn('kscw_team', teamIds)
+          const calledUpGameIds = database('game_guest_teams').whereIn('team', teamIds).select('game')
+          // One parenthesised group, so the OR branches stay under the date floor
+          // and the home/away filter below.
+          q = q.where((qb) => {
+            qb.whereIn('kscw_team', teamIds).orWhereIn('id', calledUpGameIds)
+            if (guestGameIds.length) qb.orWhereIn('id', guestGameIds)
+          })
         }
         if (sources['games-home'] && !sources['games-away']) q = q.where('type', 'home')
         else if (sources['games-away'] && !sources['games-home']) q = q.where('type', 'away')
