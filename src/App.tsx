@@ -14,6 +14,7 @@ import Layout from './components/Layout'
 import { NotificationsProvider } from './components/NotificationsStoreProvider'
 import BootOverlay from './components/BootOverlay'
 import AdminRoute from './components/AdminRoute'
+import RoleGuard from './components/RoleGuard'
 import GlobalAdminRoute from './components/GlobalAdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
@@ -303,12 +304,13 @@ export default function App() {
             <Route path="admin/season-health" element={<SuperAdminRoute><Suspense fallback={null}><SeasonHealthPage /></Suspense></SuperAdminRoute>} />
             {/* International transfers. AdminRoute, NOT SuperAdminRoute like its
                 neighbour: this is per-sport casework and the people who do it are
-                the sport TK (vb_admin / bb_admin), whom SuperAdminRoute excludes.
-                AdminRoute (admin | superuser | vb_admin | bb_admin) is also
-                exactly the set that already holds `members` read+update with
-                fields=* via KSCW Sport Admin, so the gate and the grant line up
-                and nobody can reach a page whose toggles would 403. */}
-            <Route path="admin/transfers" element={<AdminRoute><TransfersPage /></AdminRoute>} />
+                the volleyball TK (vb_admin), whom SuperAdminRoute excludes. The
+                page is volleyball-only, and since the 2026-10-11 audit M7 so is
+                its data: the Swiss Volley licence mirror and the volleyball member
+                register are granted to `KSCW Sport Admin VB` (and full admins), so
+                a basketball-only admin is sent back to the hub rather than onto a
+                page whose reads would 403. */}
+            <Route path="admin/transfers" element={<AdminRoute><RoleGuard redirects={[{ when: (a) => !a.hasAdminAccessToSport('volleyball'), to: '/admin' }]}><TransfersPage /></RoleGuard></AdminRoute>} />
             {/* /admin/clubdesk-sync was merged into Data health on 2026-08-13 —
                 the two pages were halves of one job (aggregate counts here,
                 detail there). Kept as a redirect, not deleted: the old path is in

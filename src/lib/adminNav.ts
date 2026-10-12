@@ -46,6 +46,13 @@ export interface AdminNavFlags {
   isGlobalAdmin: boolean
   isSuperAdmin: boolean
   /**
+   * Volleyball admin access (`hasAdminAccessToSport('volleyball')`). `false`
+   * hides the volleyball-only pages whose data a basketball admin can no longer
+   * read since the 2026-10-11 audit M7 (the Swiss Volley licence mirror behind
+   * Transfers is granted to `KSCW Sport Admin VB` only). Omitted = shown.
+   */
+  volleyballAdmin?: boolean
+  /**
    * Game scheduling — built by the caller because its target and origin depend on
    * role + SCHEDULING_ORIGIN. Leads the "Planning & halls" group for admins.
    */
@@ -53,7 +60,7 @@ export interface AdminNavFlags {
 }
 
 /** The admin sections, minus superadmin (which renders as its own block). */
-export function buildAdminGroups({ isAdmin, isGlobalAdmin, scheduling }: AdminNavFlags): AdminNavGroup[] {
+export function buildAdminGroups({ isAdmin, isGlobalAdmin, volleyballAdmin, scheduling }: AdminNavFlags): AdminNavGroup[] {
   return [
     {
       labelKey: 'adminGroupPlanning',
@@ -79,9 +86,11 @@ export function buildAdminGroups({ isAdmin, isGlobalAdmin, scheduling }: AdminNa
       labelKey: 'adminGroupMembers',
       items: isAdmin ? [
         { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: UserPlus, access: 'admin' as const },
-        // International transfers (AdminRoute). The label lives in the `admin`
-        // namespace with the rest of that page's strings, hence the prefix.
-        { to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: ArrowRightLeft, access: 'admin' as const },
+        // International transfers (volleyball admins). The label lives in the
+        // `admin` namespace with the rest of that page's strings, hence the prefix.
+        ...(volleyballAdmin !== false
+          ? [{ to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: ArrowRightLeft, access: 'admin' as const }]
+          : []),
         { to: '/admin/announcements', labelKey: 'announcements', icon: Megaphone, access: 'admin' as const },
         { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: MessageSquare, access: 'admin' as const },
       ] : [],

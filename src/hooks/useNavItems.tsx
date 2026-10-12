@@ -151,6 +151,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
       isAdmin,
       isGlobalAdmin,
       isSuperAdmin,
+      volleyballAdmin: isGlobalAdmin || isVbAdmin,
       scheduling: isAdmin ? schedulingEntry : null,
     }).map((g) => ({ label: t(g.labelKey), items: g.items.map(toNavItem) })),
     superadminItems: buildSuperadminItems(isSuperAdmin).map(toNavItem),

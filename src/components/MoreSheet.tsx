@@ -247,7 +247,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   // scheduling: null — on mobile the Spielplanung entry keeps its own section
   // below (see buildSecondaryItems), it does not lead the Planning group.
   // isSuperAdmin: false — the superadmin block renders separately, below.
-  const adminGroups = buildAdminGroups({ isAdmin, isGlobalAdmin, isSuperAdmin: false, scheduling: null })
+  const adminGroups = buildAdminGroups({ isAdmin, isGlobalAdmin, isSuperAdmin: false, volleyballAdmin: isGlobalAdmin || isVbAdmin, scheduling: null })
     .map((g) => ({ labelKey: g.labelKey, items: g.items.map(toSheetItem) }))
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
