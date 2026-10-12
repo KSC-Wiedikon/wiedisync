@@ -54,7 +54,9 @@ export function missingRefereeGames<G extends { id: string | number } & Pick<Gam
 /**
  * Volleyball HOME games of the teams the logged-in member coaches / is
  * responsible for that have ended in the last two weeks and still have no
- * referee-expense row.
+ * referee-expense row. Games refereed by a club duty team (HU20 —
+ * `referee_duty_team` / `referee_member`) pay no federation referee and are
+ * never asked for.
  *
  * Request budget (CLAUDE.md → "slow app = count requests"): exactly two for a
  * leader — one `games` list, one `referee_expenses` list keyed on the ended
@@ -85,6 +87,9 @@ export function useMissingRefereeExpenses(): { games: NudgeGame[]; isLoading: bo
       { kscw_team: { sport: { _eq: 'volleyball' } } },
       { type: { _eq: 'home' } },
       { away_team: { _nnull: true } },
+      // A club duty team referees it (HU20) → no federation referee, no fee.
+      { referee_duty_team: { _null: true } },
+      { referee_member: { _null: true } },
       { date: { _gte: from } },
       { date: { _lte: to } },
       // `status` defaults NULL and sv-sync only sets 'completed' once a winner
