@@ -3,7 +3,7 @@
  *
  * The calendar feed is a Directus endpoint (directus[-dev].kscw.ch/kscw/ical),
  * but members should only ever see/store the wiedisync host. This transparently
- * PROXIES /kscw/ical (and /kscw/ical/{volleyball,basketball}) to the matching
+ * PROXIES /kscw/ical (and /kscw/ical/{volleyball,basketball,me}) to the matching
  * Directus origin — NOT a redirect, so the resolved URL stays on wiedisync,
  * which Apple/Google/Outlook calendar subscriptions handle most reliably.
  *
@@ -11,7 +11,7 @@
  * feed (?source=duties&token=…). Any other /kscw/* path — and any non-GET —
  * falls through to the app via context.next(), unchanged.
  */
-const ICAL_PATH = /^\/kscw\/ical(?:\/(?:volleyball|basketball))?\/?$/
+const ICAL_PATH = /^\/kscw\/ical(?:\/(?:volleyball|basketball|me))?\/?$/
 
 export async function onRequest(context) {
   const { request, next } = context

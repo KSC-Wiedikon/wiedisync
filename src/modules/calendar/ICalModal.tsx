@@ -26,6 +26,14 @@ const BASE_URL = isLocalhostIcal ? API_URL : window.location.origin
 
 type ICalMode = 'subscribe' | 'download'
 
+/**
+ * `mine` = /kscw/ical/me: the link carries only the personal token, and the
+ * server reads the member's teams on every refresh — so joining a team, the
+ * season rollover and call-ups never need a new link. `teams` = the old link,
+ * with the picked team ids baked in.
+ */
+type ICalScope = 'mine' | 'teams'
+
 interface ICalModalProps {
   open: boolean
   mode: ICalMode
@@ -65,6 +73,7 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     'events',
   ])
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
+  const [scope, setScope] = useState<ICalScope>('mine')
   const [linkShown, setLinkShown] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -82,6 +91,10 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     }
   }, [open, mode, personalToken])
 
+  // "My calendar" needs the token; without one (not fetched yet, or refused
+  // while acting for someone else) only the team link can be built.
+  const effectiveScope: ICalScope = personalToken ? scope : 'teams'
+
   // iCal subscription URL — recomputed live as categories/teams change so the
   // revealed link always matches the current selection. The personal token is
   // appended (when available) so the feed carries the member's duties too.
@@ -90,21 +103,28 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     // Clean URL: `source=all` when every category is selected, otherwise one
     // `&source=` per value (no encoded-comma soup, e.g. ?source=games-home&source=trainings).
     // `team` likewise repeats per id. The feed still accepts the legacy comma form.
+    // The personal feed defaults to every category, so it needs no `source` then.
     const allCategories: SourceCategory[] = ['trainings', 'games', 'events']
     if (allCategories.every((c) => selectedCategories.includes(c))) {
-      params.append('source', 'all')
+      if (effectiveScope === 'teams') params.append('source', 'all')
     } else {
       for (const s of selectedCategories.flatMap((cat) => categoryToSources[cat])) {
         params.append('source', s)
       }
     }
-    for (const id of selectedTeamIds) params.append('team', id)
+    if (effectiveScope === 'teams') for (const id of selectedTeamIds) params.append('team', id)
     if (personalToken) params.append('token', personalToken)
-    return `${BASE_URL}/kscw/ical?${params.toString()}`
-  }, [selectedCategories, selectedTeamIds, personalToken])
+    const path = effectiveScope === 'mine' ? '/kscw/ical/me' : '/kscw/ical'
+    return `${BASE_URL}${path}?${params.toString()}`
+  }, [selectedCategories, selectedTeamIds, personalToken, effectiveScope])
   const webcalUrl = subscribeUrl.replace(/^https?:/, 'webcal:')
 
   const title = mode === 'subscribe' ? t('icalSubscribeTitle') : t('icalDownloadTitle')
+
+  const scopeOptions: { value: ICalScope; label: string; hint: string }[] = [
+    { value: 'mine', label: t('icalScopeMine'), hint: t('icalScopeMineHint') },
+    { value: 'teams', label: t('icalScopeTeams'), hint: t('icalScopeTeamsHint') },
+  ]
 
   const categoryOptions: { value: SourceCategory; label: string }[] = [
     { value: 'trainings', label: t('sourceTrainings') },
@@ -178,6 +198,34 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
   return (
     <Modal open={open} onClose={handleClose} title={title} size="sm">
       <div className="space-y-5">
+        {/* Link scope — personal (follows the roster) or a fixed team pick */}
+        {mode === 'subscribe' && personalToken && (
+          <div role="radiogroup" aria-label={title} className="grid gap-2">
+            {scopeOptions.map((opt) => {
+              const selected = scope === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setScope(opt.value)}
+                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    selected
+                      ? 'border-selected bg-selected text-selected-foreground'
+                      : 'border-border bg-card text-foreground hover:bg-accent'
+                  }`}
+                >
+                  <span className="block text-sm font-medium">{opt.label}</span>
+                  <span className={`mt-0.5 block text-xs ${selected ? 'text-selected-foreground/80' : 'text-muted-foreground'}`}>
+                    {opt.hint}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Category selection (checkboxes) */}
         <div>
           <p className="mb-2 text-sm font-medium text-foreground/85">
@@ -201,8 +249,9 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
           </div>
         </div>
 
-        {/* Team filter — only user's own teams (admins see all) */}
-        {visibleTeams.length > 0 && (
+        {/* Team filter — only user's own teams (admins see all). Not on the
+            personal link, which takes its teams from the roster. */}
+        {visibleTeams.length > 0 && (mode === 'download' || effectiveScope === 'teams') && (
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/85">
               {t('icalTeamFilter')}
@@ -281,7 +330,9 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
             >
               {t('icalOpenInApp')}
             </a>
-            {personalToken ? (
+            {effectiveScope === 'mine' ? (
+              <p className="text-xs text-muted-foreground/80">{t('icalMinePrivacyHint')}</p>
+            ) : personalToken ? (
               <p className="text-xs text-muted-foreground/80">{t('icalDutiesPrivacyHint')}</p>
             ) : (
               <p className="text-xs text-muted-foreground/80">{t('icalSubscribeHint')}</p>

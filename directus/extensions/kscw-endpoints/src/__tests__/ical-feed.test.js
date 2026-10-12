@@ -124,11 +124,11 @@ function makeDb(tables) {
 
 // ─── Endpoint harness ────────────────────────────────────────────────────────
 
-function makeHandler(tables) {
+function makeHandler(tables, path = '/ical') {
   const routes = {}
-  const router = { get: (path, h) => { routes[path] = h }, post: () => {} }
+  const router = { get: (p, h) => { routes[p] = h }, post: () => {} }
   registerICalFeed(router, { database: makeDb(tables), logger: { child: () => ({ error: () => {} }) } })
-  return routes['/ical']
+  return routes[path]
 }
 
 function makeRes() {
@@ -136,14 +136,15 @@ function makeRes() {
     statusCode: 200, body: null, headers: {},
     set(k, v) { this.headers[k] = v; return this },
     status(c) { this.statusCode = c; return this },
+    type(t) { this.headers['Content-Type'] = t; return this },
     json(b) { this.body = b; return this },
     send(b) { this.body = b; return this },
   }
 }
 
-async function feed(tables, query = { source: 'events' }) {
+async function feed(tables, query = { source: 'events' }, path = '/ical') {
   const res = makeRes()
-  await makeHandler(tables)({ query }, res)
+  await makeHandler(tables, path)({ query }, res)
   expect(res.statusCode).toBe(200)
   return res.body
 }
@@ -325,6 +326,107 @@ describe('GET /kscw/ical?team=… — called-up games', () => {
     const body = await feed(gameFixtures(), { team: '2' })
     expect(uids(body)).toEqual([774, 775, 779])
     expect(body).toContain('X-WR-CALNAME:KSC Wiedikon – H3')
+  })
+})
+
+// ─── Personal feed /ical/me (2026-10-12) ─────────────────────────────────────
+
+/**
+ * Every other link bakes the subscriber's choices into the URL — team ids, and
+ * before 11.07.2026 no token at all — and a calendar app keeps that URL forever.
+ * /ical/me carries only the token; the teams are read from the roster on every
+ * refresh, so the link itself never goes stale.
+ */
+const training = (id, team, n) => ({
+  id, team, date: day(n), start_time: '19:00:00', end_time: '21:00:00', cancelled: false,
+})
+
+/**
+ * On top of gameFixtures: member 50 plays in H3 and still has a row on last
+ * season's H3 (2); member 60 coaches H3 without playing; member 70 is team
+ * responsible of D1; member 80 is on no team.
+ */
+const personalFixtures = () => ({
+  ...gameFixtures(),
+  members: [
+    { id: 50, ical_token: 'tok-50' },
+    { id: 60, ical_token: 'tok-60' },
+    { id: 70, ical_token: 'tok-70' },
+    { id: 80, ical_token: 'tok-80' },
+  ],
+  member_teams: [
+    { id: 1, member: 50, team: 3, guest_level: 0 },
+    { id: 2, member: 50, team: 2, guest_level: 0 },
+  ],
+  teams_coaches: [{ id: 1, teams_id: 3, members_id: 60 }],
+  teams_responsibles: [{ id: 1, teams_id: 9, members_id: 70 }],
+  trainings: [training(1, 3, 3), training(2, 9, 4), training(3, 1, 5)],
+  events: [], events_teams: [], events_members: [],
+})
+
+const trainingUids = (body) => [...body.matchAll(/UID:training-(\d+)@kscw\.ch/g)].map((m) => Number(m[1])).sort()
+const me = (tables, query) => feed(tables, query, '/ical/me')
+
+describe('GET /kscw/ical/me — the personal feed', () => {
+  it("a player gets their team's games, call-ups, trainings and personal invitations", async () => {
+    const body = await me(personalFixtures(), { token: 'tok-50' })
+    expect(uids(body)).toEqual([774, 775, 778, 779])
+    expect(trainingUids(body)).toEqual([1])
+  })
+
+  it('a coach who does not play gets the call-ups too', async () => {
+    // Coaches are never on game_guests, so before the team-level call-up
+    // match no link of theirs could carry game 774.
+    const body = await me(personalFixtures(), { token: 'tok-60' })
+    expect(uids(body)).toEqual([774, 775, 779])
+    expect(trainingUids(body)).toEqual([1])
+  })
+
+  it('a team responsible gets that team', async () => {
+    const body = await me(personalFixtures(), { token: 'tok-70' })
+    expect(uids(body)).toEqual([776, 778])
+    expect(trainingUids(body)).toEqual([2])
+  })
+
+  it('a member on no team gets none of the club — not all of it', async () => {
+    // On the public feeds an empty team list means every team. Here it must
+    // mean none, or a passive member's calendar fills with every club game.
+    const body = await me(personalFixtures(), { token: 'tok-80' })
+    expect(uids(body)).toEqual([])
+    expect(trainingUids(body)).toEqual([])
+  })
+
+  it('reads the roster, never the URL', async () => {
+    const body = await me(personalFixtures(), { token: 'tok-60', team: '9' })
+    expect(uids(body)).toEqual([774, 775, 779])
+  })
+
+  it('follows the roster: a new team shows up without a new link', async () => {
+    const tables = personalFixtures()
+    tables.teams_coaches.push({ id: 2, teams_id: 9, members_id: 60 })
+    const body = await me(tables, { token: 'tok-60' })
+    expect(uids(body)).toEqual([774, 775, 776, 778, 779])
+  })
+
+  it('still honours a source filter', async () => {
+    const body = await me(personalFixtures(), { token: 'tok-50', source: 'trainings' })
+    expect(uids(body)).toEqual([])
+    expect(trainingUids(body)).toEqual([1])
+  })
+
+  it('is named for the subscriber, not their teams, and kept out of shared caches', async () => {
+    const res = makeRes()
+    await makeHandler(personalFixtures(), '/ical/me')({ query: { token: 'tok-50' } }, res)
+    expect(res.body).toContain('X-WR-CALNAME:KSC Wiedikon – Mein Kalender')
+    expect(res.headers['Cache-Control']).toBe('private, max-age=3600')
+  })
+
+  it('an unknown or rotated token is a 404, not an empty calendar', async () => {
+    for (const query of [{ token: 'rotated' }, {}]) {
+      const res = makeRes()
+      await makeHandler(personalFixtures(), '/ical/me')({ query }, res)
+      expect(res.statusCode).toBe(404)
+    }
   })
 })
 
