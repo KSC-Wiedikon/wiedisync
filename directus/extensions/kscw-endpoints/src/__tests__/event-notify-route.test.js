@@ -83,3 +83,62 @@ describe('POST /events/:id/notify — coach creator', () => {
     expect(pushed).toEqual([])
   })
 })
+
+// M7 (2026-10-12): the board's uncapped fan-out stops at its own section. A
+// vorstand below full admin is sport-confined by their admin tier, so on another
+// sport's event they are held to the creator cap like anybody else.
+describe('POST /events/:id/notify — board member sport scope (M7)', () => {
+  beforeEach(() => { pushed.length = 0 })
+
+  const many = Array.from({ length: 80 }, (_, i) => ({ id: 2000 + i, role: '["user"]' }))
+  const tablesFor = (role, extra = {}) => ({
+    members: [{ id: 1, user: 'u-board', role: JSON.stringify(role) }, ...many],
+    teams: [{ id: 100, sport: 'volleyball' }, { id: 200, sport: 'basketball' }],
+    teams_coaches: [],
+    teams_responsibles: [],
+    member_teams: [{ member: 2, team: 100, guest_level: 0 }, { member: 3, team: 200, guest_level: 0 }],
+    ...extra,
+  })
+  const run = async (tables, event) => {
+    const inserted = []
+    const r = res()
+    await handler(fakeDb(tables, inserted), event)({ params: { id: String(event.id) }, body: {}, accountability: { user: 'u-board' } }, r)
+    return { r, inserted }
+  }
+  const bigEvent = (teamIds) => ({
+    id: ++seq, title: 'Club day', created_by: 1,
+    teams: teamIds.map((teams_id) => ({ teams_id })), invited_members: [], invited_roles: ['vorstand'],
+  })
+
+  it('a VB board member may fan out uncapped on a volleyball event', async () => {
+    const { r, inserted } = await run(tablesFor(['vorstand', 'vb_admin']), bigEvent([100]))
+    expect(r.statusCode).toBe(200)
+    expect(inserted.length).toBeGreaterThan(60)
+  })
+
+  it('a VB board member is capped on a basketball event they created', async () => {
+    const { r, inserted } = await run(tablesFor(['vorstand', 'vb_admin']), bigEvent([200]))
+    expect(r.statusCode).toBe(403)
+    expect(r.body.code).toBe('audience_too_large')
+    expect(inserted).toEqual([])
+  })
+
+  it('a team-less (club-wide) event counts for either section', async () => {
+    const { r } = await run(tablesFor(['vorstand', 'bb_admin']), bigEvent([]))
+    expect(r.statusCode).toBe(200)
+  })
+
+  it('a board member who is also a full admin is never confined', async () => {
+    const { r } = await run(tablesFor(['vorstand', 'admin']), bigEvent([200]))
+    expect(r.statusCode).toBe(200)
+  })
+
+  it('a VB board member who coaches the basketball team still notifies that team', async () => {
+    const tables = tablesFor(['vorstand', 'vb_admin'], { teams_coaches: [{ teams_id: 200, members_id: 1 }] })
+    const event = { id: ++seq, title: 'BB camp', created_by: 99, teams: [{ teams_id: 200 }], invited_members: [], invited_roles: ['vorstand'] }
+    const { r, inserted } = await run(tables, event)
+    expect(r.statusCode).toBe(200)
+    // Leader path: their own team only, never the club-wide invited_roles.
+    expect(inserted.map((n) => String(n.member)).sort()).toEqual(['1', '3'])
+  })
+})

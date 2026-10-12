@@ -22,6 +22,7 @@ import { streamManagedFile } from './storage-read.js'
 import { Transform } from 'node:stream'
 import { signTicket, verifyTicket } from './scorer-exam.js'
 import { sniffUpload, safeFilename, createLimiter, overDailyBudget } from './public-upload.js'
+import { callerSportScope, membersInScope, parseRoles, scopeAllowsMember } from './sport-scope.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -728,6 +729,41 @@ export function checkUploadTicket(raw, uses, now = Date.now(), secret) {
   }
   return claim
 }
+
+export const ALL_MEMBERSHIP_TYPES = Object.freeze(['volleyball', 'basketball', 'passive'])
+
+/**
+ * Which registrations a caller may handle, as a membership_type list — or null
+ * when they may handle none. Pure; the staff routes below all ask this.
+ *
+ *   Directus admin, app admin / superuser → every type.
+ *   vorstand → every type UNLESS sport-confined (M7, 2026-10-12): a board member
+ *     below full admin holds vb_admin or bb_admin, and then sees that sport plus
+ *     the passive rows, which have no sport ('both') and were always the board's.
+ *   sport admin → their own sport(s) only. Passive registrations have no sport,
+ *     so they stay with the global tiers — a sport admin has no claim on them.
+ */
+export function registrationSportsFor(roles, { directusAdmin = false } = {}) {
+  const list = parseRoles(roles)
+  if (directusAdmin || list.includes('admin') || list.includes('superuser')) return ALL_MEMBERSHIP_TYPES
+  if (list.includes('vorstand')) {
+    const scope = callerSportScope(list)
+    return scope ? [scope, 'passive'] : ALL_MEMBERSHIP_TYPES
+  }
+  const sports = []
+  if (list.includes('vb_admin')) sports.push('volleyball')
+  if (list.includes('bb_admin')) sports.push('basketball')
+  return sports.length ? sports : null
+}
+
+/** May a caller handle a registration of `membershipType`? Anything but VB/BB counts as passive. */
+export function registrationAllowed(roles, membershipType, opts = {}) {
+  const sports = registrationSportsFor(roles, opts)
+  if (!sports) return false
+  const type = membershipType === 'volleyball' || membershipType === 'basketball' ? membershipType : 'passive'
+  return sports.includes(type)
+}
+
 // The registration document columns a member is allowed to view for their own
 // (post-approval) registration. Mirrors REGISTRATION_FILE_COLS in kscw-hooks.
 const SELF_DOC_FIELDS = [
@@ -1657,13 +1693,11 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(401).json({ error: 'Authentication required' })
       }
 
-      // Permission: Directus admin, or app-role admin/superuser/vorstand, or the
-      // sport admin for this registration's sport.
+      // Permission: Directus admin, or app-role admin/superuser, or vorstand / the
+      // sport admin within this registration's sport (registrationSportsFor).
       const actor = await database('members')
         .where('user', req.accountability.user)
         .first('id', 'role', 'first_name', 'last_name')
-      const actorRoles = Array.isArray(actor?.role) ? actor.role
-        : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
 
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id <= 0) {
@@ -1677,14 +1711,9 @@ export function registerRegistration(router, { database, logger, services, getSc
           'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
-      const sportRole = reg.membership_type === 'basketball' ? 'bb_admin'
-        : reg.membership_type === 'volleyball' ? 'vb_admin' : null
-      const allowed = req.accountability.admin === true
-        || actorRoles.includes('admin')
-        || actorRoles.includes('superuser')
-        || actorRoles.includes('vorstand')
-        || (!!sportRole && actorRoles.includes(sportRole))
-      if (!allowed) return res.status(403).json({ error: 'Not authorized' })
+      if (!registrationAllowed(actor?.role, reg.membership_type, { directusAdmin: req.accountability.admin === true })) {
+        return res.status(403).json({ error: 'Not authorized' })
+      }
 
       // Only pending/approved rows can still receive documents — the attach route
       // enforces the same set, so mailing a link for a rejected row would send the
@@ -1801,6 +1830,11 @@ export function registerRegistration(router, { database, logger, services, getSc
             'bb_docs_waived',
             'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
             'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
+        // The template is board work, the applicant is not: a real row renders
+        // their name and email, so it is held to the registration scope (M7).
+        if (reg && !registrationAllowed(actorRoles, reg.membership_type, { directusAdmin: req.accountability.admin === true })) {
+          return res.status(403).json({ error: 'Not authorized' })
+        }
       }
       let missing
       if (reg) {
@@ -2017,12 +2051,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       || req.ip || 'unknown'
   }
 
-  const ALL_MEMBERSHIP_TYPES = ['volleyball', 'basketball', 'passive']
-
-  /** Which registrations this caller may see, as a membership_type list — or
-   *  null when they may see none. Same tiers as /registration/:id/request-docs:
-   *  Directus admin and app-role admin/superuser/vorstand see everything; a
-   *  sport admin sees their own sport only.
+  /** Which registrations this caller may see — `registrationSportsFor`, the same
+   *  tiers as /registration/:id/request-docs — plus the member-sport scope the
+   *  merge route holds its TARGET member to.
    *
    *  ⚠ Returns the SCOPE, not a yes/no. The batch route covers a whole page of
    *  mixed-sport rows, so a boolean gate keyed on one membership_type answered
@@ -2033,20 +2064,10 @@ export function registerRegistration(router, { database, logger, services, getSc
   const registrationScope = async (req) => {
     if (!req.accountability?.user) return { status: 401, error: 'Authentication required' }
     const actor = await database('members').where('user', req.accountability.user).first('id', 'role')
-    const actorRoles = Array.isArray(actor?.role) ? actor.role
-      : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
-    if (req.accountability.admin === true
-      || actorRoles.includes('admin')
-      || actorRoles.includes('superuser')
-      || actorRoles.includes('vorstand')) {
-      return { sports: ALL_MEMBERSHIP_TYPES }
-    }
-    // Passive registrations have no sport, so they stay with the global tiers —
-    // a sport admin has no claim on them.
-    const sports = []
-    if (actorRoles.includes('vb_admin')) sports.push('volleyball')
-    if (actorRoles.includes('bb_admin')) sports.push('basketball')
-    return sports.length ? { sports } : { status: 403, error: 'Not authorized' }
+    const directusAdmin = req.accountability.admin === true
+    const sports = registrationSportsFor(actor?.role, { directusAdmin })
+    if (!sports) return { status: 403, error: 'Not authorized' }
+    return { sports, sportScope: callerSportScope(actor?.role, { directusAdmin }) }
   }
 
   /** Single-registration variant: resolve the scope, then check this row's sport. */
@@ -2149,10 +2170,18 @@ export function registerRegistration(router, { database, logger, services, getSc
       const reg = await database('registrations').where('id', id).first()
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
-      const denied = await assertRegistrationAdmin(req, reg.membership_type)
-      if (denied) return res.status(denied.status).json({ error: denied.error })
+      const scope = await registrationScope(req)
+      if (scope.status) return res.status(scope.status).json({ error: scope.error })
+      if (!scope.sports.includes(reg.membership_type)) return res.status(403).json({ error: 'Not authorized' })
 
       const { level, candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+      // A candidate from the other section (M7) is still NAMED — staff must see
+      // that the person exists, or the approval mints a duplicate, and the merge
+      // route accepts them — but their stored email/AHV/IBAN/address values stay
+      // with their own section: the diff keeps the registration's side only.
+      const inScope = scope.sportScope
+        ? await membersInScope(database, scope.sportScope, candidates.map((c) => c.id))
+        : null
       // Name the member this row is ALREADY linked to. The candidate list
       // deliberately excludes them (or every approved row would flag itself
       // forever), which means the panel can only ever offer somebody ELSE — so
@@ -2163,17 +2192,20 @@ export function registerRegistration(router, { database, logger, services, getSc
         : null
       const withDiff = []
       for (const c of candidates) {
+        const foreign = !!inScope && !inScope.has(String(c.id))
+        const diff = await buildMergeDiff(database, reg, c)
         withDiff.push({
           member_id: c.id,
           name: [c.first_name, c.last_name].filter(Boolean).join(' '),
-          email: c.email,
+          email: foreign ? null : c.email,
           match: c.match,
           reasons: c.reasons,
           active: !!c.kscw_membership_active,
           has_account: !!c.user,
           clubdesk_id: c.clubdesk_id || null,
           shell: !!c.shell,
-          diff: await buildMergeDiff(database, reg, c),
+          out_of_scope: foreign,
+          diff: foreign ? diff.map((d) => ({ ...d, member_value: null })) : diff,
         })
       }
       return res.json({
@@ -2263,8 +2295,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       const reg = await database('registrations').where('id', id).first()
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
-      const denied = await assertRegistrationAdmin(req, reg.membership_type)
-      if (denied) return res.status(denied.status).json({ error: denied.error })
+      const scope = await registrationScope(req)
+      if (scope.status) return res.status(scope.status).json({ error: scope.error })
+      if (!scope.sports.includes(reg.membership_type)) return res.status(403).json({ error: 'Not authorized' })
 
       const memberId = Number(req.body?.member_id)
       if (!Number.isInteger(memberId) || memberId <= 0) {
@@ -2272,6 +2305,19 @@ export function registerRegistration(router, { database, logger, services, getSc
       }
       const member = await database('members').where('id', memberId).first()
       if (!member) return res.status(404).json({ error: 'Member not found', code: 'no_member' })
+
+      // The TARGET is held to the caller's sport too (M7): a registration in their
+      // section does not make every member theirs to write AHV/IBAN/email onto.
+      // Two cross-section targets stay allowed — the member this registration is
+      // already linked to, and an identity candidate for it (a basketball player
+      // joining volleyball is the same person; refusing would mint a duplicate).
+      if (scope.sportScope && Number(reg.member) !== memberId
+        && !(await scopeAllowsMember(database, scope.sportScope, memberId))) {
+        const { candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+        if (!candidates.some((c) => Number(c.id) === memberId)) {
+          return res.status(403).json({ error: 'Not authorized', code: 'out_of_scope' })
+        }
+      }
 
       // ⚠ Re-pointing an existing link is never a silent operation. If this
       // registration was already approved, `reg.member` is the member the

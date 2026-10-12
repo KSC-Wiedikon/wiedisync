@@ -644,6 +644,26 @@ export async function runMailboxSync(database, log, onlySport = null) {
   return { configured: true, processed, accounts: results }
 }
 
+/**
+ * The per-account rule behind authForAccount (below), for a caller who is not a
+ * Directus admin. Pure; exported for the test.
+ */
+export function mailboxAccountAllowed(key, roles, { isSpielplaner = false } = {}) {
+  const list = Array.isArray(roles) ? roles : []
+  if (list.includes('admin') || list.includes('superuser')) return true
+  if (key === 'volleyball') return list.includes('vb_admin') || isSpielplaner
+  if (key === 'basketball') return list.includes('bb_admin')
+  // Transfer casework belongs to the volleyball TK: VIS is FIVB's apparatus and
+  // /admin/transfers is volleyball only (a FIBA transfer runs through Swiss
+  // Basketball, not from here). Until M7 (2026-10-12) bb_admin read this box too —
+  // another section's players' eligibility correspondence. Deliberately NOT
+  // is_spielplaner: scheduling a fixture is unrelated to a player's eligibility.
+  if (key === 'vis_transfers') return list.includes('vb_admin')
+  // No `admin` branch by design — admin/superuser already returned true above,
+  // and nothing below that tier may read the club inbox.
+  return false
+}
+
 export function registerSchedulingMailbox(router, { database, logger }) {
   const log = logger.child({ endpoint: 'scheduling-mailbox' })
 
@@ -653,6 +673,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   //                (preserves the original mailbox behaviour — is_spielplaner is
   //                the club-wide volleyball-scheduler grant)
   //   basketball → Directus superadmin OR app admin/bb_admin
+  //   vis_transfers → Directus superadmin OR app admin/vb_admin (volleyball casework)
   // So a vb_admin can't touch the basketball mailbox and vice-versa.
   //   admin      → Directus superadmin OR app admin/superuser ONLY (the
   //                admin/superuser early-return below is the whole grant).
@@ -670,17 +691,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     const member = await database('members').where('user', userId).select('role', 'is_spielplaner').first()
     if (!member) return false
     const roles = member.role ? (typeof member.role === 'string' ? JSON.parse(member.role) : member.role) : []
-    if (roles.includes('admin') || roles.includes('superuser')) return true
-    if (key === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
-    if (key === 'basketball') return roles.includes('bb_admin')
-    // Transfers are per-sport casework handled by the sport TK, which is exactly
-    // the audience of /admin/transfers — so the sport admins get this box too.
-    // Deliberately NOT is_spielplaner: scheduling a fixture is unrelated to a
-    // player's international eligibility.
-    if (key === 'vis_transfers') return roles.includes('vb_admin') || roles.includes('bb_admin')
-    // No `admin` branch by design — admin/superuser already returned true above,
-    // and nothing below that tier may read the club inbox.
-    return false
+    return mailboxAccountAllowed(key, roles, { isSpielplaner: member.is_spielplaner === true })
   }
 
   /** members.id for the caller — the per-user read state keys on it. */

@@ -22,6 +22,8 @@ import { REGISTRATION_FILES_FOLDER } from './registration.js'
 import { SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { sportScopeAllows } from './member-sport.js'
+import { callerSportScope, registrationSport } from './sport-scope.js'
 
 export const ALL_SECTIONS = [
   'news', 'events', 'registrations', 'sponsors', 'scorer_courses', 'mixed_turnier',
@@ -526,6 +528,27 @@ export function assertScalarBody(body) {
   return body
 }
 
+// ── sport scope for the registrations section (M7, 2026-10-12) ──────────────
+//
+// A section grant opens the section; it does not carry a sport-confined caller
+// (members.role holds exactly one of vb_admin / bb_admin and no admin/superuser —
+// in practice a Sport Admin user granted 'registrations') past their own section.
+// Registrations hold applicant PII and ID scans, which the owner put on the sport
+// side of the line. Passive / unset rows have no sport ('both') and stay visible.
+// A plain Website Admin has no sport role and is unconfined, exactly as before.
+
+/** May a caller confined to `scope` (null ⇒ unconfined) touch this registration row? Pure. */
+export function registrationRowInScope(scope, membershipType) {
+  return sportScopeAllows(scope, registrationSport(membershipType))
+}
+
+/** Directus filter keeping only the registrations `scope` may see. Pure. */
+export function registrationScopeFilter(scope) {
+  const other = scope === 'volleyball' ? 'basketball' : 'volleyball'
+  // `_neq` alone would drop NULL rows too (SQL `<>`), and those are passive/'both'.
+  return { _or: [{ membership_type: { _neq: other } }, { membership_type: { _null: true } }] }
+}
+
 export async function isManagerUser(database, userId) {
   return isManager(await resolveRoleName(database, userId))
 }
@@ -586,8 +609,33 @@ export function registerWadmin(router, ctx) {
     // (non-superuser) callers may not use relational query traversal (see
     // assertScalarQuery) against the RLS-bypassing admin ItemsService.
     req.wadminSuper = a.isSuperuser === true
+    // M7: a sport-confined non-manager sees only their section's registrations.
+    req.wadminSportScope = await registrationsSportScope(req, collection)
     return collection
   }
+
+  /** Sport scope of a non-manager on the registrations collection — null when unconfined. */
+  async function registrationsSportScope(req, collection) {
+    if (collection !== 'registrations' || req.wadminSuper) return null
+    const m = await database('members').where('user', req.accountability.user).first('role')
+    return callerSportScope(m?.role)
+  }
+
+  /** True when the stored row exists and lies outside the caller's section (M7). */
+  async function rowOutOfScope(req, collection, id) {
+    if (!req.wadminSportScope || collection !== 'registrations') return false
+    const row = await database('registrations').where('id', id).first('membership_type')
+    return !!row && !registrationRowInScope(req.wadminSportScope, row.membership_type)
+  }
+
+  /** A create/update body that would put the row into the other section (M7). */
+  function bodyOutOfScope(req, collection, body) {
+    if (!req.wadminSportScope || collection !== 'registrations') return false
+    if (!body || typeof body !== 'object' || !Object.prototype.hasOwnProperty.call(body, 'membership_type')) return false
+    return !registrationRowInScope(req.wadminSportScope, body.membership_type)
+  }
+
+  const outOfScope = (res) => res.status(403).json({ error: 'resource_out_of_scope' })
 
   // Read query for GET routes: unrestricted for managers, scalar-only for
   // section-scoped admins (blocks the #4 PII-exfil via relational `fields`).
@@ -666,13 +714,23 @@ export function registerWadmin(router, ctx) {
 
   router.get('/wadmin/:section/items/:collection', async (req, res) => {
     const c = await guard(req, res); if (!c) return
-    try { res.json({ data: await (await svc(c)).readByQuery(readQuery(req)) }) }
+    try {
+      const q = readQuery(req)
+      if (req.wadminSportScope) {
+        const scoped = registrationScopeFilter(req.wadminSportScope)
+        q.filter = q.filter ? { _and: [q.filter, scoped] } : scoped
+      }
+      res.json({ data: await (await svc(c)).readByQuery(q) })
+    }
     catch (e) { sendErr(res, e) }
   })
 
   router.get('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
-    try { res.json({ data: await (await svc(c)).readOne(req.params.id, readQuery(req)) }) }
+    try {
+      if (await rowOutOfScope(req, c, req.params.id)) return outOfScope(res)
+      res.json({ data: await (await svc(c)).readOne(req.params.id, readQuery(req)) })
+    }
     catch (e) { sendErr(res, e) }
   })
 
@@ -681,6 +739,7 @@ export function registerWadmin(router, ctx) {
     try {
       const body = writeBody(req)
       await enforceFieldPolicy(req, c, body, null)
+      if (bodyOutOfScope(req, c, body)) return outOfScope(res)
       const id = await (await svc(c, req.accountability.user)).createOne(body)
       res.json({ data: { id } })
     } catch (e) { sendErr(res, e) }
@@ -691,6 +750,7 @@ export function registerWadmin(router, ctx) {
     try {
       const body = writeBody(req)
       await enforceFieldPolicy(req, c, body, req.params.id)
+      if (await rowOutOfScope(req, c, req.params.id) || bodyOutOfScope(req, c, body)) return outOfScope(res)
       await (await svc(c, req.accountability.user)).updateOne(req.params.id, body)
       res.json({ data: { id: req.params.id } })
     } catch (e) { sendErr(res, e) }
@@ -699,6 +759,7 @@ export function registerWadmin(router, ctx) {
   router.delete('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
+      if (await rowOutOfScope(req, c, req.params.id)) return outOfScope(res)
       // F-22: an attendance row owns its exam sheets. Deleting the row (a hand-added
       // "manual-…" signup is ONLY this row) must not strand the scans in storage.
       let examFiles = []
@@ -836,13 +897,18 @@ export function registerWadmin(router, ctx) {
   // registrations document column AND the file must sit in the registration folder.
   // Holding the registrations grant must never become "read/delete any file".
   async function resolveRegistrationFile(req, res) {
-    if (!(await guardSection(req, res, 'registrations'))) return null
+    const a = await guardSection(req, res, 'registrations')
+    if (!a) return null
     const id = String(req.params.id || '')
     if (!UUID_RE.test(id)) { res.status(400).json({ error: 'invalid_id' }); return null }
     const q = database('registrations')
     REGISTRATION_FILE_COLUMNS.forEach((col, i) => { if (i === 0) q.where(col, id); else q.orWhere(col, id) })
-    const reg = await q.first('id', ...REGISTRATION_FILE_COLUMNS)
+    const reg = await q.first('id', 'membership_type', ...REGISTRATION_FILE_COLUMNS)
     if (!reg) { res.status(404).json({ error: 'not_found' }); return null }
+    // M7: the ID scans of the other section's applicants stay with that section.
+    req.wadminSuper = a.isSuperuser === true
+    const scope = await registrationsSportScope(req, 'registrations')
+    if (scope && !registrationRowInScope(scope, reg.membership_type)) { outOfScope(res); return null }
     const file = await database('directus_files').where('id', id)
       .first('id', 'folder', 'filename_download', 'type')
     if (!file || String(file.folder) !== REGISTRATION_FILES_FOLDER) {

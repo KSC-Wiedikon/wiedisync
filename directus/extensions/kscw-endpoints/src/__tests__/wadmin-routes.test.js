@@ -591,3 +591,78 @@ describe('F-66: fixed error codes, never internal text', () => {
     expect(r2.body.error).toBe('invalid_body')
   })
 })
+
+// M7 (2026-10-12): a section grant opens 'registrations'; it does not carry a
+// sport-confined caller past their own section. A plain Website Admin has no sport
+// role and is unconfined, as before.
+describe('M7: registrations section is sport-scoped for a confined grant holder', () => {
+  const U_VB = 'u-vb-board'
+  const U_DUAL = 'u-dual'
+  const FILE_BB = '66666666-6666-4666-8666-666666666666'
+  const FILE_VB = '77777777-7777-4777-8777-777777777777'
+
+  beforeEach(() => {
+    tables.directus_users.push({ id: U_VB, role_name: 'Sport Admin' }, { id: U_DUAL, role_name: 'Sport Admin' })
+    tables.website_admin_access.push({ user: U_VB, sections: ['registrations'] }, { user: U_DUAL, sections: ['registrations'] })
+    tables.members.push(
+      { id: 80, user: U_VB, role: '["vorstand","vb_admin"]' },
+      { id: 81, user: U_DUAL, role: '["vb_admin","bb_admin"]' },
+    )
+    tables.registrations.push(
+      { id: 600, membership_type: 'volleyball', id_upload_front: FILE_VB },
+      { id: 601, membership_type: 'basketball', id_upload_front: FILE_BB },
+    )
+    tables.directus_files.push(
+      { id: FILE_BB, folder: REGISTRATION_FILES_FOLDER, filename_download: 'bb.jpg' },
+      { id: FILE_VB, folder: REGISTRATION_FILES_FOLDER, filename_download: 'vb.jpg' },
+    )
+  })
+
+  it('the list read carries the section filter, ANDed with the caller\'s own', async () => {
+    await app('get', '/wadmin/registrations/items/registrations', { user: U_VB, query: { filter: { status: { _eq: 'pending' } } } })
+    const q = calls.find((c) => c[0] === 'readByQuery')[2]
+    expect(q.filter).toEqual({ _and: [
+      { status: { _eq: 'pending' } },
+      { _or: [{ membership_type: { _neq: 'basketball' } }, { membership_type: { _null: true } }] },
+    ] })
+  })
+
+  it('a plain Website Admin and a dual sport admin get no section filter', async () => {
+    await app('get', '/wadmin/registrations/items/registrations', { user: U_REG })
+    await app('get', '/wadmin/registrations/items/registrations', { user: U_DUAL })
+    const reads = calls.filter((x) => x[0] === 'readByQuery')
+    expect(reads).toHaveLength(2)
+    for (const c of reads) expect(c[2].filter).toBeUndefined()
+  })
+
+  it('single-row read, update and delete refuse the other section', async () => {
+    expect((await app('get', '/wadmin/registrations/items/registrations/601', { user: U_VB })).body).toEqual({ error: 'resource_out_of_scope' })
+    expect((await app('patch', '/wadmin/registrations/items/registrations/601', { user: U_VB, body: { status: 'approved' } })).statusCode).toBe(403)
+    expect((await app('delete', '/wadmin/registrations/items/registrations/601', { user: U_VB })).statusCode).toBe(403)
+    expect(calls.filter((c) => c[0] === 'updateOne' || c[0] === 'deleteOne')).toEqual([])
+  })
+
+  it('own-section and passive rows stay open', async () => {
+    expect((await app('get', '/wadmin/registrations/items/registrations/600', { user: U_VB })).body.data.id).toBe(600)
+    expect((await app('get', '/wadmin/registrations/items/registrations/500', { user: U_VB })).body.data.id).toBe(500)
+    expect((await app('patch', '/wadmin/registrations/items/registrations/600', { user: U_VB, body: { status: 'approved' } })).statusCode).toBe(200)
+  })
+
+  it('a row cannot be moved, or created, into the other section', async () => {
+    expect((await app('patch', '/wadmin/registrations/items/registrations/600', { user: U_VB, body: { membership_type: 'basketball' } })).statusCode).toBe(403)
+    expect((await app('post', '/wadmin/registrations/items/registrations', { user: U_VB, body: { membership_type: 'basketball' } })).statusCode).toBe(403)
+    expect((await app('post', '/wadmin/registrations/items/registrations', { user: U_VB, body: { membership_type: 'volleyball' } })).statusCode).toBe(200)
+  })
+
+  it('the ID-scan routes refuse the other section\'s files', async () => {
+    expect((await app('get', `/wadmin/registrations/files/${FILE_BB}`, { user: U_VB })).statusCode).toBe(403)
+    expect((await app('delete', `/wadmin/registrations/files/${FILE_BB}`, { user: U_VB })).statusCode).toBe(403)
+    expect(tables.directus_files.map((f) => f.id)).toContain(FILE_BB)
+    expect((await app('get', `/wadmin/registrations/files/${FILE_VB}`, { user: U_VB })).body).toBe(`bytes-of-${FILE_VB}`)
+  })
+
+  it('an unconfined grant holder still reaches every row', async () => {
+    expect((await app('get', '/wadmin/registrations/items/registrations/601', { user: U_REG })).body.data.id).toBe(601)
+    expect((await app('get', `/wadmin/registrations/files/${FILE_BB}`, { user: U_DUAL })).body).toBe(`bytes-of-${FILE_BB}`)
+  })
+})
