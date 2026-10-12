@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.29.2 — 2026-10-12
+
+### Fixed
+
+- The live scoreboard and the "match is live" notice in the menu now work while you are logged in. Until now only logged-out visitors and admins saw them.
+- Basketball tournaments: if the Basketplan page changes, registered teams keep showing as registered instead of appearing open again.
+
 ## v2.29.1 — 2026-10-12
 
 ### Fixed

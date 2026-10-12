@@ -97,10 +97,16 @@ describe('sportForAddress', () => {
     // fewer, so nobody is locked out of a mailbox by a bad default.
     for (const a of [
       'kontakt@kscw.ch', 'admin@wiedisync.kscw.ch', 'finance@mail.kscw.ch',
-      'vis_transfers@mail.kscw.ch', 'wiedisync@noreply.kscw.ch',
+      'wiedisync@noreply.kscw.ch',
     ]) {
       expect(sportForAddress(a)).toBe('club')
     }
+  })
+
+  it('files the VIS transfer box under volleyball on any domain', () => {
+    // Club-wide filing put it in a bb_admin's scope, password reveal included.
+    expect(sportForAddress('vis_transfers@mail.kscw.ch')).toBe('volleyball')
+    expect(sportForAddress('VIS_Transfers@kscw.ch')).toBe('volleyball')
   })
 
   it('is case-insensitive and does not crash on junk', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { bpClient, bpDate, parseTournamentDetail, parseTournamentList, planRemovals, planTournamentGames, planTournamentRows, syncBpTournaments } from '../bp-tournaments.js'
+import { bpClient, bpDate, holdRegistrations, parseTournamentDetail, parseTournamentList, planRemovals, planTournamentGames, planTournamentRows, syncBpTournaments } from '../bp-tournaments.js'
 
 // Shapes copied from basketplan.ch (04.10.2026), names/contacts replaced.
 const LIST = `
@@ -48,7 +48,7 @@ describe('basketplan tournaments', () => {
   })
   it('parses a detail page: host, deadline, days, registered team ids only', () => {
     const d = parseTournamentDetail(DETAIL)
-    expect(d).toEqual({ club: 'Phönix Basket', deadline: '2026-10-25', leagues: ['DU12Tu', 'MixU 8M'], open: true, days: [{ date: '2026-11-01', from: '08:00', to: '18:00', hall: 'Wisacher' }], teamIds: ['6053', '5104'] })
+    expect(d).toEqual({ club: 'Phönix Basket', deadline: '2026-10-25', leagues: ['DU12Tu', 'MixU 8M'], open: true, days: [{ date: '2026-11-01', from: '08:00', to: '18:00', hall: 'Wisacher' }], teamIds: ['6053', '5104'], registrations: true })
     expect(JSON.stringify(d)).not.toMatch(/coach@|079/) // no contact data leaves the parser
   })
   it('plans one away row per tournament day and registered KSCW team', () => {
@@ -70,6 +70,41 @@ describe('basketplan tournaments', () => {
     }])
     expect(planTournamentRows([{ ...t, status: 'Anmeldefrist abgelaufen' }], [])[0].registration_open).toBe(false)
   })
+  it('tells a missing registrations table from an empty one', () => {
+    const gone = DETAIL.slice(0, DETAIL.indexOf('<!-- registrations'))
+    expect(parseTournamentDetail(gone)).toMatchObject({ teamIds: [], registrations: false })
+  })
+
+  describe('holdRegistrations', () => {
+    const TODAY = '2026-10-12'
+    const row = (id, ids, date = '2026-11-01') => ({ id, date, registered_count: ids.length + 3, kscw_bp_team_ids: ids })
+    const stored = (entries) => new Map(entries.map(([id, ids]) => [id, { id, kscw_bp_team_ids: ids, registered_count: 9 }]))
+
+    it('keeps the stored list of a page whose registrations table did not parse', () => {
+      const r = holdRegistrations([row(438, []), row(439, ['5104'])], { unread: new Set([438]), stored: stored([[438, ['5287']], [439, []]]), today: TODAY })
+      expect(r.rows).toEqual([{ ...row(438, []), kscw_bp_team_ids: ['5287'], registered_count: 9 }, row(439, ['5104'])])
+      expect(r).toMatchObject({ kept: [438], held: 1, suspicious: null })
+    })
+
+    it('keeps every list when no page shows a KSCW team but the mirror does', () => {
+      const r = holdRegistrations([row(438, []), row(439, [])], { unread: new Set(), stored: stored([[438, ['5104']], [439, []]]), today: TODAY })
+      expect(r.suspicious).toBe('empty_registrations')
+      expect(r.rows.map((x) => x.kscw_bp_team_ids)).toEqual([['5104'], []])
+    })
+
+    it('still applies an ordinary withdrawal while other KSCW registrations read fine', () => {
+      const r = holdRegistrations([row(438, []), row(439, ['5104'])], { unread: new Set(), stored: stored([[438, ['5287']], [439, ['5104']]]), today: TODAY })
+      expect(r).toMatchObject({ kept: [], held: 0, suspicious: null })
+      expect(r.rows[0].kscw_bp_team_ids).toEqual([])
+    })
+
+    it('is not alarmed by registrations that only past tournaments held', () => {
+      const r = holdRegistrations([row(401, [], '2026-09-20')], { unread: new Set(), stored: stored([[401, ['5104']]]), today: TODAY })
+      expect(r.suspicious).toBeNull()
+      expect(r.rows[0].kscw_bp_team_ids).toEqual([])
+    })
+  })
+
   it('never requests anything but the four read pages (withdraw is a GET link)', async () => {
     const calls = []
     const c = bpClient(async (url) => { calls.push(url); return new Response('<a>Logout</a>', { status: 200 }) })
@@ -137,6 +172,21 @@ describe('basketplan tournaments', () => {
       expect(tables.games.map((g) => g.id)).toEqual([1, 2, 3, 4])
       expect(log.warn).toHaveBeenCalledWith(expect.stringMatching(/suspicious parse \(empty_parse\): kept 3/))
       expect(tables.sync_runs).toEqual([expect.objectContaining({ source: 'bp_tournaments', status: 'error', error_message: expect.stringMatching(/empty_parse/) })])
+    })
+
+    it('a page without its registrations table keeps the stored registrations and the game day', async () => {
+      const tables = {
+        ...setup([stored(1, 438, '2026-11-01')]),
+        bb_tournaments: [{ id: 438, date: '2026-11-01', kscw_bp_team_ids: ['5104'], registered_count: 2 }],
+      }
+      const log = makeLog()
+      const gone = DETAIL.slice(0, DETAIL.indexOf('<!-- registrations'))
+      const res = await sync(makeDb(tables), { '/findAllTournaments.do': LIST, '/findTournamentById.do': gone }, log)
+      expect(res).toMatchObject({ kscwDays: 1, removed: 0, registrations: 'empty_registrations', registrationsKept: 1 })
+      expect(tables.bb_tournaments[0]).toMatchObject({ kscw_bp_team_ids: ['5104'], registered_count: 2, host_club: 'Phönix Basket' })
+      expect(tables.games.map((g) => g.id)).toEqual([1])
+      expect(log.warn).toHaveBeenCalledWith(expect.stringMatching(/empty_registrations/))
+      expect(tables.sync_runs).toEqual([expect.objectContaining({ status: 'error', error_message: expect.stringMatching(/empty_registrations/) })])
     })
 
     it('an ordinary withdrawal still removes the day', async () => {
