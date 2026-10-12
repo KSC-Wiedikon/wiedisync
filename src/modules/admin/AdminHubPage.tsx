@@ -37,7 +37,7 @@ export default function AdminHubPage() {
   const { t } = useTranslation('admin')
   const { t: tNav } = useTranslation('nav')
   const navigate = useNavigate()
-  const { isAdmin, isGlobalAdmin, isSuperAdmin, is_spielplaner } = useAuth()
+  const { isAdmin, isGlobalAdmin, isSuperAdmin, isVbAdmin, is_spielplaner } = useAuth()
   const [query, setQuery] = useState('')
 
   // Scheduling lives on its own subdomain in every deployed environment; on
@@ -51,6 +51,7 @@ export default function AdminHubPage() {
         isAdmin,
         isGlobalAdmin,
         isSuperAdmin,
+        volleyballAdmin: isGlobalAdmin || isVbAdmin,
         scheduling: {
           to: schedTo,
           href: schedExternal ? `${SCHEDULING_ORIGIN}${schedTo}` : undefined,
@@ -60,7 +61,7 @@ export default function AdminHubPage() {
           access: 'admin',
         },
       }),
-    [isAdmin, isGlobalAdmin, isSuperAdmin, schedTo, schedExternal],
+    [isAdmin, isGlobalAdmin, isSuperAdmin, isVbAdmin, schedTo, schedExternal],
   )
 
   // Flatten to rows once — the table is one list so a search hit in "Club email"

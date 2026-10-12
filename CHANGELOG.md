@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.28.0 — 2026-10-12
+
+### Changed
+
+- Volleyball and basketball admins, including board members with a sport-specific admin role, now see and change only their own sport's members, teams, games, trainings, events, hall slots, absences and registrations. For the other sport they see what every member sees. Members who play both sports, or whose sport is not known, stay visible to both.
+- Club-wide board work is unchanged: finance, forms, announcements, email templates and the audit log.
+- International transfers is shown to volleyball admins only, as the page covers volleyball only.
+
 ## v2.27.2 — 2026-10-12
 
 ### Fixed
