@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.30.0 — 2026-10-12
+
+### New
+
+- Calendar subscriptions have a new "My calendar" link. It follows your teams as a player, coach or team responsible, so joining a team, a new season or being called up never needs a new link. To switch, subscribe once more under Calendar → Subscribe.
+
+### Fixed
+
+- Team calendar subscriptions now include the games the team is called up for, such as a cup game entered under another team. Existing links pick them up on their next refresh.
+
 ## v2.29.2 — 2026-10-12
 
 ### Fixed
