@@ -3,6 +3,7 @@
  * GET /kscw/ical — all sports
  * GET /kscw/ical/volleyball — volleyball only
  * GET /kscw/ical/basketball — basketball only
+ * GET /kscw/ical/me?token=… — personal: the member's own teams, resolved per request
  * Query: ?source=games-home,trainings,events,closures,hall&team=1,2,3
  */
 
@@ -96,7 +97,36 @@ function toZurichDate(input) {
 export function registerICalFeed(router, { database, logger }) {
   const log = logger.child({ endpoint: 'ical-feed' })
 
-  async function handleFeed(req, res, sportFilter) {
+  /**
+   * The member's current teams — player (any guest level), coach and team
+   * responsible, active teams only. The same set as the app's own team context
+   * (AuthProvider: memberTeamIds ∪ coachTeamIds) and the subscribe modal's picker.
+   */
+  async function memberTeamIds(memberId) {
+    const [player, coach, responsible] = await Promise.all([
+      database('member_teams').where('member', memberId).select('team'),
+      database('teams_coaches').where('members_id', memberId).select('teams_id'),
+      database('teams_responsibles').where('members_id', memberId).select('teams_id'),
+    ])
+    const ids = [...new Set([
+      ...player.map((r) => r.team),
+      ...coach.map((r) => r.teams_id),
+      ...responsible.map((r) => r.teams_id),
+    ].filter((id) => id != null).map(String))]
+    if (!ids.length) return []
+    const active = await database('teams').whereIn('id', ids).where('active', true).select('id')
+    return active.map((r) => String(r.id))
+  }
+
+  /**
+   * @param {string|null} sportFilter
+   * @param {{ personal?: boolean }} [opts] personal = the /ical/me feed: the token
+   *   is required and the teams come from the member's current roster, never from
+   *   the URL. That is what makes the link permanent — joining a team, coaching
+   *   one, the season rollover and call-ups all show up on the next refresh, with
+   *   nothing baked into the link that can go stale.
+   */
+  async function handleFeed(req, res, sportFilter, { personal = false } = {}) {
     try {
       // `source` and `team` accept three shapes, in any mix:
       //   • repeated params   ?source=games-home&source=trainings   (Express → array)
@@ -118,8 +148,24 @@ export function registerICalFeed(router, { database, logger }) {
         : requested.filter((s) => VALID_SOURCES.has(s))
       const sources = resolved.length
         ? Object.fromEntries(resolved.map((s) => [s, true]))
-        : { 'games-home': true, 'games-away': true }
-      let teamIds = toList(req.query.team).filter((s) => /^\d+$/.test(s))
+        : personal
+          ? Object.fromEntries(ALL_SOURCES.map((s) => [s, true]))
+          : { 'games-home': true, 'games-away': true }
+
+      // The subscriber, when the URL carries their personal token.
+      const feedToken = String(req.query.token || '').trim()
+      const tokenMember = feedToken
+        ? await database('members').where('ical_token', feedToken).first('id')
+        : null
+      if (personal && !tokenMember) {
+        // A rotated or mistyped token. An empty 200 would look like a member
+        // with nothing on — the silent failure this feed exists to end.
+        return res.status(404).type('text/plain').send('Unknown calendar link')
+      }
+
+      let teamIds = personal
+        ? await memberTeamIds(tokenMember.id)
+        : toList(req.query.team).filter((s) => /^\d+$/.test(s))
 
       // ── Season-rollover follow-through ──────────────────────────────────
       // A subscription URL is PERMANENT and bakes raw team ids, so once the
@@ -131,7 +177,7 @@ export function registerICalFeed(router, { database, logger }) {
       // `team_id` (e.g. vb_12747) is stable across seasons and is the
       // rollover's own idempotency key, so hop each archived id to the active
       // row that shares it. Same device as /public/team/:id (index.js).
-      if (teamIds.length) {
+      if (!personal && teamIds.length) {
         const requested = await database('teams')
           .whereIn('id', teamIds).select('id', 'active', 'team_id', 'name', 'sport')
         const archived = requested.filter((r) => !r.active)
@@ -163,7 +209,7 @@ export function registerICalFeed(router, { database, logger }) {
       // expands an empty selection to every team — the calendar name should only
       // name teams the subscriber actually asked for. Taken AFTER the rollover
       // hop so the calendar title names the live team, not the archived one.
-      const explicitTeamIds = [...teamIds]
+      const explicitTeamIds = personal ? [] : [...teamIds]
 
       // Sport filter
       if (sportFilter) {
@@ -171,6 +217,9 @@ export function registerICalFeed(router, { database, logger }) {
         const sportIds = new Set(sportTeams.map(t => String(t.id)))
         teamIds = teamIds.length ? teamIds.filter(id => sportIds.has(id)) : [...sportIds]
       }
+      // An empty team list means "every team" on the public feeds — but on the
+      // personal feed it means the member has no team, so it must match none.
+      const scoped = personal || teamIds.length > 0
 
       // Friendlier calendar name — full club name, plus the team(s) when the
       // subscriber filtered to one, so their calendar app shows e.g.
@@ -184,6 +233,9 @@ export function registerICalFeed(router, { database, logger }) {
       let calName = 'KSC Wiedikon'
       if (sportLabel) calName += ` – ${sportLabel}`
       if (teamLabel) calName += ` – ${teamLabel}`
+      // Not the team names: some calendar apps keep the name from the day you
+      // subscribed, and the teams behind this link change.
+      if (personal) calName += ' – Mein Kalender'
       const now = fmtUTC(new Date())
       const from = feedFloor()
       const lines = [
@@ -191,13 +243,6 @@ export function registerICalFeed(router, { database, logger }) {
         'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${calName}`,
         'X-WR-TIMEZONE:Europe/Zurich', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H',
       ]
-
-      // The subscriber, when the URL carries their personal token. Resolved up here
-      // rather than in the duties block below because the games query needs it too.
-      const feedToken = String(req.query.token || '').trim()
-      const tokenMember = feedToken
-        ? await database('members').where('ical_token', feedToken).first('id')
-        : null
 
       // Games
       if (sources['games-home'] || sources['games-away']) {
@@ -218,7 +263,7 @@ export function registerICalFeed(router, { database, logger }) {
         // regular player, never a token-less team link or a coach. Leaks nothing a
         // team feed doesn't already publish — only that this team plays the game.
         let q = database('games').where('date', '>=', from)
-        if (teamIds.length) {
+        if (scoped) {
           const calledUpGameIds = database('game_guest_teams').whereIn('team', teamIds).select('game')
           // One parenthesised group, so the OR branches stay under the date floor
           // and the home/away filter below.
@@ -292,7 +337,7 @@ export function registerICalFeed(router, { database, logger }) {
       // Trainings
       if (sources['trainings']) {
         let q = database('trainings').where('date', '>=', from)
-        if (teamIds.length) q = q.whereIn('team', teamIds)
+        if (scoped) q = q.whereIn('team', teamIds)
         const trainings = await q.orderBy('date')
         const teamNames = Object.fromEntries(
           (await database('teams').select('id', 'name')).map(t => [t.id, t.name])
@@ -468,11 +513,14 @@ export function registerICalFeed(router, { database, logger }) {
       const slug = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
       const fnameParts = ['kscw']
       if (sportFilter) fnameParts.push(sportFilter)
+      if (personal) fnameParts.push('mein-kalender')
       if (explicitTeamIds.length === 1 && teamLabel) fnameParts.push(slug(teamLabel))
       const fname = fnameParts.join('-')
       res.set('Content-Type', 'text/calendar; charset=utf-8')
       res.set('Content-Disposition', `inline; filename="${fname}.ics"`)
-      res.set('Cache-Control', 'public, max-age=3600')
+      // A tokened feed is one member's data behind a capability URL — keep it out
+      // of shared caches, as the Pages proxy in front of it already does.
+      res.set('Cache-Control', feedToken ? 'private, max-age=3600' : 'public, max-age=3600')
       res.send(lines.join('\r\n'))
     } catch (err) {
       log.error({
@@ -489,6 +537,7 @@ export function registerICalFeed(router, { database, logger }) {
   router.get('/ical', (req, res) => handleFeed(req, res, null))
   router.get('/ical/volleyball', (req, res) => handleFeed(req, res, 'volleyball'))
   router.get('/ical/basketball', (req, res) => handleFeed(req, res, 'basketball'))
+  router.get('/ical/me', (req, res) => handleFeed(req, res, null, { personal: true }))
 
   // Personal iCal token — the caller's own subscription secret. The app reads it
   // to build the `?source=duties&token=…` link; lazily generated for members
