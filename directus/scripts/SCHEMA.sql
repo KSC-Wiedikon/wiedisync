@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-12T12:13:33.290Z
+-- Generated:   2026-10-12T21:15:26.789Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 196tIhoZ9unzNwOZjTZgqe2heq2yPrcxqAF5hGpb3EVOgQZZku6sykaIrT04HFq
+\restrict XmRFINW9E5MlnO8q6ni1HCNy7pKh7gNYUyd5BQIGzyr9qSCxAYcFzD9I00eIJNF
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -337,11 +337,19 @@ CREATE FUNCTION public.game_guest_teams_materialize() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
-  SELECT NEW.game, mt.member, NEW.team, NEW.invited_by_name, NEW.invited_by_email
-  FROM member_teams mt
-  WHERE mt.team = NEW.team
-    AND COALESCE(mt.guest_level, 0) = 0
+  INSERT INTO game_guests (game, member, via_team, is_staff, invited_by_name, invited_by_email)
+  SELECT NEW.game, p.member, NEW.team, NOT bool_or(p.is_player), NEW.invited_by_name, NEW.invited_by_email
+  FROM (
+    SELECT mt.member, true AS is_player
+    FROM member_teams mt
+    WHERE mt.team = NEW.team AND COALESCE(mt.guest_level, 0) = 0
+    UNION ALL
+    SELECT tc.members_id, false FROM teams_coaches tc WHERE tc.teams_id = NEW.team
+    UNION ALL
+    SELECT tr.members_id, false FROM teams_responsibles tr WHERE tr.teams_id = NEW.team
+  ) p
+  WHERE p.member IS NOT NULL
+  GROUP BY p.member
   ON CONFLICT (game, member) DO NOTHING;
   RETURN NULL;
 END;
@@ -378,10 +386,66 @@ BEGIN
     AND NOT EXISTS (
       SELECT 1
       FROM games g
-      JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = OLD.member
       WHERE g.id = OLD.game
+        AND (
+          EXISTS (SELECT 1 FROM member_teams mt
+                  WHERE mt.team = g.kscw_team AND mt.member = OLD.member)
+          OR EXISTS (SELECT 1 FROM teams_coaches tc
+                     WHERE tc.teams_id = g.kscw_team AND tc.members_id = OLD.member)
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr
+                     WHERE tr.teams_id = g.kscw_team AND tr.members_id = OLD.member)
+        )
     );
   RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: game_guests_resync_call_up(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_guests_resync_call_up(p_member integer, p_team integer) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_player boolean;
+  v_staff  boolean;
+BEGIN
+  IF p_member IS NULL OR p_team IS NULL THEN
+    RETURN;
+  END IF;
+
+  v_player := EXISTS (
+    SELECT 1 FROM member_teams
+    WHERE member = p_member AND team = p_team AND COALESCE(guest_level, 0) = 0
+  );
+  v_staff := NOT v_player AND (
+    EXISTS (SELECT 1 FROM teams_coaches WHERE teams_id = p_team AND members_id = p_member)
+    OR EXISTS (SELECT 1 FROM teams_responsibles WHERE teams_id = p_team AND members_id = p_member)
+  );
+
+  IF NOT v_player AND NOT v_staff THEN
+    DELETE FROM game_guests gg
+    USING games g
+    WHERE gg.game = g.id
+      AND gg.member = p_member
+      AND gg.via_team = p_team
+      AND g.date >= CURRENT_DATE;
+    RETURN;
+  END IF;
+
+  -- The conflict update only touches a row this team's opening produced: a person
+  -- invited individually, or through another team, keeps that row as it is.
+  INSERT INTO game_guests (game, member, via_team, is_staff, invited_by_name, invited_by_email)
+  SELECT gt.game, p_member, gt.team, v_staff, gt.invited_by_name, gt.invited_by_email
+  FROM game_guest_teams gt
+  JOIN games g ON g.id = gt.game
+  WHERE gt.team = p_team
+    AND g.date >= CURRENT_DATE
+  ON CONFLICT (game, member) DO UPDATE SET is_staff = EXCLUDED.is_staff
+    WHERE game_guests.via_team = EXCLUDED.via_team
+      AND game_guests.is_staff IS DISTINCT FROM EXCLUDED.is_staff;
 END;
 $$;
 
@@ -397,8 +461,15 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM games g
-    JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = NEW.member
     WHERE g.id = NEW.game
+      AND (
+        EXISTS (SELECT 1 FROM member_teams mt
+                WHERE mt.team = g.kscw_team AND mt.member = NEW.member)
+        OR EXISTS (SELECT 1 FROM teams_coaches tc
+                   WHERE tc.teams_id = g.kscw_team AND tc.members_id = NEW.member)
+        OR EXISTS (SELECT 1 FROM teams_responsibles tr
+                   WHERE tr.teams_id = g.kscw_team AND tr.members_id = NEW.member)
+      )
   ) THEN
     RETURN NULL;  -- BEFORE INSERT returning NULL = skip this row, keep the statement
   END IF;
@@ -1072,27 +1143,17 @@ BEGIN
     moved := NEW.member IS DISTINCT FROM OLD.member OR NEW.team IS DISTINCT FROM OLD.team;
   END IF;
 
-  -- Withdraw: left the team, moved off it, or went from regular player to guest.
-  -- A guest-to-guest level change (1 → 2) withdraws nothing — it is not a change of
-  -- standing, and it must not undo the "already said yes" rows the backfill kept.
+  -- Left the team, moved off it, or went from regular player to guest: withdrawn,
+  -- unless they still coach / are TR of the team (then they stay, as staff). A
+  -- guest-to-guest level change (1 → 2) still touches nothing.
   IF TG_OP = 'DELETE' OR moved OR (was_core AND NOT is_core) THEN
-    DELETE FROM game_guests gg
-    USING games g
-    WHERE gg.game = g.id
-      AND gg.member = OLD.member
-      AND gg.via_team = OLD.team
-      AND g.date >= CURRENT_DATE;
+    PERFORM game_guests_resync_call_up(OLD.member, OLD.team);
   END IF;
 
-  -- Call up: a regular player newly on an opened team (joined, moved on, or promoted).
+  -- Newly a regular player of an opened team (joined, moved on, or promoted): called
+  -- up as a player — a staff row of theirs on that opening becomes a player row.
   IF is_core AND (TG_OP = 'INSERT' OR moved OR NOT was_core) THEN
-    INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
-    SELECT gt.game, NEW.member, gt.team, gt.invited_by_name, gt.invited_by_email
-    FROM game_guest_teams gt
-    JOIN games g ON g.id = gt.game
-    WHERE gt.team = NEW.team
-      AND g.date >= CURRENT_DATE
-    ON CONFLICT (game, member) DO NOTHING;
+    PERFORM game_guests_resync_call_up(NEW.member, NEW.team);
   END IF;
 
   RETURN NULL;
@@ -1631,6 +1692,24 @@ END $$;
 --
 
 COMMENT ON FUNCTION public.staff_gratis_revert() IS 'Deferred AFTER DELETE on teams_coaches / teams_responsibles: when the member holds no staff seat left and the fee category is still the untouched ''Gratis'' of staff_gratis_fill (its user_logs row is the newest fee-category entry), it goes back to NULL and the queued ClubDesk entry is dropped; a value that may already be in ClubDesk is flagged ''fee_category_auto_revert_needs_clubdesk'' (migration 405).';
+
+
+--
+-- Name: teams_staff_sync_game_guests(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.teams_staff_sync_game_guests() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM game_guests_resync_call_up(OLD.members_id, OLD.teams_id);
+  ELSE
+    PERFORM game_guests_resync_call_up(NEW.members_id, NEW.teams_id);
+  END IF;
+  RETURN NULL;
+END;
+$$;
 
 
 --
@@ -7551,7 +7630,7 @@ CREATE TABLE public.game_guest_teams (
 -- Name: TABLE game_guest_teams; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.game_guest_teams IS 'A coach opening one game to another team. Materializes into game_guests by trigger — the team''s regular players only (guest_level 0, migration 401). Creates NO member_teams row — the borrowed players stay off that team everywhere else.';
+COMMENT ON TABLE public.game_guest_teams IS 'A coach opening one game to another team. Materializes into game_guests by trigger — the team''s regular players (guest_level 0, migration 401) plus its coaches and team responsibles as staff (migration 408). Creates NO member_teams row — the borrowed people stay off that team everywhere else.';
 
 
 --
@@ -7585,7 +7664,8 @@ CREATE TABLE public.game_guests (
     via_team integer,
     invited_by_name character varying(150),
     invited_by_email character varying(150),
-    date_created timestamp with time zone DEFAULT now() NOT NULL
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    is_staff boolean DEFAULT false NOT NULL
 );
 
 
@@ -7600,7 +7680,14 @@ COMMENT ON TABLE public.game_guests IS 'Who is invited to a game beyond its own 
 -- Name: COLUMN game_guests.via_team; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.game_guests.via_team IS 'The game_guest_teams opening that produced this row. NULL = invited individually, which is why closing a team opening never removes a hand-picked guest. A team opening brings that team''s regular players only (guest_level 0); its guests are invited by name or not at all.';
+COMMENT ON COLUMN public.game_guests.via_team IS 'The game_guest_teams opening that produced this row. NULL = invited individually, which is why closing a team opening never removes a hand-picked guest. A team opening brings that team''s regular players (guest_level 0) and its coaches / team responsibles (is_staff); its guest players are invited by name or not at all.';
+
+
+--
+-- Name: COLUMN game_guests.is_staff; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_guests.is_staff IS 'Called up as staff (coach or team responsible of the via_team that is not a regular player of it), migration 408. Staff get the game and answer it, but are not counted as players — the same rule as a coach on their own team''s game.';
 
 
 --
@@ -16978,6 +17065,13 @@ CREATE TRIGGER trg_teams_coaches_sport_section AFTER INSERT OR DELETE OR UPDATE 
 
 
 --
+-- Name: teams_coaches trg_teams_coaches_sync_game_guests; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_coaches_sync_game_guests AFTER INSERT OR DELETE ON public.teams_coaches FOR EACH ROW EXECUTE FUNCTION public.teams_staff_sync_game_guests();
+
+
+--
 -- Name: teams trg_teams_protect_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17010,6 +17104,13 @@ CREATE TRIGGER trg_teams_responsibles_keys_immutable BEFORE UPDATE ON public.tea
 --
 
 CREATE TRIGGER trg_teams_responsibles_sport_section AFTER INSERT OR DELETE OR UPDATE OF members_id, teams_id ON public.teams_responsibles FOR EACH ROW EXECUTE FUNCTION public.trg_member_link_sport_section();
+
+
+--
+-- Name: teams_responsibles trg_teams_responsibles_sync_game_guests; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_responsibles_sync_game_guests AFTER INSERT OR DELETE ON public.teams_responsibles FOR EACH ROW EXECUTE FUNCTION public.teams_staff_sync_game_guests();
 
 
 --
@@ -19196,7 +19297,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 196tIhoZ9unzNwOZjTZgqe2heq2yPrcxqAF5hGpb3EVOgQZZku6sykaIrT04HFq
+\unrestrict XmRFINW9E5MlnO8q6ni1HCNy7pKh7gNYUyd5BQIGzyr9qSCxAYcFzD9I00eIJNF
 
 
 
@@ -19212,7 +19313,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 411 migration(s) already in the schema above.
+-- Migration tracker seed — 412 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19636,6 +19737,7 @@ FROM (VALUES
   ('404-sql-workspace-reader-role.sql'),
   ('405-staff-gratis-audit-revert.sql'),
   ('406-sport-section.sql'),
-  ('407-registration-decided-by.sql')
+  ('407-registration-decided-by.sql'),
+  ('408-game-call-up-staff.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
