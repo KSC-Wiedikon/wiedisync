@@ -146,23 +146,23 @@ describe('sportFromPartsDetailed', () => {
 })
 
 describe('resolveMemberSportsDetailed (batched)', () => {
-  it('carries the source through, and the plain form still returns bare answers', async () => {
+  // The rule, batched. The SQL twin (migration 406 kscw_member_sport_section)
+  // must answer exactly these cases too.
+  const sportsOf = async (db, ids) => {
+    const detailed = await resolveMemberSportsDetailed(db, ids)
+    return new Map([...detailed].map(([k, v]) => [k, v.sport]))
+  }
+
+  it('carries the source through', async () => {
     const db = fakeDb(TABLES)
     // 22 = fee-category-only volleyball, 24 = nothing resolvable.
     const detailed = await resolveMemberSportsDetailed(db, [22, 24])
     expect(detailed.get('22')).toEqual({ sport: 'volleyball', source: 'fee' })
     expect(detailed.get('24')).toEqual({ sport: 'both', source: 'unknown' })
-
-    const plain = await resolveMemberSports(fakeDb(TABLES), [22, 24])
-    expect(plain.get('22')).toBe('volleyball')
-    expect(plain.get('24')).toBe('both')
   })
-})
 
-describe('resolveMemberSports (batched)', () => {
   it('resolves players, coaches and team responsibles', async () => {
-    const db = fakeDb(TABLES)
-    const map = await resolveMemberSports(db, [10, 11, 12, 13, 14])
+    const map = await sportsOf(fakeDb(TABLES), [10, 11, 12, 13, 14])
     expect(map.get('10')).toBe('volleyball')
     expect(map.get('11')).toBe('basketball')
     expect(map.get('12')).toBe('both')
@@ -172,8 +172,9 @@ describe('resolveMemberSports (batched)', () => {
   })
 
   it('uses sektion / category for members with no team', async () => {
-    const db = fakeDb(TABLES)
-    const map = await resolveMemberSports(db, [20, 21, 22, 23])
+    const map = await sportsOf(fakeDb(TABLES), [15, 20, 21, 22, 23])
+    // 15 sits on a team with no sport set — falls through to sektion.
+    expect(map.get('15')).toBe('basketball')
     expect(map.get('20')).toBe('volleyball')
     expect(map.get('21')).toBe('basketball')
     expect(map.get('22')).toBe('volleyball')
@@ -181,17 +182,16 @@ describe('resolveMemberSports (batched)', () => {
   })
 
   it('returns an entry for every id asked for, defaulting to both', async () => {
-    const db = fakeDb(TABLES)
-    const map = await resolveMemberSports(db, [24, 999])
+    const map = await sportsOf(fakeDb(TABLES), [24, 999])
     expect(map.get('24')).toBe('both')
     expect(map.get('999')).toBe('both')
   })
 
   it('runs a fixed number of queries regardless of page size', async () => {
     const small = fakeDb(TABLES)
-    await resolveMemberSports(small, [10])
+    await resolveMemberSportsDetailed(small, [10])
     const big = fakeDb(TABLES)
-    await resolveMemberSports(big, [10, 11, 12, 13, 14, 20, 21, 22, 23, 24])
+    await resolveMemberSportsDetailed(big, [10, 11, 12, 13, 14, 20, 21, 22, 23, 24])
     // 3 junctions + teams + members === 5, and it must not grow with the input.
     expect(big.calls.length).toBe(small.calls.length)
     expect(big.calls.length).toBeLessThanOrEqual(5)
@@ -199,26 +199,72 @@ describe('resolveMemberSports (batched)', () => {
 
   it('skips its own members query when rows are supplied', async () => {
     const db = fakeDb(TABLES)
-    const map = await resolveMemberSports(db, [21], { memberRows: TABLES.members })
-    expect(map.get('21')).toBe('basketball')
+    const detailed = await resolveMemberSportsDetailed(db, [21], { memberRows: TABLES.members })
+    expect(detailed.get('21').sport).toBe('basketball')
     expect(db.calls).not.toContain('members')
   })
 
+  it('matches ids across string/number forms', async () => {
+    const map = await sportsOf(fakeDb(TABLES), ['10'])
+    expect(map.get('10')).toBe('volleyball')
+  })
+})
+
+describe('resolveMemberSports (the stored answer, migration 406)', () => {
+  // Permission callers read members.sport_section — the same value the
+  // KSCW Sport Admin VB / BB policy rows filter on — never the rule itself.
+  const STORED = {
+    members: [
+      { id: 10, sport_section: 'volleyball' },
+      { id: 11, sport_section: 'basketball' },
+      { id: 12, sport_section: 'both' },
+      { id: 13, sport_section: 'not-a-sport' },
+    ],
+  }
+
+  it('returns the stored section, one members query, no junction reads', async () => {
+    const db = fakeDb(STORED)
+    const map = await resolveMemberSports(db, [10, 11, 12])
+    expect(map.get('10')).toBe('volleyball')
+    expect(map.get('11')).toBe('basketball')
+    expect(map.get('12')).toBe('both')
+    expect(db.calls).toEqual(['members'])
+  })
+
+  it('answers both for an unknown id or an unexpected value', async () => {
+    const map = await resolveMemberSports(fakeDb(STORED), [13, 999])
+    expect(map.get('13')).toBe('both')
+    expect(map.get('999')).toBe('both')
+  })
+
+  it('uses supplied rows only when they carry sport_section', async () => {
+    const withCol = fakeDb(STORED)
+    const map = await resolveMemberSports(withCol, [11], { memberRows: [{ id: 11, sport_section: 'basketball' }] })
+    expect(map.get('11')).toBe('basketball')
+    expect(withCol.calls).toHaveLength(0)
+
+    // Rows fetched for something else (no sport_section) are not trusted.
+    const without = fakeDb(STORED)
+    const again = await resolveMemberSports(without, [11], { memberRows: [{ id: 11, sektion: 'Volleyball' }] })
+    expect(again.get('11')).toBe('basketball')
+    expect(without.calls).toEqual(['members'])
+  })
+
   it('is empty for an empty id list and issues no queries', async () => {
-    const db = fakeDb(TABLES)
+    const db = fakeDb(STORED)
     expect((await resolveMemberSports(db, [])).size).toBe(0)
     expect(db.calls).toHaveLength(0)
   })
 
   it('matches ids across string/number forms', async () => {
-    const db = fakeDb(TABLES)
-    const map = await resolveMemberSports(db, ['10'])
+    const map = await resolveMemberSports(fakeDb(STORED), ['10', 10])
+    expect(map.size).toBe(1)
     expect(map.get('10')).toBe('volleyball')
   })
 
   it('single-member form agrees with the batched one', async () => {
-    expect(await resolveMemberSport(fakeDb(TABLES), 13)).toBe('basketball')
-    expect(await resolveMemberSport(fakeDb(TABLES), 999)).toBe('both')
+    expect(await resolveMemberSport(fakeDb(STORED), 11)).toBe('basketball')
+    expect(await resolveMemberSport(fakeDb(STORED), 999)).toBe('both')
   })
 })
 
