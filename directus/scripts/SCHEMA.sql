@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-12T08:06:46.168Z
+-- Generated:   2026-10-12T12:13:33.290Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict wUNNHbDJYJ10OS49ITm2vtn1ZcN42NfayiDekOKXccdAGGCB3Qu42PFoa1GoZTI
+\restrict 196tIhoZ9unzNwOZjTZgqe2heq2yPrcxqAF5hGpb3EVOgQZZku6sykaIrT04HFq
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -773,6 +773,25 @@ $$;
 
 
 --
+-- Name: kscw_event_sport_section(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_event_sport_section(p_event integer) RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  WITH sports AS (
+    SELECT DISTINCT lower(t.sport) AS sport
+    FROM events_teams et
+    JOIN teams t ON t.id = et.teams_id
+    WHERE et.events_id = p_event
+      AND lower(t.sport) IN ('volleyball', 'basketball')
+  ), n AS (SELECT count(*) AS c, min(sport) AS only FROM sports)
+  SELECT CASE WHEN n.c = 1 THEN n.only ELSE 'both' END FROM n
+$$;
+
+
+--
 -- Name: kscw_fine_window_start(text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -836,6 +855,39 @@ BEGIN
   RETURN NEW;
 END;
 $_$;
+
+
+--
+-- Name: kscw_member_sport_section(integer, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_member_sport_section(p_member integer, p_sektion text, p_fee text) RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  WITH sports AS (
+    SELECT DISTINCT lower(t.sport) AS sport
+    FROM (
+      SELECT team AS team_id FROM member_teams WHERE member = p_member
+      UNION ALL
+      SELECT teams_id FROM teams_coaches WHERE members_id = p_member
+      UNION ALL
+      SELECT teams_id FROM teams_responsibles WHERE members_id = p_member
+    ) links
+    JOIN teams t ON t.id = links.team_id
+    WHERE lower(t.sport) IN ('volleyball', 'basketball')
+  ), n AS (SELECT count(*) AS c, min(sport) AS only FROM sports)
+  SELECT CASE
+    WHEN n.c > 1 THEN 'both'
+    WHEN n.c = 1 THEN n.only
+    WHEN lower(btrim(coalesce(p_sektion, ''), E' \t\r\n')) = 'volleyball' THEN 'volleyball'
+    WHEN lower(btrim(coalesce(p_sektion, ''), E' \t\r\n')) = 'basketball' THEN 'basketball'
+    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) = 'vb ' THEN 'volleyball'
+    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) = 'bb ' THEN 'basketball'
+    ELSE 'both'
+  END
+  FROM n
+$$;
 
 
 --
@@ -951,6 +1003,36 @@ BEGIN
   PERFORM refresh_participation_visibility();
   RETURN NULL;                       -- AFTER STATEMENT trigger
 END $$;
+
+
+--
+-- Name: kscw_refresh_event_sport_section(integer[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_refresh_event_sport_section(p_events integer[]) RETURNS void
+    LANGUAGE sql
+    SET search_path TO 'public'
+    AS $$
+  UPDATE events e
+  SET sport_section = kscw_event_sport_section(e.id)
+  WHERE e.id = ANY(p_events)
+    AND e.sport_section IS DISTINCT FROM kscw_event_sport_section(e.id)
+$$;
+
+
+--
+-- Name: kscw_refresh_member_sport_section(integer[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_refresh_member_sport_section(p_members integer[]) RETURNS void
+    LANGUAGE sql
+    SET search_path TO 'public'
+    AS $$
+  UPDATE members m
+  SET sport_section = kscw_member_sport_section(m.id, m.sektion, m.beitragskategorie)
+  WHERE m.id = ANY(p_members)
+    AND m.sport_section IS DISTINCT FROM kscw_member_sport_section(m.id, m.sektion, m.beitragskategorie)
+$$;
 
 
 --
@@ -1772,6 +1854,20 @@ $$;
 
 
 --
+-- Name: trg_events_sport_section(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_events_sport_section() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  NEW.sport_section := kscw_event_sport_section(NEW.id);
+  RETURN NEW;
+END $$;
+
+
+--
 -- Name: trg_events_teams_open_roster(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1795,6 +1891,24 @@ BEGIN
   RETURN NULL;
 END;
 $$;
+
+
+--
+-- Name: trg_events_teams_sport_section(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_events_teams_sport_section() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  ids integer[] := ARRAY[]::integer[];
+BEGIN
+  IF TG_OP <> 'INSERT' THEN ids := ids || OLD.events_id; END IF;
+  IF TG_OP <> 'DELETE' THEN ids := ids || NEW.events_id; END IF;
+  PERFORM kscw_refresh_event_sport_section(ids);
+  RETURN NULL;
+END $$;
 
 
 --
@@ -2037,6 +2151,29 @@ END $$;
 
 
 --
+-- Name: trg_member_link_sport_section(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_member_link_sport_section() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  ids integer[] := ARRAY[]::integer[];
+BEGIN
+  IF TG_TABLE_NAME = 'member_teams' THEN
+    IF TG_OP <> 'INSERT' THEN ids := ids || OLD.member; END IF;
+    IF TG_OP <> 'DELETE' THEN ids := ids || NEW.member; END IF;
+  ELSE
+    IF TG_OP <> 'INSERT' THEN ids := ids || OLD.members_id; END IF;
+    IF TG_OP <> 'DELETE' THEN ids := ids || NEW.members_id; END IF;
+  END IF;
+  PERFORM kscw_refresh_member_sport_section(ids);
+  RETURN NULL;
+END $$;
+
+
+--
 -- Name: trg_members_coach_approval_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2085,6 +2222,20 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: trg_members_sport_section(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_members_sport_section() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  NEW.sport_section := kscw_member_sport_section(NEW.id, NEW.sektion, NEW.beitragskategorie);
+  RETURN NEW;
+END $$;
 
 
 --
@@ -2355,6 +2506,25 @@ BEGIN
   RETURN OLD;
 END;
 $$;
+
+
+--
+-- Name: trg_teams_sport_section(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_teams_sport_section() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  PERFORM kscw_refresh_member_sport_section(ARRAY(
+    SELECT member FROM member_teams WHERE team = NEW.id
+    UNION SELECT members_id FROM teams_coaches WHERE teams_id = NEW.id
+    UNION SELECT members_id FROM teams_responsibles WHERE teams_id = NEW.id));
+  PERFORM kscw_refresh_event_sport_section(ARRAY(
+    SELECT events_id FROM events_teams WHERE teams_id = NEW.id));
+  RETURN NULL;
+END $$;
 
 
 --
@@ -5624,8 +5794,10 @@ CREATE TABLE public.events (
     carpool_enabled boolean DEFAULT false NOT NULL,
     carpool_teams jsonb,
     signup_form_slug text,
+    sport_section text DEFAULT 'both'::text NOT NULL,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
-    CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
+    CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text))),
+    CONSTRAINT events_sport_section_check CHECK ((sport_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text])))
 );
 
 
@@ -8947,6 +9119,7 @@ CREATE TABLE public.members (
     dues_paid_season character varying(9),
     dues_paid_at date,
     licence_ordered_at date,
+    sport_section text DEFAULT 'both'::text NOT NULL,
     CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
@@ -8958,6 +9131,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Aktivmitglied'::character varying, 'Passivmitglied'::character varying, 'Ehrenmitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying, 'Zwischenjahr'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_sport_section_check CHECK ((sport_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
 );
@@ -10129,6 +10303,11 @@ CREATE TABLE public.registrations (
     fee_discount numeric(10,2),
     fee_discount_pct numeric(5,2),
     fee_discount_reason character varying(120),
+    approved_by_name character varying(255),
+    approved_by_email character varying(255),
+    rejected_at timestamp with time zone,
+    rejected_by_name character varying(255),
+    rejected_by_email character varying(255),
     CONSTRAINT registrations_bb_docs_waived_reason_check CHECK (((bb_docs_waived IS NULL) OR (btrim(bb_docs_waived) = ''::text) OR ((bb_docs_waived_reason IS NOT NULL) AND (btrim(bb_docs_waived_reason) <> ''::text)))),
     CONSTRAINT registrations_bb_recent_licence_check CHECK (((bb_recent_licence IS NULL) OR ((bb_recent_licence)::text = ANY ((ARRAY['ja'::character varying, 'nein'::character varying])::text[])))),
     CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
@@ -16386,6 +16565,13 @@ CREATE TRIGGER trg_events_open_roster BEFORE INSERT OR UPDATE ON public.events F
 
 
 --
+-- Name: events trg_events_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_sport_section BEFORE INSERT OR UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.trg_events_sport_section();
+
+
+--
 -- Name: events_teams trg_events_teams_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16397,6 +16583,13 @@ CREATE TRIGGER trg_events_teams_keys_immutable BEFORE UPDATE ON public.events_te
 --
 
 CREATE TRIGGER trg_events_teams_open_roster AFTER INSERT OR DELETE OR UPDATE ON public.events_teams FOR EACH ROW EXECUTE FUNCTION public.trg_events_teams_open_roster();
+
+
+--
+-- Name: events_teams trg_events_teams_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_teams_sport_section AFTER INSERT OR DELETE OR UPDATE OF events_id, teams_id ON public.events_teams FOR EACH ROW EXECUTE FUNCTION public.trg_events_teams_sport_section();
 
 
 --
@@ -16533,6 +16726,13 @@ CREATE CONSTRAINT TRIGGER trg_member_guardians_unbind_push AFTER DELETE ON publi
 
 
 --
+-- Name: member_teams trg_member_teams_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_member_teams_sport_section AFTER INSERT OR DELETE OR UPDATE OF member, team ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.trg_member_link_sport_section();
+
+
+--
 -- Name: member_teams trg_member_teams_sync_game_guests; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16579,6 +16779,13 @@ CREATE TRIGGER trg_members_publish_photo AFTER INSERT OR UPDATE OF photo ON publ
 --
 
 CREATE TRIGGER trg_members_shell_convert BEFORE UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.trg_members_shell_convert();
+
+
+--
+-- Name: members trg_members_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_sport_section BEFORE INSERT OR UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.trg_members_sport_section();
 
 
 --
@@ -16764,6 +16971,13 @@ CREATE TRIGGER trg_teams_coaches_keys_immutable BEFORE UPDATE ON public.teams_co
 
 
 --
+-- Name: teams_coaches trg_teams_coaches_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_coaches_sport_section AFTER INSERT OR DELETE OR UPDATE OF members_id, teams_id ON public.teams_coaches FOR EACH ROW EXECUTE FUNCTION public.trg_member_link_sport_section();
+
+
+--
 -- Name: teams trg_teams_protect_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16792,10 +17006,24 @@ CREATE TRIGGER trg_teams_responsibles_keys_immutable BEFORE UPDATE ON public.tea
 
 
 --
+-- Name: teams_responsibles trg_teams_responsibles_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_responsibles_sport_section AFTER INSERT OR DELETE OR UPDATE OF members_id, teams_id ON public.teams_responsibles FOR EACH ROW EXECUTE FUNCTION public.trg_member_link_sport_section();
+
+
+--
 -- Name: teams_sponsors trg_teams_sponsors_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_teams_sponsors_keys_immutable BEFORE UPDATE ON public.teams_sponsors FOR EACH ROW EXECUTE FUNCTION public.kscw_junction_keys_immutable('teams_id', 'sponsors_id');
+
+
+--
+-- Name: teams trg_teams_sport_section; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_sport_section AFTER UPDATE OF sport ON public.teams FOR EACH ROW WHEN (((old.sport)::text IS DISTINCT FROM (new.sport)::text)) EXECUTE FUNCTION public.trg_teams_sport_section();
 
 
 --
@@ -18968,7 +19196,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wUNNHbDJYJ10OS49ITm2vtn1ZcN42NfayiDekOKXccdAGGCB3Qu42PFoa1GoZTI
+\unrestrict 196tIhoZ9unzNwOZjTZgqe2heq2yPrcxqAF5hGpb3EVOgQZZku6sykaIrT04HFq
 
 
 
@@ -18984,7 +19212,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 409 migration(s) already in the schema above.
+-- Migration tracker seed — 411 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19406,6 +19634,8 @@ FROM (VALUES
   ('402-vorstand-implies-admin.sql'),
   ('403-vorstand-admin-scope.sql'),
   ('404-sql-workspace-reader-role.sql'),
-  ('405-staff-gratis-audit-revert.sql')
+  ('405-staff-gratis-audit-revert.sql'),
+  ('406-sport-section.sql'),
+  ('407-registration-decided-by.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
