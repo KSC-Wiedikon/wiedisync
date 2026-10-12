@@ -208,6 +208,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
   // 'finance' role (treasurer / finance team). All finance WRITE endpoints gate
   // on this; the orthogonal 'finance' role grants the same finance powers without
   // the rest of board-wide access. admin_access bypasses via accountability.admin.
+  // Club-wide on purpose, fines and referee fees included (M7, 2026-10-12): every
+  // finance endpoint is board work; only the sport-admin tier below is sport-scoped.
   const canManageFinance = (req, mem) =>
     !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
 
