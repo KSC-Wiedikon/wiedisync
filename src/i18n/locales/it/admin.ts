@@ -762,6 +762,8 @@ export default {
   anmeldungenDocsWaiveReasonPlaceholder: 'p. es. Swiss Basketball ha confermato via e-mail il 09.09.2026 che il Freibrief non è necessario',
   anmeldungenDocsWaiveConfirm: 'Esonera e approva',
   anmeldungenDocsWaivedLabel: 'Documenti esonerati',
+  anmeldungenApprovedBy: 'Approvata da {{name}}',
+  anmeldungenRejectedBy: 'Rifiutata da {{name}}',
   anmeldungenDocsWaivedToast: 'Approvata — {{count}} documento/i esonerato/i.',
   anmeldungenInviteSent: 'Invito inviato a {{email}}',
   anmeldungenInviteAlreadyClaimed: 'Questa persona ha già un account',

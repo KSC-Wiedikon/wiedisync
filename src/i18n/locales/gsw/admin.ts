@@ -901,6 +901,8 @@ export default {
   anmeldungenDocsWaiveReasonPlaceholder: 'z. B. Swiss Basketball hät am 09.09.2026 per Mail bestätigt, dass de Freibrief nöd nötig isch',
   anmeldungenDocsWaiveConfirm: 'Erlah und freigäh',
   anmeldungenDocsWaivedLabel: 'Erlahni Dokumänt',
+  anmeldungenApprovedBy: 'Gnehmigt vo {{name}}',
+  anmeldungenRejectedBy: 'Abglehnt vo {{name}}',
   anmeldungenDocsWaivedToast: 'Freigäh — {{count}} Dokumänt erlah.',
   anmeldungenInviteSent: 'Yladig an {{email}} gschickt',
   anmeldungenInviteAlreadyClaimed: 'Die Person hät scho es Konto',

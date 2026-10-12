@@ -11,7 +11,7 @@ import BasketballIcon from '../../components/BasketballIcon'
 import { FilePreviewDialog } from '../../components/FilePreview'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import RegistrationDuplicatePanel, { type DupFlag } from './components/RegistrationDuplicatePanel'
-import { formatDate } from '../../utils/dateHelpers'
+import { formatDate, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { currentSeasonShort } from '../../utils/season'
 import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
 import { localizeCountryName } from '../../utils/countryName'
@@ -100,6 +100,12 @@ interface Registration extends BaseRecord {
   bb_docs_waived_reason: string | null
   bb_docs_waived_by_name: string | null
   bb_docs_waived_at: string | null
+  /** Who decided, stamped by the server from the caller (migration 407). A row
+   *  rejected and later approved carries both pairs. */
+  approved_at: string | null
+  approved_by_name: string | null
+  rejected_at: string | null
+  rejected_by_name: string | null
   /** Discount + note on the Mitgliederbeitrag, granted at review time
    *  (migration 367) — CHF or %, mutually exclusive. Copied onto the member
    *  row on approval ONLY when that approval creates a brand-new member. */
@@ -1044,7 +1050,7 @@ function ExpandedDetails({
   missingDocCount,
 }: {
   reg: Registration
-  t: (key: string) => string
+  t: (key: string, opts?: Record<string, unknown>) => string
   onSave: (data: Partial<Registration>) => void
   onApprove: () => void
   onReject: () => void
@@ -1470,6 +1476,25 @@ function ExpandedDetails({
             <div className="mt-0.5 text-xs text-amber-600 dark:text-amber-500">
               {reg.bb_docs_waived_by_name}
               {reg.bb_docs_waived_at ? ` — ${formatDate(reg.bb_docs_waived_at)}` : ''}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Who decided (migration 407) — both decisions when a row was rejected and
+          later approved, so the history stays on the row. */}
+      {(reg.approved_by_name || reg.rejected_by_name) && (
+        <div className="mt-3 space-y-0.5 text-xs text-muted-foreground">
+          {reg.rejected_by_name && (
+            <div>
+              {t('anmeldungenRejectedBy', { name: reg.rejected_by_name })}
+              {reg.rejected_at ? ` — ${formatDateTimeCompactZurich(reg.rejected_at)}` : ''}
+            </div>
+          )}
+          {reg.approved_by_name && (
+            <div>
+              {t('anmeldungenApprovedBy', { name: reg.approved_by_name })}
+              {reg.approved_at ? ` — ${formatDateTimeCompactZurich(reg.approved_at)}` : ''}
             </div>
           )}
         </div>

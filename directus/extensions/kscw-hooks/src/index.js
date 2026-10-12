@@ -6371,6 +6371,44 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // ── Decision: stamp who approved or rejected (migration 407) ────────────────
+  //
+  // The Anmeldungen page decides with a PATCH of `status`. Who did it comes from
+  // the caller's accountability, never from the payload, so the stamp columns are
+  // dropped from every payload first. A row stamped once keeps its stamp when a
+  // later save resends the same status; a real change (pending → approved,
+  // rejected → approved, …) restamps. Approval and rejection keep separate pairs,
+  // so a row rejected and later approved shows both. System writes (no user) are
+  // left unstamped rather than attributed to nobody. Same pattern as the waiver
+  // stamp above.
+  const DECISION_STAMPS = {
+    approved: ['approved_at', 'approved_by_name', 'approved_by_email'],
+    rejected: ['rejected_at', 'rejected_by_name', 'rejected_by_email'],
+  }
+  filter('registrations.items.update', async (payload, meta, { accountability, database: db }) => {
+    if (!payload || typeof payload !== 'object') return payload
+    for (const cols of Object.values(DECISION_STAMPS)) for (const c of cols) delete payload[c]
+    const cols = DECISION_STAMPS[payload.status]
+    if (!cols || !accountability?.user) return payload
+    const keys = (meta?.keys || []).map(Number).filter(Number.isInteger)
+    if (keys.length) {
+      const rows = await db('registrations').whereIn('id', keys).select('status')
+      if (rows.length && rows.every((r) => r.status === payload.status)) return payload
+    }
+    const [at, nameCol, emailCol] = cols
+    payload[at] = new Date()
+    payload[nameCol] = null
+    payload[emailCol] = null
+    try {
+      const m = await db('members').where('user', accountability.user).select('first_name', 'last_name', 'email').first()
+      const u = m ? null : await db('directus_users').where('id', accountability.user).select('first_name', 'last_name', 'email').first()
+      const who = m ?? u
+      payload[nameCol] = who ? [who.first_name, who.last_name].filter(Boolean).join(' ') || null : null
+      payload[emailCol] = who?.email ?? null
+    } catch { /* stamping is best-effort; the decision itself stands */ }
+    return payload
+  })
+
   // ── Email templates: validate + sanitize + stamp the editor ─────────────────
   //
   // Enforced in a hook rather than only in the admin page because the items API is
