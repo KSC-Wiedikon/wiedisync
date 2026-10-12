@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.29.0 — 2026-10-12
+
+### New
+
+- Registrations show who approved or rejected them, and when. Past decisions were filled in from the change history.
+
 ## v2.28.0 — 2026-10-12
 
 ### Changed

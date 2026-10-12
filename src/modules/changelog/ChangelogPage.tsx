@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.28.0'
+const APP_VERSION = '2.29.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.29.0',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Registrations show who approved or rejected them, and when. Past decisions were filled in from the change history.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.28.0',
     date: '12.10.2026',

@@ -523,6 +523,8 @@ export default {
   anmeldungenDocsWaiveReasonPlaceholder: 'e.g. Swiss Basketball confirmed by email on 09.09.2026 that the Freibrief is not needed',
   anmeldungenDocsWaiveConfirm: 'Waive and approve',
   anmeldungenDocsWaivedLabel: 'Documents waived',
+  anmeldungenApprovedBy: 'Approved by {{name}}',
+  anmeldungenRejectedBy: 'Rejected by {{name}}',
   anmeldungenDocsWaivedToast: 'Approved — {{count}} document(s) waived.',
   anmeldungenInviteSent: 'Invite sent to {{email}}',
   anmeldungenInviteAlreadyClaimed: 'This person already has an account',
