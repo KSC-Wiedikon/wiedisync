@@ -366,9 +366,12 @@ async function squadRows(database, teamId, season, gameId = null) {
 
   if (gameId == null) return rostered
 
+  // Players only: a called-up team's coaches / TRs (migration 408) come as staff,
+  // and staff never fill a playing line. They stay in officialPoolIds below.
   const guests = await database('game_guests')
     .join('members', 'members.id', 'game_guests.member')
     .where('game_guests.game', gameId)
+    .where('game_guests.is_staff', false)
     .select(memberCols)
 
   // The migration-271 skip trigger already keeps a player off `game_guests` when

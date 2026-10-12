@@ -565,7 +565,8 @@ export interface Game extends BaseRecord {
 
 /**
  * A game opened to another team (migration 271). The coach's intent; Postgres
- * materializes one `GameGuest` per player of that team from it.
+ * materializes one `GameGuest` per regular player of that team from it, and one per
+ * coach / team responsible (migration 408).
  */
 export interface GameGuestTeam extends BaseRecord {
   game: string | number
@@ -586,6 +587,9 @@ export interface GameGuest extends BaseRecord {
   game: string | number
   member: string | number
   via_team?: string | number | null
+  /** Called up as staff — a coach / TR of `via_team` who is not a regular player of
+   *  it (migration 408). Answers the game like a player but is not counted as one. */
+  is_staff?: boolean
   invited_by_name?: string | null
   invited_by_email?: string | null
 }

@@ -22,6 +22,8 @@ type GuestRow = {
   id: string
   member: Member | string
   via_team: Team | string | null
+  /** A coach / TR the team opening brought along (migration 408). */
+  is_staff?: boolean
 }
 type OpeningRow = {
   id: string
@@ -35,8 +37,9 @@ type OpeningRow = {
  * Two levers, because coaches ask for it two ways: open the whole of another team
  * (a cup game where H3 is the natural feeder), or name individuals. Both land in the
  * same invitee list; the difference is that a team opening brings only that team's
- * core roster (guest_level 0, migration 401) and closing it releases them, while a
- * named individual — guest players included — is a deliberate pick and stays.
+ * core roster (guest_level 0, migration 401) plus its coaches and team responsibles as
+ * staff (migration 408), and closing it releases them, while a named individual —
+ * guest players included — is a deliberate pick and stays.
  *
  * Everyone can SEE who a game is open to — a player scanning the roster needs to know
  * why an unfamiliar name is on it. Only the game's own coach/TR can change it.
@@ -59,7 +62,7 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
 
   const { data: guestsRaw, refetch: refetchGuests } = useCollection<GuestRow>('game_guests', {
     filter: { game: { _eq: game.id } },
-    fields: ['id', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'via_team.id'],
+    fields: ['id', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'via_team.id', 'is_staff'],
     all: true,
   })
   const guests = useMemo(() => guestsRaw ?? [], [guestsRaw])
@@ -162,6 +165,14 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
   const availableTeams = candidateTeams.filter(tm => !openTeamIds.has(String(tm.id)))
 
   const guestCount = guests.length
+  // The header counts players and staff apart: a coach the opening brought along is
+  // not one more player for the squad.
+  const staffGuestCount = guests.filter(g => g.is_staff).length
+  const playerGuestCount = guestCount - staffGuestCount
+  const countLabel = [
+    playerGuestCount > 0 ? t('guestCount', { count: playerGuestCount }) : '',
+    staffGuestCount > 0 ? t('guestStaffCount', { count: staffGuestCount }) : '',
+  ].filter(Boolean).join(' · ')
   const clashingInvited = useMemo(
     () => guests.filter(g => {
       const id = String(asObj<Member>(g.member)?.id ?? relId(g.member))
@@ -224,7 +235,7 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('guestSectionTitle')}</h4>
         {guestCount > 0 && (
-          <span className="text-xs text-muted-foreground">{t('guestCount', { count: guestCount })}</span>
+          <span className="text-xs text-muted-foreground">{countLabel}</span>
         )}
       </div>
 

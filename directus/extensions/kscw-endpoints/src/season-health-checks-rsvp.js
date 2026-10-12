@@ -96,7 +96,8 @@ const TRAINING_DEADLINE = effectiveDeadline('tr.respond_by', 'tr.start_time')
 
 /**
  * Everyone expected at ONE game: roster (with guest_level) ∪ called-up
- * `game_guests` (guest_level 0) ∪ staff-only (not on the roster, not called
+ * `game_guests` (guest_level 0; a called-up team's coaches / TRs carry
+ * `is_staff`, migration 408) ∪ staff-only (not on the roster, not called
  * up). Per-game LATERAL twin of kscw-hooks GAME_SQUAD_JOIN. Filter
  * `guest_level = 0` for "may play / must answer".
  */
@@ -105,7 +106,7 @@ function gameSquadSql(gameExpr, teamExpr) {
     SELECT mt.member, COALESCE(mt.guest_level, 0) AS guest_level, false AS is_staff
       FROM member_teams mt WHERE mt.team = ${teamExpr}
     UNION
-    SELECT gg.member, 0, false FROM game_guests gg WHERE gg.game = ${gameExpr}
+    SELECT gg.member, 0, gg.is_staff FROM game_guests gg WHERE gg.game = ${gameExpr}
     UNION
     SELECT s.members_id, 0, true
       FROM ${STAFF} s

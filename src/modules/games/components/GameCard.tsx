@@ -13,7 +13,7 @@ import ParticipationWarningBadge from '../../../components/ParticipationWarningB
 import type { Warning } from '../../../utils/participationWarnings'
 import { useAuth } from '../../../hooks/useAuth'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
-import { useIsCalledUpToGame } from '../../../hooks/useUserVisibleGameIds'
+import { useGameCallUp } from '../../../hooks/useUserVisibleGameIds'
 import type { Participation } from '../../../types'
 import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
@@ -135,7 +135,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   // A called-up player (migration 271) has no member_teams row on the team whose
   // fixture this is, so canParticipateIn — which is team-scoped — says no. They were
   // borrowed precisely so they can answer it, hence the OR.
-  const isCalledUp = useIsCalledUpToGame(user?.id, game.id)
+  const { calledUp: isCalledUp, asStaff: calledUpAsStaff } = useGameCallUp(user?.id, game.id)
   // relId, not the raw value: surfaces that expand `kscw_team.*` (the games list)
   // hand us the team OBJECT, and every one of these checks compares against an
   // array of id strings — so they all quietly answered false there.
@@ -308,7 +308,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
                 respondBy={game.respond_by}
                 activityTime={game.time}
                 existingParticipation={myParticipation}
-                isStaff={!!teamIdForPerms && isStaffOnly(teamIdForPerms)}
+                isStaff={(!!teamIdForPerms && isStaffOnly(teamIdForPerms)) || calledUpAsStaff}
                 guestExcluded={guestExcluded}
                 onSaved={onParticipationSaved}
                 participations={participations}

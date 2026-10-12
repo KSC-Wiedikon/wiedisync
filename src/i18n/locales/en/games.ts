@@ -335,13 +335,15 @@ export default {
   idsCloseFullscreen: 'Close full screen',
   // Game guest invitations (migration 271) — opening a fixture to players from
   // outside the team's own roster.
-  guestSectionTitle: 'Called-up players',
+  guestSectionTitle: 'Called up',
   guestSectionHint: 'Open this game to another team or to individual players. They see it on their home page and calendar, and can reply here.',
   guestCount_one: '{{count}} player',
   guestCount_other: '{{count}} players',
+  guestStaffCount_one: '{{count}} staff',
+  guestStaffCount_other: '{{count}} staff',
   guestOpenTo: 'Call up players',
   guestOpenToTeam: 'Open to a whole team',
-  guestOpenToTeamHint: 'Calls up the team\'s core roster only. Guest players (G1–G3) are left out — pick them individually below if you need them.',
+  guestOpenToTeamHint: 'Calls up the team\'s core roster with its coaches and team responsibles. Guest players (G1–G3) are left out — pick them individually below if you need them.',
   guestOpenToMembers: 'Or pick individual players',
   guestSearchPlaceholder: 'Search players',
   guestInvite: 'Call up',
