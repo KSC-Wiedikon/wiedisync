@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.29.2'
+const APP_VERSION = '2.30.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.30.0',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Calendar subscriptions have a new "My calendar" link. It follows your teams as a player, coach or team responsible, so joining a team, a new season or being called up never needs a new link. To switch, subscribe once more under Calendar → Subscribe.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'Team calendar subscriptions now include the games the team is called up for, such as a cup game entered under another team. Existing links pick them up on their next refresh.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.29.2',
     date: '12.10.2026',
