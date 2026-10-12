@@ -20,6 +20,13 @@
 // read-privacy hook in kscw-hooks needed the same rule over ~700 members at
 // once — see `resolveMemberSports`, the batched form. Two copies of a scope rule
 // is how one of them quietly stops matching the other.
+//
+// ⚠ Since migration 406 (2026-10-12) there IS a second copy, on purpose: the
+// policy rows that confine a sport admin cannot run JavaScript, so the answer is
+// stored in `members.sport_section` by kscw_member_sport_section() (SQL). The
+// permission callers read that stored value through `resolveMemberSports`; the
+// rule below stays for the detailed form and the client mirror. A change to the
+// rule is a change to 406's function too, in a new migration.
 
 /** The three answers. 'both' means club-level / unknown, and is permissive. */
 export const MEMBER_SPORTS = ['volleyball', 'basketball', 'both']
@@ -147,16 +154,34 @@ export async function resolveMemberSportsDetailed(database, memberIds, opts = {}
 }
 
 /**
- * Batched resolver, answers only. Same queries as the detailed form — this is the
- * shape every existing caller (permission gates, the read-privacy hook, the member
- * DELETE gate) expects, and the one they should keep using.
+ * Batched resolver, answers only — the form every permission caller uses (the
+ * read-privacy hook, the member DELETE gate, the endpoint scope checks).
+ *
+ * Reads the STORED answer, `members.sport_section` (migration 406), not the rule
+ * above. The `KSCW Sport Admin VB` / `BB` policy rows filter on that column
+ * (setup-permissions.mjs), so a gate here that recomputed the rule could disagree
+ * with the policy about the same member. The column is kept by triggers running
+ * kscw_member_sport_section(), the SQL twin of `sportFromPartsDetailed` — change
+ * the rule in both. `resolveMemberSportsDetailed` keeps computing it, because
+ * only it can say WHICH input decided.
+ *
+ * One query, or none when `opts.memberRows` already carry `sport_section`.
  *
  * @returns {Promise<Map<string, 'volleyball'|'basketball'|'both'>>} keyed by String(id)
  */
 export async function resolveMemberSports(database, memberIds, opts = {}) {
-  const detailed = await resolveMemberSportsDetailed(database, memberIds, opts)
+  const ids = [...new Set((memberIds || []).filter((v) => v !== null && v !== undefined).map(String))]
   const out = new Map()
-  for (const [key, v] of detailed) out.set(key, v.sport)
+  if (ids.length === 0) return out
+  const supplied = Array.isArray(opts.memberRows) && opts.memberRows.every((r) => r && 'sport_section' in r)
+  const rows = supplied
+    ? opts.memberRows
+    : await database('members').whereIn('id', ids).select('id', 'sport_section')
+  const byId = new Map(rows.map((r) => [String(r.id), r.sport_section]))
+  for (const id of ids) {
+    const v = byId.get(id)
+    out.set(id, MEMBER_SPORTS.includes(v) ? v : 'both')
+  }
   return out
 }
 

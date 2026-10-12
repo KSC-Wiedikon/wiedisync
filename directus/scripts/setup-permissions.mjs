@@ -62,6 +62,9 @@
 import { readFileSync as _readFileSync } from 'node:fs'
 import { fileURLToPath as _fileURLToPath } from 'node:url'
 import { dirname as _dirname, join as _join } from 'node:path'
+import {
+  SPORT_POLICIES, SPORT_SCOPED_COLLECTIONS, VORSTAND_SPORT_DATA, sportScopedPermissions,
+} from './sport-scope-permissions.mjs'
 const _here = _dirname(_fileURLToPath(import.meta.url))
 try {
   const envText = _readFileSync(_join(_here, '../../.env.local'), 'utf-8')
@@ -469,7 +472,11 @@ async function auditAdministratorRole(roleMap) {
  *      through it — and no role-based view shows it (SECURITY.md gotcha 13).
  * Never revokes; same non-fatal rule as §3c.
  */
-const PER_USER_POLICIES = new Set(['KSCW Team Responsible', 'KSCW Terminplanung', 'KSCW Finance', 'KSCW Spielplaner', 'KSCW Vorstand'])
+const PER_USER_POLICIES = new Set([
+  'KSCW Team Responsible', 'KSCW Terminplanung', 'KSCW Finance', 'KSCW Spielplaner', 'KSCW Vorstand',
+  // vb_admin / bb_admin section policies (M7, 2026-10-12) — attached per user in §13.
+  ...SPORT_POLICIES.map((p) => p.name),
+])
 const SERVICE_POLICY_HOLDERS = { 'KSCW LedBox Publisher': new Set(['ledbox-board@kscw.ch']) }
 const ROLE_NEEDS_APP_ROLE = { Superuser: ['admin', 'superuser'], 'Sport Admin': ['vb_admin', 'bb_admin', 'admin', 'superuser'] }
 
@@ -1385,6 +1392,15 @@ async function main() {
   const LEADER_POLICY = await findOrCreatePolicy('KSCW Team Responsible', { icon: 'supervisor_account', app_access: true })
   const VORSTAND_POLICY = await findOrCreatePolicy('KSCW Vorstand', { icon: 'groups', app_access: true })
   const SPORT_ADMIN_POLICY = await findOrCreatePolicy('KSCW Sport Admin', { icon: 'sports', app_access: true })
+  // The sport-data half of Sport Admin, one policy per section (M7, 2026-10-12):
+  // attached per user from members.role (§13 + the kscw-hooks role sync), never
+  // to a role — the Directus role `Sport Admin` holds vb_admin and bb_admin alike.
+  // Rows: sport-scope-permissions.mjs. `app_access: false` — the role's own
+  // policies already grant it; this one only adds rows.
+  const SPORT_SECTION_POLICIES = []
+  for (const sp of SPORT_POLICIES) {
+    SPORT_SECTION_POLICIES.push({ ...sp, id: await findOrCreatePolicy(sp.name, { icon: sp.icon, app_access: false }) })
+  }
   const ADMIN_POLICY = await findOrCreatePolicy('KSCW Admin', { icon: 'admin_panel_settings', admin_access: true, app_access: true })
   // Terminplanung (opponent game-scheduling) admin access for club-wide
   // Spielplaner members. Distinct from the per-user "KSCW Spielplaner" policy
@@ -1565,6 +1581,8 @@ async function main() {
   if (PUBLIC_POLICY) await clearPolicyPermissions(PUBLIC_POLICY, 'Public')
   await clearPolicyPermissions(VORSTAND_POLICY, 'Vorstand')
   await clearPolicyPermissions(SPORT_ADMIN_POLICY, 'Sport Admin')
+  // Held per user by sport admins only — no "wall" risk, same as Finance below.
+  for (const sp of SPORT_SECTION_POLICIES) await clearPolicyPermissions(sp.id, sp.name)
   await clearPolicyPermissions(ADMIN_POLICY, 'Admin')
   await clearPolicyPermissions(TERMINPLANUNG_POLICY, 'Terminplanung')
   // Finance is held only by finance members (not every authenticated user), so
@@ -2134,8 +2152,9 @@ async function main() {
   // licence row (no filter) or trigger Directus 11's `CASE WHEN 1` SQL bug
   // (with row filter). Custom endpoint side-steps both.
   //
-  // No setPermRead call here — the absence is the point. Sport Admin and
-  // higher tiers retain full CRUD via SPORT_ADMIN_FULL_CRUD below.
+  // No setPermRead call here — the absence is the point. The volleyball
+  // section policy (`KSCW Sport Admin VB`, §9a) and full admins keep full CRUD;
+  // a basketball admin has none since 2026-10-12 (M7).
 
   // Members — limited fields for other members. PII (email/phone) excluded
   // (migration 024). Self-read row is added below with editable fields.
@@ -2616,7 +2635,8 @@ async function main() {
   // exactly what the coach UIs write (RosterEditor settings + photo + roles,
   // TeamDetail photo position, MemberRow / ManageStaffModal staff lists,
   // CoachDashboard / GameCoachDashboard prefs). `duty_credit` is written only by
-  // ScorerAssignPage, which is AdminRoute — Sport Admin keeps `*` (§9).
+  // ScorerAssignPage, which is AdminRoute — a sport admin keeps `*` on their own
+  // sport's teams (§9a section policies), a full admin everywhere.
   // ⚠ A new teams column a coach must write MUST be added here or their PATCH
   // 403s ("You don't have permission to access field").
   const TEAM_WRITE_FIELDS = [
@@ -2708,8 +2728,10 @@ async function main() {
   // 385 trigger already discards such a write and kscw-hooks strips it — this is
   // the third layer (audit 2026-09-28 F15). Reads are unaffected.
   const EVENT_ENDPOINT_OWNED_FIELDS = ['signup_form_slug']
+  // Trigger-kept (migration 406): the trigger overwrites a sent value anyway.
+  const EVENT_DERIVED_FIELDS = ['sport_section']
   const EVENT_WRITE_FIELDS = (await liveFieldNames('events'))
-    .filter((f) => !EVENT_ENDPOINT_OWNED_FIELDS.includes(f))
+    .filter((f) => !EVENT_ENDPOINT_OWNED_FIELDS.includes(f) && !EVENT_DERIVED_FIELDS.includes(f))
   const LEADER_EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
@@ -2929,7 +2951,8 @@ async function main() {
   // `team` / `member`) elsewhere and the participation_visibility reconcile
   // hands you another team's RSVPs — repeatable club-wide. GameGuestSection
   // only ever creates and removes; there is no edit. Keys are also
-  // DB-immutable (migration 389). Sport Admin keeps full CRUD (§9).
+  // DB-immutable (migration 389). A sport admin keeps full CRUD on their own
+  // sport's games (§9a section policies).
   for (const coll of ['game_guests', 'game_guest_teams']) {
     await setPermRead(LEADER_POLICY, coll)
     await setPerm(LEADER_POLICY, coll, 'create')
@@ -3269,15 +3292,18 @@ async function main() {
   // Vorstand gets read-all on everything (overrides member's filtered reads)
   // ⚠ `members` is NOT in this list since 2026-09-28 — it is granted below with
   // a computed field list (audit F05).
+  //
+  // ⚠ Sport data is NOT here since 2026-10-12 (audit M7, owner decision "sport
+  // data only"): rosters, RSVPs, absences, guests, notifications, delegations,
+  // invites, team requests, push subscriptions, fines, referee fees, scheduling
+  // blocks, poll votes and the member register come from the board member's
+  // section policy (`KSCW Sport Admin VB` / `BB`, sport-scope-permissions.mjs).
+  // Every board member below full admin holds vb_admin or bb_admin (402/403), and
+  // a full admin bypasses rows, so nobody who holds this policy loses a row of
+  // their own sport. What stays is board work, club-wide by decision. See
+  // VORSTAND_SPORT_DATA — the assertion after the loop keeps it that way.
   const VORSTAND_READ_ALL = [
-    'member_teams', 'participations', 'absences',
-    'game_guests', 'game_guest_teams',
-    'notifications', 'scorer_delegations', 'team_invites',
     'user_logs', 'feedback',
-    'team_requests', 'push_subscriptions',
-    // NB: `poll_votes` intentionally NOT here — granted below scoped to
-    // non-anonymous polls only (2026-07-02 audit #5/#14). Board reads anonymous
-    // results as identity-free counts via GET /kscw/polls/:id/results.
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'game_scheduling_club_portals',
@@ -3287,13 +3313,6 @@ async function main() {
     // kscw-hooks fanout in system context, so no policy needs write access;
     // granting it would only let an admin fabricate a delivery record.
     'announcement_recipients',
-    // Fines (migration 069) — Vorstand sees club-wide for oversight.
-    'fines', 'fine_rules',
-    // Referee fees — club-wide read for oversight (/admin/referee-expenses, the
-    // explorer's member detail); writes stay with coaches/TRs and sport admins.
-    'referee_expenses',
-    // Scheduling blocks (migration 085) — club-wide read for oversight.
-    'scheduling_blocks',
     // Finance (migration 114) — board gets the full finance dashboard:
     // Kontenplan, ledger, invoices, budget, payments + import history. Read-only
     // here; native-invoice writes (create/confirm/cancel) + member-link overrides
@@ -3326,9 +3345,9 @@ async function main() {
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
   }
-  // poll_votes — non-anonymous only (2026-07-02 audit #5/#14). Anonymous-poll
-  // results come from the counts endpoint, not raw vote rows.
-  await setPermRead(VORSTAND_POLICY, 'poll_votes', { poll: { anonymous: { _eq: false } } })
+  for (const col of VORSTAND_SPORT_DATA) {
+    if (VORSTAND_READ_ALL.includes(col)) throw new Error(`Vorstand must not read sport data club-wide: ${col}`)
+  }
   // Read the private invoice-PDF folder so the board can open attachments via
   // /assets (members can't — their directus_files read is folder-less-only).
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
@@ -3343,27 +3362,14 @@ async function main() {
   // direct /assets links of an answer the board can already read.
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FORM_UPLOADS_FOLDER } })
 
-  // Members — everything EXCEPT the AHV number and three secrets (audit
-  // 2026-09-28, F05). Was `fields: '*'`.
-  //   ahv_nummer — the members read-privacy hook already nulls it for the board
-  //     on every read it sees (self, full admins and a sport admin's own section
-  //     only), so the grant bought nothing but a bypass: relational reads
-  //     (`member_teams?fields=member.ahv_nummer`) never pass that hook, and a
-  //     `filter[ahv_nummer][_starts_with]=756.12` oracle never returns a value
-  //     for a hook to null. Out of the grant, both are closed. Explorer queries
-  //     that list the column still work: the own-row Member rule keeps the field
-  //     known, so Directus returns NULL for other rows instead of a 403.
-  //   ical_token — a bearer for the member's private calendar feed.
-  //   e2ee_private_key + e2ee_kdf_salt — the password-wrapped identity-document
-  //     key and its salt: together, an offline guessing target for the member's
-  //     password. The club "genuinely cannot read" those documents only as long
-  //     as nobody below admin can take these two home.
-  // `iban` stays: the board's finance members tab (FinanceMemberExplorer) shows
-  // it. The list is computed from the live schema (liveFieldNames), so a column
-  // a migration adds reaches the board on the next deploy like it did under '*'.
-  const VORSTAND_MEMBER_READ_FIELDS = (await liveFieldNames('members'))
-    .filter((f) => !['ahv_nummer', ...MEMBER_SECRET_FIELDS].includes(f))
-  await setPermRead(VORSTAND_POLICY, 'members', null, VORSTAND_MEMBER_READ_FIELDS)
+  // Members — NO board-wide grant since 2026-10-12 (audit M7). Until then this
+  // was every field except `ahv_nummer` and the three secrets, club-wide, so a
+  // basketball board member read every volleyball member's IBAN and address.
+  // The board member's section policy (`KSCW Sport Admin VB` / `BB`) now grants
+  // the full register of their own section; the other section comes through the
+  // Member policy's club-public list, like for any member. A board member who
+  // also does the books holds `finance` → `KSCW Finance` (FINANCE_MEMBER_FIELDS,
+  // club-wide), which is what the finance members tab needs.
   // Narrow ClubDesk register read — same field-scoped grant as Sport Admin, so
   // the board's read-only explorer grid shows the passive/honorary/former and
   // officials-licence columns.
@@ -3389,32 +3395,26 @@ async function main() {
 
   console.log('\n9. Sport Admin permissions...')
 
-  // Sport Admin tier: club-wide CRU on operational collections, but NOT
-  // members.delete or teams.delete (migration 027 — full admin only,
+  // Sport Admin tier — the CLUB-LEVEL half since 2026-10-12 (audit M7). Held by
+  // the `Sport Admin` Directus role, i.e. by vb_admin and bb_admin alike, so it
+  // can only carry what both sections share. Every sport-data collection (games,
+  // trainings, events, rosters and staff, RSVPs, absences, guests, hall slots,
+  // notifications, push subscriptions, delegations, invites, requests, polls,
+  // registrations, fines, referee fees, scheduling blocks, the member register,
+  // team edits, the Swiss Volley licence mirror) moved to the per-user section
+  // policies `KSCW Sport Admin VB` / `BB` — sport-scope-permissions.mjs, granted
+  // right after this section. SPORT_SCOPED_COLLECTIONS lists them; the assertion
+  // below the loop refuses a club-wide grant of any of them here.
+  // Still no members.delete or teams.delete (migration 027 — full admin only,
   // club-wide blast radius).
   const SPORT_ADMIN_FULL_CRUD = [
-    // ⚠ `events` is NOT here since 2026-09-28 — granted right below the loop
-    // with EVENT_WRITE_FIELDS on create/update (endpoint-owned
-    // `signup_form_slug` excluded). Do not re-add it.
-    'games', 'trainings', 'event_sessions', 'events_teams',
-    'member_teams', 'participations', 'absences',
-    // Guest invitations (migration 271) — club-wide, so a sport admin can open or
-    // close a game for a coach who is away.
-    'game_guests', 'game_guest_teams',
     'rankings', 'sponsors', 'teams_sponsors',
-    'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
-    'slot_claims', 'notifications', 'feedback', 'scorer_delegations',
-    // ⚠ `referee_expenses` is NOT here — see the explicit grants below the loop
-    // (update/delete only while unpaid, migration 363). Do not re-add it.
-    'team_invites', 'news', 'app_settings',
-    'push_subscriptions',
+    'hall_closures', 'hall_events', 'halls',
+    'feedback',
+    'news', 'app_settings',
     // ⚠ `email_verifications` and `user_logs` are NOT here — see the two
     // explicit grants below the loop. Do not re-add them.
-    'teams_coaches', 'teams_responsibles', 'events_members',
     'volley_feedback',
-    // NB: `poll_votes` NOT here — granted below with a non-anonymous read scope
-    // (2026-07-02 audit #5/#14) while keeping create/update/delete for oversight.
-    'polls', 'team_requests', 'registrations',
     // Editable transactional email copy (migration 287). A sport admin owns the
     // wording of the emails their own registrants receive. Read+write is safe
     // because the compiled-in copy is the per-field fallback, the write hook
@@ -3437,7 +3437,8 @@ async function main() {
     // flag, so the settings page 403'd on load for exactly the people it is built
     // for (observed 2026-08-07). Same tier as the three collections above it.
     'basketball_team_rules',
-    'sv_vm_check',
+    // ⚠ `sv_vm_check` (the Swiss Volley licence mirror: names, e-mail, birthdate)
+    // moved to `KSCW Sport Admin VB` on 2026-10-12 (M7) — volleyball only.
     // VIS mirrors (migrations 237/240/241) behind /admin/transfers, which is gated
     // to admin | superuser | vb_admin | bb_admin. The first two bypass policies,
     // the sport admins do NOT — so without a grant here the federation directory
@@ -3450,14 +3451,9 @@ async function main() {
     // fully replaced by each vis-player-check run.
     'vis_transfers', 'vis_federations', 'vis_players',
     'announcements',
-    // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
-    // for cross-team rule edits + correction of bad fines).
-    'fines', 'fine_rules',
-    // Scheduling blocks (migration 085) — club-wide CRUD for any team's blackouts.
-    'scheduling_blocks',
-    // Forms (migrations 086/087) — club-wide CRUD at the policy layer; per-sport
-    // scoping is enforced in the FormsPage UI (consistent with every other Sport
-    // Admin collection, which are likewise club-wide CRUD + UI-scoped).
+    // Forms (migrations 086/087) — club-wide CRUD. Forms are board work and stay
+    // club-wide by the 2026-10-12 decision (M7); the FormsPage still shows a sport
+    // admin their own sport's forms first.
     'forms', 'form_submissions', 'forms_teams',
     // VB referee → team duty map (migration 200) — club-wide CRUD; the
     // /admin/vb-referees page is UI-scoped to VB admins (full admins bypass).
@@ -3466,14 +3462,11 @@ async function main() {
     // right below the loop. Do not re-add it.
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {
+    if (SPORT_SCOPED_COLLECTIONS.includes(col)) throw new Error(`Sport Admin must not grant sport data club-wide: ${col}`)
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
-  // `events` — club-wide CRUD like the list above, but create/update exclude the
-  // endpoint-owned `signup_form_slug` (see EVENT_WRITE_FIELDS in §7).
-  await setPerm(SPORT_ADMIN_POLICY, 'events', 'create', null, EVENT_WRITE_FIELDS)
-  await setPermRead(SPORT_ADMIN_POLICY, 'events')
-  await setPerm(SPORT_ADMIN_POLICY, 'events', 'update', null, EVENT_WRITE_FIELDS)
-  await setPerm(SPORT_ADMIN_POLICY, 'events', 'delete')
+  // ⚠ `events` left this policy 2026-10-12 (M7) — the section policies grant it
+  // with a sport_section filter and EVENT_WRITE_FIELDS on create/update.
   // `directus_files` — was unfiltered CRUD with fields '*' (audit 2026-09-28,
   // F26), i.e. every private folder: `PATCH {folder: null}` published an ID
   // scan, and a DELETE destroyed E2EE ciphertext or a receipt that backs a
@@ -3494,16 +3487,13 @@ async function main() {
   await setPermRead(SPORT_ADMIN_POLICY, 'directus_files', SPORT_ADMIN_FILE_READ)
   await setPerm(SPORT_ADMIN_POLICY, 'directus_files', 'update', { folder: { _eq: PUBLIC_IMAGES_FOLDER } }, FILE_METADATA_UPDATE_FIELDS)
   await setPerm(SPORT_ADMIN_POLICY, 'directus_files', 'delete', SPORT_ADMIN_FILE_READ)
-  // `referee_expenses` — club-wide read + create, but update/delete ONLY while
-  // the row is unpaid (`payout IS NULL`, migration 363). A reimbursed fee is
-  // the basis of a finance_payouts record; editing its amount after the
-  // transfer would make the payout snapshot and the fee disagree with no trace.
-  // Corrections to a settled fee go through finance (cancel the payout first).
+  // `referee_expenses` — moved to the section policies 2026-10-12 (M7), with
+  // the same rule as before: read + create, update/delete ONLY while the row is
+  // unpaid (`payout IS NULL`, migration 363). A reimbursed fee is the basis of a
+  // finance_payouts record; editing its amount after the transfer would make
+  // the payout snapshot and the fee disagree with no trace. Corrections to a
+  // settled fee go through finance (cancel the payout first).
   const REFEREE_EXPENSE_UNPAID = { payout: { _null: true } }
-  await setPermRead(SPORT_ADMIN_POLICY, 'referee_expenses')
-  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'create')
-  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_UNPAID)
-  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'delete', REFEREE_EXPENSE_UNPAID)
   // `email_verifications` — NO grant at all (audit 2026-08-08, finding 1).
   // This is not operational data: it is the credential store backing the
   // unauthenticated `POST /kscw/set-password` Mode 3, which treats any row with
@@ -3547,13 +3537,9 @@ async function main() {
   // it. It is registered hidden + readonly in migration 348.
   await setPermRead(SPORT_ADMIN_POLICY, 'households')
   await setPermRead(SPORT_ADMIN_POLICY, 'household_members')
-  // poll_votes — read non-anonymous polls only (2026-07-02 audit #5/#14); keep
-  // create/update/delete for oversight/correction. Anonymous results via the
-  // counts endpoint. (Full Directus admins still bypass all filters by design.)
-  await setPermRead(SPORT_ADMIN_POLICY, 'poll_votes', { poll: { anonymous: { _eq: false } } })
-  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'create')
-  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'update')
-  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'delete')
+  // poll_votes — moved to the section policies 2026-10-12 (M7): read
+  // non-anonymous polls only (2026-07-02 audit #5/#14), create/update/delete for
+  // oversight/correction, all on the section's own teams' polls.
   // basketplan_clubs (migration 279) — READ + UPDATE, no create/delete: the
   // registry is populated by the Basketplan scrape, but the contact block on it
   // is hand-maintained from the club-portals panel on the basketball settings
@@ -3563,35 +3549,35 @@ async function main() {
   // contact PII. Without the read the portals panel renders an empty club list.
   await setPermRead(SPORT_ADMIN_POLICY, 'basketplan_clubs')
   await setPerm(SPORT_ADMIN_POLICY, 'basketplan_clubs', 'update')
-  // Restricted: read/create/update on members + teams.
-  // fields = '*' on both, which is what already covers the staff-only
-  // `transfer_*` columns (migrations 234/235) that `/admin/transfers` writes —
-  // see MEMBER_STAFF_ONLY_FIELDS above. Anything added to `members` becomes
-  // Sport-Admin readable AND writable here by default; if a future column must
-  // NOT be, this loop is where it has to be field-scoped.
-  //
-  // members READ is everything EXCEPT the three credential columns
+  // Members + teams. Fields: everything except the three credential columns
   // (MEMBER_SECRET_FIELDS — audit 2026-09-28, F05), computed from the live
-  // schema so a new column still arrives by default. `ahv_nummer` and `iban`
-  // STAY: the Data Explorer shows and filters them, and the read-privacy hook
-  // limits AHV to the sport admin's own section on root and (since 2026-09-28)
-  // relational reads. What a policy row cannot do is stop a `filter[ahv_nummer]`
-  // oracle across sections — one policy serves vb_admin and bb_admin alike.
-  // Closing that needs the explorer to fetch AHV through an audited,
-  // sport-scoped endpoint, after which `ahv_nummer` leaves this list too.
-  // The same list bounds UPDATE: writing a known `ical_token` onto someone is
-  // reading their calendar, and overwriting `e2ee_*` destroys their documents.
-  // The explorer marks all three read-only and never sends them.
+  // schema so a new column still arrives by default — which is what already
+  // covers the staff-only `transfer_*` columns (migrations 234/235) that
+  // `/admin/transfers` writes. Writes also leave out the trigger-kept
+  // MEMBER_DERIVED_FIELDS (migration 406's `sport_section`; the trigger would
+  // overwrite a sent value anyway). Writing a known `ical_token` onto someone
+  // is reading their calendar, and overwriting `e2ee_*` destroys their
+  // documents; the explorer marks all three read-only and never sends them.
+  //
+  // Since 2026-10-12 (M7) only CREATE (members, teams) and the team READ stay
+  // here. The member register READ + UPDATE and the team UPDATE are the section
+  // policies' (sport-scope-permissions.mjs): a sport admin reads AHV, IBAN and
+  // address of their own section only, and the other section through the Member
+  // policy's club-public list. That also closes the `filter[ahv_nummer]` oracle
+  // across sections this comment used to call open: Directus evaluates a filter
+  // on a field only against the rows whose policy grants that field.
+  const MEMBER_DERIVED_FIELDS = ['sport_section']
   const SPORT_ADMIN_MEMBER_FIELDS = (await liveFieldNames('members'))
     .filter((f) => !MEMBER_SECRET_FIELDS.includes(f))
-  for (const col of ['members', 'teams']) {
-    const fields = col === 'members' ? SPORT_ADMIN_MEMBER_FIELDS : null
-    // CREATE too: a new row carrying a chosen `ical_token` / `e2ee_*` is the same
-    // write as the update below (2026-09-28 review of F05).
-    await setPerm(SPORT_ADMIN_POLICY, col, 'create', null, fields)
-    await setPermRead(SPORT_ADMIN_POLICY, col, null, fields)
-    await setPerm(SPORT_ADMIN_POLICY, col, 'update', null, fields)
-  }
+  const SPORT_ADMIN_MEMBER_WRITE_FIELDS = SPORT_ADMIN_MEMBER_FIELDS
+    .filter((f) => !MEMBER_DERIVED_FIELDS.includes(f))
+  // CREATE carries the field list too: a new row with a chosen `ical_token` /
+  // `e2ee_*` is the same write as an update (2026-09-28 review of F05).
+  await setPerm(SPORT_ADMIN_POLICY, 'members', 'create', null, SPORT_ADMIN_MEMBER_WRITE_FIELDS)
+  // A new team's sport is checked by the kscw-hooks sport guard (create rows
+  // cannot be row-filtered).
+  await setPerm(SPORT_ADMIN_POLICY, 'teams', 'create')
+  await setPermRead(SPORT_ADMIN_POLICY, 'teams')
   // members.delete — deliberately NOT granted (withheld since migration 027,
   // and it stays withheld). The Data Explorer's danger zone (/admin/explore →
   // member detail) deletes members through `POST /kscw/admin/delete-member`,
@@ -3620,6 +3606,26 @@ async function main() {
   await setPermRead(SPORT_ADMIN_POLICY, 'clubdesk_export', null, CLUBDESK_GRID_FIELDS)
 
   console.log(`  ✓ Sport Admin permissions set`)
+
+  // ── 9a. Sport Admin section policies (M7, 2026-10-12) ───────────
+  //
+  // `KSCW Sport Admin VB` / `KSCW Sport Admin BB`: the sport-data rows, each
+  // filtered to its section. Attached per user from members.role in §13 and by
+  // the kscw-hooks role sync; a dual sport admin holds both. The rows themselves
+  // live in sport-scope-permissions.mjs, which the dev-container harness reads
+  // too — change them there.
+
+  console.log('\n9a. Sport Admin section policies...')
+  for (const sp of SPORT_SECTION_POLICIES) {
+    const rows = sportScopedPermissions(sp.sport, {
+      memberReadFields: SPORT_ADMIN_MEMBER_FIELDS,
+      memberWriteFields: SPORT_ADMIN_MEMBER_WRITE_FIELDS,
+      eventWriteFields: EVENT_WRITE_FIELDS,
+      refereeUnpaid: REFEREE_EXPENSE_UNPAID,
+    })
+    for (const r of rows) await setPerm(sp.id, r.collection, r.action, r.permissions, r.fields)
+    console.log(`  ✓ ${sp.name}: ${rows.length} rows`)
+  }
 
   // ── 9b. Terminplanung permissions ──────────────────────────────
   //
@@ -4012,7 +4018,17 @@ async function main() {
   // whose base role IS Vorstand.
 
   const allMembersForRolePolicies = await api('GET', '/items/members?fields=user,role&limit=-1')
-  for (const [appRole, policyId, label] of [['finance', FINANCE_POLICY, 'FINANCE'], ['vorstand', VORSTAND_POLICY, 'VORSTAND']]) {
+  //
+  // vb_admin / bb_admin → `KSCW Sport Admin VB` / `BB` (M7, 2026-10-12): the
+  // sport-data half of Sport Admin. Holding it IS the section gate, so stale rows
+  // are revoked here like the others. A full admin who also carries a section
+  // flag gets the row too — harmless, admin_access bypasses rows.
+  const ROLE_POLICY_BACKFILLS = [
+    ['finance', FINANCE_POLICY, 'FINANCE'],
+    ['vorstand', VORSTAND_POLICY, 'VORSTAND'],
+    ...SPORT_SECTION_POLICIES.map((sp) => [sp.appRole, sp.id, sp.label]),
+  ]
+  for (const [appRole, policyId, label] of ROLE_POLICY_BACKFILLS) {
     console.log(`\n13. Backfilling user-level ${label} access for ${appRole} members...`)
     const wantUserIds = new Set(
       (allMembersForRolePolicies || [])

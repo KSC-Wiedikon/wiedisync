@@ -959,6 +959,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // the per-user FINANCE policy alongside the base-role sync.
         await reconcileRolePolicy(id, 'finance')
         await reconcileRolePolicy(id, 'vorstand')
+        await reconcileRolePolicy(id, 'vb_admin')
+        await reconcileRolePolicy(id, 'bb_admin')
       }
     }
     // Sync member photo → directus_users.avatar
@@ -1163,7 +1165,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Admin, a coaching board member → Team Responsible), and neither carries the
   // Vorstand policy — so /admin/finance opened for them (canAccessFinance =
   // isVorstand) and every finance read 403'd (2026-10-01).
-  const ROLE_POLICIES = { finance: 'KSCW Finance', vorstand: 'KSCW Vorstand' }
+  //
+  // vb_admin / bb_admin get their section policy the same way (2026-10-11 audit
+  // M7): `KSCW Sport Admin VB` / `BB` hold every sport-data row of the Sport
+  // Admin tier, filtered to that sport (setup-permissions.mjs §9a,
+  // sport-scope-permissions.mjs). The Directus role `Sport Admin` cannot carry
+  // them — it holds both flags' users alike.
+  const ROLE_POLICIES = {
+    finance: 'KSCW Finance',
+    vorstand: 'KSCW Vorstand',
+    vb_admin: 'KSCW Sport Admin VB',
+    bb_admin: 'KSCW Sport Admin BB',
+  }
 
   async function reconcileRolePolicy(memberId, appRole) {
     const tag = `${appRole}-access`
@@ -5407,15 +5420,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       gateRows = await db('members')
         .whereIn('id', [...new Set(ids.map(String))])
         .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private',
-          // Only for the sport resolver below — passing these in is what keeps it
-          // from running its own `members` query over the same ids.
-          'sektion', 'beitragskategorie')
+          // Only for the sport resolver below — passing it in is what keeps it
+          // from running its own `members` query over the same ids. The stored
+          // section (migration 406) is what the Sport Admin VB/BB policy rows
+          // filter on, so this hook and those rows agree on every member.
+          'sport_section')
       for (const row of gateRows) gateById.set(String(row.id), row)
     }
 
     // Section of each member on this page, for a sport-confined caller only:
-    // four queries for the WHOLE page (three junctions + teams — the `members`
-    // rows are already in hand above), and none at all for everybody else.
+    // read off the rows already in hand above — no query at all.
     const sportById = scope && ids.length > 0
       ? await resolveMemberSports(db, [...new Set(ids.map(String))], { memberRows: gateRows })
       : new Map()
@@ -7699,8 +7713,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   // Club-level roles that manage every event (members.role; full admins never
-  // reach here — accountability.admin returns first).
+  // reach here — accountability.admin returns first). Since 2026-10-12 (M7) a
+  // sport-confined holder — vb_admin or bb_admin below full admin, which every
+  // board member below full admin is — covers only the events of their own
+  // section plus club events ('both'); see clubRoleCoversEvent.
   const EVENT_CLUB_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser']
+  async function clubRoleCoversEvent(db, accountability, eventId) {
+    const caller = await callerSportScope(db, accountability)
+    return !caller || eventInScope(db, caller.scope, eventId)
+  }
   async function actorHasClubRole(db, accountability, roles) {
     const me = await db('members').where('user', accountability.user).first('role')
     const mine = Array.isArray(me?.role) ? me.role : []
@@ -7721,13 +7742,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const eventId = toIdValue(payload?.events_id)
     if (eventId == null) throw kscwScopeError('An invitation needs an event', 400, 'EVENT_REQUIRED')
     if (await actorManagesEvent(db, accountability, eventId)) return payload
-    if (await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES)) return payload
+    if (await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES)
+      && await clubRoleCoversEvent(db, accountability, eventId)) return payload
     throw kscwScopeError('You can only invite people to an event you manage', 403, 'NOT_EVENT_MANAGER')
   })
   filter('event_sessions.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user || accountability.admin) return payload
-    if (!(await actorManagesEvent(db, accountability, toIdValue(payload?.event)))
-      && !(await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES))) {
+    const eventId = toIdValue(payload?.event)
+    if (!(await actorManagesEvent(db, accountability, eventId))
+      && !(await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES)
+        && await clubRoleCoversEvent(db, accountability, eventId))) {
       throw kscwScopeError('You can only add days to an event you manage', 403, 'NOT_TEAM_LEADER')
     }
     return payload
@@ -7777,6 +7801,136 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     for (const f of EVENT_ENDPOINT_OWNED) delete payload[f]
     return payload
   })
+
+  // ── Sport scope on writes (2026-10-11 audit M7) ──────────────────────────
+  // A vb_admin / bb_admin below full admin — every board member below full admin
+  // is one (402/403) — is confined to their sport. The section policies
+  // (`KSCW Sport Admin VB` / `BB`, sport-scope-permissions.mjs) confine which
+  // EXISTING rows they read, edit and delete. Two writes no row filter sees:
+  //   - a CREATE (Directus has no row to match), and
+  //   - an UPDATE that moves a row of their own sport INTO the other one
+  //     (the filter is checked against the row as it was).
+  // This guard checks both, for confined callers only. Everybody else keeps the
+  // guards above (actorLeadsTeam & co.), which already treat a sport admin as the
+  // lead of every team of their own sport and nothing more.
+  //
+  // What may a confined caller still write in the other sport? Exactly what a
+  // coach may: a team they coach or are responsible for (actorLeadsTeam), their
+  // own rows, and rows of a member they coach. A row with no team is club-level.
+
+  /** null → unconfined (not a sport admin, a dual one, or a full admin). */
+  async function callerSportScope(db, accountability) {
+    if (!accountability?.user || accountability.admin) return null
+    const me = await db('members').where('user', accountability.user).select('id', 'role').first()
+    const scope = sportAdminScope(Array.isArray(me?.role) ? me.role : [])
+    return scope ? { scope, meId: me.id } : null
+  }
+
+  async function teamInScope(db, accountability, scope, teamId) {
+    if (teamId == null) return true
+    const team = await db('teams').where('id', teamId).select('sport').first()
+    if (team && team.sport === scope) return true
+    return actorLeadsTeam(db, accountability, teamId)
+  }
+
+  async function gameInScope(db, accountability, scope, gameId) {
+    if (gameId == null) return true
+    const game = await db('games').where('id', gameId).select('kscw_team').first()
+    return teamInScope(db, accountability, scope, game?.kscw_team ?? null)
+  }
+
+  async function eventInScope(db, scope, eventId) {
+    if (eventId == null) return true
+    const ev = await db('events').where('id', eventId).select('sport_section').first()
+    return !ev || ev.sport_section === 'both' || ev.sport_section === scope
+  }
+
+  async function memberInScope(db, accountability, caller, memberId) {
+    if (memberId == null || String(memberId) === String(caller.meId)) return true
+    const sports = await resolveMemberSports(db, [memberId])
+    if (sportScopeAllows(caller.scope, sports.get(String(memberId)))) return true
+    // A coach / TR of a team the member plays on (any season — a coach
+    // correcting last season's RSVP is still that coach).
+    const teams = await db('member_teams').where('member', memberId).select('team')
+    for (const t of teams) if (await actorLeadsTeam(db, accountability, t.team)) return true
+    return false
+  }
+
+  const OUT_OF_SPORT = 'This belongs to the other sport — only its admins can change it'
+
+  // collection → the fields that decide the row's sport, checked on create and
+  // on an update that sends them. Not here: participations and absences (create
+  // is owner-checked by assertCreateOwnership, which already confines a sport
+  // admin to the member's teams' sport, and `member` is immutable on update).
+  const SPORT_SCOPED_WRITES = {
+    games: { team: 'kscw_team' },
+    trainings: { team: 'team' },
+    referee_expenses: { team: 'team' },
+    slot_claims: { team: 'claimed_by_team' },
+    polls: { team: 'team' },
+    team_requests: { team: 'team' },
+    game_guests: { game: 'game' },
+    game_guest_teams: { game: 'game' },
+    scorer_delegations: { game: 'game' },
+    notifications: { member: 'member' },
+  }
+
+  async function assertSportScopedWrite(collection, payload, accountability, db) {
+    if (!payload || typeof payload !== 'object') return
+    const caller = await callerSportScope(db, accountability)
+    if (!caller) return
+    const spec = SPORT_SCOPED_WRITES[collection]
+    const has = (f) => Object.prototype.hasOwnProperty.call(payload, f)
+    if (spec.team && has(spec.team)
+      && !(await teamInScope(db, accountability, caller.scope, toIdValue(payload[spec.team])))) {
+      throw kscwScopeError(OUT_OF_SPORT, 403, 'OUT_OF_SPORT_SCOPE')
+    }
+    if (spec.game && has(spec.game)
+      && !(await gameInScope(db, accountability, caller.scope, toIdValue(payload[spec.game])))) {
+      throw kscwScopeError(OUT_OF_SPORT, 403, 'OUT_OF_SPORT_SCOPE')
+    }
+    if (spec.member && has(spec.member)
+      && !(await memberInScope(db, accountability, caller, toIdValue(payload[spec.member])))) {
+      throw kscwScopeError(OUT_OF_SPORT, 403, 'OUT_OF_SPORT_SCOPE')
+    }
+  }
+
+  for (const coll of Object.keys(SPORT_SCOPED_WRITES)) {
+    for (const op of ['create', 'update']) {
+      filter(`${coll}.items.${op}`, async (payload, _meta, { accountability, database: db }) => {
+        await assertSportScopedWrite(coll, payload, accountability, db ?? database)
+        return payload
+      })
+    }
+  }
+
+  // teams: a confined admin creates and edits teams of their own sport only.
+  // The section policy already limits WHICH teams they update; this stops a
+  // create in, or a move to, the other sport. A team with no sport matches no
+  // section, so it is refused too.
+  for (const op of ['create', 'update']) {
+    filter(`teams.items.${op}`, async (payload, _meta, { accountability, database: db }) => {
+      if (!payload || (op === 'update' && !Object.prototype.hasOwnProperty.call(payload, 'sport'))) return payload
+      const caller = await callerSportScope(db ?? database, accountability)
+      if (caller && payload.sport !== caller.scope) {
+        throw kscwScopeError('A team you create or edit must belong to your sport', 403, 'OUT_OF_SPORT_SCOPE')
+      }
+      return payload
+    })
+  }
+
+  // hall_slots carry their own `sport` column: no moving a slot to the other
+  // sport, no creating one there. A slot with no sport is club-level.
+  for (const op of ['create', 'update']) {
+    filter(`hall_slots.items.${op}`, async (payload, _meta, { accountability, database: db }) => {
+      if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'sport') || payload.sport == null) return payload
+      const caller = await callerSportScope(db ?? database, accountability)
+      if (caller && payload.sport !== caller.scope) {
+        throw kscwScopeError(OUT_OF_SPORT, 403, 'OUT_OF_SPORT_SCOPE')
+      }
+      return payload
+    })
+  }
 
   // ── Public image references: only your own upload (audit 2026-09-28, F01) ──
   // Migration 388 publishes a freshly uploaded raster file the moment one of
