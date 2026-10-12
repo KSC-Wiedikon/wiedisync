@@ -948,8 +948,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Video recordings / livestream — every member sees them; coach/TR/admin edit */}
         <GameRecordingsSection gameId={game.id} canManage={!readOnly && canEditAsCoach} upcoming={game.status === 'scheduled' || game.status === 'live'} />
 
-        {/* Referee expenses — volleyball home games, staff only (coach/TR/admin) */}
-        {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff && (
+        {/* Referee expenses — volleyball home games, staff only (coach/TR/admin).
+            Not when a club duty team referees it (HU20): no federation referee, no fee. */}
+        {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff
+          && !expanded.referee_duty_team && !expanded.referee_member && (
           <div className="border-t border-hairline px-6 py-4">
             <RefereeExpenseSection
               gameId={game.id}

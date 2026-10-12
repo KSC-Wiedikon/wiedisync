@@ -574,12 +574,14 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       // The season's volleyball home games — the page lets the team's staff
       // record a referee fee per game right here (same editor as the game
-      // modal). Same gate as that modal: home, an opponent, not called off.
+      // modal). Same gate as that modal: home, an opponent, not called off,
+      // and not refereed by a club duty team (HU20 — no federation fee).
       const isVolleyball = String(team.sport || '').trim().toLowerCase() === 'volleyball'
       const homeGames = isVolleyball
         ? await database('games')
           .where({ kscw_team: teamId, type: 'home', season })
           .whereNotNull('away_team')
+          .whereNull('referee_duty_team').whereNull('referee_member')
           .where((qb) => qb.whereNull('status').orWhereNotIn('status', ['cancelled', 'postponed']))
           .orderBy([{ column: 'date', order: 'desc' }, { column: 'time', order: 'desc' }])
           .select('id', database.raw('date::text as date'), database.raw('time::text as time'), 'home_team', 'away_team', 'league', 'status')
