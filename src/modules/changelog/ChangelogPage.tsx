@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.29.0'
+const APP_VERSION = '2.29.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.29.1',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          'You are no longer signed out a week after logging in while you keep using the app. On phones this showed as the login screen appearing after switching back to the app.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.29.0',
     date: '12.10.2026',

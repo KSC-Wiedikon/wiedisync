@@ -22,6 +22,7 @@ export { isSessionExpired } from './sessionError'
 import { isRefreshRejected } from './sessionError'
 import { clearAllCachedDocuments } from './e2eeStore'
 import { hasNativeBridge, hasNativeFeature, nativeRequest, type NativePushState } from './nativeBridge'
+import { hintRenewingStorage } from './authHintStorage'
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -136,7 +137,10 @@ const SDK_BASE = API_URL.startsWith('/') && typeof window !== 'undefined'
   ? `${window.location.origin}${API_URL}`
   : API_URL
 export const client = createDirectus(SDK_BASE, { globals: { fetch: actingAwareFetch } })
-  .with(authentication('session', { credentials: 'include', autoRefresh: true }))
+  // The storage renews the auth hint on every login AND refresh (the SDK's own
+  // autoRefresh too), so the hint expires with the sliding server session instead
+  // of 7 days after login — see authHintStorage.ts.
+  .with(authentication('session', { credentials: 'include', autoRefresh: true, storage: hintRenewingStorage(() => setAuthHint(true)) }))
   .with(rest({
     credentials: 'include',
     // Stamps the acting-member header on every SDK data request. Applied ONLY
