@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.31.0 — 2026-10-12
+
+### Changed
+
+- When a team is called up for a game, its coaches and team responsibles are now called up too, as staff. They see the game on their home page and calendar, get a notification and can answer, but don't count as players. Upcoming games that already have a team called up get its coaches added, without a notification.
+
 ## v2.30.0 — 2026-10-12
 
 ### New
