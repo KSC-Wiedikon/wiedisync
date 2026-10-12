@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.29.1 — 2026-10-12
+
+### Fixed
+
+- You are no longer signed out a week after logging in while you keep using the app. On phones this showed as the login screen appearing after switching back to the app.
+
 ## v2.29.0 — 2026-10-12
 
 ### New
