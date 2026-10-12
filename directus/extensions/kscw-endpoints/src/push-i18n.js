@@ -303,6 +303,15 @@ const T = {
     fr: '{team} souhaite que tu dépannes : {matchup} le {date}',
     it: '{team} ti chiede di dare una mano: {matchup} il {date}',
   },
+  // Same push for a coach / team responsible of a called-up team (migration 408):
+  // they come along with their team rather than fill in.
+  'gameInviteStaff.body': {
+    de: '{team} hat dein Team aufgeboten: {matchup} am {date}',
+    gsw: '{team} het dis Team ufbotte: {matchup} am {date}',
+    en: '{team} called up your team: {matchup} on {date}',
+    fr: '{team} a convoqué ton équipe : {matchup} le {date}',
+    it: '{team} ha convocato la tua squadra: {matchup} il {date}',
+  },
   // Fines (migration 069) — leader-issued by coach/TR, member is the recipient.
   // {team} = team name, {amount} = "CHF 5.00" (preformatted by caller),
   // {reason} = short freeform from the leader (already trimmed/escaped).

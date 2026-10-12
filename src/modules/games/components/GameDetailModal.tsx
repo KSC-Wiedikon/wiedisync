@@ -15,7 +15,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useRsvpLabels } from '../../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
-import { useIsCalledUpToGame } from '../../../hooks/useUserVisibleGameIds'
+import { useGameCallUp } from '../../../hooks/useUserVisibleGameIds'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
@@ -225,10 +225,11 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   })
   const guestTeamIds = (guestOpeningsRaw ?? []).map((o) => relId(o.team)).filter(Boolean)
   // Called-up players (migration 271) are not on this team's roster, so the
-  // team-scoped canParticipateIn misses them — see useIsCalledUpToGame.
-  const isCalledUp = useIsCalledUpToGame(user?.id, game?.id)
+  // team-scoped canParticipateIn misses them — see useGameCallUp. A called-up
+  // team's coach / TR answers as staff (migration 408).
+  const { calledUp: isCalledUp, asStaff: calledUpAsStaff } = useGameCallUp(user?.id, game?.id)
   const canParticipate = !!user && !!game?.kscw_team && (canParticipateIn(relId(game.kscw_team)) || isCalledUp)
-  const isStaffParticipant = !!game?.kscw_team && isStaffOnly(relId(game.kscw_team))
+  const isStaffParticipant = (!!game?.kscw_team && isStaffOnly(relId(game.kscw_team))) || calledUpAsStaff
   const { answeringFor } = useRsvpLabels()
   const { effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'game',

@@ -92,7 +92,8 @@ function safeDateStr(input) {
  * this TEAM" (someone training along who may not play league games — see
  * trg_participations_guest_block), which is the opposite of a game guest, who was
  * invited precisely in order to play. The existing `guest_level = 0` filters in these
- * queries therefore include them, which is what we want.
+ * queries therefore include them, which is what we want. A called-up team's coaches
+ * and team responsibles come through the same rows with `is_staff` (migration 408).
  *
  * Staff are the `teamPeopleSql` set inlined (coaches ∪ team responsibles, minus anyone
  * already on the roster — a player-coach is a player, one row). They were missing from
@@ -109,7 +110,7 @@ const GAME_SQUAD_JOIN = `JOIN (
           SELECT g2.id AS game, mt2.member, COALESCE(mt2.guest_level, 0) AS guest_level, false AS is_staff
           FROM games g2 JOIN member_teams mt2 ON mt2.team = g2.kscw_team
           UNION
-          SELECT gg.game, gg.member, 0, false FROM game_guests gg
+          SELECT gg.game, gg.member, 0, gg.is_staff FROM game_guests gg
           UNION
           SELECT g3.id, s.members_id, 0, true
           FROM games g3
@@ -8120,12 +8121,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // borrowed for is exactly the one they must not miss.
   //
   // Fires per materialized row, which covers both paths: an individual invite is one
-  // row, and a team opening is one row per player written by the migration-271
-  // trigger. Trigger-written rows carry no accountability, so the guard above lets
+  // row, and a team opening is one row per player — and per coach / team responsible
+  // since migration 408 — written by the migration-271 trigger. Trigger-written rows carry no accountability, so the guard above lets
   // them through and this action still runs.
   async function notifyGameGuest(guestId) {
     const guest = await database('game_guests').where('id', guestId)
-      .select('id', 'game', 'member', 'via_team').first()
+      .select('id', 'game', 'member', 'via_team', 'is_staff').first()
     if (!guest?.member || !guest.game) return
 
     const game = await database('games').where('id', guest.game)
@@ -8166,7 +8167,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       [guest.member],
       (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/games`, `game-invite-${game.id}`, log),
       'gameInvite.title',
-      'gameInvite.body',
+      // A called-up team's coach / TR (migration 408) comes along as staff, not to fill in.
+      guest.is_staff ? 'gameInviteStaff.body' : 'gameInvite.body',
       { team: teamName, matchup, date: dateFmt },
     )
   }

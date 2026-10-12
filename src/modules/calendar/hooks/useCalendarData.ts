@@ -375,7 +375,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
 
   // Guest invitations (migration 271) survive the team filter — see addGameTeamFilter.
   // ⚠ Gating the hook is NOT enough on its own: this is react-query, and the
-  // `game_guests` key is already populated by GameCard/useIsCalledUpToGame, so a
+  // `game_guests` key is already populated by GameCard/useGameCallUp, so a
   // disabled hook still hands back that cached array. The ids must ALSO be dropped
   // where they are consumed, below.
   const { guestGameIds } = useUserVisibleGameIds(user?.id, enabled && authed && includeViewerGuestGames)

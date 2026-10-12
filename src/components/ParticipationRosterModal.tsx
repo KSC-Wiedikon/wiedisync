@@ -256,9 +256,10 @@ export default function ParticipationRosterModal({
     id: string
     member: Member | string
     via_team: { id: string | number; name?: string } | string | null
+    is_staff?: boolean
   }>('game_guests', {
     filter: { game: { _eq: activityId ?? '' } },
-    fields: ['id', 'member.*', 'via_team.id', 'via_team.name'],
+    fields: ['id', 'member.*', 'via_team.id', 'via_team.name', 'is_staff'],
     all: true,
     enabled: guestQueryEnabled,
   })
@@ -280,15 +281,27 @@ export default function ParticipationRosterModal({
    *  and then silently grew. It now holds the skeleton up instead. */
   const gameGuestsLoading = guestQueryEnabled && (gameGuestsFetching || gameGuestRowsArePrevious)
 
+  // Players only. A called-up team's coaches / TRs (migration 408) carry `is_staff`
+  // and go to the Staff section below — never into the player list or its counts.
   const gameGuests: Member[] = useMemo(
     () => gameGuestRows
+      .filter((r) => !r.is_staff)
       .map((r) => asObj<Member>(r.member))
       .filter((m): m is Member => m !== null)
       .map((m) => ({ ...m, id: String(m.id) })),
     [gameGuestRows],
   )
 
-  /** memberId → the team they were borrowed from ('' when invited individually). */
+  const gameGuestStaffIds = useMemo(
+    () => gameGuestRows
+      .filter((r) => r.is_staff)
+      .map((r) => String(asObj<Member>(r.member)?.id ?? ''))
+      .filter(Boolean),
+    [gameGuestRows],
+  )
+
+  /** memberId → the team they were borrowed from ('' when invited individually).
+   *  Players and called-up staff alike — both rows carry the badge. */
   const gameGuestOrigin = useMemo(() => {
     const map = new Map<string, string>()
     for (const r of gameGuestRows) {
@@ -873,7 +886,7 @@ export default function ParticipationRosterModal({
   //     identity, so the fetch fires exactly when it used to.
   // `staffFetchIds` (null = nothing to fetch) is what carries the derived IDs
   // from render into the effect, so the two halves can't drift apart.
-  const staffDeps = [open, activityId, activityType, isClubWide, rosterMemberIds.join(','), staffPartsRaw, teamsRaw] as const
+  const staffDeps = [open, activityId, activityType, isClubWide, rosterMemberIds.join(','), staffPartsRaw, teamsRaw, gameGuestStaffIds] as const
   const [prevStaffDeps, setPrevStaffDeps] = useState<readonly unknown[] | null>(null)
   const [staffFetchIds, setStaffFetchIds] = useState<string[] | null>(null)
   if (prevStaffDeps === null || staffDeps.some((v, i) => !Object.is(v, prevStaffDeps[i]))) {
@@ -895,6 +908,8 @@ export default function ParticipationRosterModal({
       }
       const staffMemberIds = [...new Set([
         ...leadershipIds,
+        // A called-up team's coaches / TRs (migration 408), listed before they answer.
+        ...gameGuestStaffIds.filter((id) => !memberIdSet.has(id)),
         ...staffOnlyParts.map((p) => String(p.member)),
       ])]
 
@@ -2526,6 +2541,18 @@ export default function ParticipationRosterModal({
                       <div className="min-w-0 flex-1">
                         <p className="break-words text-sm text-foreground">
                           {displayNames.get(String(member.id)) ?? memberFirstName(member)}
+                          {/* Coach / TR of a called-up team (migration 408): same badge
+                              as the players that team brought. */}
+                          {gameGuestOrigin.has(String(member.id)) && (
+                            <span
+                              title={gameGuestOrigin.get(String(member.id))
+                                ? t('gameGuestFrom', { team: gameGuestOrigin.get(String(member.id)) })
+                                : t('gameGuestIndividual')}
+                              className="ml-1.5 inline-block rounded bg-sky-100 px-1 py-px align-middle text-[10px] font-medium leading-tight text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+                            >
+                              {gameGuestOrigin.get(String(member.id)) || t('gameGuestBadge')}
+                            </span>
+                          )}
                         </p>
                         {showRsvpTime && ts && (
                           <RsvpTimestamp datetime={ts} locale={i18n.language} />
