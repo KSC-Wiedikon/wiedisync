@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-09T09:31:27.201Z
+-- Generated:   2026-10-12T08:06:46.168Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict UrDdtpOmEOo58YANdK0v2JWWbr7bnkO4AENRk3Ye89mbC0eIdJRxodRM8YQa1Tl
+\restrict wUNNHbDJYJ10OS49ITm2vtn1ZcN42NfayiDekOKXccdAGGCB3Qu42PFoa1GoZTI
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1320,8 +1320,29 @@ END $$;
 
 CREATE FUNCTION public.staff_gratis_fill() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
+DECLARE
+  v_clubdesk_id    text;
+  v_pending_before boolean;
+  v_revision_hwm   bigint;
 BEGIN
+  -- 262's rule, unchanged. Row-locked first, so the row the UPDATE changes is
+  -- the row that was judged and pending_before is its real prior value.
+  SELECT m.clubdesk_id, m.clubdesk_push_pending
+    INTO v_clubdesk_id, v_pending_before
+    FROM members m
+   WHERE m.id = NEW.members_id
+     AND COALESCE(BTRIM(m.beitragskategorie), '') = ''
+     AND m.kscw_membership_active IS TRUE
+     AND NOT EXISTS (SELECT 1 FROM member_teams mt
+                      WHERE mt.member = NEW.members_id
+                        AND COALESCE(mt.guest_level, 0) = 0)
+     FOR UPDATE OF m;
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+
   UPDATE members m SET
     beitragskategorie = 'Gratis',
     clubdesk_push_pending = CASE WHEN m.clubdesk_id IS NOT NULL
@@ -1333,14 +1354,201 @@ BEGIN
       || jsonb_build_array(jsonb_build_object(
            'field', 'beitragskategorie', 'old_value', NULL, 'new_value', 'Gratis'))
       ELSE m.clubdesk_push_changes END
-  WHERE m.id = NEW.members_id
-    AND COALESCE(BTRIM(m.beitragskategorie), '') = ''
-    AND m.kscw_membership_active IS TRUE
-    AND NOT EXISTS (SELECT 1 FROM member_teams mt
-                     WHERE mt.member = NEW.members_id
-                       AND COALESCE(mt.guest_level, 0) = 0);
+  WHERE m.id = NEW.members_id;
+
+  -- High-water mark for the revert's directus_revisions backstop. Directus owns
+  -- that table and it is not in SCHEMA.sql, hence the guard (a bare database
+  -- has none; plpgsql only plans the SELECT when it runs).
+  IF to_regclass('public.directus_revisions') IS NOT NULL THEN
+    SELECT COALESCE(max(r.id), 0) INTO v_revision_hwm FROM directus_revisions r;
+  END IF;
+
+  INSERT INTO user_logs (action, collection_name, record_id, data, "user", date_created)
+  VALUES ('fee_category_auto', 'members', NEW.members_id::text,
+          jsonb_build_object(
+            'source', 'staff_gratis_fill',
+            'field', 'beitragskategorie',
+            'value', 'Gratis',
+            'team', NEW.teams_id,
+            'junction', TG_TABLE_NAME,
+            'junction_id', NEW.id,
+            'clubdesk_queued', v_clubdesk_id IS NOT NULL,
+            'pending_before', v_pending_before,
+            'revision_hwm', v_revision_hwm)::json,
+          NULL, now());
+
   RETURN NEW;
 END $$;
+
+
+--
+-- Name: FUNCTION staff_gratis_fill(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.staff_gratis_fill() IS 'AFTER INSERT on teams_coaches / teams_responsibles: an empty fee category of an active, staff-only member becomes ''Gratis'' and is queued for the ClubDesk push (migration 262); every fill writes a user_logs ''fee_category_auto'' row (migration 405).';
+
+
+--
+-- Name: staff_gratis_revert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.staff_gratis_revert() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  v_member      integer := OLD.members_id;
+  m             record;
+  fill          record;
+  v_hwm         bigint;
+  v_changes     jsonb;
+  v_had_entry   boolean := false;
+  v_in_flight   boolean;
+  v_reached     boolean;
+  v_clear       boolean;
+BEGIN
+  -- Still staff somewhere (checked at COMMIT) → no seat ended. Cheapest test
+  -- first: both junctions are a few hundred rows.
+  IF EXISTS (SELECT 1 FROM teams_coaches WHERE members_id = v_member)
+     OR EXISTS (SELECT 1 FROM teams_responsibles WHERE members_id = v_member) THEN
+    RETURN NULL;
+  END IF;
+
+  BEGIN
+    -- Locked so nothing changes the row between the checks and the UPDATE.
+    -- NOT FOUND = the member was deleted and took this junction row with it.
+    SELECT mm.beitragskategorie, mm.clubdesk_id, mm.clubdesk_push_pending,
+           mm.clubdesk_push_changes, mm.clubdesk_pushed_at, mm.date_updated
+      INTO m
+      FROM members mm
+     WHERE mm.id = v_member
+       FOR UPDATE;
+    IF NOT FOUND OR m.beitragskategorie IS DISTINCT FROM 'Gratis' THEN
+      RETURN NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM member_teams mt
+                WHERE mt.member = v_member
+                  AND COALESCE(mt.guest_level, 0) = 0) THEN
+      RETURN NULL;
+    END IF;
+
+    -- The newest fee-category row on this member must be the fill's.
+    SELECT l.id, l.action, l.date_created, l.data
+      INTO fill
+      FROM user_logs l
+     WHERE l.collection_name = 'members'
+       AND l.record_id = v_member::text
+       AND strpos(COALESCE(l.data::text, ''), 'beitragskategorie') > 0
+     ORDER BY l.id DESC
+     LIMIT 1;
+    IF NOT FOUND OR fill.action IS DISTINCT FROM 'fee_category_auto' THEN
+      RETURN NULL;
+    END IF;
+
+    -- Backstop: an items-API write in system context names the column in a
+    -- revision but leaves no user_logs row.
+    v_hwm := (fill.data->>'revision_hwm')::bigint;
+    IF v_hwm IS NOT NULL AND to_regclass('public.directus_revisions') IS NOT NULL THEN
+      IF EXISTS (SELECT 1 FROM directus_revisions r
+                  WHERE r.id > v_hwm
+                    AND r.collection = 'members'
+                    AND r.item = v_member::text
+                    AND strpos(COALESCE(r.delta::text, ''), 'beitragskategorie') > 0) THEN
+        RETURN NULL;
+      END IF;
+    END IF;
+
+    -- ClubDesk: is a sync-up carrying this member queued or running (its CSV is
+    -- already built), or was the member pushed since the fill?
+    v_in_flight := EXISTS (
+      SELECT 1 FROM clubdesk_member_sync s
+       WHERE s.id = 1
+         AND s.up_state IN ('queued', 'running')
+         AND jsonb_typeof(s.up_member_ids) = 'array'
+         AND (s.up_member_ids @> to_jsonb(v_member)
+              OR s.up_member_ids @> to_jsonb(v_member::text)));
+    -- Unknown counts as reached: a false "check ClubDesk" is cheap, a missed one is not.
+    v_reached := COALESCE(v_in_flight
+      OR (m.clubdesk_pushed_at IS NOT NULL AND m.clubdesk_pushed_at >= fill.date_created), true);
+
+    -- Drop the queued 'Gratis' entry (262's shape); keep every other entry.
+    IF jsonb_typeof(m.clubdesk_push_changes) = 'array' AND EXISTS (
+         SELECT 1 FROM jsonb_array_elements(m.clubdesk_push_changes) e
+          WHERE e->>'field' = 'beitragskategorie'
+            AND e->>'new_value' = 'Gratis') THEN
+      v_had_entry := true;
+      SELECT COALESCE(jsonb_agg(t.e ORDER BY t.ord), '[]'::jsonb)
+        INTO v_changes
+        FROM jsonb_array_elements(m.clubdesk_push_changes) WITH ORDINALITY AS t(e, ord)
+       WHERE t.e->>'field' IS DISTINCT FROM 'beitragskategorie';
+    END IF;
+
+    -- The pending flag goes only when the fill was provably its sole reason
+    -- (see header: "array empty" alone is no proof).
+    v_clear := COALESCE(v_had_entry
+      AND jsonb_array_length(v_changes) = 0
+      AND NOT v_reached
+      AND (fill.data->>'pending_before') = 'false'
+      AND (m.date_updated IS NULL OR m.date_updated <= fill.date_created)
+      AND NOT EXISTS (SELECT 1 FROM user_logs l
+                       WHERE l.collection_name = 'members'
+                         AND l.record_id = v_member::text
+                         AND l.id > fill.id), false);
+
+    UPDATE members SET
+      beitragskategorie = NULL,
+      clubdesk_push_changes = CASE WHEN v_had_entry
+        THEN NULLIF(v_changes, '[]'::jsonb) ELSE clubdesk_push_changes END,
+      clubdesk_push_pending = CASE WHEN v_clear
+        THEN false ELSE clubdesk_push_pending END
+    WHERE id = v_member;
+
+    INSERT INTO user_logs (action, collection_name, record_id, data, "user", date_created)
+    VALUES ('fee_category_auto_revert', 'members', v_member::text,
+            jsonb_build_object(
+              'source', 'staff_gratis_revert',
+              'field', 'beitragskategorie',
+              'old_value', 'Gratis',
+              'value', NULL,
+              'team', OLD.teams_id,
+              'junction', TG_TABLE_NAME,
+              'junction_id', OLD.id,
+              'auto_fill_log', fill.id,
+              'clubdesk', CASE WHEN v_reached THEN 'needs_manual_fix'
+                               WHEN v_had_entry THEN 'push_dequeued'
+                               ELSE 'not_pushed' END,
+              'push_entry_removed', v_had_entry,
+              'push_pending_cleared', v_clear)::json,
+            NULL, now());
+
+    IF v_reached THEN
+      INSERT INTO user_logs (action, collection_name, record_id, data, "user", date_created)
+      VALUES ('fee_category_auto_revert_needs_clubdesk', 'members', v_member::text,
+              jsonb_build_object(
+                'source', 'staff_gratis_revert',
+                'field', 'beitragskategorie',
+                'clubdesk_value', 'Gratis',
+                'clubdesk_id', m.clubdesk_id,
+                'reason', CASE WHEN v_in_flight THEN 'push_in_flight' ELSE 'pushed' END,
+                'pushed_at', m.clubdesk_pushed_at,
+                'auto_fill_log', fill.id,
+                'action_needed', 'Clear the auto-assigned Gratis Beitragskategorie in ClubDesk by hand: the sync-up never blanks a register cell, and until then a sync-down proposes Gratis back.')::json,
+              NULL, now());
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'staff_gratis_revert: member % not reverted: % (SQLSTATE %)',
+      v_member, SQLERRM, SQLSTATE;
+  END;
+
+  RETURN NULL;
+END $$;
+
+
+--
+-- Name: FUNCTION staff_gratis_revert(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.staff_gratis_revert() IS 'Deferred AFTER DELETE on teams_coaches / teams_responsibles: when the member holds no staff seat left and the fee category is still the untouched ''Gratis'' of staff_gratis_fill (its user_logs row is the newest fee-category entry), it goes back to NULL and the queued ClubDesk entry is dropped; a value that may already be in ClubDesk is flagged ''fee_category_auto_revert_needs_clubdesk'' (migration 405).';
 
 
 --
@@ -16535,6 +16743,20 @@ CREATE TRIGGER trg_staff_gratis_responsibles AFTER INSERT ON public.teams_respon
 
 
 --
+-- Name: teams_coaches trg_staff_gratis_revert_coaches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_staff_gratis_revert_coaches AFTER DELETE ON public.teams_coaches DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.staff_gratis_revert();
+
+
+--
+-- Name: teams_responsibles trg_staff_gratis_revert_responsibles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_staff_gratis_revert_responsibles AFTER DELETE ON public.teams_responsibles DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.staff_gratis_revert();
+
+
+--
 -- Name: teams_coaches trg_teams_coaches_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18746,7 +18968,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict UrDdtpOmEOo58YANdK0v2JWWbr7bnkO4AENRk3Ye89mbC0eIdJRxodRM8YQa1Tl
+\unrestrict wUNNHbDJYJ10OS49ITm2vtn1ZcN42NfayiDekOKXccdAGGCB3Qu42PFoa1GoZTI
 
 
 
@@ -18762,7 +18984,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 407 migration(s) already in the schema above.
+-- Migration tracker seed — 409 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19182,6 +19404,8 @@ FROM (VALUES
   ('400-bb-tournament-wishes.sql'),
   ('401-game-call-up-core-only.sql'),
   ('402-vorstand-implies-admin.sql'),
-  ('403-vorstand-admin-scope.sql')
+  ('403-vorstand-admin-scope.sql'),
+  ('404-sql-workspace-reader-role.sql'),
+  ('405-staff-gratis-audit-revert.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
