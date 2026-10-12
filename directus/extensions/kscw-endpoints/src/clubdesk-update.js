@@ -12,6 +12,7 @@ import {
   sexDisplay, sexPushLabel,
 } from './federations.js'
 import { resolveMemberSportsDetailed } from './member-sport.js'
+import { callerSportScope, membersInScope, parseRoles } from './sport-scope.js'
 
 /** Canonical form for an outgoing push cell; unrewritable values pass raw
  *  (result.value carries the raw input when ok is false). */
@@ -2801,6 +2802,19 @@ export async function linkBackAutoSyncedMembers(database, log) {
   }
 }
 
+/**
+ * Who may read the per-member /clubdesk-sync-status verdicts → null when
+ * refused, else `{ sportScope }`. Global admins, the board and sport admins; a
+ * sport-confined caller (M7, 2026-10-12) only gets the verdicts of members in
+ * their own section. Pure; exported for the test.
+ */
+export function syncStatusAccess(roles, { directusAdmin = false } = {}) {
+  if (directusAdmin) return { sportScope: null }
+  const list = parseRoles(roles)
+  if (!['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin'].some((r) => list.includes(r))) return null
+  return { sportScope: callerSportScope(list) }
+}
+
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'clubdesk-update' })
 
@@ -2843,16 +2857,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // (no PII), consumed by the Data Explorer grid, so it opens to the same
   // audience that manages members there: global admins + Vorstand + sport
   // admins. Sensitive PII/mutating ClubDesk routes stay on superGate.
+  // → null when refused, else `{ sportScope }`: a sport-confined caller (M7,
+  // 2026-10-12) only gets verdicts for members of their own section.
   async function syncStatusGate(req) {
-    if (req.accountability?.admin) return true
+    if (req.accountability?.admin) return syncStatusAccess([], { directusAdmin: true })
     const userId = req.accountability?.user
-    if (!userId) return false
+    if (!userId) return null
     const m = await database('members').where('user', userId).first('role')
-    if (!m) return false
-    const roles = Array.isArray(m.role)
-      ? m.role
-      : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
-    return ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin'].some((r) => roles.includes(r))
+    return m ? syncStatusAccess(m.role) : null
   }
 
   // ── Down ↔ up mutual exclusion (2026-08-04) ─────────────────────────────────
@@ -4412,9 +4424,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
   router.get('/clubdesk-sync-status', async (req, res) => {
     try {
-      if (!(await syncStatusGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const gate = await syncStatusGate(req)
+      if (!gate) return res.status(403).json({ error: 'Forbidden' })
       const { statuses } = await computeMemberSyncStatuses()
-      return res.json({ statuses })
+      if (!gate.sportScope) return res.json({ statuses })
+      const visible = await membersInScope(database, gate.sportScope, Object.keys(statuses))
+      return res.json({ statuses: Object.fromEntries(Object.entries(statuses).filter(([id]) => visible.has(id))) })
     } catch (err) {
       log.error({ msg: `clubdesk-sync-status: ${err.message}`, endpoint: 'clubdesk-sync-status', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

@@ -26,6 +26,7 @@
 import crypto from 'node:crypto'
 import { clientIp } from './client-ip.js'
 import { writeUserLog } from './activity-log.js'
+import { sportAdminCovers } from './event-notify.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -78,7 +79,8 @@ function hashIp(ip) {
     .slice(0, 64)
 }
 
-const ELEVATED_ROLES = new Set(['admin', 'superuser', 'vb_admin', 'bb_admin'])
+/** Roles that may manage any event. Sport admins only for their own sport, below. */
+const ELEVATED_ROLES = new Set(['admin', 'superuser'])
 
 function parseRoles(raw) {
   if (Array.isArray(raw)) return raw
@@ -88,18 +90,29 @@ function parseRoles(raw) {
 
 /**
  * Same authority as creating an OpnForm signup form (event-signup-form.js):
- * admin, sport admin, or the event's creator. Deliberately NOT the coach/TR
- * branch — minting this token publishes a URL that reaches outside the club,
- * which is a narrower thing to hand out than notifying your own team.
+ * admin, the event's creator, or a sport admin for an event of their own sport
+ * (2026-09-28 audit F59 — this copy had kept vb_admin/bb_admin club-wide until
+ * M7, 2026-10-12). Deliberately NOT the coach/TR branch — minting this token
+ * publishes a URL that reaches outside the club, which is a narrower thing to
+ * hand out than notifying your own team. Exported for the test.
  */
-async function authorizeEventAdmin(database, accountability, event) {
+export async function authorizeEventAdmin(database, accountability, event) {
   if (!accountability?.user) return { ok: false, status: 401, error: 'Authentication required' }
   if (accountability.admin === true) return { ok: true }
 
   const caller = await database('members').where('user', accountability.user).first('id', 'role')
   if (!caller) return { ok: false, status: 403, error: 'Not a member' }
-  if (parseRoles(caller.role).some((r) => ELEVATED_ROLES.has(r))) return { ok: true }
-  if (event?.created_by != null && String(event.created_by) === String(caller.id)) return { ok: true }
+  const roles = parseRoles(caller.role)
+  if (roles.some((r) => ELEVATED_ROLES.has(r))) return { ok: true }
+  const isCreator = event?.created_by != null && String(event.created_by) === String(caller.id)
+  if (isCreator) return { ok: true }
+  if (roles.includes('vb_admin') || roles.includes('bb_admin')) {
+    const sports = (await database('events_teams as et')
+      .join('teams as t', 't.id', 'et.teams_id')
+      .where('et.events_id', event.id)
+      .select('t.sport')).map((r) => r.sport)
+    if (sportAdminCovers(roles, sports, isCreator)) return { ok: true }
+  }
   return { ok: false, status: 403, error: 'Event admin access required' }
 }
 

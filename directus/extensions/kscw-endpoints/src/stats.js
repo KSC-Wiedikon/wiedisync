@@ -15,6 +15,17 @@
  *   GET /kscw/stats/all               — everything in one call
  */
 
+import { callerSportScope, parseRoles } from './sport-scope.js'
+
+/**
+ * Confine a per-team stats view (every one carries `teams.sport`) to one section.
+ * A row whose team has no sport is club-level ('both') and stays visible to
+ * either section, as member-sport.js has it.
+ */
+export function scopeStatsQuery(query, sportScope) {
+  return query.where((q) => q.where('sport', sportScope).orWhereNull('sport'))
+}
+
 export function registerStats(router, { database, getSchema, services, logger }) {
 
   // Auth middleware: require admin or sport-admin role
@@ -24,20 +35,27 @@ export function registerStats(router, { database, getSchema, services, logger })
     }
     try {
       // Check Directus role first (Administrator = full access)
-      if (req.accountability.admin === true) return next()
+      if (req.accountability.admin === true) {
+        req.kscwSportScope = null
+        return next()
+      }
 
       // Check app-level roles in members table
       const member = await database('members')
         .where({ user: req.accountability.user })
         .first()
 
-      const memberRoles = member?.role ? (typeof member.role === 'string' ? JSON.parse(member.role) : member.role) : []
+      const memberRoles = parseRoles(member?.role)
       const isAdmin = memberRoles.includes('admin')
         || memberRoles.includes('superuser')
         || memberRoles.includes('vb_admin')
         || memberRoles.includes('bb_admin')
 
       if (!isAdmin) return res.status(403).json({ error: 'Admin access required' })
+      // A sport-confined admin (M7, 2026-10-12) gets the per-team views of their
+      // own section only. The two single-row club summaries stay club-wide: they
+      // are counts, with no team, game or member behind any one number.
+      req.kscwSportScope = callerSportScope(memberRoles)
       next()
     } catch (err) {
       logger.error('Stats auth check failed:', err.message)
@@ -45,8 +63,9 @@ export function registerStats(router, { database, getSchema, services, logger })
     }
   }
 
-  async function queryView(viewName, filters = {}) {
+  async function queryView(viewName, filters = {}, sportScope = null) {
     let query = database(viewName)
+    if (sportScope) query = scopeStatsQuery(query, sportScope)
     if (filters.sport) query = query.where('sport', filters.sport)
     if (filters.season) query = query.where('season', filters.season)
     if (filters.team_id) query = query.where('team_id', filters.team_id)
@@ -75,7 +94,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/team-roster', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_team_roster', req.query)
+      const rows = await queryView('stats_team_roster', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats team-roster error:', err.message)
@@ -85,7 +104,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/schreiber', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_schreiber_coverage', req.query)
+      const rows = await queryView('stats_schreiber_coverage', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats schreiber error:', err.message)
@@ -95,7 +114,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/missing-schreiber', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_games_missing_schreiber', req.query)
+      const rows = await queryView('stats_games_missing_schreiber', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats missing-schreiber error:', err.message)
@@ -105,7 +124,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/participation', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_participation', req.query)
+      const rows = await queryView('stats_participation', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats participation error:', err.message)
@@ -115,7 +134,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/results', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_game_results', req.query)
+      const rows = await queryView('stats_game_results', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats results error:', err.message)
@@ -125,7 +144,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/delegations', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_delegations', req.query)
+      const rows = await queryView('stats_delegations', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats delegations error:', err.message)
@@ -139,12 +158,12 @@ export function registerStats(router, { database, getSchema, services, logger })
       const [overview, members, roster, schreiber, missing, participation, results, delegations] = await Promise.all([
         database('stats_club_overview').select('*').then(r => r[0] || {}),
         database('stats_members').select('*').then(r => r[0] || {}),
-        queryView('stats_team_roster', req.query),
-        queryView('stats_schreiber_coverage', req.query),
-        queryView('stats_games_missing_schreiber', req.query),
-        queryView('stats_participation', req.query),
-        queryView('stats_game_results', req.query),
-        queryView('stats_delegations', req.query),
+        queryView('stats_team_roster', req.query, req.kscwSportScope),
+        queryView('stats_schreiber_coverage', req.query, req.kscwSportScope),
+        queryView('stats_games_missing_schreiber', req.query, req.kscwSportScope),
+        queryView('stats_participation', req.query, req.kscwSportScope),
+        queryView('stats_game_results', req.query, req.kscwSportScope),
+        queryView('stats_delegations', req.query, req.kscwSportScope),
       ])
       res.json({ data: { overview, members, roster, schreiber, missing, participation, results, delegations } })
     } catch (err) {

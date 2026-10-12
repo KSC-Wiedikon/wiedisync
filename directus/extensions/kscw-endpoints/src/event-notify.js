@@ -1,5 +1,7 @@
 import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL, escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { sportScopeAllows } from './member-sport.js'
+import { callerSportScope, sportOfTeams } from './sport-scope.js'
 
 /**
  * Per-(user, event) rate limit for the notify fan-out. Mirrors the in-memory
@@ -125,8 +127,9 @@ export function registerEventNotify(router, { services, database, getSchema, log
       const isAdmin = req.accountability.admin === true
       let elevated = isAdmin
       let allowed = isAdmin
-      // May email any audience size (admin / vorstand / sport admin). The event
-      // creator is `elevated` but NOT privileged.
+      // May email any audience size (admin / sport admin / vorstand — the last two
+      // only inside their own section). The event creator is `elevated` but NOT
+      // privileged.
       let privileged = isAdmin
       let caller = null
       const ledTeamIds = new Set() // event-team ids the caller leads as coach/TR
@@ -139,17 +142,28 @@ export function registerEventNotify(router, { services, database, getSchema, log
           ? caller.role
           : (caller?.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
         const isCreator = !!(caller && event.created_by && String(event.created_by) === String(caller.id))
-        // Sport admins: only for events of their own sport (F59). Sport comes from
-        // ALL the event's teams, never an arbitrary first one.
-        let sportAdminOk = false
-        if (roles.includes('vb_admin') || roles.includes('bb_admin')) {
+        // Sport comes from ALL the event's teams, never an arbitrary first one.
+        // Read once, and only for the two branches below that need it.
+        let teamSports = null
+        const eventTeamSports = async () => {
+          if (teamSports) return teamSports
           const evTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t).filter(Boolean)
-          const sports = evTeamIds.length
+          teamSports = evTeamIds.length
             ? (await db('teams').whereIn('id', evTeamIds).select('sport')).map((t) => t.sport)
             : []
-          sportAdminOk = sportAdminCovers(roles, sports, isCreator)
+          return teamSports
         }
-        if (['admin', 'superuser', 'vorstand'].some((r) => roles.includes(r)) || sportAdminOk) privileged = true
+        // Sport admins: only for events of their own sport (F59).
+        let sportAdminOk = false
+        if (roles.includes('vb_admin') || roles.includes('bb_admin')) {
+          sportAdminOk = sportAdminCovers(roles, await eventTeamSports(), isCreator)
+        }
+        // The board's uncapped fan-out stops at its own section too (M7, 2026-10-12):
+        // a vorstand below full admin is sport-confined by their admin tier. A
+        // team-less or mixed event is 'both' and counts for either section.
+        const boardOk = roles.includes('vorstand')
+          && sportScopeAllows(callerSportScope(roles), sportOfTeams(await eventTeamSports()))
+        if (roles.includes('admin') || roles.includes('superuser') || boardOk || sportAdminOk) privileged = true
         if (roles.includes('admin') || roles.includes('superuser') || sportAdminOk) {
           elevated = true
           allowed = true

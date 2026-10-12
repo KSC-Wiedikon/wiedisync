@@ -55,6 +55,7 @@ import { writeUserLog } from './activity-log.js'
 import { sendLocalizedPush } from './push-i18n.js'
 import { sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
+import { callerSportScope, membersInScope, parseRoles } from './sport-scope.js'
 
 const SYNC_SOURCE = 'licence_status'
 
@@ -215,6 +216,13 @@ export async function runLicenceStatusSweep(database, log, { dryRun = false, act
   return { season, reset: staleIds.length, promoted, dryRun }
 }
 
+/** The promoted rows a caller confined to `sportScope` may see by name (null ⇒ all). */
+export async function promotedInScope(database, sportScope, promoted) {
+  if (!sportScope) return promoted
+  const visible = await membersInScope(database, sportScope, promoted.map((p) => p.id))
+  return promoted.filter((p) => visible.has(String(p.id)))
+}
+
 export function registerLicenceStatus(router, { database, logger }) {
   const log = logger.child({ endpoint: 'licence-status' })
 
@@ -222,18 +230,19 @@ export function registerLicenceStatus(router, { database, logger }) {
    * Mirrors superGate() in vis-player-check.js / scorer-vm-check.js. Local by
    * design — the extension has no shared admin guard and every module closes
    * over its own `database`. BOTH sport admins are in: the sweep touches
-   * volleyball and basketball members alike.
+   * volleyball and basketball members alike — it is the daily cron's run, so
+   * triggering it stays club-wide, but the NAMES it reports back are held to the
+   * caller's section (M7, 2026-10-12). → null when refused, else `{ sportScope }`.
    */
   async function adminGate(req) {
-    if (req.accountability?.admin) return true
+    if (req.accountability?.admin) return { sportScope: null }
     const userId = req.accountability?.user
-    if (!userId) return false
+    if (!userId) return null
     const m = await database('members').where('user', userId).first('role')
-    if (!m) return false
-    const roles = Array.isArray(m.role)
-      ? m.role
-      : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
-    return ['superuser', 'admin', 'vb_admin', 'bb_admin'].some((r) => roles.includes(r))
+    if (!m) return null
+    const roles = parseRoles(m.role)
+    if (!['superuser', 'admin', 'vb_admin', 'bb_admin'].some((r) => roles.includes(r))) return null
+    return { sportScope: callerSportScope(roles) }
   }
 
   async function actorName(req) {
@@ -280,7 +289,8 @@ export function registerLicenceStatus(router, { database, logger }) {
   router.post('/admin/licence-status/sync', async (req, res) => {
     const startedAt = Date.now()
     try {
-      if (!(await adminGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const gate = await adminGate(req)
+      if (!gate) return res.status(403).json({ error: 'Forbidden' })
       const dryRun = req.query.dry_run === '1' || req.query.dry_run === 'true'
       const who = await actorName(req)
 
@@ -309,7 +319,7 @@ export function registerLicenceStatus(router, { database, logger }) {
         dry_run: dryRun,
         reset: result.reset,
         promoted: result.promoted.length,
-        promoted_members: result.promoted,
+        promoted_members: await promotedInScope(database, gate.sportScope, result.promoted),
         duration_ms: Date.now() - startedAt,
       })
     } catch (err) {

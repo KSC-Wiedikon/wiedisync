@@ -26,6 +26,9 @@
  *     covering absence on that date (the positive-absence signal only).
  */
 
+import { sportScopeAllows } from './member-sport.js'
+import { callerSportScope, sportOfTeams } from './sport-scope.js'
+
 // DAUER is a closed value set fixed by the NDS import spec
 // (Aktivitaeten-Import_230328_de, p.1), keyed on Nutzergruppe + Aktivitätstyp +
 // Hauptsportart. KSCW runs NG 1 with a Hauptsportart per Art. 1 Abs. 1
@@ -118,6 +121,21 @@ function normalizeRole(role) {
   return []
 }
 
+/**
+ * Does the caller's ROLE alone open this team's export (no coach/TR check)?
+ * Full admins: always. Sport admins and the board: for teams of their own sport
+ * only (M7, 2026-10-12) — the export carries every participant's J+S
+ * Personennummer. Out of section they fall through to the coach/TR check like
+ * anyone else. Pure; exported for the test.
+ */
+export function isJsExportAdmin(role, teamSport, { directusAdmin = false } = {}) {
+  if (directusAdmin) return true
+  const roles = normalizeRole(role)
+  if (roles.includes('admin') || roles.includes('superuser')) return true
+  if (!['vb_admin', 'bb_admin', 'vorstand'].some((r) => roles.includes(r))) return false
+  return sportScopeAllows(callerSportScope(roles), sportOfTeams([teamSport]))
+}
+
 function fullName(r) {
   return [r.first_name, r.last_name].filter(Boolean).join(' ').trim()
 }
@@ -164,10 +182,9 @@ export function registerJsExport(router, { database, logger }) {
         .first('id', 'name', 'sport', 'season', 'team_id', 'active')
       if (!team) return res.status(404).json({ error: 'Team not found', code: 'no_team' })
 
-      // Gate: caller must be an app-admin OR a coach/TR of this team.
+      // Gate: caller must be an app-admin (isJsExportAdmin) OR a coach/TR of this team.
       const member = userId ? await database('members').where('user', userId).first('id', 'role') : null
-      const roleArr = normalizeRole(member?.role)
-      const isAppAdmin = isDirectusAdmin || ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand'].some((r) => roleArr.includes(r))
+      const isAppAdmin = isJsExportAdmin(member?.role, team.sport, { directusAdmin: isDirectusAdmin })
       if (!isAppAdmin) {
         if (!member) return res.status(403).json({ error: 'No member profile', code: 'no_member' })
         // Leadership is checked on the ACTIVE row only. The export hops across the

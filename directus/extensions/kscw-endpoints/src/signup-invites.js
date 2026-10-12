@@ -22,6 +22,7 @@
 import crypto from 'crypto'
 import { FRONTEND_URL, buildEmailLayout } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { callerSportScope, parseRoles, scopeAllowsMember } from './sport-scope.js'
 
 export const SIGNUP_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days, matches shell_expires
 
@@ -248,9 +249,11 @@ export function registerSignupInvites(router, { database, logger, services, getS
         .first('id', 'role', 'first_name', 'last_name')
       let allowed = req.accountability.admin === true
       if (!allowed && actor) {
-        const roles = Array.isArray(actor.role) ? actor.role
-          : (() => { try { return JSON.parse(actor.role || '[]') } catch { return [] } })()
-        allowed = roles.includes('admin') || roles.includes('superuser') || roles.includes('vorstand')
+        const roles = parseRoles(actor.role)
+        allowed = roles.includes('admin') || roles.includes('superuser')
+          // The board only inside its own section (M7, 2026-10-12): the link
+          // claims the member's account, and the caller sees it (invite_url).
+          || (roles.includes('vorstand') && await scopeAllowsMember(database, callerSportScope(roles), target.id))
       }
       if (!allowed) return res.status(403).json({ error: 'Not authorized' })
 

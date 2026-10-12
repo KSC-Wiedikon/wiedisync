@@ -13,8 +13,9 @@
  *   GET /kscw/polls/:id/results  ->  { counts: { [optionIndex]: n }, totalVotes }
  *
  * Who may call it (migration 171 widened this beyond managers):
- *   - managers: admin / sport-admin / vorstand / coach / TR of the poll's team
- *     — the audience that can see live results before the deadline;
+ *   - managers: admin / sport-admin / vorstand (the last two for polls of their
+ *     own sport or with no team) / coach / TR of the poll's team — the audience
+ *     that can see live results before the deadline;
  *   - the poll's creator;
  *   - when the poll was created with `results_visible`: anyone who can see the
  *     poll at all — the team roster.
@@ -22,8 +23,10 @@
  * poll_votes read). Voter identity never leaves this endpoint regardless.
  */
 
+import { callerSportScope, scopeAllowsTeams } from './sport-scope.js'
+
 /** Manager, creator, or — for visible-results polls — team member. */
-async function authorizePollViewer(db, req, poll) {
+export async function authorizePollViewer(db, req, poll) {
   if (req.accountability?.admin === true) return true
   if (!req.accountability?.user) return false
   const caller = await db('members').where('user', req.accountability.user).select('id', 'role').first()
@@ -31,9 +34,12 @@ async function authorizePollViewer(db, req, poll) {
   const roles = Array.isArray(caller.role)
     ? caller.role
     : (caller.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
-  if (roles.includes('admin') || roles.includes('superuser')
-    || roles.includes('vb_admin') || roles.includes('bb_admin')
-    || roles.includes('vorstand')) return true
+  if (roles.includes('admin') || roles.includes('superuser')) return true
+  // Sport admins and the board read live results inside their own section only
+  // (M7, 2026-10-12); a team-less poll is club-wide ('both'). Out of section they
+  // fall through to the coach / creator / roster tiers like anyone else.
+  if ((roles.includes('vb_admin') || roles.includes('bb_admin') || roles.includes('vorstand'))
+    && await scopeAllowsTeams(db, callerSportScope(roles), [poll.team])) return true
   if (poll.team) {
     const [coach, tr] = await Promise.all([
       db('teams_coaches').where('teams_id', poll.team).where('members_id', caller.id).first(),
