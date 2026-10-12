@@ -51,6 +51,16 @@ const SPORTS = ['volleyball', 'basketball', 'club']
  * a new domain alias (admin@kscw.ch, finance@kscw.ch) is covered by default.
  */
 const GLOBAL_ONLY_LOCAL_PARTS = ['admin', 'finance']
+
+/**
+ * Mailboxes on a club-wide domain that belong to ONE section. vis_transfers@ is
+ * the FIVB VIS transfer casework box — volleyball only, and scheduling-mailbox.js
+ * opens it to vb_admin alone. Filed 'club' by the domain rule, a bb_admin could
+ * reveal its password here (M7 follow-up, 2026-10-12). Migration 327 seeded the
+ * live row as 'volleyball'; this keeps a Migadu sweep that re-creates it from
+ * filing it club-wide again. Matched on the local part, like the tier above.
+ */
+const SPORT_LOCAL_PARTS = { vis_transfers: 'volleyball' }
 const PROVIDERS = ['migadu', 'ses', 'clubdesk', 'google', 'other']
 
 /**
@@ -136,7 +146,9 @@ export function decryptSecret(blob, key) {
  * wrong guess never hides a mailbox from the person who needs it.
  */
 export function sportForAddress(address) {
-  const domain = String(address || '').split('@')[1]?.toLowerCase() || ''
+  const [local = '', domain = ''] = String(address || '').toLowerCase().split('@')
+  const bySport = SPORT_LOCAL_PARTS[local]
+  if (bySport) return bySport
   if (domain === 'volleyball.kscw.ch') return 'volleyball'
   if (domain === 'basketball.kscw.ch') return 'basketball'
   return 'club'

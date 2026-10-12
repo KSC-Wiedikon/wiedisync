@@ -113,7 +113,9 @@ export function parseTournamentDetail(html) {
       if (!teamIds.includes(id)) teamIds.push(id)
     }
   }
-  return { club, deadline, leagues, open, days, teamIds }
+  // `registrations` false = the page carried no registrations table at all, so
+  // an empty teamIds says nothing (holdRegistrations keeps the stored list).
+  return { club, deadline, leagues, open, days, teamIds, registrations: rStart !== -1 }
 }
 
 const ymdKey = (d) => String(d).replace(/-/g, '')
@@ -189,6 +191,42 @@ async function writeTournamentRows(db, rows) {
     await db('bb_tournaments').insert({ ...r, first_seen_at: now, last_seen_at: now })
       .onConflict('id').merge({ ...r, last_seen_at: now })
   }
+}
+
+/**
+ * Which tournaments' registration lists this run may overwrite. Pure — unit-tested.
+ *
+ * The planRemovals floor below protects the GAME rows, but the mirror is written
+ * first, and `kscw_bp_team_ids` is all the picks page and the registration worker
+ * know about who is registered. A registrations table that stopped parsing reads
+ * as "nobody registered": the page showed registered teams as open again, and the
+ * worker would try to register a team someone entered by hand on Basketplan (its
+ * journal only knows its own registrations). So the stored list and count stay
+ *   - for a tournament whose page had no registrations table at all ('unread'), and
+ *   - for every tournament when the run read no KSCW registration anywhere while
+ *     the mirror still holds some for an upcoming one ('empty_registrations').
+ * A real withdrawal of every KSCW team at once is held like the floor's
+ * mass drop: the run warns and journals itself as suspicious until a person acts.
+ *
+ *   rows:   planTournamentRows output
+ *   unread: Set of tournament ids whose detail page had no registrations table
+ *   stored: Map id → { kscw_bp_team_ids, registered_count } from bb_tournaments
+ * Returns the rows to write, the ids whose stored list was kept, and the reason.
+ */
+export function holdRegistrations(rows, { unread, stored, today }) {
+  const storedIds = (r) => stored.get(Number(r.id))?.kscw_bp_team_ids || []
+  const upcoming = (r) => !r.date || norm('date', r.date) >= today
+  const storedAny = rows.some((r) => upcoming(r) && storedIds(r).length)
+  const readAny = rows.some((r) => !unread.has(Number(r.id)) && r.kscw_bp_team_ids.length)
+  const suspicious = storedAny && !readAny ? 'empty_registrations' : null
+  const kept = []
+  const out = rows.map((r) => {
+    const s = stored.get(Number(r.id))
+    if (!s || !(suspicious || unread.has(Number(r.id)))) return r
+    kept.push(Number(r.id))
+    return { ...r, kscw_bp_team_ids: s.kscw_bp_team_ids || [], registered_count: s.registered_count ?? null }
+  })
+  return { rows: out, kept, held: kept.filter((id) => (stored.get(id)?.kscw_bp_team_ids || []).length).length, suspicious }
 }
 
 const COMPARE = ['home_team', 'away_team', 'date', 'time', 'league', 'season', 'away_hall_json', 'type']
@@ -321,7 +359,7 @@ export async function syncBpTournaments(db, log, {
   for (const t of list) {
     try {
       const d = parseTournamentDetail(await client.getHtml(`/findTournamentById.do?tournamentId=${t.id}`))
-      tournaments.push({ ...t, club: d.club || t.club, days: d.days, teamIds: d.teamIds, deadline: d.deadline, leagues: d.leagues, open: d.open })
+      tournaments.push({ ...t, club: d.club || t.club, days: d.days, teamIds: d.teamIds, deadline: d.deadline, leagues: d.leagues, open: d.open, registrations: d.registrations })
     } catch (e) {
       // One unreadable tournament must not wipe the others' rows: abort before any write.
       throw new Error(`tournament ${t.id}: ${e.message}`)
@@ -330,10 +368,26 @@ export async function syncBpTournaments(db, log, {
   }
 
   // The picking page's copy (migration 398). Written first: it is harmless on
-  // its own, and a failure here must not leave half-updated game rows.
-  await writeTournamentRows(db, planTournamentRows(tournaments, Object.keys(teamsByBpId)))
+  // its own, and a failure here must not leave half-updated game rows. A
+  // registrations table that did not parse keeps the stored lists (holdRegistrations).
+  const planned = planTournamentRows(tournaments, Object.keys(teamsByBpId))
+  const storedRegs = planned.length
+    ? await db('bb_tournaments').whereIn('id', planned.map((r) => r.id)).select('id', 'kscw_bp_team_ids', 'registered_count')
+    : []
+  const regs = holdRegistrations(planned, {
+    unread: new Set(tournaments.filter((t) => t.registrations === false).map((t) => Number(t.id))),
+    stored: new Map(storedRegs.map((r) => [Number(r.id), r])),
+    today,
+  })
+  await writeTournamentRows(db, regs.rows)
 
-  const desired = planTournamentGames(tournaments, teamsByBpId)
+  // A kept list stands for the tournament's teams here too, or the unread page
+  // would read as a withdrawal below.
+  const keptIds = new Map(regs.rows.filter((r) => regs.kept.includes(Number(r.id))).map((r) => [Number(r.id), r.kscw_bp_team_ids]))
+  const desired = planTournamentGames(
+    tournaments.map((t) => (keptIds.has(Number(t.id)) ? { ...t, teamIds: keptIds.get(Number(t.id)) } : t)),
+    teamsByBpId,
+  )
 
   // A day Basketplan already publishes real games for (bp-sync, source
   // 'basketplan') needs no placeholder.
@@ -375,16 +429,26 @@ export async function syncBpTournaments(db, log, {
   }
 
   const summary = `${list.length} tournaments, ${desired.length} KSCW days → ${created} created, ${updated} updated, ${unchanged} unchanged, ${removed} removed`
+  // 'registrations_unread': only some pages lacked the table, and stored lists hung on them.
+  const regReason = regs.suspicious || (regs.held ? 'registrations_unread' : null)
+  const problems = []
   if (suspicious) {
     log.warn(`[BP Tournaments] suspicious parse (${suspicious}): kept ${held.length} future tournament day(s) Basketplan no longer seems to list — ${summary}`)
-  } else {
-    log.info(`[BP Tournaments] ${summary}`)
+    problems.push(`${suspicious}: ${held.length} future tournament day(s) kept, not deleted`)
   }
+  if (regReason) {
+    log.warn(`[BP Tournaments] suspicious parse (${regReason}): kept the stored KSCW registrations of ${regs.held} tournament(s) — ${summary}`)
+    problems.push(`${regReason}: stored KSCW registrations of ${regs.held} tournament(s) kept`)
+  }
+  if (!problems.length) log.info(`[BP Tournaments] ${summary}`)
   await logCronRun(db, SYNC_SOURCE, {
-    status: suspicious ? 'error' : 'ok',
+    status: problems.length ? 'error' : 'ok',
     rowsChanged: created + updated + removed,
-    errorMessage: suspicious ? `Suspicious Basketplan parse (${suspicious}): ${held.length} future tournament day(s) kept, not deleted` : null,
+    errorMessage: problems.length ? `Suspicious Basketplan parse (${problems.join('; ')})` : null,
   })
   if (created > 0) await sweepGameAutoConfirm(db, log)
-  return { tournaments: list.length, kscwDays: desired.length, created, updated, unchanged, removed, suspicious, held: held.length }
+  return {
+    tournaments: list.length, kscwDays: desired.length, created, updated, unchanged, removed, suspicious, held: held.length,
+    registrations: regReason, registrationsKept: regs.held,
+  }
 }

@@ -1848,6 +1848,12 @@ async function main() {
     'event_sessions',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
+    // Live board (migrations 272/273/376) — public in full (§5), but Directus
+    // applies the Public policy only to callers with NO role, so a logged-in
+    // member was refused all three: /live stayed empty and the 30-s "match is
+    // live" poll in the nav 403'd for everyone below admin (prod log 12.10.2026,
+    // ~7 refusals a minute). Same rows the hall sees, nothing personal.
+    'live_scores', 'live_history', 'live_match_logs',
     // ⚠ `polls` was here until 2026-08-10 — see the team-scoped grant further
     // down. ⚠ `referee_expenses` left this list on 2026-09-15: who paid how
     // much for which game is a member's finances, not directory data — the

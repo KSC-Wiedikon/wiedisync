@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.29.1'
+const APP_VERSION = '2.29.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.29.2',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          'The live scoreboard and the "match is live" notice in the menu now work while you are logged in. Until now only logged-out visitors and admins saw them.',
+          'Basketball tournaments: if the Basketplan page changes, registered teams keep showing as registered instead of appearing open again.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.29.1',
     date: '12.10.2026',
