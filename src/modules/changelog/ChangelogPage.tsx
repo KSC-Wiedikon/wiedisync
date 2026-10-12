@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.30.0'
+const APP_VERSION = '2.31.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.31.0',
+    date: '12.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "When a team is called up for a game, its coaches and team responsibles are now called up too, as staff. They see the game on their home page and calendar, get a notification and can answer, but don't count as players. Upcoming games that already have a team called up get its coaches added, without a notification.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.30.0',
     date: '12.10.2026',
