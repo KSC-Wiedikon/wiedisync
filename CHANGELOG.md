@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.33.0 — 2026-10-13
+
+### Changed
+
+- New events start with the teams you lead, or the ones you play in if you lead none. To invite everyone, turn on Whole club — leaving the team list empty no longer invites the whole club.
+- When an event's teams or invited people change, automatic answers (absence declines and auto-confirms) of people who are no longer invited are removed, and the newly invited get theirs.
+
+### Fixed
+
+- The events page, home page and calendar no longer show part of your events first and then fill in the rest.
+- Editing someone else's event no longer makes you its creator.
+
 ## v2.32.1 — 2026-10-13
 
 ### Changed
