@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-12T21:15:26.789Z
+-- Generated:   2026-10-13T10:54:34.477Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict XmRFINW9E5MlnO8q6ni1HCNy7pKh7gNYUyd5BQIGzyr9qSCxAYcFzD9I00eIJNF
+\restrict 1ViUd0IU2jXcRz9ZN18MYbMhJGtVeFk9NaQg6iasfgLpO3wogwsNNT3R5c2nGmQ
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -5874,6 +5874,7 @@ CREATE TABLE public.events (
     carpool_teams jsonb,
     signup_form_slug text,
     sport_section text DEFAULT 'both'::text NOT NULL,
+    additional_halls json,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text))),
     CONSTRAINT events_sport_section_check CHECK ((sport_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text])))
@@ -8425,7 +8426,7 @@ COMMENT ON COLUMN public.hall_events.end_date IS 'Last day the entry covers, INC
 -- Name: COLUMN hall_events.closure_override; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.hall_events.closure_override IS 'Does this calendar entry close the KWI halls? NULL = automatic — since migration 325 every hall-administration entry closes them. false = admin override, closes nothing (its hall_closures rows are removed and the auto-cancelled trainings come back). true = admin confirmed it closes, recorded so the decision is not re-litigated. Only meaningful for source = gcal.';
+COMMENT ON COLUMN public.hall_events.closure_override IS 'Admin decision on a hall-administration calendar entry (migration 409). NULL = pending: does nothing until decided. true = approved: closes the halls it names (all KWI when none) for whole days, or, when timed and single-day, books them for its window. false = refused: does nothing. The sync resets it to NULL when the entry moves. Only meaningful for source = gcal.';
 
 
 --
@@ -11063,6 +11064,8 @@ CREATE TABLE public.trainings (
     meeting_offset_minutes integer DEFAULT 10,
     extra_halls json,
     carpool_enabled boolean DEFAULT false NOT NULL,
+    auto_adjusted_by_booking text,
+    original_start_time time without time zone,
     CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
 );
 
@@ -15707,6 +15710,13 @@ CREATE INDEX idx_event_signups_form_slug ON public.event_signups USING btree (fo
 
 
 --
+-- Name: idx_events_booked_hall; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_events_booked_hall ON public.events USING btree (hall) WHERE (hall IS NOT NULL);
+
+
+--
 -- Name: idx_game_guest_teams_game; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15886,6 +15896,13 @@ CREATE UNIQUE INDEX idx_slot_claims_active_unique ON public.slot_claims USING bt
 --
 
 CREATE INDEX idx_spielplaner_assignments_kscw_team ON public.spielplaner_assignments USING btree (kscw_team);
+
+
+--
+-- Name: idx_trainings_auto_adjusted_by_booking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_trainings_auto_adjusted_by_booking ON public.trainings USING btree (auto_adjusted_by_booking) WHERE (auto_adjusted_by_booking IS NOT NULL);
 
 
 --
@@ -19297,7 +19314,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XmRFINW9E5MlnO8q6ni1HCNy7pKh7gNYUyd5BQIGzyr9qSCxAYcFzD9I00eIJNF
+\unrestrict 1ViUd0IU2jXcRz9ZN18MYbMhJGtVeFk9NaQg6iasfgLpO3wogwsNNT3R5c2nGmQ
 
 
 
@@ -19313,7 +19330,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 412 migration(s) already in the schema above.
+-- Migration tracker seed — 413 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19738,6 +19755,7 @@ FROM (VALUES
   ('405-staff-gratis-audit-revert.sql'),
   ('406-sport-section.sql'),
   ('407-registration-decided-by.sql'),
-  ('408-game-call-up-staff.sql')
+  ('408-game-call-up-staff.sql'),
+  ('409-hall-bookings.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
