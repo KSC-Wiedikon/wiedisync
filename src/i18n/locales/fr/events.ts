@@ -96,7 +96,10 @@ export default {
   cancelled: 'Annulé',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
-  teamsInvolvedHint: 'Laisser vide pour un événement à l\'échelle du club, visible par tous les membres',
+  teamsInvolvedHint: 'Commence avec tes équipes — ajoute ou retire celles que tu veux',
+  wholeClub: 'Tout le club',
+  wholeClubHint: 'Tous les membres du club sont invités. Les équipes, rôles et personnes ne s\'appliquent pas.',
+  audienceRequired: 'Choisis qui est invité : au moins une équipe, un rôle ou une personne — ou active « Tout le club ».',
 
   // ── Formulaire d'inscription public (OpnForm) — la porte des non-membres ──
   signupForm: 'Formulaire d\'inscription public',

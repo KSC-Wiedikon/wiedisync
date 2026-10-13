@@ -2774,6 +2774,50 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return res?.rowCount || 0
   }
 
+  // Audience change on an UPCOMING event (its teams or invited people). The create
+  // pass auto-declines absent members and auto-confirms opted-in ones for whoever
+  // is eligible at that moment — and nothing ever took those rows back. Event 33
+  // (13.10.2026) was saved club-wide by mistake, got 30 such rows from members all
+  // over the club, was then narrowed to DU18 Fire, and kept all 30.
+  // Removes ONLY rows the automation wrote, for members no longer eligible:
+  //  - an absence auto-decline that CREATED the row (sentinel waitlisted_at — the
+  //    rows it merely overrode belonged to a person first and are left alone);
+  //  - an auto-confirm: confirmed, never touched by a person (no status-edit
+  //    attribution — the participations filter stamps every user write), no note,
+  //    no +1s.
+  // Then runs both passes for the new audience. Idempotent; returns the counts.
+  async function reconcileEventAutoRsvps(eventId) {
+    const event = await database('events').where('id', eventId).first()
+    if (!event || event.cancelled || !event.start_date) return { removed: 0, declined: 0, confirmed: 0 }
+    const today = new Date().toISOString().split('T')[0]
+    const dateStr = safeDateStr(event.end_date || event.start_date)
+    if (dateStr && dateStr < today) return { removed: 0, declined: 0, confirmed: 0 }
+    const res = await database.raw(`
+      DELETE FROM participations p
+      WHERE p.activity_type = 'event' AND p.activity_id = ?::text
+        AND (
+          (p.auto_declined_by IS NOT NULL AND p.waitlisted_at = '1970-01-01 00:00:00+00'::timestamptz)
+          OR (p.status = 'confirmed' AND p.auto_declined_by IS NULL
+              AND p.last_status_edited_by IS NULL AND p.last_status_edited_at IS NULL
+              AND COALESCE(p.note, '') = '' AND COALESCE(p.guest_count, 0) = 0
+              AND p.is_staff IS NOT TRUE)
+        )
+        AND NOT ${eventEligibilitySql('p.activity_id::integer', 'p.member')}
+      RETURNING p.member, p.status
+    `, [String(eventId)])
+    const rows = res?.rows ?? []
+    if (rows.length > 0) {
+      log.info(`[event-audience] Event ${eventId}: removed ${rows.length} automatic RSVP(s) of members no longer invited: ${
+        rows.map((r) => `${r.member}=${r.status}`).join(', ')}`)
+    }
+    const declined = await applyEventAbsenceDeclines(eventId)
+    const confirmed = await autoConfirmEvent(eventId, { onlyIfFuture: true })
+    if (declined > 0 || confirmed > 0) {
+      log.info(`[event-audience] Event ${eventId}: ${declined} auto-declined, ${confirmed} auto-confirmed for the new audience`)
+    }
+    return { removed: rows.length, declined, confirmed }
+  }
+
   // Hall bookings (migration 409): an event with a `hall` books it, and the
   // trainings it overlaps are trimmed or cancelled the moment it is saved —
   // and put back when it is moved, cancelled, unbooked or deleted. The sweep is
@@ -3778,6 +3822,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           }
         } catch (err) {
           log.error({ msg: `[invite-guests] Event ${k}: ${err.message}`, event: 'invite_guests_cleanup', keys: [k], stack: err.stack })
+        }
+      }
+    }
+
+    // Teams or invited people changed → automatic RSVPs follow the new audience.
+    if (payload && ('teams' in payload || 'invited_members' in payload)) {
+      for (const k of keys) {
+        try {
+          await reconcileEventAutoRsvps(k)
+        } catch (err) {
+          log.error({ msg: `[event-audience] Event ${k}: ${err.message}`, event: 'event_audience_reconcile', keys: [k], stack: err.stack })
         }
       }
     }

@@ -24,7 +24,13 @@ export function useUserVisibleEventIds(
 ): Result {
   const [teamEventIds, setTeamEventIds] = useState<string[]>([])
   const [invitedEventIds, setInvitedEventIds] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  // Loading from the FIRST render when enabled, and again during the render in
+  // which the inputs change — not only once the effect below gets to run. A caller
+  // gates its events query on `!isLoading`; while this started `false`, that query
+  // fired one render early with no ids, the page showed only the club-wide events
+  // (and kept them as placeholder data through the refetch), then filled in the
+  // rest — the "loads, then refreshes and shows the events" flicker (2026-10-13).
+  const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<Error | null>(null)
 
   const teamKey = teamIds.map(String).filter(Boolean).sort().join(',')
@@ -41,6 +47,8 @@ export function useUserVisibleEventIds(
       setTeamEventIds([])
       setInvitedEventIds([])
       setIsLoading(false)
+    } else {
+      setIsLoading(true)
     }
   }
 

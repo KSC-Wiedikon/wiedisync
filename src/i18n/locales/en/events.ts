@@ -55,7 +55,10 @@ export default {
   bookHallsNeedEnd: 'A booked hall needs an end time after the start.',
   description: 'Description',
   teamsInvolved: 'Teams',
-  teamsInvolvedHint: 'Leave empty for club-wide events visible to all members',
+  teamsInvolvedHint: 'Starts with your teams — add or remove any',
+  wholeClub: 'Whole club',
+  wholeClubHint: 'Every member of the club is invited. Teams, roles and people don\'t apply.',
+  audienceRequired: 'Choose who is invited: at least one team, a role or a person — or turn on Whole club.',
 
   // Event types
   club: 'Club',
