@@ -259,10 +259,11 @@ export default function RosterEditor() {
     setUploadingPicture(false)
   }
 
-  // Einsatzliste officials are picked from the team's staff (coaches + TRs) —
-  // Volleymanager wants a licensed coach in the C slot, which a player rarely is.
+  // Einsatzliste officials (C / AC1 / AC2) are picked from the team's COACHES only —
+  // Volleymanager wants licensed coaches there. Team responsibles used to be offered
+  // too; they are team management, not bench officials (owner, 13.10.2026).
   const staffIds = new Set(
-    [...((team?.coach ?? []) as unknown[]), ...((team?.team_responsible ?? []) as unknown[])].map((j) =>
+    ((team?.coach ?? []) as unknown[]).map((j) =>
       relId(typeof j === 'object' && j !== null ? (j as { members_id?: unknown }).members_id : j),
     ),
   )
@@ -770,10 +771,18 @@ function TeamSettingsSection({ team, staff, onUpdate }: {
   // existing confirmations untouched (not a reset) — both are easy to misread.
   const [autoConfirmPrompt, setAutoConfirmPrompt] = useState<{ kind: 'game' | 'training'; turningOn: boolean } | null>(null)
 
+  // Every control here saves on change — there is no Save button — so say so, and
+  // say when it did not: a failed write used to leave the control looking unchanged
+  // with no message.
   const save = async (patch: Partial<TeamSettings>) => {
     const next = { ...settings, ...patch }
-    await update(team.id, { features_enabled: next })
-    onUpdate(next)
+    try {
+      await update(team.id, { features_enabled: next })
+      onUpdate(next)
+      toast.success(t('common:saved'))
+    } catch {
+      toast.error(t('common:errorSaving'))
+    }
   }
 
   const toggleBool = (key: keyof TeamSettings) => {

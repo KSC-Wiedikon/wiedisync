@@ -188,7 +188,7 @@ export default {
   nominationOfficialAc2: 'Assistänztrainer 2 (AC2)',
   nominationOfficialNone: 'Wie im Volleymanager la',
   nominationOfficialNotSet: 'Nöd gsetzt',
-  nominationOfficialFormerStaff: '(Nümme im Staff)',
+  nominationOfficialFormerStaff: '(Kei Coach vo dem Team)',
   autoConfirmOnTitle: 'Alli automatisch bestätige?',
   autoConfirmOffTitle: 'Automatischi Bestätigung usschalte?',
   autoConfirmOnCta: 'Iischalte',
