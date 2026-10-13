@@ -55,7 +55,10 @@ export default {
   bookHallsNeedEnd: 'Für eine Hallenreservation braucht es eine Endzeit nach dem Beginn.',
   description: 'Beschreibung',
   teamsInvolved: 'Teams',
-  teamsInvolvedHint: 'Leer lassen für vereinsweite Events, sichtbar für alle Mitglieder',
+  teamsInvolvedHint: 'Startet mit deinen Teams — beliebig ergänzen oder entfernen',
+  wholeClub: 'Ganzer Verein',
+  wholeClubHint: 'Alle Mitglieder des Vereins sind eingeladen. Teams, Rollen und Personen entfallen.',
+  audienceRequired: 'Wähle, wer eingeladen ist: mindestens ein Team, eine Rolle oder eine Person — oder schalte «Ganzer Verein» ein.',
 
   // Event types
   club: 'Verein',

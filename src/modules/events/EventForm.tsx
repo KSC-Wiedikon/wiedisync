@@ -39,6 +39,9 @@ import { relId } from '../../utils/relations'
 type TeamRef = string | number | { teams_id?: string | number | { id: string | number } | null; id?: string | number | null }
 type MemberRef = string | number | { members_id?: string | number | { id: string | number } | null; id?: string | number | null }
 
+/** Stable empty id list — a fresh `[]` per render would re-run the memos it feeds. */
+const EMPTY_IDS: string[] = []
+
 interface SessionDraft {
   id?: string // existing record id (for edit mode)
   date: string
@@ -82,7 +85,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const { t, i18n } = useTranslation('events')
   const { t: tc } = useTranslation('common')
   const confirm = useConfirm()
-  const { user, coachTeamIds, isSuperAdmin, isGlobalAdmin } = useAuth()
+  const { user, coachTeamIds, memberTeamIds, teamsLoading, isSuperAdmin, isGlobalAdmin } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
   // Booking a hall trims or cancels EVERY team's trainings there, both sports —
   // full admins only (the server refuses the field for anyone else, migration 409).
@@ -113,7 +116,15 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       })),
   [availableTeams, tc, sportFilter])
 
-  const singleTeam = availableTeams.length === 1
+  // A new event starts on the creator's own teams — the ones they lead, or if they
+  // lead none, the ones they play in. Inviting the whole club is an explicit toggle:
+  // "no team picked" used to mean club-wide, so a coach whose list held only their
+  // own teams saved a friendly for another team to all members (13.10.2026).
+  const ownTeamIds = useMemo(() => {
+    const listed = new Set(availableTeams.map((t) => String(t.id)))
+    const led = coachTeamIds.map(String).filter((id) => listed.has(id))
+    return led.length > 0 ? led : memberTeamIds.map(String).filter((id) => listed.has(id))
+  }, [availableTeams, coachTeamIds, memberTeamIds])
 
   const [title, setTitle] = useState('')
   const [eventType, setEventType] = useState<Event['event_type']>(effectiveIsAdmin ? 'verein' : 'social')
@@ -134,6 +145,9 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [bookedHalls, setBookedHalls] = useState<string[]>([])
   const [description, setDescription] = useState('')
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+  const [wholeClub, setWholeClub] = useState(false)
+  // A new form takes the creator's teams once, after teams + auth have loaded.
+  const [teamsDefaulted, setTeamsDefaulted] = useState(false)
   const [respondBy, setRespondBy] = useState('')
   const [respondByTime, setRespondByTime] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
@@ -156,10 +170,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [carpoolTeams, setCarpoolTeams] = useState<string[]>([])
   // Choices = the teams sharing this event; a club-wide event (no teams) can be
   // narrowed to any active team.
+  // What is saved: the whole club invites no team and no one by name.
+  const audienceTeams = wholeClub ? EMPTY_IDS : selectedTeams
   const carpoolCandidates = useMemo<TeamPickerOption[]>(() => {
-    const pool = selectedTeams.length > 0 ? allTeams.filter((tm) => selectedTeams.includes(String(tm.id))) : allTeams
+    const pool = audienceTeams.length > 0 ? allTeams.filter((tm) => audienceTeams.includes(String(tm.id))) : allTeams
     return pool.map((tm) => ({ id: String(tm.id), label: tm.name, sport: (tm.sport as TeamPickerOption['sport']) ?? null }))
-  }, [allTeams, selectedTeams])
+  }, [allTeams, audienceTeams])
   const carpoolScopeValue = carpoolTeams.filter((id) => carpoolCandidates.some((c) => c.id === id))
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [signupUrl, setSignupUrl] = useState('')
@@ -215,6 +231,10 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         const tid = t?.teams_id
         return String(typeof tid === 'object' ? tid?.id : tid ?? t?.id ?? t)
       }))
+      // Same rule as the server's club-wide audience: no team, no one by name, no role.
+      setWholeClub((event.teams ?? []).length === 0 && (event.invited_members ?? []).length === 0
+        && (event.invited_roles ?? []).length === 0)
+      setTeamsDefaulted(true)
       // Same fallback the deadline check uses (EventCard → getDeadlineDate), so the
       // form shows the deadline that is actually enforced, not the 00:00 sentinel.
       const rbParsed = parseRespondByTime(
@@ -257,6 +277,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setBookedHalls([])
       setDescription('')
       setSelectedTeams([])
+      setWholeClub(false)
+      setTeamsDefaulted(false)
       setRespondBy('')
       setRespondByTime('')
       setMaxPlayers('')
@@ -387,12 +409,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
     setSessions((prev) => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
   }
 
-  // Auto-select when user manages only one team (pre-fill, user can still remove).
-  // Adjust-state-during-render: the guard (`selectedTeams.length === 0`) was itself
-  // a dependency of the former effect, so it fired on exactly the same transitions,
-  // and it converges immediately once the team is selected.
-  if (singleTeam && !event && availableTeams.length === 1 && selectedTeams.length === 0) {
-    setSelectedTeams([availableTeams[0].id])
+  // Pre-fill a new event with the creator's teams — once, after the team list and
+  // the creator's memberships have loaded, so clearing the picker afterwards sticks.
+  // Adjust-state-during-render, like the seeding above.
+  if (!event && !teamsDefaulted && allTeamsRaw && !teamsLoading) {
+    setTeamsDefaulted(true)
+    setSelectedTeams(ownTeamIds)
   }
 
   /**
@@ -478,6 +500,11 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setError(tc('required'))
       return
     }
+    // Nobody invited is not "everyone invited" any more — that is the toggle.
+    if (!wholeClub && selectedTeams.length === 0 && invitedMembers.length === 0 && invitedRoles.length === 0) {
+      setError(t('audienceRequired'))
+      return
+    }
     // Only https links may be stored — the detail modal renders this as a
     // clickable href, and sanitizeUrl() would hide anything else anyway.
     if (signupUrl.trim() && !sanitizeUrl(signupUrl.trim())) {
@@ -510,8 +537,10 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       meeting_time: meetingTime || null,
       location,
       description,
-      teams: m2mUpdatePayload('teams_id', selectedTeams, event?.teams),
-      created_by: user?.id,
+      teams: m2mUpdatePayload('teams_id', audienceTeams, event?.teams),
+      // The creator, set once. Re-sending it on every save made whoever last edited
+      // the event its creator (event 33: an admin's fix took it from the coach).
+      ...(event ? {} : { created_by: user?.id }),
       respond_by: respondBy
         ? toUtcIsoFromDatetimeLocal(`${respondBy}T${respondByTime || '23:59'}`)
         : null,
@@ -521,8 +550,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       allow_maybe: allowMaybe,
       participation_mode: effectiveMode,
       features_enabled: { position_preferences: enablePositions },
-      invited_roles: invitedRoles.length > 0 ? invitedRoles : null,
-      invited_members: m2mUpdatePayload('members_id', invitedMembers, event?.invited_members),
+      invited_roles: !wholeClub && invitedRoles.length > 0 ? invitedRoles : null,
+      invited_members: m2mUpdatePayload('members_id', wholeClub ? EMPTY_IDS : invitedMembers, event?.invited_members),
       send_email_invite: sendEmailInvite,
       invite_guests: inviteGuests,
       js_relevant: jsRelevant,
@@ -946,60 +975,75 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           </>
         )}
 
-        <FormField label={t('teamsInvolved')} helperText={t('teamsInvolvedHint')}>
-          <div className="mb-2 flex gap-1 rounded-xl bg-muted p-1">
-            {(['all', 'volleyball', 'basketball'] as const).map((sport) => (
-              <button
-                key={sport}
-                type="button"
-                onClick={() => {
-                  setSportFilter(sport)
-                  // Remove selected teams that don't match the new filter
-                  if (sport !== 'all') {
-                    const validIds = new Set(availableTeams.filter(t => t.sport === sport).map(t => t.id))
-                    setSelectedTeams(prev => prev.filter(id => validIds.has(id)))
-                  }
-                }}
-                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  sportFilter === sport
-                    ? 'bg-selected text-selected-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {sport === 'all' ? tc('all') : sport === 'volleyball' ? tc('volleyball') : tc('basketball')}
-              </button>
-            ))}
+        {/* Who is invited. The whole club is an explicit choice; otherwise the
+            creator's teams are pre-filled and can be changed. Switching back off
+            restores what was picked before. */}
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
+          <Switch checked={wholeClub} onCheckedChange={setWholeClub} />
+          <div>
+            <span>{t('wholeClub')}</span>
+            <p className="text-xs text-muted-foreground">{t('wholeClubHint')}</p>
           </div>
-          <TeamMultiSelect
-            options={teamOptions}
-            selected={selectedTeams}
-            onChange={setSelectedTeams}
-          />
-        </FormField>
+        </div>
 
-        {/* Guest players (member_teams.guest_level > 0) of the invited teams.
-            Sits under the team picker because it only means something once a
-            team is invited — a club-wide event has no roster to read a guest
-            level from. */}
-        {selectedTeams.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-foreground/85">
-            <Switch checked={inviteGuests} onCheckedChange={setInviteGuests} />
-            <div>
-              <span>{t('inviteGuests')}</span>
-              <p className="text-xs text-muted-foreground">{t('inviteGuestsHint')}</p>
+        {!wholeClub && (
+          <>
+          <FormField label={t('teamsInvolved')} helperText={t('teamsInvolvedHint')}>
+            <div className="mb-2 flex gap-1 rounded-xl bg-muted p-1">
+              {(['all', 'volleyball', 'basketball'] as const).map((sport) => (
+                <button
+                  key={sport}
+                  type="button"
+                  onClick={() => {
+                    setSportFilter(sport)
+                    // Remove selected teams that don't match the new filter
+                    if (sport !== 'all') {
+                      const validIds = new Set(availableTeams.filter(t => t.sport === sport).map(t => t.id))
+                      setSelectedTeams(prev => prev.filter(id => validIds.has(id)))
+                    }
+                  }}
+                  className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    sportFilter === sport
+                      ? 'bg-selected text-selected-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {sport === 'all' ? tc('all') : sport === 'volleyball' ? tc('volleyball') : tc('basketball')}
+                </button>
+              ))}
             </div>
-          </div>
+            <TeamMultiSelect
+              options={teamOptions}
+              selected={selectedTeams}
+              onChange={setSelectedTeams}
+            />
+          </FormField>
+
+          {/* Guest players (member_teams.guest_level > 0) of the invited teams.
+              Sits under the team picker because it only means something once a
+              team is invited — a club-wide event has no roster to read a guest
+              level from. */}
+          {selectedTeams.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-foreground/85">
+              <Switch checked={inviteGuests} onCheckedChange={setInviteGuests} />
+              <div>
+                <span>{t('inviteGuests')}</span>
+                <p className="text-xs text-muted-foreground">{t('inviteGuestsHint')}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Role targeting */}
+          <FormField label={t('inviteByRole', { ns: 'invitations' })}>
+            <RoleChipPicker selected={invitedRoles} onChange={setInvitedRoles} />
+          </FormField>
+
+          {/* Member targeting */}
+          <FormField label={t('inviteSpecificMembers', { ns: 'invitations' })}>
+            <MemberMultiSelect selected={invitedMembers} onChange={setInvitedMembers} />
+          </FormField>
+          </>
         )}
-
-        {/* Role targeting */}
-        <FormField label={t('inviteByRole', { ns: 'invitations' })}>
-          <RoleChipPicker selected={invitedRoles} onChange={setInvitedRoles} />
-        </FormField>
-
-        {/* Member targeting */}
-        <FormField label={t('inviteSpecificMembers', { ns: 'invitations' })}>
-          <MemberMultiSelect selected={invitedMembers} onChange={setInvitedMembers} />
-        </FormField>
 
         {/* Email invite toggle */}
         <div className="flex items-center gap-2 text-sm text-foreground/85">

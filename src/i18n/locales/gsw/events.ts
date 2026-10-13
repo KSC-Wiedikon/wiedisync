@@ -55,7 +55,10 @@ export default {
   bookHallsNeedEnd: 'Für e Halle-Reservation bruuchts e Endziit nach em Afang.',
   description: 'Beschriibig',
   teamsInvolved: 'Teams',
-  teamsInvolvedHint: 'Leer lah für vereinswiiti Events, sichtbar für alli Mitglieder',
+  teamsInvolvedHint: 'Fangt mit dine Teams aa — beliebig ergänze oder entferne',
+  wholeClub: 'Ganze Verein',
+  wholeClubHint: 'Alli Mitglieder vom Verein sind iiglade. Teams, Rolle und Persone fallet weg.',
+  audienceRequired: 'Wähl, wer iiglade isch: mindestens es Team, e Rolle oder e Person — oder schalt «Ganze Verein» ii.',
 
   // Event types
   club: 'Verein',
