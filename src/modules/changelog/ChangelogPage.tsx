@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.33.1'
+const APP_VERSION = '2.34.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.34.0',
+    date: '13.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Hall bookings made from events now appear in the Hallenplan, in each hall and on each day they book.",
+          "Hall bookings made from events are added to the KWI hall calendar automatically, so the hall administration sees them, and are removed again if the event is moved or cancelled.",
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          "When a booking takes only one of a training's extra halls, the training keeps its time in its main hall and loses only that hall while the booking runs. It gets the hall back if the booking moves or is cancelled.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.33.1',
     date: '13.10.2026',

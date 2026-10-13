@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.34.0 — 2026-10-13
+
+### New
+
+- Hall bookings made from events now appear in the Hallenplan, in each hall and on each day they book.
+- Hall bookings made from events are added to the KWI hall calendar automatically, so the hall administration sees them, and are removed again if the event is moved or cancelled.
+
+### Changed
+
+- When a booking takes only one of a training's extra halls, the training keeps its time in its main hall and loses only that hall while the booking runs. It gets the hall back if the booking moves or is cancelled.
+
 ## v2.33.1 — 2026-10-13
 
 ### Changed
