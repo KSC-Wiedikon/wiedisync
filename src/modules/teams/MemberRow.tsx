@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
-import { Check, Info, ShieldCheck, ShieldX } from 'lucide-react'
+import { Check, EyeOff, Info, ShieldCheck, ShieldX } from 'lucide-react'
 import IconButton from '../../components/IconButton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { logActivity } from '../../utils/logActivity'
@@ -15,7 +15,7 @@ import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import type { Team, Member, MemberTeam } from '../../types'
 import { cn } from '@/lib/utils'
 import { asObj, memberDisplayName, memberFirstName, flattenMemberIds } from '../../utils/relations'
-import { getMemberRole } from './memberRole'
+import { getMemberRole, getStaffCode } from './memberRole'
 import { formatDate } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
 import { updateRecord, m2mUpdatePayload } from '../../lib/api'
@@ -73,9 +73,15 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
   const selectablePositions = getSelectablePositions(team?.sport, memberPositions)
   const initials = `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
   const role = getMemberRole(member.id, team)
+  const staffCode = nonPlaying ? getStaffCode(member.id, team) : null
 
+  // The member's own visibility choice limits what teammates and coaches see. Admin
+  // mode shows the full date — the register holds it anyway — and marks the limit.
+  const birthdateLimited = member.birthdate_visibility === 'hidden' || member.birthdate_visibility === 'year_only'
   const birthdateDisplay = (() => {
-    if (member.birthdate_visibility === 'hidden' || !member.birthdate) return null
+    if (!member.birthdate) return null
+    if (isAdmin) return formatDate(member.birthdate)
+    if (member.birthdate_visibility === 'hidden') return null
     if (member.birthdate_visibility === 'year_only') return new Date(member.birthdate).getFullYear().toString()
     return formatDate(member.birthdate)
   })()
@@ -265,10 +271,14 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
         </td>
       )}
 
-      {/* Number — editable by coach, hidden for non-playing staff */}
+      {/* Number — editable by coach; non-playing staff show their staff code (C, AC1, TR …) */}
       <td className="px-4 py-3 text-center text-sm text-muted-foreground">
         {nonPlaying ? (
-          <span>—</span>
+          staffCode ? (
+            <span className="font-medium" title={t(`staffCode${staffCode}`)}>{staffCode}</span>
+          ) : (
+            <span>—</span>
+          )
         ) : canEdit && editingField === 'number' ? (
           <input
             type="number"
@@ -350,7 +360,17 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       )}
       {showContact && (
         <td className="hidden px-4 py-3 text-sm text-muted-foreground lg:table-cell">
-          {birthdateDisplay || '—'}
+          {birthdateDisplay ? (
+            <span className="inline-flex items-center gap-1.5">
+              {birthdateDisplay}
+              {isAdmin && birthdateLimited && (
+                <span title={t(member.birthdate_visibility === 'hidden' ? 'birthdateHiddenAdminHint' : 'birthdateYearOnlyAdminHint')}>
+                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground/80" aria-hidden="true" />
+                  <span className="sr-only">{t(member.birthdate_visibility === 'hidden' ? 'birthdateHiddenAdminHint' : 'birthdateYearOnlyAdminHint')}</span>
+                </span>
+              )}
+            </span>
+          ) : '—'}
         </td>
       )}
 
