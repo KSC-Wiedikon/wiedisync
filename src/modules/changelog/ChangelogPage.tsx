@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.32.0'
+const APP_VERSION = '2.32.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.32.1',
+    date: '13.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "On a team page, coaches and other staff who don't play now show their staff role in the number column: C, AC1 or AC2 from the team's Einsatzliste officials, otherwise C for a coach and TR for a team responsible.",
+          "In admin mode, the team page shows each member's birthdate even when they have hidden it from the team, marked with a small icon. Teammates and coaches still see only what each member allows.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.32.0',
     date: '13.10.2026',
