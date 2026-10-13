@@ -85,7 +85,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const { t, i18n } = useTranslation('events')
   const { t: tc } = useTranslation('common')
   const confirm = useConfirm()
-  const { user, coachTeamIds, memberTeamIds, teamsLoading, isSuperAdmin, isGlobalAdmin } = useAuth()
+  const { user, coachTeamIds, memberTeamIds, teamsLoading, isSuperAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
   // Booking a hall trims or cancels EVERY team's trainings there, both sports —
   // full admins only (the server refuses the field for anyone else, migration 409).
@@ -96,12 +96,16 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
 
-  // Filter teams by permissions: admins see all, coaches see only their teams
+  // Which teams the picker offers: admin mode → all. Otherwise the teams you lead,
+  // plus every team of a sport you administer — the server already lets a vb_admin /
+  // bb_admin target any team of their sport (actorLeadsTeam), but the form hid them,
+  // so a basketball admin could not pick DU18 Fire without admin mode (13.10.2026).
   const availableTeams = useMemo(() => {
     if (effectiveIsAdmin) return allTeams
-    if (coachTeamIds.length === 0) return allTeams
-    return allTeams.filter((t) => coachTeamIds.includes(t.id))
-  }, [allTeams, effectiveIsAdmin, coachTeamIds])
+    if (coachTeamIds.length === 0 && !isVbAdmin && !isBbAdmin) return allTeams
+    return allTeams.filter((t) => coachTeamIds.includes(t.id)
+      || (t.sport === 'volleyball' && isVbAdmin) || (t.sport === 'basketball' && isBbAdmin))
+  }, [allTeams, effectiveIsAdmin, coachTeamIds, isVbAdmin, isBbAdmin])
 
   const [sportFilter, setSportFilter] = useState<'all' | 'volleyball' | 'basketball'>('all')
 
