@@ -170,7 +170,7 @@ export default {
   nominationOfficialAc2: 'Entraîneur assistant 2 (AC2)',
   nominationOfficialNone: 'Garder comme dans Volleymanager',
   nominationOfficialNotSet: 'Non défini',
-  nominationOfficialFormerStaff: '(Plus dans le staff)',
+  nominationOfficialFormerStaff: '(Pas entraîneur de cette équipe)',
   autoConfirmOnTitle: 'Confirmer tout le monde automatiquement ?',
   autoConfirmOffTitle: 'Désactiver la confirmation automatique ?',
   autoConfirmOnCta: 'Activer',
