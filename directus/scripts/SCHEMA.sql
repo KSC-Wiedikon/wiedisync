@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-13T10:54:34.477Z
+-- Generated:   2026-10-13T15:14:28.294Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 1ViUd0IU2jXcRz9ZN18MYbMhJGtVeFk9NaQg6iasfgLpO3wogwsNNT3R5c2nGmQ
+\restrict Ywa18vds1nVEU5jV9VYZsK1hrzFginDkltGTXL8qr07w0CbBZZxrh96bH4DhKPM
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -11066,6 +11066,8 @@ CREATE TABLE public.trainings (
     carpool_enabled boolean DEFAULT false NOT NULL,
     auto_adjusted_by_booking text,
     original_start_time time without time zone,
+    original_extra_halls json,
+    extra_halls_adjusted_by_booking text,
     CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
 );
 
@@ -15920,6 +15922,13 @@ CREATE INDEX idx_trainings_auto_cancelled_by_trial ON public.trainings USING btr
 
 
 --
+-- Name: idx_trainings_extra_halls_adjusted_by_booking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_trainings_extra_halls_adjusted_by_booking ON public.trainings USING btree (extra_halls_adjusted_by_booking) WHERE (extra_halls_adjusted_by_booking IS NOT NULL);
+
+
+--
 -- Name: live_history_channel_finished_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19314,7 +19323,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 1ViUd0IU2jXcRz9ZN18MYbMhJGtVeFk9NaQg6iasfgLpO3wogwsNNT3R5c2nGmQ
+\unrestrict Ywa18vds1nVEU5jV9VYZsK1hrzFginDkltGTXL8qr07w0CbBZZxrh96bH4DhKPM
 
 
 
@@ -19330,7 +19339,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 413 migration(s) already in the schema above.
+-- Migration tracker seed — 414 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19756,6 +19765,7 @@ FROM (VALUES
   ('406-sport-section.sql'),
   ('407-registration-decided-by.sql'),
   ('408-game-call-up-staff.sql'),
-  ('409-hall-bookings.sql')
+  ('409-hall-bookings.sql'),
+  ('410-booking-extra-halls.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
