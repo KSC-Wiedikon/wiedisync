@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.32.1'
+const APP_VERSION = '2.33.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.33.0',
+    date: '13.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "New events start with the teams you lead, or the ones you play in if you lead none. To invite everyone, turn on Whole club — leaving the team list empty no longer invites the whole club.",
+          "When an event's teams or invited people change, automatic answers (absence declines and auto-confirms) of people who are no longer invited are removed, and the newly invited get theirs.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "The events page, home page and calendar no longer show part of your events first and then fill in the rest.",
+          "Editing someone else's event no longer makes you its creator.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.32.1',
     date: '13.10.2026',
