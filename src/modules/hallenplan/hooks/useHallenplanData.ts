@@ -114,7 +114,7 @@ export function useHallenplanData(
     limit: 100,
     sort: ['date', 'start_time'],
     // closure_override is load-bearing below — an unlisted field would be
-    // undefined, which reads as "not overridden" and silently re-closes the hall.
+    // undefined, which reads as "not approved" and silently opens the hall.
     fields: ['*'],
   })
   const hallEvents = hallEventsRaw ?? EMPTY
@@ -136,11 +136,11 @@ export function useHallenplanData(
   const mergedClosures = useMemo(() => {
     const syntheticClosures: HallClosure[] = []
     for (const he of hallEvents) {
-      // ⚠ An admin override (migration 325) deletes the real hall_closures rows.
-      // Without this guard the synthetic path below would re-add the closure from
-      // the title alone, so the Hallenplan would keep showing the hall shut and
-      // the override would look broken everywhere except the closures page.
-      if (he.closure_override === false) continue
+      // ⚠ Only an APPROVED entry closes anything (migration 409) — a pending or
+      // refused one has no hall_closures rows. Without this guard the synthetic
+      // path below would re-add the closure from the title alone, so the
+      // Hallenplan would show a hall shut that nobody approved closing.
+      if (he.closure_override !== true) continue
       if (!CLOSURE_PATTERN.test(he.title)) continue
       const hallIds = resolveHallEventHalls(he, halls)
       const dateStr = he.date.slice(0, 10)

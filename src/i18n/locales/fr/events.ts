@@ -50,6 +50,9 @@ export default {
   shareTokenRevoked: 'Lien d\'inscription public désactivé',
   teamsLabel: 'Équipes :',
   location: 'Lieu',
+  bookHalls: 'Réserver des salles',
+  bookHallsHint: 'Les entraînements dans ces salles pendant l’événement sont raccourcis ou annulés automatiquement, puis rétablis si l’événement est déplacé ou annulé.',
+  bookHallsNeedEnd: 'Une réservation de salle nécessite une heure de fin après le début.',
   description: 'Description',
   teamsInvolved: 'Equipes',
 

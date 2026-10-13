@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rsvpTone } from '../../utils/rsvpTone'
 import CarpoolChip from '../carpool/CarpoolChip'
+import { shortenedBy, plannedTimeRange } from './shortened'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -58,7 +59,7 @@ export default function TrainingCard({ training, participations, myParticipation
   const excludedGuestLevels = Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : []
   const guestExcluded = myGuestLevel > 0 && excludedGuestLevels.map((n) => Number(n)).includes(myGuestLevel)
   const cancelled = !!training.cancelled
-  const shortened = !cancelled && training.auto_shortened_by_game != null
+  const shortened = shortenedBy(training)
   const hallName = hall?.name || training.hall_name
   const canAnswer = !cancelled && !!user && canParticipateIn(teamId)
   // Viewers who answer see the totals INSIDE the answer buttons; everyone else
@@ -119,7 +120,9 @@ export default function TrainingCard({ training, participations, myParticipation
             <p className="mt-1 text-xs text-red-600 dark:text-red-400">{training.cancel_reason}</p>
           )}
           {shortened && (
-            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('shortenedHint')}</p>
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {shortened === 'game' ? t('shortenedHint') : t('shortenedHallHint', { usual: plannedTimeRange(training) })}
+            </p>
           )}
           {training.notes && !cancelled && (
             <p className="mt-1 break-words text-xs text-muted-foreground">{training.notes}</p>

@@ -46,6 +46,7 @@ import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
+import { sweepHallBookings } from './hall-bookings.js'
 import { createCorsCredentialsMiddleware, createWebSocketCookieGuard } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
 import { forbiddenError } from './directus-error.js'
@@ -2640,6 +2641,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[game-training-shorten] action sweep failed: ${err.message}`, event: 'game_training_shorten_action_failed', stack: err.stack })
     }
+    // Hall bookings (migration 409) — after the game sweep, whose pass 1b can
+    // reinstate a training a booking still covers.
+    try {
+      await sweepHallBookings(database, log)
+    } catch (err) {
+      log.error({ msg: `[hall-bookings] action sweep failed: ${err.message}`, event: 'hall_bookings_action_failed', stack: err.stack })
+    }
     try {
       await sweepGameClashDeclines(database, log)
     } catch (err) {
@@ -2765,6 +2773,22 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     `, [dateStr, dateStr, eventId, dateStr])
     return res?.rowCount || 0
   }
+
+  // Hall bookings (migration 409): an event with a `hall` books it, and the
+  // trainings it overlaps are trimmed or cancelled the moment it is saved —
+  // and put back when it is moved, cancelled, unbooked or deleted. The sweep is
+  // whole-table and cheap, so it runs on every event write rather than trying
+  // to tell which writes touched the booking.
+  const runHallBookingSweep = async (why) => {
+    try {
+      await sweepHallBookings(database, log)
+    } catch (err) {
+      log.error({ msg: `[hall-bookings] ${why} sweep failed: ${err.message}`, event: 'hall_bookings_event_sweep_failed', stack: err.stack })
+    }
+  }
+  action('events.items.create', async () => { await runHallBookingSweep('event create') })
+  action('events.items.update', async () => { await runHallBookingSweep('event update') })
+  action('events.items.delete', async () => { await runHallBookingSweep('event delete') })
 
   // Events — mirror trainings/games: decline for members already on absence
   action('events.items.create', async ({ key }) => {
@@ -3852,6 +3876,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         `, [k, k])
         if (res?.rowCount > 0) log.info(`[closure-auto-cancel] Closure ${k} deleted: ${res.rowCount} trainings reversed`)
       }
+      // A training just reinstated may sit under a hall booking (migration 409)
+      // in the same hall — trim or cancel it now, not tonight.
+      await sweepHallBookings(database, log)
     } catch (err) {
       log.error({ msg: `[closure-auto-cancel] delete: ${err.message}`, event: 'closure_auto_cancel_delete', stack: err.stack })
     }
@@ -8495,6 +8522,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[game-training-shorten] nightly sweep failed: ${err.message}`, event: 'game_training_shorten_cron_failed', stack: err.stack })
       logCronError('game_training_shorten', err)
+    }
+    // Same order as runGameTrainingSweeps: the night's freshly generated
+    // trainings get trimmed by a hall booking before the clash declines run
+    // (they skip cancelled trainings).
+    try {
+      const res = await sweepHallBookings(database, log)
+      log.info({ msg: `[hall-bookings] nightly sweep: ${res.cancelled.length} cancelled, ${res.shortened.length} shortened, ${res.restored.length} restored`, event: 'hall_bookings_cron_done', cancelled: res.cancelled.length, shortened: res.shortened.length, restored: res.restored.length })
+    } catch (err) {
+      log.error({ msg: `[hall-bookings] nightly sweep failed: ${err.message}`, event: 'hall_bookings_cron_failed', stack: err.stack })
+      logCronError('hall_bookings', err)
     }
     try {
       const res = await sweepGameClashDeclines(database, log)

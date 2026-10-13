@@ -15,6 +15,7 @@ import { useCollection } from '../../lib/query'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { Hall, HallClosure, HallEvent } from '../../types'
 import { createRecord, deleteRecord, kscwApi, updateRecord } from '../../lib/api'
+import { parseNamedKwiHalls } from './utils/virtualSlots'
 
 interface ClosureGroup {
   key: string
@@ -98,9 +99,9 @@ export default function ClosuresPage() {
   })
   const closures = closuresRaw ?? EMPTY_CLOSURES
 
-  // The hall administration's own calendar. Since migration 325 EVERY entry here
-  // closes the KWI halls — this list is the only place a human can say "not this
-  // one", so it shows the entries themselves, not the closures they produced.
+  // The hall administration's own calendar. Since migration 409 NOTHING here
+  // takes effect until an admin approves it — this list is where that decision
+  // is made, so it shows the entries themselves, not the closures they produced.
   const {
     data: gcalEventsRaw,
     isLoading: gcalLoading,
@@ -340,33 +341,50 @@ export default function ClosuresPage() {
   }
 
   /**
-   * Flip one calendar entry between "closes the halls" and "closes nothing".
-   *
-   * The endpoint reconciles the hall_closures rows immediately rather than
-   * waiting for the 04:00 cron, so the trainings a closure had cancelled come
-   * back the moment it is switched off — that reversal is the whole point of the
-   * override, and a user who has to wait a night cannot tell it worked.
+   * What approving a calendar entry does, in words — the same rule the backend
+   * applies (gcal-sync.js / hall-bookings.js): a timed single-day entry books
+   * the halls it names for its window, anything else closes them all day; no
+   * hall named = every KWI hall.
    */
-  async function toggleGcalClosure(ev: HallEvent) {
-    const willClose = ev.closure_override === false
-    // Only the closing direction is destructive (it cancels trainings);
-    // switching a closure off only ever gives trainings back.
-    if (willClose && !(await confirm({ message: t('gcalCloseConfirm'), danger: true }))) return
+  function entryEffect(ev: HallEvent): string {
+    const letters = parseNamedKwiHalls(`${ev.title} ${ev.location || ''}`)
+    const hallList = letters.length ? letters.map((l) => `KWI ${l}`).join(', ') : t('gcalAllKwiHalls')
+    const from = (ev.start_time || '').slice(0, 5)
+    const to = (ev.end_time || '').slice(0, 5)
+    const sameDay = !ev.end_date || dateKey(ev.end_date) === dateKey(ev.date)
+    const timed = !ev.all_day && !!from && !!to && to > from && sameDay
+    return timed ? t('gcalEffectBooks', { halls: hallList, from, to }) : t('gcalEffectClosesDays', { halls: hallList })
+  }
+
+  /**
+   * Approve or refuse one calendar entry.
+   *
+   * The endpoint applies the decision immediately rather than waiting for the
+   * 04:00 cron: an approval closes or books the halls at once, a refusal puts
+   * back whatever trainings the entry had cancelled or shortened.
+   */
+  async function decideGcalEntry(ev: HallEvent, approve: boolean) {
+    // Only approving is destructive (it cancels / shortens trainings).
+    if (approve && !(await confirm({ message: t('gcalApproveConfirm', { effect: entryEffect(ev) }), danger: true }))) return
 
     setTogglingId(ev.id)
     try {
       const res = await kscwApi<{
         trainingsCancelled: number
+        trainingsShortened?: number
         trainingsRestored: number
       }>(`/admin/hall-events/${ev.id}/closure-override`, {
         method: 'POST',
-        body: { override: willClose ? true : false },
+        body: { override: approve },
       })
       await Promise.all([refetchGcal(), refetch()])
-      const detail = willClose
-        ? (res.trainingsCancelled > 0 ? t('gcalTrainingsCancelledToast', { count: res.trainingsCancelled }) : '')
+      const detail = approve
+        ? [
+            res.trainingsCancelled > 0 ? t('gcalTrainingsCancelledToast', { count: res.trainingsCancelled }) : '',
+            (res.trainingsShortened ?? 0) > 0 ? t('gcalTrainingsShortenedToast', { count: res.trainingsShortened }) : '',
+          ].filter(Boolean).join(', ')
         : (res.trainingsRestored > 0 ? t('gcalTrainingsRestoredToast', { count: res.trainingsRestored }) : '')
-      const head = willClose ? t('gcalOverrideOnToast') : t('gcalOverrideOffToast')
+      const head = approve ? t('gcalApprovedToast') : t('gcalRefusedToast')
       toast.success(detail ? `${head} — ${detail}` : head)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('common:errorSaving'))
@@ -374,6 +392,7 @@ export default function ClosuresPage() {
       setTogglingId(null)
     }
   }
+  const pendingCount = gcalEvents.filter((ev) => ev.closure_override == null).length
 
   /**
    * Publish (or withdraw) one closure on the hall administration's calendar.
@@ -674,13 +693,17 @@ export default function ClosuresPage() {
         )}
       </div>
 
-      {/* Hall-administration calendar — the per-entry closure override.
+      {/* Hall-administration calendar — approve or refuse each entry.
           Its own list rather than a column on the closures table above: a
-          switched-off entry HAS no closure rows, so it would be invisible there
-          exactly when the admin needs to find it again. */}
+          pending or refused entry HAS no closure rows, so it would be invisible
+          there exactly when the admin needs to decide on it. */}
       <div className="mt-6 rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
         <h2 className="text-sm font-semibold text-foreground">{t('gcalEntriesTitle')}</h2>
-        <p className="mt-1 mb-3 text-sm text-muted-foreground">{t('gcalEntriesSubtitle')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('gcalEntriesSubtitle')}</p>
+        {pendingCount > 0 && (
+          <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">{t('gcalPendingCount', { count: pendingCount })}</p>
+        )}
+        <div className="mb-3" />
 
         {gcalLoading ? (
           <p className="py-6 text-center text-sm text-muted-foreground/80">{t('common:loading')}</p>
@@ -692,7 +715,7 @@ export default function ClosuresPage() {
               <TableRow>
                 <TableHead>{t('closuresColDates')}</TableHead>
                 <TableHead>{t('gcalColEntry')}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t('gcalColEffect')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('gcalColStatus')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -703,10 +726,16 @@ export default function ClosuresPage() {
                 const dateRange = startStr === endStr
                   ? formatDateDisplay(startStr)
                   : `${formatDateDisplay(startStr)} – ${formatDateDisplay(endStr)}`
-                const closes = ev.closure_override !== false
-                const effect = ev.closure_override === true
-                  ? t('gcalEffectConfirmed')
-                  : closes ? t('gcalEffectCloses') : t('gcalEffectOpen')
+                const decision = ev.closure_override
+                const status = decision === true
+                  ? t('gcalStatusApproved')
+                  : decision === false ? t('gcalStatusRefused') : t('gcalStatusPending')
+                const statusTone = decision === true
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                  : decision === false
+                    ? 'bg-muted text-muted-foreground'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                const busy = togglingId === ev.id
 
                 return (
                   <TableRow key={ev.id} className="min-h-[44px]">
@@ -729,47 +758,45 @@ export default function ClosuresPage() {
                     </TableCell>
                     <TableCell className="whitespace-normal break-words">
                       {ev.title}
-                      {/* The effect badge is the row's most important fact, so it
+                      {/* What approving does — the fact the decision hangs on. */}
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{entryEffect(ev)}</span>
+                      {/* The status badge is the row's most important fact, so it
                           must survive the mobile column drop, not hide with it. */}
-                      <span
-                        className={cn(
-                          'mt-1 inline-flex rounded-full px-2 py-0.5 text-xs sm:hidden',
-                          closes
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                            : 'bg-muted text-muted-foreground',
-                        )}
-                      >
-                        {effect}
+                      <span className={cn('mt-1 inline-flex rounded-full px-2 py-0.5 text-xs sm:hidden', statusTone)}>
+                        {status}
                       </span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <span
-                        className={cn(
-                          'inline-flex rounded-full px-2 py-0.5 text-xs',
-                          closes
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                            : 'bg-muted text-muted-foreground',
-                        )}
-                      >
-                        {effect}
+                      <span className={cn('inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs', statusTone)}>
+                        {status}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={togglingId === ev.id}
-                        loading={togglingId === ev.id}
-                        onClick={() => { void toggleGcalClosure(ev) }}
-                        className={cn(
-                          'whitespace-nowrap px-2 sm:px-3',
-                          closes
-                            ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                            : 'text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:text-brand-200',
+                      <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:justify-end">
+                        {decision !== true && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            loading={busy}
+                            onClick={() => { void decideGcalEntry(ev, true) }}
+                            className="whitespace-nowrap px-2 text-primary hover:bg-primary/10 hover:text-primary sm:px-3 dark:text-brand-300 dark:hover:text-brand-200"
+                          >
+                            {t('gcalActionApprove')}
+                          </Button>
                         )}
-                      >
-                        {closes ? t('gcalActionOpen') : t('gcalActionClose')}
-                      </Button>
+                        {decision !== false && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => { void decideGcalEntry(ev, false) }}
+                            className="whitespace-nowrap px-2 text-muted-foreground hover:bg-muted hover:text-foreground sm:px-3"
+                          >
+                            {t('gcalActionRefuse')}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )

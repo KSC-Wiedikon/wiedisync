@@ -111,6 +111,7 @@ export default {
   trialBadge: 'Probetraining',
   shortenedBadge: 'Verchürzt',
   shortenedHint: 'Ändet früener — nachane isch es Heimspiel i de Halle',
+  shortenedHallHint: 'Chürzer als süscht ({{usual}}) — d Halle isch teilwiis bsetzt',
 
   // Serie — manuell (ohni Halleslot)
   weekday: 'Wochetag',

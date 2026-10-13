@@ -111,6 +111,7 @@ export default {
   trialBadge: 'Probetraining',
   shortenedBadge: 'Shortened',
   shortenedHint: 'Ends earlier — home game in this hall afterwards',
+  shortenedHallHint: 'Shorter than usual ({{usual}}) — the hall is booked for part of the time',
 
   // Recurring — manual (no hall slot)
   weekday: 'Weekday',

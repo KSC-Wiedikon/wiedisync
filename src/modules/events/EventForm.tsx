@@ -26,6 +26,8 @@ import { hasApiErrorCode } from '../../lib/apiErrorCode'
 import { toast } from 'sonner'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
+import { useHalls } from '../../hooks/useData'
+import { relId } from '../../utils/relations'
 
 /**
  * Directus M2M aliases come back either as bare IDs or as expanded junction
@@ -80,8 +82,13 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const { t, i18n } = useTranslation('events')
   const { t: tc } = useTranslation('common')
   const confirm = useConfirm()
-  const { user, coachTeamIds, isSuperAdmin } = useAuth()
+  const { user, coachTeamIds, isSuperAdmin, isGlobalAdmin } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
+  // Booking a hall trims or cancels EVERY team's trainings there, both sports —
+  // full admins only (the server refuses the field for anyone else, migration 409).
+  const canBookHalls = effectiveIsAdmin && isGlobalAdmin
+  const { data: hallsRaw } = useHalls()
+  const halls = useMemo(() => hallsRaw ?? [], [hallsRaw])
   const { create, update, isLoading } = useMutation<Event>('events')
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
@@ -124,6 +131,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [meetingTime, setMeetingTime] = useState('')
   const [allDay, setAllDay] = useState(true)
   const [location, setLocation] = useState('')
+  const [bookedHalls, setBookedHalls] = useState<string[]>([])
   const [description, setDescription] = useState('')
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
   const [respondBy, setRespondBy] = useState('')
@@ -199,6 +207,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setAllDay(event.all_day)
       setMeetingTime((event.meeting_time ?? '').slice(0, 5))
       setLocation(event.location ?? '')
+      setBookedHalls([...new Set([relId(event.hall), ...(event.additional_halls ?? []).map(relId)].filter(Boolean))])
       setDescription(event.description ?? '')
       // teams from API are junction objects [{teams_id: {id, ...}}, ...] — extract team IDs
       setSelectedTeams((event.teams ?? []).map((t: TeamRef) => {
@@ -245,6 +254,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setAllDay(true)
       setMeetingTime('')
       setLocation('')
+      setBookedHalls([])
       setDescription('')
       setSelectedTeams([])
       setRespondBy('')
@@ -475,6 +485,13 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setError(t('signupFormUrlInvalid'))
       return
     }
+    // A booked hall is blocked from start to end — without an end there is no
+    // window, and the booking would silently do nothing.
+    if (canBookHalls && bookedHalls.length > 0 && !allDay
+      && (!endTime || `${endDate || startDate}T${endTime}` <= `${startDate}T${startTime || '00:00'}`)) {
+      setError(t('bookHallsNeedEnd'))
+      return
+    }
     if (submitting) return
     setSubmitting(true)
 
@@ -514,6 +531,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       carpool_teams: carpoolEnabled && carpoolScopeValue.length > 0 ? carpoolScopeValue.map(Number) : null,
       js_activity_type: jsRelevant ? jsActivityType : null,
       signup_url: signupUrl.trim() || null,
+      // Only a full admin may send these at all (field-scoped permission); for
+      // anyone else they are left out, so an existing booking stays as it is.
+      ...(canBookHalls ? {
+        hall: bookedHalls[0] ? Number(bookedHalls[0]) : null,
+        additional_halls: bookedHalls.length > 1 ? bookedHalls.slice(1).map(Number) : null,
+      } : {}),
     }
 
     try {
@@ -700,6 +723,33 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
             onChange={setLocation}
           />
         </FormField>
+
+        {canBookHalls && (
+          <FormField label={t('bookHalls')} helperText={t('bookHallsHint')}>
+            <div className="flex flex-wrap gap-1.5">
+              {halls.map((h) => {
+                // Ids arrive as numbers; the seeded selection is strings (relId).
+                const hid = String(h.id)
+                const active = bookedHalls.includes(hid)
+                return (
+                  <button
+                    key={hid}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setBookedHalls((prev) => (active ? prev.filter((id) => id !== hid) : [...prev, hid]))}
+                    className={`inline-flex min-h-[44px] items-center rounded-full px-3 text-xs font-medium transition-colors sm:min-h-9 ${
+                      active
+                        ? 'bg-selected text-selected-foreground'
+                        : 'bg-stone-100 text-muted-foreground hover:bg-stone-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {h.name}
+                  </button>
+                )
+              })}
+            </div>
+          </FormField>
+        )}
 
         <FormTextarea
           label={t('description')}

@@ -16,11 +16,22 @@
  *     render. Kept for continuity (upserted by uid).
  * Both are reconciled against the live feed each run (insert new, delete stale)
  * so nothing churns for unchanged entries.
+ *
+ * ⚠ Since migration 409 NOTHING from this calendar takes effect until a club
+ * admin APPROVES it (hall_events.closure_override = true, /admin/hallenplan/
+ * closures). New entries arrive pending; an approved entry that the hall
+ * administration moves (dates, times, halls) drops back to pending. Once
+ * approved, a TIMED single-day entry books only the halls it names for its own
+ * window (hall-bookings.js trims or cancels just the trainings it overlaps);
+ * every other entry closes the halls it names — all KWI when none — for whole
+ * days. Only all-day / multi-day
+ * entries still close halls for whole days — and only the halls they name.
  */
 
 import { pushHomeGames, pushClubClosures, listOwnedClosureEventIds, findDuplicate, isOwnGameTitle, KSCW_CALENDAR_ID } from './gcal-push.js'
 import { writeUserLog } from './activity-log.js'
 import { emptyChanges, hasChanges, notifyGCalChanges } from './gcal-notify.js'
+import { entryHallIds, parseNamedKwiHalls, timeWindow, sweepHallBookings } from './hall-bookings.js'
 
 const GCAL_IDS = [
   // KSCW public calendar (kscw.ch/weiteres/kalender → embedded Google Calendar).
@@ -113,21 +124,44 @@ function parseIcs(text) {
 // an exam — six KWI trainings still standing on Monday 26.10. A keyword list is
 // always one typo behind.
 //
-// So the rule is inverted: **anything the hall administration puts on that
-// calendar closes the halls**, and a human decides the exceptions per entry via
+// So the rule was inverted: **anything the hall administration puts on that
+// calendar closes the halls**, and a human decided the exceptions per entry via
 // `hall_events.closure_override` (admin UI on /admin/hallenplan/closures).
 // Measured against the live feed at the flip, this changed 1 of 19 future
 // entries — the exam reservation; the other 18 already matched.
+//
+// ⚠⚠ Migration 409 inverted it once more: "closes unless refused" let a
+// friendly typed onto the calendar (`Freundschaftsspiel BB DU18 FIRE - Zürich 93
+// DU16 (Halle C)`, 18:30–20:00) close all three halls for the whole day and
+// cancel six trainings overnight with nobody asked. Now **nothing takes effect
+// until an admin approves it** — the decision moved from "spot the exceptions"
+// to "say yes to each one", and the nightly digest asks for it.
 //
 // Our OWN events never reach here: pushed games are dropped by event id and, as
 // a backstop, by the exact title shape buildEvent() emits — both before this
 // point. Closing the hall for our own game would cancel the very game it
 // describes.
 //
-// override === false → admin says this one closes nothing.
-// override === true / null/undefined → closes (true is a recorded human "yes").
+// override === true  → approved: closes (or books, when timed).
+// override === null  → pending: nothing happens until someone decides.
+// override === false → refused: never does anything.
+// Anything else is not a decision and does nothing either.
 export function closesTheHall(override) {
-  return override !== false
+  return override === true
+}
+
+// Fields whose change makes an approved (or refused) entry a different booking:
+// when, how long, and which halls. A pure re-wording keeps the decision.
+export function materiallyChanged(before, after) {
+  const day = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
+  const time = (v) => (v == null || v === '' ? '' : String(v).slice(0, 5))
+  const halls = (r) => parseNamedKwiHalls(`${r.title || ''} ${r.location || ''}`).join('')
+  return day(before.date) !== day(after.date)
+    || (day(before.end_date) || day(before.date)) !== (day(after.end_date) || day(after.date))
+    || time(before.start_time) !== time(after.start_time)
+    || time(before.end_time) !== time(after.end_time)
+    || !!before.all_day !== !!after.all_day
+    || halls(before) !== halls(after)
 }
 
 export function registerGCalSync(router, { database, logger, services, getSchema }) {
@@ -169,17 +203,17 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       log.warn({ msg: `gcal-sync: could not list owned closure events: ${err.message}`, endpoint: 'gcal-sync' })
     }
 
-    const halls = await db('halls').select('id', 'name')
-    // Halls a calendar closure applies to: the KWI school gym (A/B/C). These are
-    // the halls the public calendar's "Halle geschlossen" entries refer to and
-    // the set the previous gcal sync used. Döltschi / external halls follow their
+    // Halls a calendar entry applies to: the KWI school gym (A/B/C) — the halls it
+    // names, or all three (entryHallIds). Döltschi / external halls follow their
     // own availability and are not closed by this calendar.
-    const kwiHallIds = halls.filter(h => /^kwi/i.test(h.name)).map(h => h.id)
+    const halls = await db('halls').select('id', 'name')
 
     let eventsCreated = 0, eventsUpdated = 0, eventsDeleted = 0
     let closuresCreated = 0, closuresDeleted = 0
-    // Entries an admin has explicitly marked as "closes nothing".
-    let overriddenOff = 0
+    // Upcoming entries awaiting an admin's decision / refused by one.
+    let pending = 0, refused = 0
+    // Approved timed entries handled as a booking instead of a closure.
+    let timeBlocks = 0
 
     for (const calId of GCAL_IDS) {
       const url = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calId)}/public/basic.ics`
@@ -279,6 +313,11 @@ export function registerGCalSync(router, { database, logger, services, getSchema
           source: 'gcal', uid: ev.uid,
         }
         const existing = await db('hall_events').where('uid', ev.uid).first()
+        // The admin's decision for THIS version of the entry. A new entry has
+        // none; a moved one loses it — approving "Halle geschlossen 24.10" is
+        // not approving it for 31.10.
+        const reset = existing && existing.closure_override != null && materiallyChanged(existing, record)
+        const decision = existing && !reset ? existing.closure_override : null
         if (existing) {
           // The UPDATE below is unconditional (cheap, and it refreshes
           // date_updated), so `eventsUpdated` counts every row in the feed and is
@@ -294,7 +333,11 @@ export function registerGCalSync(router, { database, logger, services, getSchema
           cmp('location', asText(existing.location), asText(record.location))
           cmp('all_day', String(!!existing.all_day), String(!!record.all_day))
           if (diffs.length) changes.eventsChanged.push({ title: record.title, date: record.date, diffs })
-          await db('hall_events').where('id', existing.id).update({ ...record, date_updated: new Date() })
+          await db('hall_events').where('id', existing.id)
+            .update({ ...record, ...(reset ? { closure_override: null } : {}), date_updated: new Date() })
+          if (reset && endD >= todayYmd) {
+            changes.needsApproval.push({ title: record.title, date: record.date, time: record.start_time, endTime: record.end_time, allDay: record.all_day, again: true })
+          }
           eventsUpdated++
         } else {
           await db('hall_events').insert({ ...record, date_created: new Date(), date_updated: new Date() })
@@ -302,21 +345,33 @@ export function registerGCalSync(router, { database, logger, services, getSchema
             title: record.title, date: record.date, time: record.start_time,
             endTime: record.end_time, allDay: record.all_day, location: record.location,
           })
+          if (endD >= todayYmd) {
+            changes.needsApproval.push({ title: record.title, date: record.date, time: record.start_time, endTime: record.end_time, allDay: record.all_day })
+          }
           eventsCreated++
         }
 
-        // ── hall_closures (block) — every entry closes the KWI halls for its
-        // span unless an admin has overridden this one. `existing` is the row as
-        // it was BEFORE this run's update, which is what carries the override
-        // (the upsert payload deliberately does not include it). ──
-        if (endD >= todayYmd && closesTheHall(existing?.closure_override)) {
-          const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
-          for (const h of kwiHallIds) {
-            if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
-            desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
+        // ── hall_closures (block) — an APPROVED entry closes its halls for its
+        // span. `decision` comes from the row as it was BEFORE this run's update
+        // (the upsert payload deliberately does not carry the override), minus
+        // an approval the entry just lost by moving. ──
+        if (endD >= todayYmd && closesTheHall(decision)) {
+          if (timeWindow(record)) {
+            // A friendly in Halle C 18:30–20:00 must not close A, B and C for the
+            // whole day. sweepHallBookings (below) trims or cancels only the
+            // trainings it overlaps.
+            timeBlocks++
+          } else {
+            const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
+            // The halls it names ("Halle C geschlossen" → C); all KWI when none.
+            for (const h of entryHallIds(record, halls)) {
+              if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
+              desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
+            }
           }
         } else if (endD >= todayYmd) {
-          overriddenOff++
+          if (decision === false) refused++
+          else pending++
         }
       }
 
@@ -363,16 +418,32 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         .leftJoin('teams', 'teams.id', 'trainings.team')
         .leftJoin('halls', 'halls.id', 'trainings.hall')
         .select(db.raw('trainings.date::text as date'), 'trainings.start_time',
-          'teams.name as team', 'halls.name as hall')
+          'teams.name as team', 'teams.sport', 'halls.name as hall')
         .orderBy('trainings.date')
 
       // Delete stale closures (no longer in the feed). Never delete a gcal
       // closure that now sits under a Zurich school holiday — leave it as a
       // harmless duplicate rather than risk reversing a training cancellation.
-      for (const [k, row] of existKeys) {
-        if (desiredClosures.has(k)) continue
+      const stale = [...existKeys].filter(([k]) => {
+        if (desiredClosures.has(k)) return false
         const [h, s, e] = k.split('|')
-        if (coveredBySchoolHoliday(parseInt(h, 10), s, e)) continue
+        return !coveredBySchoolHoliday(parseInt(h, 10), s, e)
+      })
+
+      // Time-window blocks BEFORE the closure deletes. A timed entry that was a
+      // whole-day closure until now (every one before migration 409) releases
+      // that closure here; a training its block still covers must change owner
+      // while it is still cancelled — reinstated by the delete hook first and
+      // cancelled by the sweep a second later is two pushes to the whole team.
+      // The sweep clears the closure marker on what it takes over, so the
+      // `restored` read below no longer counts those trainings.
+      const blocks = await sweepHallBookings(db, log, { releasingClosureIds: stale.map(([, row]) => row.id) })
+      changes.trainingsCancelled.push(...blocks.cancelled)
+      changes.trainingsShortened.push(...blocks.shortened)
+      changes.trainingsRestored.push(...blocks.restored)
+
+      for (const [k, row] of stale) {
+        const [h, s, e] = k.split('|')
         // Mirrors the delete hook's NOT EXISTS guard: a training another closure
         // still covers stays cancelled and must not be reported as reinstated.
         const restored = await trainingRows(db('trainings'))
@@ -441,8 +512,11 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       // `eventsUpdated` counts every feed row (unconditional UPDATE); this is the
       // count of rows whose content actually moved.
       eventsChanged: changes.eventsChanged.length,
-      overriddenOff,
+      pending,
+      refused,
+      timeBlocks,
       trainingsCancelled: changes.trainingsCancelled.length,
+      trainingsShortened: changes.trainingsShortened.length,
       trainingsRestored: changes.trainingsRestored.length,
       closuresPushed: closurePush.created,
       closurePushUpdated: closurePush.updated,
@@ -453,17 +527,19 @@ export function registerGCalSync(router, { database, logger, services, getSchema
     }
   }
 
-  // ── Admin override: "this calendar entry does not close the hall" ──
+  // ── Admin decision on a calendar entry: approve / refuse / back to pending ──
   //
-  // Since migration 325 every hall-administration entry closes the KWI halls, so
-  // there has to be a way out for the cases where that is wrong — the Hausdienst
-  // has hand-typed our own activity onto that calendar before (`Training VB
-  // (Halle C)`, `BB - Freundschaftsspiel`), and closing the hall for our own
-  // training cancels the very training it describes.
+  // Since migration 409 nothing the hall administration puts on that calendar
+  // takes effect until an admin approves it here (override = true). Refusing
+  // (false) or resetting to pending (null) removes whatever it did. The
+  // Hausdienst has hand-typed our own activity onto that calendar before
+  // (`Training VB (Halle C)`, `BB - Freundschaftsspiel`) — closing the hall for
+  // our own training cancels the very training it describes.
   //
-  // The flip takes effect IMMEDIATELY rather than waiting for the 04:00 cron:
-  // closures go through ItemsService so the auto-cancel hook fires on create and
-  // reverses on delete, which is what actually puts the trainings back.
+  // The decision takes effect IMMEDIATELY rather than waiting for the 04:00
+  // cron: closures go through ItemsService so the auto-cancel hook fires on
+  // create and reverses on delete, and an approved timed entry is applied as a
+  // hall booking by the same sweep the sync runs.
   router.post('/admin/hall-events/:id/closure-override', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin access required' })
     try {
@@ -490,6 +566,9 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       const halls = await database('halls').select('id', 'name')
       const kwiHallIds = halls.filter(h => /^kwi/i.test(h.name)).map(h => h.id)
       const reason = (row.title || 'Halle geschlossen').slice(0, 255)
+      // An approved timed single-day entry is a hall booking, never a closure
+      // (migration 409) — the decision only says whether the booking applies.
+      const isTimeBlock = !!timeWindow({ ...row, date: startD, end_date: endD })
 
       // Zurich school holidays stay authoritative — turning an entry back ON must
       // not stack a duplicate closure on top of a holiday that already shuts the
@@ -502,7 +581,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         .some(r => r.hall === hall && s <= (r.e || '').slice(0, 10) && e >= (r.s || '').slice(0, 10))
 
       let closuresCreated = 0, closuresDeleted = 0
-      const trainingsCancelled = [], trainingsRestored = []
+      const trainingsCancelled = [], trainingsRestored = [], trainingsShortened = []
       const trainingRows = (qb) => qb
         .leftJoin('teams', 'teams.id', 'trainings.team')
         .leftJoin('halls', 'halls.id', 'trainings.hall')
@@ -518,10 +597,18 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         .andWhereRaw('start_date = ?::date AND end_date = ?::date', [startD, endD])
         .select('id', 'hall', 'reason')
 
-      if (raw === false) {
+      if (raw !== true || isTimeBlock) {
         // Match the reason too: two different entries can share a span, and
         // deleting a neighbour's closure would open a hall nobody un-closed.
-        for (const c of existing.filter(c => c.reason === reason)) {
+        const own = existing.filter(c => c.reason === reason)
+        // The block (or its removal) first, while the closures still stand — a
+        // training a still-applying block covers changes owner without being
+        // reinstated and re-cancelled. See sweepHallBookings.
+        const blocks = await sweepHallBookings(database, log, { releasingClosureIds: own.map(c => c.id) })
+        trainingsCancelled.push(...blocks.cancelled)
+        trainingsShortened.push(...blocks.shortened)
+        trainingsRestored.push(...blocks.restored)
+        for (const c of own) {
           // Read the reinstated trainings BEFORE the delete — the reverse runs in
           // a fire-and-forget action hook. Mirrors its NOT EXISTS guard so a
           // training another closure still covers is not reported as back on.
@@ -538,7 +625,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         }
       } else {
         const haveHall = new Set(existing.map(c => c.hall))
-        for (const h of kwiHallIds) {
+        for (const h of entryHallIds(row, halls)) {
           if (haveHall.has(h)) continue
           if (coveredBySchoolHoliday(h, startD, endD)) continue
           const willCancel = await trainingRows(database('trainings'))
@@ -558,15 +645,17 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         action: 'hall_event_closure_override',
         collection: 'hall_events',
         recordId: row.id,
-        data: { uid: row.uid, title: row.title, start: startD, end: endD, override: raw, closuresCreated, closuresDeleted },
+        data: { uid: row.uid, title: row.title, start: startD, end: endD, override: raw, timeBlock: isTimeBlock, closuresCreated, closuresDeleted },
       })
 
       res.json({
         status: 'ok',
         override: raw,
+        timeBlock: isTimeBlock,
         closuresCreated,
         closuresDeleted,
         trainingsCancelled: trainingsCancelled.length,
+        trainingsShortened: trainingsShortened.length,
         trainingsRestored: trainingsRestored.length,
       })
     } catch (err) {

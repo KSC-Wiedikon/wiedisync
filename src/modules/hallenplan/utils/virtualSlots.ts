@@ -119,7 +119,9 @@ export function trainingToVirtualSlot(
       ? `Abgesagt${training.cancel_reason ? ': ' + training.cancel_reason : ''}`
       : (training.auto_shortened_by_game != null
           ? 'Verkürzt (Heimspiel)'
-          : (training.is_trial ? 'Probetraining' : '')),
+          : (training.auto_adjusted_by_booking != null && (training.original_start_time || training.original_end_time)
+              ? 'Verkürzt (Hallenbelegung)'
+              : (training.is_trial ? 'Probetraining' : ''))),
     notes: training.notes || '',
     _virtual: {
       source: 'training',
@@ -133,24 +135,28 @@ export function trainingToVirtualSlot(
 /** Resolves which hall IDs a GCal event belongs to by regex on
  *  title/location — the only source there is: hall_events carries no hall
  *  relation (migration 252 dropped the never-populated M2M). */
+// ⚠ MIRRORS parseNamedKwiHalls in kscw-endpoints/src/hall-bookings.js —
+// change both together. The backend decides which halls a calendar entry blocks
+// (and whose trainings it trims); this decides where the entry is drawn.
+// "Halle C", "Halle KWI C", "Hallen A+B", "Halle A/B", "Halle A und B", "KWI C";
+// the trailing \b keeps "Halle Abgesagt" from reading as hall A.
+const HALL_REF = /\b(?:Hallen?\s*(?:KWI\s*)?|KWI\s*)([ABC](?:\s*(?:\+|\/|,|&|und|and|\s)\s*[ABC])*)\b/gi
+
+/** KWI hall letters a calendar entry names explicitly, in A/B/C order; [] when none. */
+export function parseNamedKwiHalls(text: string): string[] {
+  const found = new Set<string>()
+  for (const m of String(text || '').matchAll(HALL_REF)) {
+    // \b around the letter: the "A" inside "AND" is not a hall.
+    for (const l of m[1].toUpperCase().match(/\b[ABC]\b/g) || []) found.add(l)
+  }
+  return ['A', 'B', 'C'].filter((l) => found.has(l))
+}
+
 export function resolveHallEventHalls(event: HallEvent, halls: Hall[]): string[] {
-  const HALLE_PATTERNS: [RegExp, string][] = [
-    [/Halle\s*(KWI\s*)?A/i, 'KWI A'],
-    [/Halle\s*(KWI\s*)?B/i, 'KWI B'],
-    [/Halle\s*(KWI\s*)?C/i, 'KWI C'],
-  ]
-  const text = `${event.title} ${event.location || ''}`
-  const matched: string[] = []
-  for (const [pattern, hallName] of HALLE_PATTERNS) {
-    if (pattern.test(text)) {
-      const hall = halls.find((h) => h.name === hallName)
-      if (hall) matched.push(hall.id)
-    }
-  }
-  if (matched.length === 0) {
-    return halls.filter((h) => h.name.startsWith('KWI')).map((h) => h.id)
-  }
-  return matched
+  const kwi = halls.filter((h) => /^kwi/i.test(h.name))
+  const letters = parseNamedKwiHalls(`${event.title} ${event.location || ''}`)
+  const named = kwi.filter((h) => letters.includes(h.name.replace(/^kwi\s*/i, '').trim().toUpperCase()))
+  return (named.length ? named : kwi).map((h) => h.id)
 }
 
 /**

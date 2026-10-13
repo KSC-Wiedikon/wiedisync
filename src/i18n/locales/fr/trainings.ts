@@ -111,6 +111,7 @@ export default {
   trialBadge: 'Essai',
   shortenedBadge: 'Raccourci',
   shortenedHint: 'Se termine plus tôt — match à domicile dans la salle ensuite',
+  shortenedHallHint: 'Plus court que d’habitude ({{usual}}) — la salle est réservée pendant une partie du temps',
 
   // Serie — manuelle (sans creneau de salle)
   weekday: 'Jour de la semaine',

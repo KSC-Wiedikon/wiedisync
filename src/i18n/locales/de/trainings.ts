@@ -111,6 +111,7 @@ export default {
   trialBadge: 'Probetraining',
   shortenedBadge: 'Verkürzt',
   shortenedHint: 'Endet früher — anschliessend Heimspiel in der Halle',
+  shortenedHallHint: 'Kürzer als üblich ({{usual}}) — die Halle ist teilweise belegt',
 
   // Serie — manuell (ohne Hallenslot)
   weekday: 'Wochentag',

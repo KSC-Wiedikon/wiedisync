@@ -111,6 +111,7 @@ export default {
   trialBadge: 'Prova',
   shortenedBadge: 'Accorciato',
   shortenedHint: 'Termina prima — dopo si gioca una partita in casa in palestra',
+  shortenedHallHint: 'Più corto del solito ({{usual}}) — la palestra è occupata per parte del tempo',
 
   // Serie — manuale (senza fascia palestra)
   weekday: 'Giorno della settimana',
