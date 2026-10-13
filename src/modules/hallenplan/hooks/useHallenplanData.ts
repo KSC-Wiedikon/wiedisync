@@ -10,11 +10,12 @@ import { flattenM2MTeams } from '../../../lib/api'
 const EMPTY: never[] = []
 import { toISODate } from '../../../utils/dateHelpers'
 import { expandExtraHalls } from '../../../utils/extraHalls'
-import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim } from '../../../types'
+import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim, Event } from '../../../types'
 import {
   gameToVirtualSlots,
   trainingToVirtualSlot,
   hallEventToVirtualSlots,
+  clubEventToVirtualSlots,
   mergeVirtualSlots,
   CLOSURE_PATTERN,
   BB_GAME_PATTERN,
@@ -119,6 +120,27 @@ export function useHallenplanData(
   })
   const hallEvents = hallEventsRaw ?? EMPTY
 
+  // Club events that BOOK halls (migration 409), overlapping this week. The bounds
+  // are a UTC superset of the Zurich week (a day either side); clubEventToVirtualSlots
+  // places each day by its Zurich date, so the extra rows simply map to no column.
+  const {
+    data: clubEventsRaw,
+    isLoading: clubEventsLoading,
+    isPlaceholderData: clubEventsStale,
+    refetch: refetchClubEvents,
+  } = useCollection<Event>('events', {
+    filter: { _and: [
+      { hall: { _nnull: true } },
+      { cancelled: { _neq: true } },
+      { start_date: { _lte: `${sundayStr}T23:59:59` } },
+      { _or: [{ end_date: { _gte: `${mondayStr}T00:00:00` } }, { _and: [{ end_date: { _null: true } }, { start_date: { _gte: `${mondayStr}T00:00:00` } }] }] },
+    ] },
+    fields: ['id', 'title', 'start_date', 'end_date', 'all_day', 'location', 'hall', 'additional_halls', 'cancelled'],
+    limit: 100,
+    sort: ['start_date'],
+  })
+  const clubEvents = clubEventsRaw ?? EMPTY
+
   // Slot claims for this week
   const {
     data: slotClaimsRaw,
@@ -192,7 +214,7 @@ export function useHallenplanData(
   // the current week. (isPlaceholderData is false during same-week background
   // refetches, so realtime refreshes still update in place.)
   const showingStale =
-    slotsStale || trainingsStale || gamesStale || hallEventsStale || closuresStale || claimsStale
+    slotsStale || trainingsStale || gamesStale || hallEventsStale || closuresStale || claimsStale || clubEventsStale
 
   // Convert and merge virtual slots. Computed from whatever data is currently
   // in cache — during a week transition this may be inconsistent (see below),
@@ -230,6 +252,10 @@ export function useHallenplanData(
       virtualSlots.push(...hallEventToVirtualSlots(he, weekDays, halls))
     }
 
+    for (const ev of clubEvents) {
+      virtualSlots.push(...clubEventToVirtualSlots(ev, weekDays, halls))
+    }
+
     // Apply hall filter to virtual slots
     const hallSet = new Set(selectedHallIds)
     const filteredVirtual = hallSet.size > 0
@@ -242,7 +268,7 @@ export function useHallenplanData(
       mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate),
       selectedHallIds,
     )
-  }, [rawSlots, games, trainings, hallEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
+  }, [rawSlots, games, trainings, hallEvents, clubEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
 
   // Hold the last fully-consistent merge so a week switch swaps atomically
   // instead of flashing the recurring templates as all-green ("Frei") while the
@@ -272,11 +298,12 @@ export function useHallenplanData(
     refetchTrainings()
     refetchGames()
     refetchHallEvents()
+    refetchClubEvents()
   }
 
   const isLoading =
     hallsLoading || teamsLoading || slotsLoading || closuresLoading ||
-    gamesLoading || trainingsLoading || hallEventsLoading || claimsLoading
+    gamesLoading || trainingsLoading || hallEventsLoading || claimsLoading || clubEventsLoading
 
   return { halls, teams, slots, rawSlots, closures: mergedClosures, slotClaims, isLoading, refetch }
 }

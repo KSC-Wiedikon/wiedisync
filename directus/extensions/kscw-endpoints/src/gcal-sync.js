@@ -28,7 +28,7 @@
  * entries still close halls for whole days — and only the halls they name.
  */
 
-import { pushHomeGames, pushClubClosures, listOwnedClosureEventIds, findDuplicate, isOwnGameTitle, KSCW_CALENDAR_ID } from './gcal-push.js'
+import { pushHomeGames, pushClubClosures, pushEventBookings, listOwnedClosureEventIds, listOwnedEventIds, findDuplicate, isOwnGameTitle, KSCW_CALENDAR_ID } from './gcal-push.js'
 import { writeUserLog } from './activity-log.js'
 import { emptyChanges, hasChanges, notifyGCalChanges } from './gcal-notify.js'
 import { entryHallIds, parseNamedKwiHalls, timeWindow, sweepHallBookings } from './hall-bookings.js'
@@ -222,6 +222,18 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       const icsText = await resp.text()
       const events = parseIcs(icsText)
 
+      // Our own event hall bookings (pushEventBookings). Listed AFTER the feed is
+      // fetched, not before the loop like the closures: a booking is pushed the
+      // moment an admin saves the event, and one pushed between an earlier listing
+      // and this fetch would otherwise import as a PENDING entry — and ask the
+      // admin to approve the club's own booking.
+      let ownedBookingIds = new Set()
+      try {
+        ownedBookingIds = await listOwnedEventIds('booking')
+      } catch (err) {
+        log.warn({ msg: `gcal-sync: could not list owned booking events: ${err.message}`, endpoint: 'gcal-sync' })
+      }
+
       // Season start (Sept 1 of current or previous year) — the floor for
       // importing hall_events DISPLAY rows, so the Hallenplan can still show the
       // season behind us.
@@ -280,7 +292,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         // was being played in it. Other people's events keep importing exactly as
         // they did before.
         const evId = String(ev.uid).split('@')[0]
-        if (push.eventIds.has(evId) || ownedClosureIds.has(evId)) continue
+        if (push.eventIds.has(evId) || ownedClosureIds.has(evId) || ownedBookingIds.has(evId)) continue
         // Backstop for the event-id skip above (empty when push is disabled).
         // Matches only "<VB|BB> <team> vs. <opponent> (Halle X)" — our own
         // format — so the hall admin's hand-typed "BB - Freundschaftsspiel" and
@@ -493,6 +505,16 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       log.error({ msg: `gcal-sync: closure push failed: ${err.message}`, endpoint: 'gcal-sync', stack: err.stack })
     }
 
+    // ── PUSH club event hall bookings (migration 409) — also after the import,
+    // for the same duplicate check against this run's mirror. Saving an event
+    // pushes at once (POST /admin/hall-bookings/push); this is the nightly catch-up.
+    let bookingPush = { created: 0, updated: 0, deleted: 0, skippedDuplicate: 0, disabled: true }
+    try {
+      bookingPush = await pushEventBookings(db, log)
+    } catch (err) {
+      log.error({ msg: `gcal-sync: booking push failed: ${err.message}`, endpoint: 'gcal-sync', stack: err.stack })
+    }
+
     // ── Tell the club what the hall administration changed ──
     // Only the IMPORT side is reported: the push half is our own writes and the
     // club already knows about its own games. Mail failures are swallowed inside
@@ -522,6 +544,10 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       closurePushUpdated: closurePush.updated,
       closurePushRemoved: closurePush.deleted,
       closurePushSkippedDuplicate: closurePush.skippedDuplicate,
+      bookingsPushed: bookingPush.created,
+      bookingPushUpdated: bookingPush.updated,
+      bookingPushRemoved: bookingPush.deleted,
+      bookingPushSkippedDuplicate: bookingPush.skippedDuplicate,
       changed: hasChanges(changes),
       notified,
     }
@@ -725,6 +751,35 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       })
     } catch (err) {
       log.error({ msg: `hall-closures push-toggle: ${err.message}`, endpoint: 'hall-closures/push-toggle', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Push club event hall bookings to the hall administration's calendar now ──
+  // Called by kscw-hooks after an event with a hall is saved or deleted, so the
+  // school sees the booking within seconds instead of at the 04:00 sync. Lives
+  // HERE, not in the hooks extension: the one-run-at-a-time claim in gcal-push is
+  // process-local per bundle, and the sync's own booking push runs in this one.
+  router.post('/admin/hall-bookings/push', async (req, res) => {
+    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin access required' })
+    try {
+      const result = await pushEventBookings(database, log)
+      // Writes to a calendar the school reads — record who triggered it.
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'hall_bookings_gcal_push',
+        collection: 'events',
+        recordId: req.body?.event_id != null ? String(req.body.event_id) : null,
+        data: { created: result.created, updated: result.updated, deleted: result.deleted, skippedDuplicate: result.skippedDuplicate, dryRun: !!result.dryRun, disabled: !!result.disabled },
+      })
+      res.json({
+        status: 'ok',
+        created: result.created, updated: result.updated, deleted: result.deleted,
+        skippedDuplicate: result.skippedDuplicate,
+        dryRun: !!result.dryRun, disabled: !!result.disabled, alreadyRunning: !!result.alreadyRunning,
+      })
+    } catch (err) {
+      log.error({ msg: `hall-bookings push: ${err.message}`, endpoint: 'hall-bookings/push', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

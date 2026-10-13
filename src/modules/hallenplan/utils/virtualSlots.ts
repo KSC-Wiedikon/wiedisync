@@ -1,5 +1,5 @@
-import type { Game, Training, HallEvent, HallSlot, HallClosure, Hall, Team, SlotClaim } from '../../../types'
-import { toISODate, timeToMinutes, minutesToTime } from '../../../utils/dateHelpers'
+import type { Game, Training, HallEvent, HallSlot, HallClosure, Hall, Team, SlotClaim, Event } from '../../../types'
+import { toISODate, timeToMinutes, minutesToTime, toZurichDateString, formatTimeZurich } from '../../../utils/dateHelpers'
 import { allGameHallIds } from '../../../utils/gameHalls'
 
 /** Hall events matching this pattern are treated as closures */
@@ -214,6 +214,75 @@ export function hallEventToVirtualSlots(
       ...(hallIds.length > 1 ? { spanHallIds: hallIds } : {}),
     },
   } as HallSlot]
+}
+
+/** Hall ids a club event books: `hall` plus `additional_halls` (migration 409). */
+export function clubEventHallIds(event: Pick<Event, 'hall' | 'additional_halls'>): string[] {
+  const ids = [event.hall, ...(event.additional_halls ?? [])]
+    .map((v) => (v == null || v === '' ? '' : String(v)))
+    .filter(Boolean)
+  return [...new Set(ids)]
+}
+
+/**
+ * A club event that books halls (migration 409), drawn in the hall columns it
+ * books — one slot per booked hall and day, never one slot stretched across
+ * columns, so a booking of A+C can never read as A+B+C.
+ * Same per-day windows as the server's booking sweep (eventBookingDays in
+ * kscw-endpoints/src/hall-bookings.js): the first day from the event's start,
+ * the last day until its end, whole days in between — Zurich time. A whole day
+ * shows as the grid's full range, the way a closure entry does.
+ * Display only: the trainings it trims or cancels are already changed in the DB,
+ * so nothing here suppresses or shortens anything. A cancelled event books nothing.
+ */
+export function clubEventToVirtualSlots(event: Event, weekDays: Date[], halls: Hall[]): HallSlot[] {
+  if (event.cancelled || !event.start_date) return []
+  const known = new Set(halls.map((h) => String(h.id)))
+  const hallIds = clubEventHallIds(event).filter((id) => known.has(id))
+  if (hallIds.length === 0) return []
+
+  const startDay = toZurichDateString(event.start_date)
+  const endDay = toZurichDateString(event.end_date || event.start_date) || startDay
+  const startHm = event.all_day ? '' : formatTimeZurich(event.start_date)
+  const endHm = event.all_day ? '' : formatTimeZurich(event.end_date || event.start_date)
+
+  const out: HallSlot[] = []
+  weekDays.forEach((d, dayIndex) => {
+    const day = toISODate(d)
+    if (day < startDay || day > endDay) return
+    const wholeStart = event.all_day || day !== startDay
+    const wholeEnd = event.all_day || day !== endDay
+    const start = wholeStart ? '10:00' : startHm
+    const end = wholeEnd ? '22:00' : endHm
+    if (!start || !end || timeToMinutes(end) <= timeToMinutes(start)) return
+    for (const hall of hallIds) {
+      out.push({
+        id: `club-event-${event.id}-${day}-${hall}`,
+        collectionId: '',
+        collectionName: 'virtual',
+        created: '',
+        updated: '',
+        hall,
+        team: [],
+        day_of_week: dayIndex,
+        start_time: start,
+        end_time: end,
+        slot_type: 'event',
+        recurring: false,
+        indefinite: false,
+        valid_from: day,
+        valid_until: day,
+        label: event.title,
+        notes: event.location || '',
+        _virtual: {
+          source: 'club_event',
+          sourceId: String(event.id),
+          sourceRecord: event,
+        },
+      } as HallSlot)
+    }
+  })
+  return out
 }
 
 /**

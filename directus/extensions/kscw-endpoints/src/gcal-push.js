@@ -20,6 +20,7 @@
  */
 
 import crypto from 'node:crypto'
+import { eventHallIds, eventBookingDays, entryHallIds, timeWindow } from './hall-bookings.js'
 
 export const KSCW_CALENDAR_ID = '145bqacb4v5qfkr97u2fdchi5o@group.calendar.google.com'
 const KWI_ADDRESS = 'Kantonsschule Wiedikon, Goldbrunnenstrasse 80, 8055 Zürich'
@@ -228,7 +229,7 @@ function needsUpdate(existing, desired) {
 // genuinely covers every actor pair above. It would NOT survive scaling to a
 // second instance; that needs a Postgres advisory lock (or a claim row), which is
 // out of scope for a migration-free fix.
-const runningPushes = new Map() // 'games' | 'closures' → the claim object held
+const runningPushes = new Map() // 'games' | 'closures' | 'bookings' → the claim object held
 
 // A hung Google call must not wedge the push forever — api() sets no timeout — so
 // a claim older than this is treated as dead and taken over. Generous on purpose:
@@ -531,6 +532,11 @@ function closureNeedsUpdate(existing, desired) {
  * the very closure it describes, as a second row from a different source.
  */
 export async function listOwnedClosureEventIds() {
+  return listOwnedEventIds('closure')
+}
+
+/** Ids of every calendar event carrying `wiedisync=<marker>`, today forward. */
+export async function listOwnedEventIds(marker) {
   if (!isPushEnabled()) return new Set()
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Zurich' }).format(new Date())
   const ids = new Set()
@@ -539,7 +545,7 @@ export async function listOwnedClosureEventIds() {
     const page = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
       query: {
         timeMin: `${today}T00:00:00Z`, singleEvents: 'true', maxResults: '250',
-        privateExtendedProperty: 'wiedisync=closure',
+        privateExtendedProperty: `wiedisync=${marker}`,
         ...(pageToken ? { pageToken } : {}),
       },
     })
@@ -704,5 +710,204 @@ export async function pushClubClosures(db, log, hallEvents = []) {
     return { created, updated, deleted, skippedDuplicate, dryRun, eventIds }
   } finally {
     releasePush('closures', claim)
+  }
+}
+
+// ── club event hall bookings → their calendar ────────────────────────────────
+
+const pad = (n) => String(n).padStart(2, '0')
+const minToHm = (min) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
+const dayAfter = (ymd) => {
+  const d = new Date(`${ymd}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * One calendar entry per booked DAY of a club event (migration 409: `events.hall`
+ * + `additional_halls`, set by a full admin in the event form). Same per-day
+ * windows the training sweep uses (eventBookingDays), so the school sees exactly
+ * what the club blocked: a whole day is an all-day entry, anything else timed.
+ * Halls read "Halle A+B", the games' convention.
+ */
+export function buildBookingEvent({ eventId, title, day, start, end, letters }) {
+  const hall = `Halle ${letters.join('+')}`
+  const wholeDay = start === 0 && end >= 24 * 60
+  const when = wholeDay
+    ? { start: { date: day }, end: { date: dayAfter(day) } }
+    : {
+      start: { dateTime: `${day}T${minToHm(start)}:00`, timeZone: 'Europe/Zurich' },
+      end: end >= 24 * 60
+        ? { dateTime: `${dayAfter(day)}T00:00:00`, timeZone: 'Europe/Zurich' }
+        : { dateTime: `${day}T${minToHm(end)}:00`, timeZone: 'Europe/Zurich' },
+    }
+  return {
+    summary: `KSCW: ${String(title || 'Hallenbelegung').trim()} (${hall})`,
+    description: 'Belegung durch KSC Wiedikon.\nDetails: wiedisync.kscw.ch',
+    location: `${hall}, ${KWI_ADDRESS}`,
+    ...when,
+    transparency: 'transparent',
+    extendedProperties: { private: { wiedisync: 'booking', booking_key: `${eventId}|${day}`, event_id: String(eventId), env: pushEnv() } },
+  }
+}
+
+function bookingNeedsUpdate(existing, desired) {
+  const sameWhen = desired.start.date
+    ? (existing.start?.date ?? '') === desired.start.date && (existing.end?.date ?? '') === desired.end.date
+    : zurichWallTime(existing.start?.dateTime) === desired.start.dateTime.slice(0, 16)
+      && zurichWallTime(existing.end?.dateTime) === desired.end.dateTime.slice(0, 16)
+  return existing.summary !== desired.summary
+    || (existing.description ?? '') !== desired.description
+    || (existing.location ?? '') !== desired.location
+    || !sameWhen
+    || (existing.extendedProperties?.private?.env ?? '') !== desired.extendedProperties.private.env
+}
+
+/**
+ * Does the hall administration already have this booking on their calendar?
+ * Read from `hall_events` (our mirror of THEIR entries; our own never land there).
+ * Same day, an overlapping hall, an overlapping time — an all-day or untimed entry
+ * of theirs overlaps the whole day. Pure; exported for the tests.
+ */
+export function findBookingDuplicate(hallEvents, halls, { day, start, end, hallIds }) {
+  return hallEvents.find((he) => {
+    const s = String(he.date || '').slice(0, 10)
+    const e = String(he.end_date || he.date || '').slice(0, 10)
+    if (!s || s > day || e < day) return false
+    if (!entryHallIds(he, halls).some((h) => hallIds.includes(h))) return false
+    const win = timeWindow(he)
+    return !win || (win.start < end && win.end > start)
+  }) || null
+}
+
+/**
+ * Reconcile club event hall bookings onto the hall administration's calendar.
+ * Automatic for every non-cancelled event booking a KWI hall, today forward —
+ * only a full admin can book a hall (migration 409), and the school should see it.
+ *
+ * ⚠ Ownership: only events carrying `wiedisync=booking` are ever updated or
+ * deleted, distinct from `wiedisync=game` / `wiedisync=closure`, and never one
+ * stamped by the other environment (mayDelete). Dev is a dry run by code.
+ *
+ * @returns { created, updated, deleted, skippedDuplicate, dryRun, eventIds }
+ */
+export async function pushEventBookings(db, log) {
+  if (!isPushEnabled()) {
+    return { created: 0, updated: 0, deleted: 0, skippedDuplicate: 0, eventIds: new Set(), disabled: true }
+  }
+  const claim = claimPush('bookings', log)
+  if (!claim) {
+    log.warn({ msg: 'gcal-push bookings: a booking push is already running — this run was skipped (the in-flight one reconciles every booking)', endpoint: 'gcal-sync' })
+    return { created: 0, updated: 0, deleted: 0, skippedDuplicate: 0, eventIds: new Set(), alreadyRunning: true, disabled: false, dryRun: isDryRun() }
+  }
+
+  try {
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Zurich' }).format(new Date())
+    const halls = await db('halls').select('id', 'name')
+    const kwiLetter = new Map(halls.filter((h) => /^kwi/i.test(h.name))
+      .map((h) => [Number(h.id), h.name.replace(/^kwi\s*/i, '').trim().toUpperCase()]))
+
+    const events = await db('events')
+      .whereNotNull('hall')
+      .andWhere('cancelled', false)
+      .andWhereRaw("(COALESCE(end_date, start_date) AT TIME ZONE 'Europe/Zurich')::date >= ?::date", [today])
+      .select('id', 'title', 'all_day', 'hall', 'additional_halls',
+        db.raw("to_char(start_date AT TIME ZONE 'Europe/Zurich', 'YYYY-MM-DD') AS start_day"),
+        db.raw("to_char(start_date AT TIME ZONE 'Europe/Zurich', 'HH24:MI') AS start_hm"),
+        db.raw("to_char(COALESCE(end_date, start_date) AT TIME ZONE 'Europe/Zurich', 'YYYY-MM-DD') AS end_day"),
+        db.raw("to_char(COALESCE(end_date, start_date) AT TIME ZONE 'Europe/Zurich', 'HH24:MI') AS end_hm"))
+
+    // Their entries, for the duplicate check — fresh every run, never cached.
+    const mirror = await db('hall_events')
+      .where('source', 'gcal')
+      .andWhereRaw('COALESCE(end_date, date) >= ?::date', [today])
+      .select('title', 'location', 'all_day',
+        db.raw('date::text AS date'), db.raw('end_date::text AS end_date'),
+        db.raw('start_time::text AS start_time'), db.raw('end_time::text AS end_time'))
+
+    const desired = new Map()
+    let skippedDuplicate = 0
+    for (const ev of events) {
+      const hallIds = eventHallIds(ev).filter((id) => kwiLetter.has(id))
+      if (!hallIds.length) continue // not a KWI hall — not their calendar
+      const letters = [...new Set(hallIds.map((id) => kwiLetter.get(id)))].sort()
+      for (const d of eventBookingDays(ev)) {
+        if (d.day < today) continue
+        const dup = findBookingDuplicate(mirror, halls, { day: d.day, start: d.start, end: d.end, hallIds })
+        if (dup) {
+          skippedDuplicate++
+          log.info({ msg: `gcal-push: booking "${ev.title}" ${d.day} already on their calendar as "${dup.title}" — not pushed`, endpoint: 'gcal-sync' })
+          continue
+        }
+        const event = buildBookingEvent({ eventId: ev.id, title: ev.title, day: d.day, start: d.start, end: d.end, letters })
+        desired.set(event.extendedProperties.private.booking_key, event)
+      }
+    }
+
+    const existing = new Map()
+    let pageToken
+    do {
+      const page = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
+        query: {
+          timeMin: `${today}T00:00:00Z`, singleEvents: 'true', maxResults: '250',
+          privateExtendedProperty: 'wiedisync=booking',
+          ...(pageToken ? { pageToken } : {}),
+        },
+      })
+      for (const ev of page.items ?? []) {
+        const k = ev.extendedProperties?.private?.booking_key
+        if (k) existing.set(k, ev)
+      }
+      pageToken = page.nextPageToken
+    } while (pageToken)
+
+    const dryRun = isDryRun()
+    let created = 0, updated = 0, deleted = 0
+    const eventIds = new Set()
+    for (const [key, event] of desired) {
+      const current = existing.get(key)
+      if (!current) {
+        if (!dryRun) {
+          const made = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
+            method: 'POST', body: event, query: { sendUpdates: 'none' },
+          })
+          eventIds.add(made.id)
+        }
+        created++
+      } else {
+        eventIds.add(current.id)
+        if (bookingNeedsUpdate(current, event)) {
+          if (!dryRun) {
+            await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events/${current.id}`, {
+              method: 'PATCH', body: event, query: { sendUpdates: 'none' },
+            })
+          }
+          updated++
+        }
+      }
+    }
+
+    // Ours, no longer wanted — event cancelled, moved, unbooked, deleted, or now on
+    // their calendar. Never another environment's (see pushClubClosures).
+    const me = pushEnv()
+    let foreign = 0
+    for (const [key, event] of existing) {
+      if (desired.has(key)) continue
+      if (!mayDelete(event.extendedProperties?.private?.env, me)) { foreign++; continue }
+      if (!dryRun) {
+        await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events/${event.id}`, {
+          method: 'DELETE', query: { sendUpdates: 'none' },
+        })
+      }
+      deleted++
+    }
+    if (foreign) {
+      log.warn({ msg: `gcal-push bookings: left ${foreign} event(s) belonging to another environment untouched`, endpoint: 'gcal-sync' })
+    }
+
+    log.info({ msg: `gcal-push bookings${dryRun ? ' (dry run — nothing written)' : ''}: +${created} ~${updated} -${deleted} (${skippedDuplicate} already on their calendar)`, endpoint: 'gcal-sync' })
+    return { created, updated, deleted, skippedDuplicate, dryRun, eventIds }
+  } finally {
+    releasePush('bookings', claim)
   }
 }

@@ -193,6 +193,8 @@ export default {
   updateFutureTrainings: 'Update future trainings',
   goToTrainings: 'Go to trainings',
   goToGames: 'Go to games',
+  goToEvents: 'Go to events',
+  clubEventBookingHint: 'Booked by a club event. Trainings in this hall during that time are shortened or cancelled automatically.',
 
   // Available slots
   slotsAvailable: '{{count}} slot(s) available',

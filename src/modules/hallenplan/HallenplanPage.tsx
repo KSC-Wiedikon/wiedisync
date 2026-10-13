@@ -86,6 +86,8 @@ export default function HallenplanPage() {
       if (sportFilter === 'all') return slots
       const allowedTeams = sportFilter === 'vb' ? teamsBySport.vb : teamsBySport.bb
       return slots.filter((s) => {
+        // A club event's hall booking blocks the hall for both sports — always shown.
+        if (s._virtual?.source === 'club_event') return true
         // Slots with no team: need sport context to filter
         if (!s.team?.length) {
           // Virtual slots from a known team: check source team's sport

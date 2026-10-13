@@ -79,7 +79,8 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
   const isVirtual = !!slot._virtual
   const isAway = !!slot._virtual?.isAway
   const isCancelled = !!slot._virtual?.isCancelled
-  const isHallEvent = slot._virtual?.source === 'hall_event'
+  // A club event's hall booking reads like a calendar entry: both say "the hall is taken".
+  const isHallEvent = slot._virtual?.source === 'hall_event' || slot._virtual?.source === 'club_event'
   const isHallClosure = isHallEvent && CLOSURE_PATTERN.test(slot.label || '')
   const isFreed = !!slot._virtual?.isFreed
   const isClaimed = !!slot._virtual?.isClaimed

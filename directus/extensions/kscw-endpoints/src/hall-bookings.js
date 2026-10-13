@@ -43,8 +43,12 @@
  * row with no originals — the only way that signature arises. The sweep then
  * stops fighting it, and drops the marker once no booking covers the training.
  *
- * ⚠ Like the game sweep, this looks at a training's primary `hall` only — a
- * training's `extra_halls` are not checked.
+ * A training's EXTRA halls (`extra_halls`, migration 370) get a pass of their
+ * own (migration 410): a booking on an extra hall never touches the training's
+ * time — the team still has its main hall — it narrows that extra hall to its
+ * longest free part for the day, or drops it under MIN_REMAINING_MINUTES, and
+ * puts it back when the booking goes. Own columns (`original_extra_halls`,
+ * `extra_halls_adjusted_by_booking`), so the time ownership above is untouched.
  */
 
 export const MIN_REMAINING_MINUTES = 30
@@ -175,6 +179,62 @@ export function planTraining(training, blocks) {
   return { kind: 'adjust', start: best[0], end: best[1], key, reason }
 }
 
+/** `extra_halls` (json, migration 370) → [{ hall, start_time, end_time }]; [] when none. */
+export function parseExtraHalls(v) {
+  let arr = v
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr) } catch { arr = [] }
+  }
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((x) => ({
+      hall: Number(typeof x === 'object' && x ? x.hall : x),
+      start_time: x && typeof x === 'object' && x.start_time ? hm(x.start_time) : null,
+      end_time: x && typeof x === 'object' && x.end_time ? hm(x.end_time) : null,
+    }))
+    .filter((x) => Number.isInteger(x.hall) && x.hall > 0)
+}
+
+/** Same extra halls, same windows (order-sensitive — the sweep never reorders). */
+export function sameExtraHalls(a, b) {
+  const pa = parseExtraHalls(a)
+  const pb = parseExtraHalls(b)
+  return pa.length === pb.length && pa.every((x, i) =>
+    x.hall === pb[i].hall && x.start_time === pb[i].start_time && x.end_time === pb[i].end_time)
+}
+
+/**
+ * Pure: what the bookings do to a training's EXTRA halls. Plans from the PLANNED
+ * extra halls (originals when we already narrowed them) and the training's
+ * planned times; an extra hall's null start/end means "the training's own time".
+ * Per extra hall: untouched when no booking overlaps its window, else narrowed to
+ * the longest free part (planTraining's rule), or dropped when under
+ * MIN_REMAINING_MINUTES would be left.
+ *   → { planned, desired, key }   key = the first booking that changed anything, else null
+ */
+export function planExtraHalls(training, blocksFor) {
+  const planned = parseExtraHalls(training.original_extra_halls ?? training.extra_halls)
+  const os = toMinutes(training.original_start_time ?? training.start_time)
+  const oe = toMinutes(training.original_end_time ?? training.end_time)
+  if (!planned.length || os == null || oe == null || oe <= os) return { planned, desired: planned, key: null }
+  let key = null
+  const desired = []
+  for (const x of planned) {
+    const ws = toMinutes(x.start_time) ?? os
+    const we = toMinutes(x.end_time) ?? oe
+    const r = we > ws ? planTraining({ start_time: toTime(ws), end_time: toTime(we) }, blocksFor(x.hall)) : { kind: 'none' }
+    if (r.kind === 'none') { desired.push(x); continue }
+    key = key ?? r.key
+    if (r.kind === 'cancel') continue // no usable part of that hall left — drop it
+    desired.push({
+      hall: x.hall,
+      start_time: r.start === os ? null : hm(toTime(r.start)),
+      end_time: r.end === oe ? null : hm(toTime(r.end)),
+    })
+  }
+  return { planned, desired, key }
+}
+
 /** Every live booking, keyed `${hall}|${day}` → [{ key, start, end, title }]. */
 async function loadBookings(db, halls) {
   const byKey = new Map()
@@ -247,11 +307,15 @@ export async function sweepHallBookings(db, log, { releasingClosureIds = [] } = 
     .whereRaw('t.date >= CURRENT_DATE')
     .andWhere((qb) => {
       qb.whereNotNull('t.auto_adjusted_by_booking')
+        .orWhereNotNull('t.extra_halls_adjusted_by_booking')
       if (bookedHalls.length) {
         qb.orWhere((q) => q.whereIn('t.hall', bookedHalls).whereIn('t.date', bookedDays))
+        // Extra halls (migration 410) — matched in JS below; json has no cheap index.
+        qb.orWhere((q) => q.whereNotNull('t.extra_halls').whereIn('t.date', bookedDays))
       }
     })
     .select('t.id', 't.hall', 't.team', 't.cancelled', 't.cancel_reason', 't.auto_adjusted_by_booking',
+      't.extra_halls', 't.original_extra_halls', 't.extra_halls_adjusted_by_booking',
       't.auto_shortened_by_game', 't.auto_cancelled_by_closure',
       db.raw('t.date::text AS date'),
       db.raw('t.start_time::text AS start_time'), db.raw('t.end_time::text AS end_time'),
@@ -260,7 +324,7 @@ export async function sweepHallBookings(db, log, { releasingClosureIds = [] } = 
       'tm.name as team_name', 'tm.sport', 'h.name as hall_name')
     .orderBy(['t.date', 't.start_time', 't.id'])
 
-  const out = { cancelled: [], shortened: [], restored: [], handedOver: 0 }
+  const out = { cancelled: [], shortened: [], restored: [], handedOver: 0, extraHallsAdjusted: 0, extraHallsRestored: 0 }
   if (!trainings.length) return out
 
   // Closures (other than the ones being released) that still shut a hall+day.
@@ -415,8 +479,48 @@ export async function sweepHallBookings(db, log, { releasingClosureIds = [] } = 
     }
   }
 
-  if (out.cancelled.length || out.shortened.length || out.restored.length || out.handedOver) {
-    log.info(`[hall-bookings] cancelled=${out.cancelled.length} shortened=${out.shortened.length} restored=${out.restored.length} handedOver=${out.handedOver}`)
+  // ── Extra halls (migration 410) ──
+  // Independent of the pass above: its own columns, its own guarded write, and
+  // it never touches times or cancellation — a training that lost an extra hall
+  // still runs in its main hall. Cancelled trainings are planned too, so the
+  // state already matches the bookings if a human un-cancels one.
+  // The guard compares the value AS STORED (jsonb equality ignores key order) —
+  // not a normalised copy, which would never equal a row written without the
+  // optional start_time/end_time keys, and would silently skip it forever.
+  const json = (v) => (v == null ? null : typeof v === 'string' ? v : JSON.stringify(v))
+  for (const t of trainings) {
+    const mine = t.extra_halls_adjusted_by_booking != null
+    if (!mine && t.extra_halls == null) continue
+    const { planned, desired, key } = planExtraHalls(t, (hall) => bookings.get(`${hall}|${t.date}`) || [])
+    const writeExtra = async (patch) => {
+      const n = await db('trainings')
+        .where('id', t.id)
+        .andWhereRaw('extra_halls::jsonb IS NOT DISTINCT FROM ?::jsonb', [json(t.extra_halls)])
+        .andWhereRaw('extra_halls_adjusted_by_booking IS NOT DISTINCT FROM ?::text', [t.extra_halls_adjusted_by_booking])
+        .update(patch)
+      return n > 0
+    }
+    if (key == null) {
+      // Nothing booked over any extra hall — hand back the planned ones.
+      if (mine && await writeExtra({
+        extra_halls: planned.length ? JSON.stringify(planned) : null,
+        original_extra_halls: null,
+        extra_halls_adjusted_by_booking: null,
+      })) out.extraHallsRestored++
+      continue
+    }
+    if (mine && sameExtraHalls(t.extra_halls ?? [], desired) && t.extra_halls_adjusted_by_booking === key) continue
+    if (await writeExtra({
+      extra_halls: desired.length ? JSON.stringify(desired) : null,
+      original_extra_halls: JSON.stringify(planned),
+      extra_halls_adjusted_by_booking: key,
+    })) out.extraHallsAdjusted++
+  }
+
+  if (out.cancelled.length || out.shortened.length || out.restored.length || out.handedOver
+    || out.extraHallsAdjusted || out.extraHallsRestored) {
+    log.info(`[hall-bookings] cancelled=${out.cancelled.length} shortened=${out.shortened.length} restored=${out.restored.length} handedOver=${out.handedOver}`
+      + ` extraHallsAdjusted=${out.extraHallsAdjusted} extraHallsRestored=${out.extraHallsRestored}`)
   }
   return out
 }
