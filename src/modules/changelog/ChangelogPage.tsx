@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.31.0'
+const APP_VERSION = '2.32.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.32.0',
+    date: '13.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Entries from the KWI hall administration's calendar no longer take effect on their own. Admins approve or refuse each one under Hallenplan → Closures, and the daily email lists what is waiting. An entry they move comes back for a new decision.",
+          "An approved entry with a start and end time, such as a friendly in hall C from 18:30 to 20:00, now only books the halls it names for that time. Trainings it overlaps are shortened, or cancelled when less than 30 minutes would be left, instead of every training in every KWI hall being cancelled for the whole day.",
+          "Admins can book halls from an event (Book halls). Trainings in those halls during the event are shortened or cancelled automatically, and come back if the event is moved or cancelled.",
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          "A shortened training shows its usual time, and the hall calendar email shows each team's sport (VB / BB) and lists shortened trainings.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.31.0',
     date: '12.10.2026',
