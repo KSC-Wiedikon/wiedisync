@@ -193,6 +193,8 @@ export default {
   updateFutureTrainings: 'Aggiorna allenamenti futuri',
   goToTrainings: 'Vai agli allenamenti',
   goToGames: 'Vai alle partite',
+  goToEvents: 'Vai agli eventi',
+  clubEventBookingHint: 'Prenotata da un evento del club. Gli allenamenti in questa palestra in quell\'orario vengono accorciati o annullati automaticamente.',
 
   // Available slots
   slotsAvailable: '{{count}} fascia/e disponibile/i',

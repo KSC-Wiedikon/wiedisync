@@ -193,6 +193,8 @@ export default {
   updateFutureTrainings: 'Mettre a jour les entrainements futurs',
   goToTrainings: 'Aller aux entrainements',
   goToGames: 'Aller aux matchs',
+  goToEvents: 'Aller aux événements',
+  clubEventBookingHint: 'Réservée par un événement du club. Les entraînements dans cette salle pendant ce créneau sont automatiquement raccourcis ou annulés.',
 
   // Available slots
   slotsAvailable: '{{count}} creneau(x) disponible(s)',

@@ -193,6 +193,8 @@ export default {
   updateFutureTrainings: 'Zukünftige Trainings aktualisieren',
   goToTrainings: 'Zu Trainings',
   goToGames: 'Zu Spiele',
+  goToEvents: 'Zu den Events',
+  clubEventBookingHint: 'Von einem Vereinsevent gebucht. Trainings in dieser Halle während dieser Zeit werden automatisch gekürzt oder abgesagt.',
 
   // Available slots
   slotsAvailable: '{{count}} Halle(n) frei',

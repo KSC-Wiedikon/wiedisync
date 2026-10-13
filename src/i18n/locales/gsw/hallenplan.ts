@@ -193,6 +193,8 @@ export default {
   updateFutureTrainings: 'Zukünftigi Trainings aktualisiere',
   goToTrainings: 'Zu Trainings',
   goToGames: 'Zu Spiel',
+  goToEvents: 'Zu de Events',
+  clubEventBookingHint: 'Vomene Vereinsevent buechet. Trainings i dere Halle i dere Ziit werdet automatisch kürzt oder abgseit.',
 
   // Available slots
   slotsAvailable: '{{count}} Halle frei',

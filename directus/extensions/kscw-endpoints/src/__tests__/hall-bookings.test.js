@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseNamedKwiHalls, entryHallIds, timeWindow, planTraining, eventHallIds, eventBookingDays,
+  parseExtraHalls, sameExtraHalls, planExtraHalls,
   MIN_REMAINING_MINUTES, MAX_BOOKING_DAYS,
 } from '../hall-bookings.js'
 
@@ -152,5 +153,55 @@ describe('eventBookingDays', () => {
   })
   it(`stops after ${MAX_BOOKING_DAYS} days`, () => {
     expect(eventBookingDays({ all_day: true, start_day: '2026-11-01', end_day: '2027-02-01' })).toHaveLength(MAX_BOOKING_DAYS)
+  })
+})
+
+// Migration 370's own example: Herren 1 (BB) trains in KWI B from 18:00 and takes
+// KWI A as well from 18:30. Owner decision 13.10.2026: a booking on the EXTRA hall
+// takes that hall only — the training keeps its time in its main hall.
+describe('planExtraHalls — a booking on an extra hall takes that hall only', () => {
+  const herren1 = (extra, more = {}) => tr('18:00', '20:00', { extra_halls: extra, ...more })
+  const on = (byHall) => (hall) => byHall[hall] || []
+
+  it('leaves the extra hall alone when nothing is booked on it', () => {
+    const r = planExtraHalls(herren1([{ hall: 1, start_time: '18:30', end_time: null }]), on({ 2: [block(7, '18:00', '20:00')] }))
+    expect(r.key).toBeNull()
+    expect(r.desired).toEqual([{ hall: 1, start_time: '18:30', end_time: null }])
+  })
+  it('narrows it to the part before the booking (friendly in KWI A from 19:00)', () => {
+    const r = planExtraHalls(herren1([{ hall: 1, start_time: '18:30', end_time: null }]), on({ 1: [block(9, '19:00', '21:00')] }))
+    expect(r.key).toBe('calendar:9')
+    expect(r.desired).toEqual([{ hall: 1, start_time: '18:30', end_time: '19:00' }])
+  })
+  it(`drops it when under ${MIN_REMAINING_MINUTES} minutes of it would be left`, () => {
+    const r = planExtraHalls(herren1([{ hall: 1, start_time: '18:30', end_time: null }]), on({ 1: [block(9, '18:45', '21:00')] }))
+    expect(r.desired).toEqual([])
+    expect(r.key).toBe('calendar:9')
+  })
+  it('keeps null for a bound that is still the training\'s own time', () => {
+    const r = planExtraHalls(herren1([{ hall: 1, start_time: null, end_time: null }]), on({ 1: [block(9, '17:00', '18:30')] }))
+    expect(r.desired).toEqual([{ hall: 1, start_time: '18:30', end_time: null }])
+  })
+  it('re-plans from the ORIGINALS, so a re-run never narrows the narrowed hall again', () => {
+    const t = herren1([{ hall: 1, start_time: '18:30', end_time: '19:00' }], {
+      original_extra_halls: [{ hall: 1, start_time: '18:30', end_time: null }],
+    })
+    expect(planExtraHalls(t, on({})).desired).toEqual([{ hall: 1, start_time: '18:30', end_time: null }])
+  })
+  it('handles each extra hall on its own', () => {
+    const r = planExtraHalls(herren1([{ hall: 1 }, { hall: 3 }]), on({ 3: [block(9, '18:00', '20:00')] }))
+    expect(r.desired).toEqual([{ hall: 1, start_time: null, end_time: null }])
+  })
+})
+
+describe('parseExtraHalls / sameExtraHalls', () => {
+  it('reads json text, objects and the optional bounds', () => {
+    expect(parseExtraHalls('[{"hall":"2","start_time":"18:30:00"}]')).toEqual([{ hall: 2, start_time: '18:30', end_time: null }])
+    expect(parseExtraHalls(null)).toEqual([])
+    expect(parseExtraHalls('not json')).toEqual([])
+  })
+  it('treats a missing bound and null as the same', () => {
+    expect(sameExtraHalls([{ hall: 1 }], [{ hall: 1, start_time: null, end_time: null }])).toBe(true)
+    expect(sameExtraHalls([{ hall: 1 }], [{ hall: 1, start_time: '19:00' }])).toBe(false)
   })
 })

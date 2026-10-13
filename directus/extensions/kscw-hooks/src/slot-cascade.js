@@ -465,7 +465,15 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
       const patch = {}
       if (timeChanged) { patch.start_time = post.start_time; patch.end_time = post.end_time }
       if (hallChanged) patch.hall = post.hall
-      if (extraHallsChanged) patch.extra_halls = extraHallsValue(post.extra_halls)
+      if (extraHallsChanged) {
+        patch.extra_halls = extraHallsValue(post.extra_halls)
+        // A hall booking may have narrowed the old extra halls (migration 410). The
+        // slot's new shape is the plan now: drop the booking's memory of the old
+        // one, and the booking sweep — run right after this cascade — re-applies
+        // any booking to the new halls.
+        patch.original_extra_halls = null
+        patch.extra_halls_adjusted_by_booking = null
+      }
       if (teamChanged && postTeam != null) patch.team = postTeam
       if (Object.keys(patch).length > 0) {
         await trx('trainings')

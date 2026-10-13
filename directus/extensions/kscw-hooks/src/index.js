@@ -2830,9 +2830,45 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.error({ msg: `[hall-bookings] ${why} sweep failed: ${err.message}`, event: 'hall_bookings_event_sweep_failed', stack: err.stack })
     }
   }
-  action('events.items.create', async () => { await runHallBookingSweep('event create') })
-  action('events.items.update', async () => { await runHallBookingSweep('event update') })
-  action('events.items.delete', async () => { await runHallBookingSweep('event delete') })
+  // …and show the booking on the hall administration's calendar right away
+  // (gcal-push.js pushEventBookings; the 04:00 sync is only the catch-up). Through
+  // the endpoints extension over HTTP, never in-process: its one-run-at-a-time
+  // claim is per bundle, and the sync's own booking push lives in that bundle.
+  // Dev is a dry run by code there, so this never writes from dev.
+  const BOOKING_FIELDS = ['hall', 'additional_halls', 'start_date', 'end_date', 'all_day', 'title', 'cancelled']
+  const pushBookingsNow = async (why, eventId = null) => {
+    if (!process.env.GCAL_SERVICE_ACCOUNT_B64) return // push disabled — nothing to do
+    try {
+      const token = await getCronAccessToken(log, 'Hall booking calendar push')
+      if (!token) return
+      const res = await fetch('http://localhost:8055/kscw/admin/hall-bookings/push', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId }),
+      })
+      if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
+    } catch (err) {
+      log.error({ msg: `[hall-bookings] ${why}: calendar push failed: ${err.message}`, event: 'hall_bookings_gcal_push_failed', stack: err.stack })
+    }
+  }
+  action('events.items.create', async ({ payload, key }) => {
+    await runHallBookingSweep('event create')
+    if (payload?.hall != null) await pushBookingsNow('event create', key)
+  })
+  action('events.items.update', async ({ payload, keys }) => {
+    await runHallBookingSweep('event update')
+    if (!payload || !BOOKING_FIELDS.some((f) => f in payload)) return
+    // Unbooked in this very write ('hall' set to null) still needs its entry removed.
+    const booked = 'hall' in payload || 'additional_halls' in payload
+      || (await database('events').whereIn('id', keys).whereNotNull('hall').first('id')) != null
+    if (booked) await pushBookingsNow('event update', keys?.[0] ?? null)
+  })
+  action('events.items.delete', async ({ keys }) => {
+    await runHallBookingSweep('event delete')
+    // The row is gone, so whether it had a hall is unknowable here — the push is a
+    // cheap whole reconcile, and deletes are rare.
+    await pushBookingsNow('event delete', keys?.[0] ?? null)
+  })
 
   // Events — mirror trainings/games: decline for members already on absence
   action('events.items.create', async ({ key }) => {

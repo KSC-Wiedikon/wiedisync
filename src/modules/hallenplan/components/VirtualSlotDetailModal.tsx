@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
-import type { HallSlot, Hall, Team, Game, Training, HallEvent } from '../../../types'
+import type { HallSlot, Hall, Team, Game, Training, HallEvent, Event } from '../../../types'
 import { formatTime } from '../../../utils/dateHelpers'
 import { describeExtraHalls } from '../../../utils/extraHalls'
 
@@ -120,10 +120,27 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
     )
   }
 
+  // A club event that books halls (migration 409). The slot carries this day's
+  // window; the event may span several days.
+  function renderClubEvent() {
+    const event = meta.sourceRecord as Event
+    return (
+      <div className="space-y-1">
+        <DetailRow label={t('hall')} value={hallName} />
+        <DetailRow label={t('label')} value={event.title} />
+        <DetailRow label={t('startTime')} value={event.all_day ? t('allDay') : slot.start_time?.slice(0, 5)} />
+        <DetailRow label={t('endTime')} value={event.all_day ? '' : slot.end_time?.slice(0, 5)} />
+        <DetailRow label={t('location')} value={event.location} />
+        <p className="pt-2 text-xs text-muted-foreground">{t('clubEventBookingHint')}</p>
+      </div>
+    )
+  }
+
   const titles: Record<string, string> = {
     game: meta.isAway ? t('typeAway') : t('typeGame'),
     training: t('typeTraining'),
     hall_event: t('typeEvent'),
+    club_event: t('typeEvent'),
   }
 
   const gameRecord = meta.source === 'game' ? meta.sourceRecord as Game : null
@@ -151,10 +168,18 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
           {meta.source === 'game' && renderGame()}
           {meta.source === 'training' && renderTraining()}
           {meta.source === 'hall_event' && renderHallEvent()}
+          {meta.source === 'club_event' && renderClubEvent()}
         </>
       )}
 
       <div className="mt-4 border-t border-border pt-3">
+        {isAdmin && meta.source === 'club_event' && (
+          <div className="mb-3 flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => { onClose(); navigate('/events') }}>
+              {t('goToEvents')}
+            </Button>
+          </div>
+        )}
         {isAdmin && (meta.source === 'training' || meta.source === 'game') && (
           <div className="mb-3 flex flex-wrap justify-end gap-2">
             {meta.source === 'training' && onEditSlot && (

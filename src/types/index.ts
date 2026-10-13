@@ -372,9 +372,11 @@ export interface SlotClaim extends BaseRecord {
 }
 
 export interface VirtualSlotMeta {
-  source: 'game' | 'training' | 'hall_event'
+  /** `club_event`: a club event that books halls (migration 409) — display only;
+   *  the trainings it trims or cancels are already changed in the DB. */
+  source: 'game' | 'training' | 'hall_event' | 'club_event'
   sourceId: string
-  sourceRecord: Game | Training | HallEvent
+  sourceRecord: Game | Training | HallEvent | Event
   isAway?: boolean
   isCancelled?: boolean
   isFreed?: boolean
