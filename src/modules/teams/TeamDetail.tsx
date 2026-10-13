@@ -222,6 +222,8 @@ export default function TeamDetail() {
     }
   }
 
+  // Admin mode sees members' hidden birthdates (MemberRow), so it sorts by them too.
+  const adminView = !!team && effectiveIsAdmin && hasAdminAccessToTeam(team.id)
   const sortMembers = useCallback((list: typeof members) => {
     const sorted = [...list]
     const dir = sortDir === 'asc' ? 1 : -1
@@ -247,7 +249,7 @@ export default function TeamDetail() {
           cmp = (ma.hide_phone ? '' : ma.phone ?? '').localeCompare(mb.hide_phone ? '' : mb.phone ?? '')
           break
         case 'birthdate':
-          cmp = (ma.birthdate_visibility === 'hidden' ? '' : ma.birthdate ?? '').localeCompare(mb.birthdate_visibility === 'hidden' ? '' : mb.birthdate ?? '')
+          cmp = (ma.birthdate_visibility === 'hidden' && !adminView ? '' : ma.birthdate ?? '').localeCompare(mb.birthdate_visibility === 'hidden' && !adminView ? '' : mb.birthdate ?? '')
           break
         case 'identity': {
           // Ascending puts the people still owing a document at the top — that is the
@@ -267,7 +269,7 @@ export default function TeamDetail() {
       return cmp * dir
     })
     return sorted
-  }, [sortKey, sortDir, team, identityDocs])
+  }, [sortKey, sortDir, team, identityDocs, adminView])
 
   // Staff = coaches + team responsibles. A staff member with no real playing
   // position is non-playing staff and must NOT be listed among the players.
