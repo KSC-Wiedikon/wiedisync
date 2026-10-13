@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.33.0'
+const APP_VERSION = '2.33.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.33.1',
+    date: '13.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Volleyball and basketball admins can pick every team of their sport when creating an event, without switching admin mode on.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.33.0',
     date: '13.10.2026',
