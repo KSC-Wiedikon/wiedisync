@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.32.1 — 2026-10-13
+
+### Changed
+
+- On a team page, coaches and other staff who don't play now show their staff role in the number column: C, AC1 or AC2 from the team's Einsatzliste officials, otherwise C for a coach and TR for a team responsible.
+- In admin mode, the team page shows each member's birthdate even when they have hidden it from the team, marked with a small icon. Teammates and coaches still see only what each member allows.
+
 ## v2.32.0 — 2026-10-13
 
 ### New
