@@ -696,8 +696,12 @@ export interface Training extends BaseRecord {
   is_trial?: boolean
   /** games.id whose warm-up block auto-shortened this training (sweep-managed, migration 191). */
   auto_shortened_by_game?: number | null
-  /** End time before the game auto-shorten; set only while shortened. */
+  /** End time before the game auto-shorten or a hall-calendar block; set only while shortened. */
   original_end_time?: string | null
+  /** hall_events.id of the timed hall-calendar entry that trimmed or cancelled this training (migration 409). */
+  auto_adjusted_by_booking?: number | null
+  /** Start time before a hall-calendar block trimmed the front; set only while shortened. */
+  original_start_time?: string | null
   /** Car pooling board on this training (migration 378). Default false; coach-owned. */
   carpool_enabled?: boolean
 }
@@ -760,7 +764,10 @@ export interface Event extends BaseRecord {
   end_date: string
   all_day: boolean
   location: string
+  /** Hall this event BOOKS (migration 409): its trainings are trimmed or cancelled for the event's time. Admin-only. */
   hall: string
+  /** Further halls it books besides `hall` (e.g. KWI A+B). Null/empty = one hall. */
+  additional_halls?: (string | number)[] | null
   teams: string[]
   created_by: string
   respond_by: string
@@ -838,9 +845,9 @@ export interface HallEvent extends BaseRecord {
   all_day: boolean
   source: string
   /**
-   * Does this calendar entry close the KWI halls? Since migration 325 every
-   * hall-administration entry does, so: null = automatic (closes), false = admin
-   * override, closes nothing, true = admin confirmed it closes.
+   * Admin decision on this calendar entry (migration 409): null = pending, does
+   * nothing yet; true = approved, closes (or, timed, books) the halls it names;
+   * false = refused, does nothing. Reset to null when the entry moves.
    */
   closure_override: boolean | null
 }

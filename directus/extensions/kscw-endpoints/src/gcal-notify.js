@@ -9,6 +9,9 @@
  * from members' calendars and nobody in the club knows why until a coach asks.
  *
  * This mails a digest to the club-admin box whenever the feed ACTUALLY changed.
+ * Since migration 409 a new or moved entry does nothing until an admin approves
+ * it, so the digest is also the request for that decision: it lists what is
+ * waiting and links straight to the approval list.
  * ⚠ Silence is the normal state: `gcal-sync` rewrites every `hall_events` row on
  * every run (unconditional UPDATE), so a run's `eventsUpdated` count is NOT a
  * change signal — the caller diffs the stored row field-by-field and only reports
@@ -37,8 +40,10 @@ export function emptyChanges() {
     eventsRemoved: [],    // { title, date }
     closuresNew: [],      // { halls: [name], start, end, reason }
     closuresRemoved: [],  // { halls: [name], start, end, reason }
-    trainingsCancelled: [], // { team, date, start_time, hall }
-    trainingsRestored: [],  // { team, date, start_time, hall }
+    trainingsCancelled: [], // { team, sport, date, start_time, hall }
+    trainingsShortened: [], // { team, sport, date, hall, from: 'HH:MM–HH:MM', to }
+    trainingsRestored: [],  // { team, sport, date, start_time, hall }
+    needsApproval: [],      // { title, date, time, endTime, allDay, again? } — new or moved, pending
   }
 }
 
@@ -52,12 +57,17 @@ const dmy = (iso) => {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(iso || '—')
 }
 const hm = (t) => (t ? String(t).slice(0, 5) : '')
+// KWI C hosts both sections, and team names alone do not say which ("Herren 2
+// H3" is basketball) — prefix the sport the way the pushed games do ("VB D4").
+const SPORT_PREFIX = { volleyball: 'VB', basketball: 'BB' }
+const teamLabel = (t) => [SPORT_PREFIX[t.sport], t.team || '—'].filter(Boolean).join(' ')
 // The sync reads `start_time` straight off `trainings`; keep `time` accepted so a
 // caller building the row by hand cannot silently lose the time.
 const trainingLine = (t) => {
   const at = hm(t.start_time ?? t.time)
-  return `${dmy(t.date)}${at ? `, ${at}` : ''} · ${t.team || '—'} · ${t.hall || '—'}`
+  return `${dmy(t.date)}${at ? `, ${at}` : ''} · ${teamLabel(t)} · ${t.hall || '—'}`
 }
+const shortenedLine = (t) => `${dmy(t.date)} · ${teamLabel(t)} · ${t.hall || '—'} · ${t.from} → ${t.to}`
 const range = (s, e) => (s === e ? dmy(s) : `${dmy(s)} – ${dmy(e)}`)
 
 function eventLine(e) {
@@ -117,7 +127,10 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
     const closureCount = c.closuresNew.length + c.closuresRemoved.length
     if (closureCount) parts.push(`${closureCount} Hallensperrung${closureCount === 1 ? '' : 'en'}`)
     const counts = parts.join(', ')
-    const subject = `Hallenkalender KWI: ${counts}`
+    // The subject is what gets read in the inbox list — lead with the ask.
+    const subject = c.needsApproval.length
+      ? `Hallenkalender KWI: ${c.needsApproval.length} zur Freigabe · ${counts}`
+      : `Hallenkalender KWI: ${counts}`
 
     const summary = [
       c.eventsNew.length ? `${c.eventsNew.length} neue Einträge · new entries` : null,
@@ -127,17 +140,28 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
       c.closuresRemoved.length ? `${c.closuresRemoved.length} Sperrung aufgehoben · closure lifted` : null,
     ].filter(Boolean).join(', ')
 
-    // A training cancellation is the part somebody has to act on, so it decides
-    // the alert colour — everything else is informational.
-    const impactful = c.trainingsCancelled.length > 0
+    // A pending decision or a cancelled / shortened training is the part
+    // somebody has to act on, so it decides the alert colour — everything else
+    // is informational.
+    const nApprove = c.needsApproval.length
+    const nCancel = c.trainingsCancelled.length
+    const nShort = c.trainingsShortened.length
+    const actionable = nApprove > 0 || nCancel > 0 || nShort > 0
+    const alertTitle = [
+      nApprove ? `${nApprove} ${nApprove === 1 ? 'Eintrag wartet' : 'Einträge warten'} auf Freigabe · awaiting approval` : null,
+      nCancel ? `${nCancel} Training${nCancel === 1 ? '' : 's'} abgesagt · cancelled` : null,
+      nShort ? `${nShort} gekürzt · shortened` : null,
+    ].filter(Boolean).join(', ')
+    const alertText = [
+      nApprove
+        ? 'Neue oder verschobene Einträge der Hallenverwaltung gelten erst, wenn du sie freigibst — bis dahin bleiben alle Trainings, wie sie sind. · New or moved entries from the hall administration only take effect once approved — until then every training stays as it is.'
+        : 'Die Hallenverwaltung hat den Kalender geändert. · The hall administration changed the calendar.',
+      nCancel || nShort ? 'Betroffene Trainings wurden automatisch angepasst. · Affected trainings were adjusted automatically.' : null,
+    ].filter(Boolean).join(' ')
     let body = buildAlertBox(
-      impactful ? 'warning' : 'info',
-      impactful
-        ? `${c.trainingsCancelled.length} Training${c.trainingsCancelled.length === 1 ? '' : 's'} abgesagt · trainings cancelled`
-        : 'Hallenkalender aktualisiert · hall calendar updated',
-      impactful
-        ? `Die Hallenverwaltung hat den Kalender geändert; betroffene Trainings wurden automatisch abgesagt. · The hall administration changed the calendar; affected trainings were cancelled automatically.`
-        : `Die Hallenverwaltung hat den Kalender geändert. · The hall administration changed the calendar.`,
+      actionable ? 'warning' : 'info',
+      actionable ? alertTitle : 'Hallenkalender aktualisiert · hall calendar updated',
+      alertText,
     )
 
     body += buildInfoCard([
@@ -146,6 +170,11 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
     ])
     body += '<div style="height:16px"></div>'
 
+    body += section(
+      'Freigabe nötig · Needs approval',
+      c.needsApproval.map((e) => `${eventLine(e)}${e.again ? ' (verschoben · moved)' : ''}`),
+      '#fbbf24',
+    )
     body += section('Neu im Kalender · New entries', c.eventsNew.map(eventLine), '#4ade80')
     body += section(
       'Geändert · Changed',
@@ -170,6 +199,11 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
       '#f87171',
     )
     body += section(
+      'Gekürzte Trainings · Shortened trainings',
+      c.trainingsShortened.map(shortenedLine),
+      '#fbbf24',
+    )
+    body += section(
       'Wieder aktiv · Trainings reinstated',
       c.trainingsRestored.map(trainingLine),
       '#4ade80',
@@ -178,8 +212,8 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
     const html = buildEmailLayout(body, {
       title: 'Hallenkalender KWI',
       subtitle: counts,
-      ctaUrl: `${FRONTEND_URL}/admin/hallenplan`,
-      ctaLabel: 'Hallenplan öffnen',
+      ctaUrl: nApprove ? `${FRONTEND_URL}/admin/hallenplan/closures` : `${FRONTEND_URL}/admin/hallenplan`,
+      ctaLabel: nApprove ? 'Einträge prüfen · Review entries' : 'Hallenplan öffnen',
       // The default CTA text colour is black, which sits at ~2.8:1 on the
       // neutral accent; white is 7.4:1.
       ctaTextColor: '#ffffff',
@@ -190,12 +224,14 @@ export async function notifyGCalChanges({ changes, trigger, mail, log }) {
     const textLines = [
       `Hallenkalender KWI — ${summary}`,
       '',
+      ...(c.needsApproval.length ? ['Freigabe nötig · Needs approval:', ...c.needsApproval.map((e) => `  - ${eventLine(e)}${e.again ? ' (verschoben · moved)' : ''}`), `  → ${FRONTEND_URL}/admin/hallenplan/closures`, ''] : []),
       ...(c.eventsNew.length ? ['Neu · New:', ...c.eventsNew.map((e) => `  - ${eventLine(e)}`), ''] : []),
       ...(c.eventsChanged.length ? ['Geändert · Changed:', ...c.eventsChanged.map((e) => `  - ${dmy(e.date)} ${e.title}: ${e.diffs.map((d) => `${FIELD_LABELS[d.field] || d.field}: ${d.from || '—'} → ${d.to || '—'}`).join('; ')}`), ''] : []),
       ...(c.eventsRemoved.length ? ['Entfernt · Removed:', ...c.eventsRemoved.map((e) => `  - ${dmy(e.date)} ${e.title}`), ''] : []),
       ...(c.closuresNew.length ? ['Neue Sperrungen · New closures:', ...c.closuresNew.map((x) => `  - ${range(x.start, x.end)} ${x.halls.join(', ')} — ${x.reason}`), ''] : []),
       ...(c.closuresRemoved.length ? ['Aufgehoben · Lifted:', ...c.closuresRemoved.map((x) => `  - ${range(x.start, x.end)} ${x.halls.join(', ')}`), ''] : []),
       ...(c.trainingsCancelled.length ? ['Abgesagte Trainings · Cancelled trainings:', ...c.trainingsCancelled.map((t) => `  - ${trainingLine(t)}`), ''] : []),
+      ...(c.trainingsShortened.length ? ['Gekürzte Trainings · Shortened trainings:', ...c.trainingsShortened.map((t) => `  - ${shortenedLine(t)}`), ''] : []),
       ...(c.trainingsRestored.length ? ['Wieder aktiv · Reinstated:', ...c.trainingsRestored.map((t) => `  - ${trainingLine(t)}`), ''] : []),
       `${FRONTEND_URL}/admin/hallenplan`,
     ]

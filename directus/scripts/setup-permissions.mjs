@@ -2736,8 +2736,15 @@ async function main() {
   const EVENT_ENDPOINT_OWNED_FIELDS = ['signup_form_slug']
   // Trigger-kept (migration 406): the trigger overwrites a sent value anyway.
   const EVENT_DERIVED_FIELDS = ['sport_section']
+  // Hall booking (migration 409): an event with a hall trims or cancels EVERY
+  // team's trainings in that hall for its time — volleyball and basketball
+  // alike — so only a full admin (admin_access, bypasses these rows) may set it.
+  // Coaches and sport admins keep creating and editing events; the form only
+  // sends these fields for a full admin.
+  const EVENT_ADMIN_ONLY_FIELDS = ['hall', 'additional_halls']
   const EVENT_WRITE_FIELDS = (await liveFieldNames('events'))
-    .filter((f) => !EVENT_ENDPOINT_OWNED_FIELDS.includes(f) && !EVENT_DERIVED_FIELDS.includes(f))
+    .filter((f) => !EVENT_ENDPOINT_OWNED_FIELDS.includes(f) && !EVENT_DERIVED_FIELDS.includes(f)
+      && !EVENT_ADMIN_ONLY_FIELDS.includes(f))
   const LEADER_EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },

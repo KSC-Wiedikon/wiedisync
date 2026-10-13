@@ -22,6 +22,7 @@ import CancelActivityButton from '../../components/CancelActivityButton'
 import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus, AlarmClock } from 'lucide-react'
 import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
 import CarpoolPanel from '../carpool/CarpoolPanel'
+import { shortenedBy, plannedTimeRange } from './shortened'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -121,7 +122,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
                 {t('cancelled')}
               </span>
             )}
-            {!training.cancelled && training.auto_shortened_by_game != null && (
+            {shortenedBy(training) && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 {t('shortenedBadge')}
               </span>
@@ -190,10 +191,10 @@ export default function TrainingDetailModal({ training, onClose, participations 
             </p>
           )}
 
-          {/* Auto-shortened by home game */}
-          {!training.cancelled && training.auto_shortened_by_game != null && (
+          {/* Auto-shortened by a home game or a hall-calendar booking */}
+          {shortenedBy(training) && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
-              {t('shortenedHint')}
+              {shortenedBy(training) === 'game' ? t('shortenedHint') : t('shortenedHallHint', { usual: plannedTimeRange(training) })}
             </p>
           )}
 

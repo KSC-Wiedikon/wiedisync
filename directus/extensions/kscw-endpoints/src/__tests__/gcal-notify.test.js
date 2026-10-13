@@ -138,6 +138,49 @@ describe('notifyGCalChanges', () => {
     restore()
   })
 
+  // KWI C hosts both sections and team names do not say which ("HU16" exists
+  // in both), so every training line carries the sport the way pushed games do.
+  it('prefixes every training with its sport and lists shortened ones', async () => {
+    const { mod, restore } = await loadWithEnv({ PUBLIC_URL: 'https://directus.kscw.ch' })
+    const mail = makeMail()
+    const c = mod.emptyChanges()
+    c.eventsNew.push({ title: 'Freundschaftsspiel BB DU18 FIRE - Zürich 93 DU16 (Halle C)', date: '2026-10-22', time: '18:30:00', endTime: '20:00:00', allDay: false })
+    c.trainingsCancelled.push({ date: '2026-10-22', start_time: '18:30:00', team: 'DU18 Fire', sport: 'basketball', hall: 'KWI C' })
+    c.trainingsShortened.push({ date: '2026-10-22', team: 'D2', sport: 'volleyball', hall: 'KWI C', from: '17:00–19:00', to: '17:00–18:30' })
+    c.trainingsRestored.push({ date: '2026-10-22', start_time: '18:00:00', team: 'HU18', sport: 'basketball', hall: 'KWI A' })
+
+    await mod.notifyGCalChanges({ changes: c, trigger: 'cron', mail, log })
+    const arg = mail.send.mock.calls[0][0]
+    expect(arg.text).toContain('22.10.2026, 18:30 · BB DU18 Fire · KWI C')
+    expect(arg.text).toContain('22.10.2026 · VB D2 · KWI C · 17:00–19:00 → 17:00–18:30')
+    expect(arg.text).toContain('22.10.2026, 18:00 · BB HU18 · KWI A')
+    expect(arg.html).toContain('Gekürzte Trainings')
+    // A shortened training is impact too → warning box with both counts.
+    expect(arg.html).toContain('1 Training abgesagt · cancelled, 1 gekürzt · shortened')
+    restore()
+  })
+
+  // Since migration 409 a new or moved entry does nothing until approved — the
+  // digest is the ask, so it leads with it and links to the approval list.
+  it('asks for approval of new and moved entries and links to the list', async () => {
+    const { mod, restore } = await loadWithEnv({ PUBLIC_URL: 'https://directus.kscw.ch' })
+    const mail = makeMail()
+    const c = mod.emptyChanges()
+    const friendly = { title: 'Freundschaftsspiel BB DU18 FIRE - Zürich 93 DU16 (Halle C)', date: '2026-10-22', time: '18:30:00', endTime: '20:00:00', allDay: false }
+    c.eventsNew.push(friendly)
+    c.needsApproval.push(friendly)
+    c.needsApproval.push({ title: 'Halle geschlossen', date: '2026-10-31', allDay: true, again: true })
+
+    await mod.notifyGCalChanges({ changes: c, trigger: 'cron', mail, log })
+    const arg = mail.send.mock.calls[0][0]
+    expect(arg.subject).toBe('Hallenkalender KWI: 2 zur Freigabe · 1 neu')
+    expect(arg.html).toContain('2 Einträge warten auf Freigabe')
+    expect(arg.html).toContain('/admin/hallenplan/closures')
+    expect(arg.text).toContain('22.10.2026, 18:30–20:00 · Freundschaftsspiel BB DU18 FIRE')
+    expect(arg.text).toContain('31.10.2026 · Halle geschlossen (verschoben · moved)')
+    restore()
+  })
+
   it('labels the trigger so a manual re-run is distinguishable from the cron', async () => {
     const { mod, restore } = await loadWithEnv({ PUBLIC_URL: 'https://directus.kscw.ch' })
     const mail = makeMail()

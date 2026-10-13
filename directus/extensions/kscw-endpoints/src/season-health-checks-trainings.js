@@ -581,15 +581,16 @@ ORDER BY h.name, h.id`,
     severity: 'info',
     grain: 'team',
     title: 'Team with most upcoming trainings cancelled',
-    description: 'More than half of the team\'s trainings in the next 28 days are cancelled. The breakdown says why: by_closure = holidays or Hausdienst, by_game = own game days or hall blocks, manual = a coach cancelled by hand (bulk-cancelling instead of editing the slot is the usual story).',
+    description: 'More than half of the team\'s trainings in the next 28 days are cancelled. The breakdown says why: by_closure = holidays or Hausdienst, by_game = own game days or hall blocks, by_booking = a hall booking (an approved hall-calendar entry or an event with a hall), manual = a coach cancelled by hand (bulk-cancelling instead of editing the slot is the usual story).',
     sql: `
 SELECT ${TEAM_COLS},
        count(*)::int AS total,
        count(*) FILTER (WHERE tr.cancelled)::int AS cancelled,
        count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NOT NULL)::int AS by_closure,
        count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NOT NULL)::int AS by_game,
-       count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NULL AND tr.auto_cancelled_by_trial IS NOT NULL)::int AS by_trial,
-       count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NULL AND tr.auto_cancelled_by_trial IS NULL)::int AS manual
+       count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NULL AND tr.auto_adjusted_by_booking IS NOT NULL)::int AS by_booking,
+       count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NULL AND tr.auto_adjusted_by_booking IS NULL AND tr.auto_cancelled_by_trial IS NOT NULL)::int AS by_trial,
+       count(*) FILTER (WHERE tr.cancelled AND tr.auto_cancelled_by_closure IS NULL AND tr.auto_shortened_by_game IS NULL AND tr.auto_adjusted_by_booking IS NULL AND tr.auto_cancelled_by_trial IS NULL)::int AS manual
 FROM trainings tr
 JOIN teams t ON t.id = tr.team
 WHERE ${ACTIVE_TEAM} AND tr.date BETWEEN {{today}} AND {{today}} + 28

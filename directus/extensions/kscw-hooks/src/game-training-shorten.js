@@ -56,6 +56,13 @@
  * already declined the game itself are left alone (they're free that evening),
  * and the migration-261 trigger detaches the marker on any manual RSVP flip.
  *
+ * HALL BOOKINGS (migration 409, kscw-endpoints/src/hall-bookings.js — a timed
+ * hall-calendar entry or an event with a hall) trim and cancel trainings too,
+ * with their own marker auto_adjusted_by_booking. The two sweeps never own one
+ * row: passes 2/3 skip a row carrying that marker, the booking sweep skips a row
+ * carrying ours, and pass 4 (own game day) outranks it — it puts the booking's
+ * times back and clears its marker as it cancels.
+ *
  * UPDATEs fire trg_trainings_notify ('training_updated' / cancellation push);
  * the value-change guards keep re-runs silent.
  */
@@ -211,6 +218,7 @@ export async function sweepGameTrainingShorten(database, log) {
        AND gb.kscw_team IS DISTINCT FROM t.team AND gb.sport = (SELECT sport FROM teams WHERE id = t.team)
       WHERE t.date >= CURRENT_DATE
         AND t.cancelled = false
+        AND t.auto_adjusted_by_booking IS NULL
         AND (gb.time - make_interval(mins => :warmup)) <= t.start_time
         AND (gb.time + make_interval(mins => :gameMinutes)) >= COALESCE(t.original_end_time, t.end_time)
       GROUP BY t.id
@@ -237,6 +245,7 @@ export async function sweepGameTrainingShorten(database, log) {
        AND gb.kscw_team IS DISTINCT FROM t.team AND gb.sport = (SELECT sport FROM teams WHERE id = t.team)
       WHERE t.date >= CURRENT_DATE
         AND t.cancelled = false
+        AND t.auto_adjusted_by_booking IS NULL
         AND (gb.time - make_interval(mins => :warmup)) > t.start_time
         AND (gb.time - make_interval(mins => :warmup)) < COALESCE(t.original_end_time, t.end_time)
       GROUP BY t.id
@@ -258,7 +267,9 @@ export async function sweepGameTrainingShorten(database, log) {
   // Skip the manual-reinstate signature (marker set, not shortened,
   // cancelled=false — see pass 1c). A previously SHORTENED training
   // (original_end_time set) is upgraded to cancelled: its own game outranks
-  // another team's hall block. Earliest game of the day wins the marker.
+  // another team's hall block — and a hall booking (migration 409), whose
+  // times and marker it hands back. Earliest game of the day wins the
+  // marker.
   const ownTeamCancelSql = (dateClause) => `
     WITH own_cover AS (
       SELECT t.id AS training_id,
@@ -276,7 +287,10 @@ export async function sweepGameTrainingShorten(database, log) {
     SET cancelled = true,
         auto_shortened_by_game = c.game_id,
         original_end_time = NULL,
-        end_time = COALESCE(t.original_end_time, t.end_time)
+        end_time = COALESCE(t.original_end_time, t.end_time),
+        original_start_time = NULL,
+        start_time = COALESCE(t.original_start_time, t.start_time),
+        auto_adjusted_by_booking = NULL
     FROM own_cover c
     WHERE t.id = c.training_id
   `

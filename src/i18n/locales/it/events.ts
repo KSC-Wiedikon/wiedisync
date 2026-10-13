@@ -50,6 +50,9 @@ export default {
   shareTokenRevoked: 'Link di iscrizione pubblico disattivato',
   teamsLabel: 'Squadre:',
   location: 'Luogo',
+  bookHalls: 'Prenota palestre',
+  bookHallsHint: 'Gli allenamenti in queste palestre durante l’evento vengono accorciati o annullati automaticamente e ripristinati se l’evento viene spostato o annullato.',
+  bookHallsNeedEnd: 'Una prenotazione della palestra richiede un’ora di fine dopo l’inizio.',
   description: 'Descrizione',
   teamsInvolved: 'Squadre',
 
