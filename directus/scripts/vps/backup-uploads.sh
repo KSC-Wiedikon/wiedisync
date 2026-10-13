@@ -72,9 +72,15 @@ fi
 SIZE=$(du -h "$ARCHIVE" | cut -f1)
 
 # ── 3. offsite: same three destinations as the DB dumps ─────────────────────────────
-rclone copy "$ARCHIVE" "$GDRIVE_DIR" 2>&1
-rclone copy "$ARCHIVE" "$R2_DIR" 2>&1
-scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$ARCHIVE" \
+# Each leg is checked — the closing line used to say "GDrive + R2 + NAS" regardless,
+# and Drive's rate limit on rclone's shared OAuth client cost the 20.09 and 27.09
+# archives their Drive copy without a word. The cloud legs copy EVERY local archive the
+# remote lacks (8-week local retention), so a missed week is filled in by the next run.
+OFFSITE=()
+leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+=("$name FAILED"); fi; }
+leg GDrive rclone copy "$BACKUP_DIR" "$GDRIVE_DIR" --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
+leg R2     rclone copy "$BACKUP_DIR" "$R2_DIR"     --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
+leg NAS    scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$ARCHIVE" \
     "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/" 2>&1
 
 # ── 4. retention: 8 weeks everywhere ────────────────────────────────────────────────
@@ -84,4 +90,6 @@ rclone delete "$R2_DIR"     --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
   "find '${NAS_PATH}' -name 'kscw_uploads_*.tar.gz.gpg' -mtime +56 -delete" 2>&1
 
-log "complete - ${OBJECTS} objects, ${SIZE} encrypted - GDrive + R2 + NAS"
+SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
+case "$SUMMARY" in *FAILED*) RESULT=INCOMPLETE ;; *) RESULT=complete ;; esac
+log "$RESULT - ${OBJECTS} objects, ${SIZE} encrypted - offsite: $SUMMARY"

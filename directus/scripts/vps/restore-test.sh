@@ -25,10 +25,10 @@ MIN[games]=300
 MIN[participations]=800
 MIN[hall_slots]=40
 
-cleanup() { docker rm -f $NAME >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f -v $NAME >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-docker rm -f $NAME >/dev/null 2>&1 || true
+docker rm -f -v $NAME >/dev/null 2>&1 || true
 docker run -d --name $NAME \
   -e POSTGRES_PASSWORD=test -e POSTGRES_USER=supabase_admin -e POSTGRES_DB=postgres \
   postgres:15 >/dev/null
