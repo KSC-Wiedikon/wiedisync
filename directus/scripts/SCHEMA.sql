@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-13T15:14:28.294Z
+-- Generated:   2026-10-14T12:45:10.983Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Ywa18vds1nVEU5jV9VYZsK1hrzFginDkltGTXL8qr07w0CbBZZxrh96bH4DhKPM
+\restrict U4Wf9A5uOAlcbyv7F4ivxC8VlOcuh9lhRyOYngPKpFhk6cwBtWwxYIfAIfXJUf1
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -6112,6 +6112,146 @@ ALTER SEQUENCE public.finance_accounts_id_seq OWNED BY public.finance_accounts.i
 
 
 --
+-- Name: finance_archives; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_archives (
+    id integer NOT NULL,
+    fiscal_year integer NOT NULL,
+    file uuid,
+    sha256 character(64) NOT NULL,
+    size_bytes bigint NOT NULL,
+    contents jsonb NOT NULL,
+    offsite jsonb,
+    offsite_at timestamp with time zone,
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: finance_archives_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_archives_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_archives_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_archives_id_seq OWNED BY public.finance_archives.id;
+
+
+--
+-- Name: finance_bank_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_bank_lines (
+    id integer NOT NULL,
+    bank_ref character varying(160) NOT NULL,
+    statement_id character varying(140),
+    account_iban character varying(34),
+    booking_date date NOT NULL,
+    value_date date,
+    amount numeric(12,2) NOT NULL,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    counterparty_name character varying(255),
+    counterparty_iban character varying(34),
+    reference character varying(64),
+    remittance text,
+    fiscal_year integer,
+    status character varying(16) DEFAULT 'open'::character varying NOT NULL,
+    proposed_account integer,
+    proposed_text character varying(255),
+    proposed_by character varying(48),
+    matched_invoice_number character varying(64),
+    entry integer,
+    note text,
+    posted_by_name character varying(255),
+    posted_by_email character varying(255),
+    posted_at timestamp with time zone,
+    import_batch character varying(64),
+    imported_by_name character varying(255),
+    statement_file uuid,
+    statement_sha256 character(64),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT finance_bank_lines_posted_entry_chk CHECK ((((status)::text = 'posted'::text) = (entry IS NOT NULL))),
+    CONSTRAINT finance_bank_lines_status_chk CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'posted'::character varying, 'ignored'::character varying])::text[])))
+);
+
+
+--
+-- Name: finance_bank_lines_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_bank_lines_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_bank_lines_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_bank_lines_id_seq OWNED BY public.finance_bank_lines.id;
+
+
+--
+-- Name: finance_bank_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_bank_rules (
+    id integer NOT NULL,
+    name character varying(120) NOT NULL,
+    priority integer DEFAULT 100 NOT NULL,
+    direction character varying(3) DEFAULT 'any'::character varying NOT NULL,
+    match_iban character varying(34),
+    match_name character varying(120),
+    match_text character varying(120),
+    account integer NOT NULL,
+    text_template character varying(255),
+    active boolean DEFAULT true NOT NULL,
+    created_by_name character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone,
+    CONSTRAINT finance_bank_rules_direction_chk CHECK (((direction)::text = ANY ((ARRAY['in'::character varying, 'out'::character varying, 'any'::character varying])::text[]))),
+    CONSTRAINT finance_bank_rules_has_condition_chk CHECK ((((COALESCE(match_iban, ''::character varying))::text <> ''::text) OR ((COALESCE(match_name, ''::character varying))::text <> ''::text) OR ((COALESCE(match_text, ''::character varying))::text <> ''::text)))
+);
+
+
+--
+-- Name: finance_bank_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_bank_rules_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_bank_rules_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_bank_rules_id_seq OWNED BY public.finance_bank_rules.id;
+
+
+--
 -- Name: finance_billing_contacts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6956,6 +7096,8 @@ CREATE TABLE public.finance_ledger_settings (
     sync_state character varying(16) DEFAULT 'idle'::character varying NOT NULL,
     sync_message text,
     sync_finished_at timestamp with time zone,
+    opening_account integer,
+    parallel_start_fy integer,
     CONSTRAINT finance_ledger_settings_singleton CHECK ((id = 1))
 );
 
@@ -6989,6 +7131,45 @@ CREATE SEQUENCE public.finance_native_invoice_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
+
+
+--
+-- Name: finance_parallel_signoffs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_parallel_signoffs (
+    id integer NOT NULL,
+    fiscal_year integer NOT NULL,
+    month date NOT NULL,
+    difference_total numeric(12,2) NOT NULL,
+    accounts_compared integer NOT NULL,
+    accounts_different integer NOT NULL,
+    snapshot jsonb NOT NULL,
+    note text,
+    signed_by_name character varying(255),
+    signed_by_email character varying(255),
+    signed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: finance_parallel_signoffs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_parallel_signoffs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_parallel_signoffs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_parallel_signoffs_id_seq OWNED BY public.finance_parallel_signoffs.id;
 
 
 --
@@ -7181,6 +7362,44 @@ CREATE SEQUENCE public.finance_team_entries_id_seq
 --
 
 ALTER SEQUENCE public.finance_team_entries_id_seq OWNED BY public.finance_team_entries.id;
+
+
+--
+-- Name: finance_transaction_documents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_transaction_documents (
+    id integer NOT NULL,
+    entry integer NOT NULL,
+    file uuid NOT NULL,
+    sha256 character(64) NOT NULL,
+    kind character varying(16) DEFAULT 'receipt'::character varying NOT NULL,
+    note character varying(255),
+    uploaded_by_name character varying(255),
+    uploaded_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT finance_transaction_documents_kind_chk CHECK (((kind)::text = ANY ((ARRAY['receipt'::character varying, 'invoice'::character varying, 'statement'::character varying, 'contract'::character varying, 'other'::character varying])::text[])))
+);
+
+
+--
+-- Name: finance_transaction_documents_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_transaction_documents_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_transaction_documents_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_transaction_documents_id_seq OWNED BY public.finance_transaction_documents.id;
 
 
 --
@@ -12418,6 +12637,27 @@ ALTER TABLE ONLY public.finance_accounts ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: finance_archives id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_archives ALTER COLUMN id SET DEFAULT nextval('public.finance_archives_id_seq'::regclass);
+
+
+--
+-- Name: finance_bank_lines id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines ALTER COLUMN id SET DEFAULT nextval('public.finance_bank_lines_id_seq'::regclass);
+
+
+--
+-- Name: finance_bank_rules id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_rules ALTER COLUMN id SET DEFAULT nextval('public.finance_bank_rules_id_seq'::regclass);
+
+
+--
 -- Name: finance_billing_contacts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -12509,6 +12749,13 @@ ALTER TABLE ONLY public.finance_invoices ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: finance_parallel_signoffs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_parallel_signoffs ALTER COLUMN id SET DEFAULT nextval('public.finance_parallel_signoffs_id_seq'::regclass);
+
+
+--
 -- Name: finance_payments id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -12527,6 +12774,13 @@ ALTER TABLE ONLY public.finance_payouts ALTER COLUMN id SET DEFAULT nextval('pub
 --
 
 ALTER TABLE ONLY public.finance_team_entries ALTER COLUMN id SET DEFAULT nextval('public.finance_team_entries_id_seq'::regclass);
+
+
+--
+-- Name: finance_transaction_documents id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transaction_documents ALTER COLUMN id SET DEFAULT nextval('public.finance_transaction_documents_id_seq'::regclass);
 
 
 --
@@ -13505,6 +13759,30 @@ ALTER TABLE ONLY public.finance_accounts
 
 
 --
+-- Name: finance_archives finance_archives_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_archives
+    ADD CONSTRAINT finance_archives_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_bank_lines finance_bank_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines
+    ADD CONSTRAINT finance_bank_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_bank_rules finance_bank_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_rules
+    ADD CONSTRAINT finance_bank_rules_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_billing_contacts finance_billing_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13665,6 +13943,14 @@ ALTER TABLE ONLY public.finance_ledger_settings
 
 
 --
+-- Name: finance_parallel_signoffs finance_parallel_signoffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_parallel_signoffs
+    ADD CONSTRAINT finance_parallel_signoffs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_payments finance_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13686,6 +13972,14 @@ ALTER TABLE ONLY public.finance_payouts
 
 ALTER TABLE ONLY public.finance_team_entries
     ADD CONSTRAINT finance_team_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_transaction_documents finance_transaction_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transaction_documents
+    ADD CONSTRAINT finance_transaction_documents_pkey PRIMARY KEY (id);
 
 
 --
@@ -14907,6 +15201,41 @@ CREATE UNIQUE INDEX events_teams_pair_uq ON public.events_teams USING btree (eve
 
 
 --
+-- Name: finance_archives_fy_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_archives_fy_idx ON public.finance_archives USING btree (fiscal_year);
+
+
+--
+-- Name: finance_bank_lines_entry_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_bank_lines_entry_uidx ON public.finance_bank_lines USING btree (entry) WHERE (entry IS NOT NULL);
+
+
+--
+-- Name: finance_bank_lines_fy_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_bank_lines_fy_idx ON public.finance_bank_lines USING btree (fiscal_year);
+
+
+--
+-- Name: finance_bank_lines_ref_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_bank_lines_ref_uidx ON public.finance_bank_lines USING btree (bank_ref);
+
+
+--
+-- Name: finance_bank_lines_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_bank_lines_status_idx ON public.finance_bank_lines USING btree (status, booking_date);
+
+
+--
 -- Name: finance_budget_lines_fy_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15103,6 +15432,13 @@ CREATE INDEX finance_invoices_team_status_idx ON public.finance_invoices USING b
 
 
 --
+-- Name: finance_parallel_signoffs_month_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_parallel_signoffs_month_uidx ON public.finance_parallel_signoffs USING btree (fiscal_year, month);
+
+
+--
 -- Name: finance_payments_camt_reference_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15142,6 +15478,13 @@ CREATE INDEX finance_payouts_member_idx ON public.finance_payouts USING btree (m
 --
 
 CREATE INDEX finance_team_entries_team_idx ON public.finance_team_entries USING btree (team, fiscal_year);
+
+
+--
+-- Name: finance_transaction_documents_entry_file_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_transaction_documents_entry_file_uidx ON public.finance_transaction_documents USING btree (entry, file);
 
 
 --
@@ -17716,6 +18059,62 @@ ALTER TABLE ONLY public.events_teams
 
 
 --
+-- Name: finance_archives finance_archives_file_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_archives
+    ADD CONSTRAINT finance_archives_file_fkey FOREIGN KEY (file) REFERENCES public.directus_files(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_archives finance_archives_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_archives
+    ADD CONSTRAINT finance_archives_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_bank_lines finance_bank_lines_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines
+    ADD CONSTRAINT finance_bank_lines_entry_fkey FOREIGN KEY (entry) REFERENCES public.finance_transactions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_bank_lines finance_bank_lines_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines
+    ADD CONSTRAINT finance_bank_lines_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_bank_lines finance_bank_lines_proposed_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines
+    ADD CONSTRAINT finance_bank_lines_proposed_account_fkey FOREIGN KEY (proposed_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_bank_lines finance_bank_lines_statement_file_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_lines
+    ADD CONSTRAINT finance_bank_lines_statement_file_fkey FOREIGN KEY (statement_file) REFERENCES public.directus_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_bank_rules finance_bank_rules_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_bank_rules
+    ADD CONSTRAINT finance_bank_rules_account_fkey FOREIGN KEY (account) REFERENCES public.finance_accounts(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: finance_budget_lines finance_budget_lines_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17924,6 +18323,22 @@ ALTER TABLE ONLY public.finance_ledger_settings
 
 
 --
+-- Name: finance_ledger_settings finance_ledger_settings_opening_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_opening_account_fkey FOREIGN KEY (opening_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_parallel_start_fy_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_parallel_start_fy_fkey FOREIGN KEY (parallel_start_fy) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+
+
+--
 -- Name: finance_ledger_settings finance_ledger_settings_prepayment_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17937,6 +18352,14 @@ ALTER TABLE ONLY public.finance_ledger_settings
 
 ALTER TABLE ONLY public.finance_ledger_settings
     ADD CONSTRAINT finance_ledger_settings_sponsoring_account_fkey FOREIGN KEY (sponsoring_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_parallel_signoffs finance_parallel_signoffs_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_parallel_signoffs
+    ADD CONSTRAINT finance_parallel_signoffs_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE CASCADE;
 
 
 --
@@ -17993,6 +18416,22 @@ ALTER TABLE ONLY public.finance_team_entries
 
 ALTER TABLE ONLY public.finance_team_entries
     ADD CONSTRAINT finance_team_entries_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_transaction_documents finance_transaction_documents_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transaction_documents
+    ADD CONSTRAINT finance_transaction_documents_entry_fkey FOREIGN KEY (entry) REFERENCES public.finance_transactions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_transaction_documents finance_transaction_documents_file_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transaction_documents
+    ADD CONSTRAINT finance_transaction_documents_file_fkey FOREIGN KEY (file) REFERENCES public.directus_files(id) ON DELETE RESTRICT;
 
 
 --
@@ -19323,7 +19762,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Ywa18vds1nVEU5jV9VYZsK1hrzFginDkltGTXL8qr07w0CbBZZxrh96bH4DhKPM
+\unrestrict U4Wf9A5uOAlcbyv7F4ivxC8VlOcuh9lhRyOYngPKpFhk6cwBtWwxYIfAIfXJUf1
 
 
 
@@ -19339,7 +19778,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 414 migration(s) already in the schema above.
+-- Migration tracker seed — 415 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -19766,6 +20205,7 @@ FROM (VALUES
   ('407-registration-decided-by.sql'),
   ('408-game-call-up-staff.sql'),
   ('409-hall-bookings.sql'),
-  ('410-booking-extra-halls.sql')
+  ('410-booking-extra-halls.sql'),
+  ('411-finance-books.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;

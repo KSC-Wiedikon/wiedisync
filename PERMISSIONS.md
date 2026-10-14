@@ -124,6 +124,7 @@ Inheritance (additive): `Sport Admin` → `Team Responsible` → `Member`. `Vors
 - `KSCW Terminplanung` — members with `is_spielplaner = true` (game-scheduling + basketball prep; see its own section below).
 - `KSCW Spielplaner` — members with `is_spielplaner = true` OR at least one `spielplaner_assignments` row (per-team spielplaners). Manual-game create/update/delete in the Spielplanung planner, scoped to `source = 'manual'` at the policy layer; team scope is hook-enforced (kscw-hooks games guard). Reconciled by `setup-permissions.mjs §14` on every deploy.
 - `KSCW Finance` — members with the `finance` app-role (treasurer / finance team). Reconciled by the role-sync hook on `members.role` change + `setup-permissions.mjs §13` on every deploy.
+- `KSCW Revisor` — members with the `revisor` app-role (the auditors): read-only books (14.10.2026). Same reconcile as Finance.
 - `KSCW Vorstand` (user-level, since 2026-10-02) — every member with `vorstand` in `members.role`, ON TOP of the role-level attachment to the `Vorstand` base role. A board member's base role can be **Sport Admin** (`bb_admin`/`vb_admin` outranks `vorstand` in `resolveDirectusRole`) or **Team Responsible** (a coaching board member), and neither carries this policy — so the app opened `/admin/finance` for them (`canAccessFinance = isVorstand || isFinance`) and every finance read 403'd. Redundant (harmless) for users whose base role is Vorstand. Same reconcile pair as Finance: role-sync hook (`reconcileRolePolicy`) + `setup-permissions.mjs §13`.
 
 ---
@@ -360,6 +361,22 @@ Per-user policy (migrations 132/133), attached to members with `finance` in thei
 **Writes** — native-invoice create/report-paid/confirm/cancel/link + camt import are NOT item-API; they go through `/kscw/finance/*`, gated in code by `canManageFinance` (admin OR role ∈ {vorstand, admin, superuser, **finance**}). So a finance-role user is a full treasurer at the endpoint layer while staying read-only on the items API (except the billing-field write above).
 
 **Frontend** — `canAccessFinance = isVorstand || isFinance` gates the `/admin/finance` tab (`FinanceRoute`) + the per-member explorer (`FinancePage` → Members tab). Billing edit is shown editable only when `isFinance` (a pure board member sees it read-only — they lack the members-update grant).
+
+---
+
+## KSCW Revisor (orthogonal — `revisor` app-role, 14.10.2026)
+
+Per-user policy for the auditors the statutes elect, attached to members with `revisor` in their role array (role-sync hook + `setup-permissions.mjs` §13; §9c² declares the rows). **Read-only on the books, no member PII** beyond the base member policy — an auditor checks the books, receipts and invoices, not the register.
+
+| Collection | Action | Filter | Notes |
+|---|---|---|---|
+| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides, finance_invoice_self_reports, finance_dues_rates, finance_dues_runs, finance_expenses | read | none | Same set as Finance's `FINANCE_READ_ALL` |
+| finance_invoice_documents, finance_payouts, referee_expenses | read | none | Invoice PDF links, payouts, referee fees |
+| directus_files | read | `folder = <finance invoice folder>` | The invoice PDFs. Receipts, statements and archives (folder `f1a0d0c5-…-0002`) are streamed by `/kscw/finance/*` only |
+
+**Endpoints** — `finance-access.js`: every GET under `/kscw/finance/*` that shows club-wide books checks **read** (board, `finance`, `revisor`); every write keeps `canManageFinance` / **write** (board, `finance`). `finance.js` → `canReadFinance` for the 12 board GETs + team finance; `/expenses/:id/receipt` also opens for `revisor`. The bank lines, receipts on journal entries, sign-offs and archives (migration 411) are endpoint-only tables, never reachable via `/items`.
+
+**Frontend** — `isRevisor` (role `revisor` without board/finance) / `canReadFinance`; the accounting app (`accounting.wiedisync.kscw.ch`) opens for `canReadFinance`, shows a read-only banner, hides the Members and Sync tabs and every write button.
 
 ---
 
