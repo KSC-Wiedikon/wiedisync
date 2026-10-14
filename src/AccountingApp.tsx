@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from './components/ui/sonner'
 import { QueryProvider } from './lib/QueryProvider'
@@ -10,11 +10,17 @@ import { PageReadyProvider } from './hooks/PageReadyProvider'
 import BootOverlay from './components/BootOverlay'
 import { SentryErrorBoundary } from './lib/sentry'
 import { reloadNow } from './lib/chunkReload'
-import AccountingLayout from './components/AccountingLayout'
 import LoginPage from './modules/auth/LoginPage'
 import PendingPage from './modules/auth/PendingPage'
 import SetPasswordPage from './modules/auth/SetPasswordPage'
-import AccountingHome from './modules/finance/AccountingHome'
+import AccountingShell from './modules/finance/accounting/AccountingShell'
+import DashboardPage from './modules/finance/accounting/DashboardPage'
+import { AccountsPage, BalanceSheetPage, BudgetPage, IncomeStatementPage } from './modules/finance/accounting/ReportPages'
+import {
+  AutopostPage, BankPage, ChartOfAccountsPage, DuesPage, ExpensesPage, InvoicesPage, JournalPage, MembersPage,
+  ParallelPage, RemindersPage, SwitchPage, SyncPage, TeamsPage, TrialBalancePage, YearEndPage,
+} from './modules/finance/accounting/Pages'
+import { useAuth } from './hooks/useAuth'
 
 function AccountingFallback() {
   return (
@@ -36,10 +42,16 @@ function AccountingFallback() {
 /**
  * Standalone root for accounting.wiedisync.kscw.ch — the club's books (the parallel
  * native ledger next to the ClubDesk mirror) for the treasurer, the board and the
- * auditors. Same provider stack as the member `App` and `SchedulingApp`; built via
+ * auditors. One route per page; the member app's /admin/finance redirects here. Same provider stack as the member `App` and `SchedulingApp`; built via
  * `VITE_APP_TARGET=accounting` (`npm run build:accounting`). The `.kscw.ch` session
  * cookie is shared, so a member logged in on wiedisync.kscw.ch is logged in here.
  */
+/** Auditors (read-only) get no member register and no sync trigger — see nav.ts. */
+function NotForRevisor({ children }: { children: ReactNode }) {
+  const { isRevisor } = useAuth()
+  return isRevisor ? <Navigate to="/" replace /> : <>{children}</>
+}
+
 export default function AccountingApp() {
   useEffect(() => {
     document.title = 'Buchhaltung — KSC Wiedikon'
@@ -59,8 +71,28 @@ export default function AccountingApp() {
                       <Route path="login" element={<LoginPage />} />
                       <Route path="pending" element={<PendingPage />} />
                       <Route path="set-password" element={<SetPasswordPage />} />
-                      <Route element={<AccountingLayout />}>
-                        <Route index element={<AccountingHome />} />
+                      {/* Paths come from modules/finance/accounting/nav.ts — keep the two in step. */}
+                      <Route element={<AccountingShell />}>
+                        <Route index element={<DashboardPage />} />
+                        <Route path="dues" element={<DuesPage />} />
+                        <Route path="invoices" element={<InvoicesPage />} />
+                        <Route path="reminders" element={<RemindersPage />} />
+                        <Route path="bank" element={<BankPage />} />
+                        <Route path="journal" element={<JournalPage />} />
+                        <Route path="accounts" element={<AccountsPage />} />
+                        <Route path="trial-balance" element={<TrialBalancePage />} />
+                        <Route path="income-statement" element={<IncomeStatementPage />} />
+                        <Route path="balance-sheet" element={<BalanceSheetPage />} />
+                        <Route path="budget" element={<BudgetPage />} />
+                        <Route path="year-end" element={<YearEndPage />} />
+                        <Route path="members" element={<NotForRevisor><MembersPage /></NotForRevisor>} />
+                        <Route path="teams" element={<TeamsPage />} />
+                        <Route path="expenses" element={<ExpensesPage />} />
+                        <Route path="parallel" element={<ParallelPage />} />
+                        <Route path="switch" element={<SwitchPage />} />
+                        <Route path="sync" element={<NotForRevisor><SyncPage /></NotForRevisor>} />
+                        <Route path="settings/accounts" element={<ChartOfAccountsPage />} />
+                        <Route path="settings/automatic-postings" element={<AutopostPage />} />
                       </Route>
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>

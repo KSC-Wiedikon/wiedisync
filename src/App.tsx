@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { SCHEDULING_ORIGIN } from './lib/api'
+import { ACCOUNTING_ORIGIN, SCHEDULING_ORIGIN } from './lib/api'
+import { legacyFinanceTarget } from './modules/finance/accounting/nav'
 import { toast } from 'sonner'
 import { Toaster } from './components/ui/sonner'
 import { QueryProvider } from './lib/QueryProvider'
@@ -60,13 +61,11 @@ import FormBuilderPage from './modules/forms/FormBuilderPage'
 import PublicFormPage from './modules/forms/PublicFormPage'
 import PublicEventSignupPage from './modules/events/PublicEventSignupPage'
 import FinesPage from './modules/fines/FinesPage'
-import FinancePage from './modules/finance/FinancePage'
 import FinanceDuesPage from './modules/finance/FinanceDuesPage'
 import ExpenseUploadPage from './modules/finance/ExpenseUploadPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
-import FinanceRoute from './components/FinanceRoute'
 import TkRoute from './components/TkRoute'
 const TkExpensesPage = lazy(() => import('./modules/finance/TkExpensesPage'))
 const TeamFinancePage = lazy(() => import('./modules/finance/TeamFinancePage'))
@@ -161,6 +160,24 @@ function SchedulingRedirect() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-8 text-center text-foreground">
       <p className="text-muted-foreground">Game scheduling has moved to its own app.</p>
+    </div>
+  )
+}
+
+// Club finances live on their own app (ACCOUNTING_ORIGIN = accounting.wiedisync.kscw.ch)
+// since 14.10.2026 — same .kscw.ch session, so the login carries over. Old links
+// (/admin/finance?tab=bank) land on the page that replaced the tab.
+function AccountingRedirect() {
+  if (typeof window !== 'undefined') {
+    const base = ACCOUNTING_ORIGIN.replace(/\/$/, '')
+    if (base !== window.location.origin) {
+      window.location.replace(base + legacyFinanceTarget(window.location.search))
+      return null
+    }
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-8 text-center text-foreground">
+      <p className="text-muted-foreground">Club finances have moved to their own app (VITE_APP_TARGET=accounting).</p>
     </div>
   )
 }
@@ -280,7 +297,7 @@ export default function App() {
             <Route path="admin/vb-referees" element={<AdminRoute><VolleyRefereesPage /></AdminRoute>} />
             <Route path="admin/vm-teams" element={<AdminRoute><VmTeamRostersPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />
-            <Route path="admin/finance" element={<FinanceRoute><FinancePage /></FinanceRoute>} />
+            <Route path="admin/finance" element={<AccountingRedirect />} />
             <Route path="admin/club-stats" element={<AdminRoute><ClubStatsPage /></AdminRoute>} />
             <Route path="admin/volley-feedback" element={<AdminRoute><VolleyFeedbackPage /></AdminRoute>} />
             <Route path="admin/anmeldungen" element={<AdminRoute><AnmeldungenPage /></AdminRoute>} />

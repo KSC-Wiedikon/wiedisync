@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -253,9 +253,9 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             <TableHeader>
               <TableRow>
                 <TableHead>{t('duesColCategory')}</TableHead>
-                <TableHead>{t('duesColSektion')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('duesColSektion')}</TableHead>
                 <TableHead className="text-right">{t('duesColAmount')}</TableHead>
-                <TableHead className="text-right">{t('duesColLicence')}</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">{t('duesColLicence')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('duesColSubject')}</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
@@ -264,20 +264,26 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               {ratesPending ? [0, 1, 2].map((i) => (
                 <TableRow key={`rate-skeleton-${i}`} aria-hidden="true">
                   <TableCell><div className={`${skelBar} h-4 w-24 rounded`} /></TableCell>
-                  <TableCell><div className={`${skelBar} h-4 w-20 rounded`} /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><div className={`${skelBar} h-4 w-20 rounded`} /></TableCell>
                   <TableCell><div className={`${skelBar} ml-auto h-4 w-16 rounded`} /></TableCell>
-                  <TableCell><div className={`${skelBar} ml-auto h-4 w-12 rounded`} /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><div className={`${skelBar} ml-auto h-4 w-12 rounded`} /></TableCell>
                   <TableCell className="hidden sm:table-cell"><div className={`${skelBar} h-4 w-32 rounded`} /></TableCell>
                   <TableCell><div className={`${skelBar} ml-auto h-6 w-6 rounded-md`} /></TableCell>
                 </TableRow>
               )) : sortedRates.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="whitespace-normal break-words text-foreground">{r.category}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-muted-foreground">{sektionLabel(r.sektion)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.amount_chf)}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground">
+                    {r.category}
+                    <span className="block text-xs text-muted-foreground sm:hidden">{sektionLabel(r.sektion)}</span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{sektionLabel(r.sektion)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground">
+                    {formatChf(r.amount_chf)}
+                    {toNum(r.licence_chf) > 0 && <span className="block text-xs text-muted-foreground sm:hidden">{t('duesColLicence')} {formatChf(r.licence_chf)}</span>}
+                  </TableCell>
                   {/* Contained in the amount, so the club's own share is shown
                       beneath it — otherwise "440 and 110" reads as 550. */}
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                  <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">
                     {toNum(r.licence_chf) > 0 ? (
                       <>
                         {formatChf(r.licence_chf)}
@@ -295,7 +301,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 </TableRow>
               ))}
               {/* Add-rate row */}
-              <TableRow className="bg-surface-sunken/60 hover:bg-surface-sunken/60">
+              <TableRow className="hidden bg-surface-sunken/60 hover:bg-surface-sunken/60 sm:table-row">
                 <TableCell>
                   <select value={rCat} onChange={(e) => setRCat(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColCategory')}>
                     <option value="">{t('duesPickCategory')}</option>
@@ -325,6 +331,25 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               </TableRow>
             </TableBody>
           </Table>
+        </div>
+        {/* Phones: the add-rate row as a stacked form — five inputs side by side do not fit. */}
+        <div className="mt-3 grid gap-2 rounded-2xl border border-hairline bg-surface-sunken/60 p-3 sm:hidden">
+          <select value={rCat} onChange={(e) => setRCat(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColCategory')}>
+            <option value="">{t('duesPickCategory')}</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={rSek} onChange={(e) => setRSek(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColSektion')}>
+            <option value="">{t('duesSektionDefault')}</option>
+            {sektionen.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <input value={rAmt} onChange={(e) => setRAmt(e.target.value)} inputMode="decimal" placeholder={`${t('duesColAmount')} 0.00`} className={`${inputCls} mt-0 text-right`} aria-label={t('duesColAmount')} />
+            <input value={rLic} onChange={(e) => setRLic(e.target.value)} inputMode="decimal" placeholder={`${t('duesColLicence')} 0.00`} className={`${inputCls} mt-0 text-right`} aria-label={t('duesColLicence')} />
+          </div>
+          <input value={rSubj} onChange={(e) => setRSubj(e.target.value)} placeholder={t('duesSubjectPlaceholder')} className={`${inputCls} mt-0`} aria-label={t('duesColSubject')} />
+          <Button type="button" disabled={!rValid || rBusy} onClick={addRate}>
+            {rBusy ? <Loader2 className="animate-spin" /> : <Plus />}{t('duesAddRateCta')}
+          </Button>
         </div>
         {rErr && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{rErr}</p>}
       </section>
@@ -533,10 +558,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 <TableRow>
                   <TableHead>{t('duesColRunLabel')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('duesColRunDate')}</TableHead>
-                  <TableHead className="text-right">{t('duesColRunCount')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">{t('duesColRunCount')}</TableHead>
                   <TableHead className="text-right">{t('duesColRunTotal')}</TableHead>
-                  <TableHead>{t('colStatus')}</TableHead>
-                  <TableHead className="text-right"></TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('colStatus')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -544,39 +569,55 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   <TableRow key={`run-skeleton-${i}`} aria-hidden="true">
                     <TableCell><div className={`${skelBar} h-4 w-32 rounded`} /></TableCell>
                     <TableCell className="hidden sm:table-cell"><div className={`${skelBar} h-4 w-20 rounded`} /></TableCell>
-                    <TableCell><div className={`${skelBar} ml-auto h-4 w-8 rounded`} /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><div className={`${skelBar} ml-auto h-4 w-8 rounded`} /></TableCell>
                     <TableCell><div className={`${skelBar} ml-auto h-4 w-16 rounded`} /></TableCell>
-                    <TableCell><div className={`${skelBar} h-4 w-16 rounded`} /></TableCell>
-                    <TableCell><div className={`${skelBar} ml-auto h-6 w-24 rounded-md`} /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><div className={`${skelBar} h-4 w-16 rounded`} /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><div className={`${skelBar} ml-auto h-6 w-24 rounded-md`} /></TableCell>
                   </TableRow>
-                )) : (runs ?? []).map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell className="whitespace-normal break-words text-foreground">{run.label || `#${run.id}`}</TableCell>
+                )) : (runs ?? []).map((run) => {
+                  const runActions = (
+                    <>
+                      {run.status !== 'cancelled' && run.total_count > 0 && (
+                        <Button type="button" size="sm" variant="outline" disabled={billBusy === run.id} onClick={() => downloadBills(run)}>
+                          {billBusy === run.id ? <Loader2 className="animate-spin" /> : <Download />}{t('duesDownloadBills')}
+                        </Button>
+                      )}
+                      {run.status !== 'cancelled' && run.total_count > 0 && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setEmailTarget(run)}>
+                          <Mail />{t('duesEmailSendShort')}
+                        </Button>
+                      )}
+                      {run.status !== 'cancelled' && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => cancelRun(run.id)}>
+                          {t('duesRunCancel')}
+                        </Button>
+                      )}
+                    </>
+                  )
+                  return (
+                  <Fragment key={run.id}>
+                  <TableRow className={run.status !== 'cancelled' ? 'max-sm:border-b-0' : undefined}>
+                    <TableCell className="whitespace-normal break-words text-foreground">
+                      {run.label || `#${run.id}`}
+                      <span className="block text-xs text-muted-foreground sm:hidden">{t('duesColRunCount')}: {run.total_count} · {run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</span>
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{run.date_created ? formatDateCompactZurich(run.date_created) : '–'}</TableCell>
-                    <TableCell className="text-right tabular-nums text-foreground">{run.total_count}</TableCell>
-                    <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(run.total_amount))}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
-                        {run.status !== 'cancelled' && run.total_count > 0 && (
-                          <Button type="button" size="sm" variant="outline" disabled={billBusy === run.id} onClick={() => downloadBills(run)}>
-                            {billBusy === run.id ? <Loader2 className="animate-spin" /> : <Download />}{t('duesDownloadBills')}
-                          </Button>
-                        )}
-                        {run.status !== 'cancelled' && run.total_count > 0 && (
-                          <Button type="button" size="sm" variant="outline" onClick={() => setEmailTarget(run)}>
-                            <Mail />{t('duesEmailSendShort')}
-                          </Button>
-                        )}
-                        {run.status !== 'cancelled' && (
-                          <Button type="button" size="sm" variant="outline" onClick={() => cancelRun(run.id)}>
-                            {t('duesRunCancel')}
-                          </Button>
-                        )}
-                      </div>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-foreground">{run.total_count}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(toNum(run.total_amount))}</TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right">
+                      <div className="flex justify-end gap-1.5">{runActions}</div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  {/* Phones: the buttons on their own line under the run. */}
+                  {run.status !== 'cancelled' && (
+                    <TableRow className="sm:hidden">
+                      <TableCell colSpan={2} className="pt-0"><div className="flex flex-wrap gap-1.5">{runActions}</div></TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

@@ -118,6 +118,24 @@ export const SCHEDULING_ORIGIN: string =
   (import.meta.env.VITE_SCHEDULING_ORIGIN as string | undefined) ||
   (typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch')
 
+// The club's books (accounting.wiedisync.kscw.ch, dev accounting-dev.kscw.ch) and the
+// member app, for the hops between them (same `.kscw.ch` session cookie = SSO). Set per
+// branch in the Pages workflow; unset (local dev) both fall back to the current origin,
+// so a link never leaves localhost.
+export const ACCOUNTING_ORIGIN: string =
+  (import.meta.env.VITE_ACCOUNTING_ORIGIN as string | undefined) ||
+  (typeof window !== 'undefined' ? window.location.origin : 'https://accounting.wiedisync.kscw.ch')
+export const MEMBER_APP_ORIGIN: string =
+  (import.meta.env.VITE_MEMBER_APP_ORIGIN as string | undefined) ||
+  (typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch')
+
+/** ACCOUNTING_ORIGIN when it is another origin than this page's, else undefined. */
+export function externalAccountingOrigin(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const base = ACCOUNTING_ORIGIN.replace(/\/$/, '')
+  return base !== window.location.origin ? base : undefined
+}
+
 // ── Client ──────────────────────────────────────────────────────────
 
 // Cookie session mode (2026-06-18): the access + refresh token live in an

@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.37.0 — 2026-10-14
+
+### Changed
+
+- Club finances now open the books site (accounting.wiedisync.kscw.ch) straight from the Finances menu, already logged in. Old links to the finance page lead there too.
+- The books site is rebuilt: one page per task with a menu down the side, a search for every page and account (Ctrl K), and a dashboard with the key figures, a to-do list and income and expenses per month.
+- Every list is a table, and every table fits a phone.
+
 ## v2.36.0 — 2026-10-14
 
 ### New

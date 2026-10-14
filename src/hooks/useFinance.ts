@@ -17,9 +17,12 @@ export function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Swiss CHF formatting: "CHF 1'234.50" (apostrophe thousands, 2 decimals). */
+/** Swiss CHF formatting: "CHF 1'234.50" (apostrophe thousands, 2 decimals). The space is
+ *  a no-break space, so a narrow table cell never splits "CHF" from its amount; a
+ *  rounding remainder never shows as "CHF -0.00". */
 export function formatChf(v: unknown): string {
-  return `CHF ${toNum(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const n = toNum(v)
+  return `CHF\u00a0${(Math.abs(n) < 0.005 ? 0 : n).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 /**

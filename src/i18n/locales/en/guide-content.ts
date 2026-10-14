@@ -2335,7 +2335,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "**Club finances**, under **Finances → Club finance** (**More** first on a phone), is for the finance role and the board. Pick the **Fiscal year** first; most tabs read it."
+          "text": "**Club finances**, under **Finances → Club finance** (**More** first on a phone), opens the club's books on their own site, accounting.wiedisync.kscw.ch, with the same login. Every page is in the menu on the left (**☰** on a phone), and **Search** (Ctrl K) finds a page or an account by name or number. Pick the **Fiscal year** at the top of a page; most pages read it."
         },
         {
           "t": "h",
@@ -2360,9 +2360,9 @@ export default {
         {
           "t": "ul",
           "items": [
-            "**Overview**, **Income statement**, **Balance sheet** and **Accounts** mirror the ClubDesk books, refreshed nightly at 04:00 or via **Sync now**. **Export** on the income statement and balance sheet gives PDF, Excel or PowerPoint.",
+            "**Dashboard**, **Income statement**, **Balance sheet** and **Accounts** mirror the ClubDesk books, refreshed nightly at 04:00 or via **Sync now**. **Export** on the income statement and balance sheet gives PDF, Excel or PowerPoint.",
             "**Budget**: budget versus actual per account; a typed budget saves by itself.",
-            "**Ledger**: Wiedisync's own double-entry book — **Journal**, **Accounts**, **Trial balance**, **Year-end close**, **Auto-posting**. Map the control accounts, then switch on **Post journal entries automatically**."
+            "**Wiedisync's own books** (double entry): **Bank**, **Journal**, **Trial balance** and **Year-end**, plus **Chart of accounts** and **Automatic postings** under **Settings**. Map the control accounts, then switch on **Post journal entries automatically**."
           ]
         },
         {

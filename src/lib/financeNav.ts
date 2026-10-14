@@ -27,6 +27,10 @@ export interface FinanceNavEntry {
   /** Lucide-style component — consumers size it themselves. */
   icon: ComponentType<{ className?: string }>
   access: FinanceAccess
+  /** Absolute URL when the page lives on another app (the club's books). */
+  href?: string
+  /** Open `href` as a cross-app hop (breaks out of an installed PWA) instead of routing to `to`. */
+  external?: boolean
 }
 
 export interface FinanceNavGroup {
@@ -42,9 +46,12 @@ export interface FinanceNavFlags {
   isTk: boolean
   /** Board OR finance role — the club-finances dashboard. */
   canAccessFinance: boolean
+  /** Origin of the books app (accounting.wiedisync.kscw.ch) when it differs from the
+   *  current one. Club finances then open there — the session cookie is shared. */
+  accountingOrigin?: string
 }
 
-export function buildFinanceGroups({ hasTeam, isTk, canAccessFinance }: FinanceNavFlags): FinanceNavGroup[] {
+export function buildFinanceGroups({ hasTeam, isTk, canAccessFinance, accountingOrigin }: FinanceNavFlags): FinanceNavGroup[] {
   const groups: FinanceNavGroup[] = [
     {
       labelKey: 'memberFinance',
@@ -66,7 +73,12 @@ export function buildFinanceGroups({ hasTeam, isTk, canAccessFinance }: FinanceN
       labelKey: 'clubFinance',
       items: [
         ...(isTk ? [{ to: '/finance/tk-expenses', labelKey: 'finance:tkExpensesNav', icon: ClipboardCheck, access: 'tk' as const }] : []),
-        ...(canAccessFinance ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: Landmark, access: 'finance' as const }] : []),
+        // /admin/finance itself only redirects to the books app (since 14.10.2026); the
+        // entry links there directly so an installed PWA opens it in the browser.
+        ...(canAccessFinance ? [{
+          to: '/admin/finance', labelKey: 'finance:title', icon: Landmark, access: 'finance' as const,
+          ...(accountingOrigin ? { href: `${accountingOrigin.replace(/\/$/, '')}/`, external: true } : {}),
+        }] : []),
       ],
     },
   ]

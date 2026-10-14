@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useLiveNow } from '../modules/live/useLiveNow'
 import { useAuth } from './useAuth'
 import { useAdminMode } from './useAdminMode'
-import { SCHEDULING_ORIGIN } from '../lib/api'
+import { SCHEDULING_ORIGIN, externalAccountingOrigin } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import { buildFinanceGroups, type FinanceNavEntry } from '../lib/financeNav'
 import {
@@ -139,7 +139,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
     // Finances — see `../lib/financeNav`. Empty groups are already dropped there;
     // the whole section is hidden until the member is approved.
     financeGroups: isLoggedIn && isApproved
-      ? buildFinanceGroups({ hasTeam, isTk, canAccessFinance })
+      ? buildFinanceGroups({ hasTeam, isTk, canAccessFinance, accountingOrigin: externalAccountingOrigin() })
           .map((g) => ({ label: t(g.labelKey), items: g.items.map(toNavItem) }))
       : [],
     schedulingItem,

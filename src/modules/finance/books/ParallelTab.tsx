@@ -53,8 +53,8 @@ export default function ParallelTab({ fiscalYearId }: { fiscalYearId?: string | 
           <TableHeader>
             <TableRow>
               <TableHead>{t('bkMonth')}</TableHead>
-              <TableHead className="text-right">{t('bkAccountsDifferent')}</TableHead>
-              <TableHead className="text-right">{t('bkDifference')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('bkAccountsDifferent')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('bkDifference')}</TableHead>
               <TableHead>{t('bkSignOff')}</TableHead>
             </TableRow>
           </TableHeader>
@@ -64,9 +64,16 @@ export default function ParallelTab({ fiscalYearId }: { fiscalYearId?: string | 
               const over = m.through < today
               return (
                 <TableRow key={m.month} onClick={() => setMonth(m.month)} className={`cursor-pointer ${selected ? 'bg-selected/40' : ''}`}>
-                  <TableCell className="whitespace-nowrap font-medium text-foreground">{monthLabel(m.month)}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${m.accountsDifferent ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>{m.accountsDifferent}</TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(m.differenceTotal)}</TableCell>
+                  <TableCell className="whitespace-nowrap font-medium text-foreground">
+                    {monthLabel(m.month)}
+                    {/* Phones: the two figures under the month — their columns are hidden. */}
+                    <span className="block text-xs font-normal text-muted-foreground sm:hidden">
+                      <span className={m.accountsDifferent ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}>{m.accountsDifferent}</span> {t('bkAccountsDifferent')}
+                      <span className="block tabular-nums">{formatChf(m.differenceTotal)}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell className={`hidden sm:table-cell text-right tabular-nums ${m.accountsDifferent ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>{m.accountsDifferent}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(m.differenceTotal)}</TableCell>
                   <TableCell className="whitespace-normal" onClick={(e) => e.stopPropagation()}>
                     {m.signoff ? (
                       <span className="inline-flex items-start gap-1 text-xs text-green-700 dark:text-green-400">
@@ -103,18 +110,20 @@ export default function ParallelTab({ fiscalYearId }: { fiscalYearId?: string | 
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('colAccount')}</TableHead>
-                    <TableHead className="text-right">{t('bkBookClubdesk')}</TableHead>
-                    <TableHead className="text-right">{t('bkBookNative')}</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right">{t('bkBookClubdesk')}</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right">{t('bkBookNative')}</TableHead>
                     <TableHead className="text-right">{t('bkDifference')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => (
                     <TableRow key={r.account}>
-                      <TableCell className="whitespace-normal break-words text-foreground"><span className="tabular-nums text-muted-foreground">{r.number}</span> {r.name}</TableCell>
-                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.clubdesk)}</TableCell>
-                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.native)}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${Math.abs(r.diff) >= 0.005 ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{formatChf(r.diff)}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-foreground"><span className="tabular-nums text-muted-foreground">{r.number}</span> {r.name}
+                        <span className="block text-xs tabular-nums text-muted-foreground sm:hidden">{t('bkBookClubdesk')} {formatChf(r.clubdesk)} · {t('bkBookNative')} {formatChf(r.native)}</span>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(r.clubdesk)}</TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(r.native)}</TableCell>
+                      <TableCell className={`whitespace-nowrap text-right tabular-nums ${Math.abs(r.diff) >= 0.005 ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{formatChf(r.diff)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -46,19 +46,21 @@ export default function AccountLedger({ account, transactions, nameByNum }: {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('colDate')}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
             <TableHead>{t('colText')}</TableHead>
             <TableHead className="hidden md:table-cell">{t('colGegenkonto')}</TableHead>
-            <TableHead className="text-right">{t('colDebit')}</TableHead>
-            <TableHead className="text-right">{t('colCredit')}</TableHead>
+            <TableHead className="hidden sm:table-cell text-right">{t('colDebit')}</TableHead>
+            <TableHead className="hidden sm:table-cell text-right">{t('colCredit')}</TableHead>
+            <TableHead className="text-right sm:hidden">{t('colAmount')}</TableHead>
             <TableHead className="hidden sm:table-cell text-right">{t('colSaldo')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {ledger.map((r) => (
             <TableRow key={r.tx.id}>
-              <TableCell className="whitespace-nowrap text-foreground">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</TableCell>
+              <TableCell className="hidden sm:table-cell whitespace-nowrap text-foreground">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</TableCell>
               <TableCell className="whitespace-normal break-words text-foreground/85">
+                <span className="block text-xs text-muted-foreground sm:hidden">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</span>
                 {r.tx.text || '–'}
                 {r.tx.beleg && <span className="ml-1 text-xs text-muted-foreground/80">({r.tx.beleg})</span>}
                 <span className="mt-0.5 block text-xs text-muted-foreground/80 md:hidden">{r.gegen} {nameByNum.get(r.gegen ?? '') ?? ''}</span>
@@ -66,9 +68,14 @@ export default function AccountLedger({ account, transactions, nameByNum }: {
               <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">
                 <span className="tabular-nums text-muted-foreground/80">{r.gegen || '–'}</span> {nameByNum.get(r.gegen ?? '') ?? ''}
               </TableCell>
-              <TableCell className="text-right tabular-nums text-foreground">{r.soll ? formatChf(r.soll) : ''}</TableCell>
-              <TableCell className="text-right tabular-nums text-foreground">{r.haben ? formatChf(r.haben) : ''}</TableCell>
-              <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">{formatChf(r.saldo)}</TableCell>
+              <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{r.soll ? formatChf(r.soll) : ''}</TableCell>
+              <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{r.haben ? formatChf(r.haben) : ''}</TableCell>
+              {/* Phones: one amount column, marked debit or credit. */}
+              <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground sm:hidden">
+                {formatChf(r.soll || r.haben)}
+                <span className="block text-[11px] text-muted-foreground">{r.soll ? t('colDebit') : t('colCredit')}</span>
+              </TableCell>
+              <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-muted-foreground">{formatChf(r.saldo)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

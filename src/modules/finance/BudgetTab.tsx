@@ -93,7 +93,7 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
             <TableRow>
               <TableHead>{t('colAccount')}</TableHead>
               <TableHead className="text-right">{t('budgetColBudget')}</TableHead>
-              <TableHead className="text-right">{t('budgetColActual')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('budgetColActual')}</TableHead>
               <TableHead className="hidden sm:table-cell text-right">{t('budgetColVariance')}</TableHead>
             </TableRow>
           </TableHeader>
@@ -104,6 +104,8 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-normal break-words text-foreground/85">
                     <span className="tabular-nums text-muted-foreground/80">{r.number}</span> {r.name}
+                    {/* Phones: the actual figure under the account — its column is hidden. */}
+                    <span className="block whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:hidden">{t('budgetColActual')} {formatChf(r.bal)}</span>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -112,7 +114,7 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                         // Not rendering the input is the point: an element that does not
                         // exist cannot be focused, typed into, or blur-commit a figure the
                         // treasurer only typed because the cell looked empty.
-                        <div aria-hidden className="h-9 w-24 animate-pulse rounded-md bg-stone-200/80 sm:h-8 dark:bg-muted" />
+                        <div aria-hidden className="h-9 w-20 animate-pulse rounded-md bg-stone-200/80 sm:h-8 sm:w-24 dark:bg-muted" />
                       ) : (
                         <input
                           inputMode="decimal"
@@ -120,13 +122,13 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                           onChange={(e) => setEdit((p) => ({ ...p, [editKey(r.id)]: e.target.value }))}
                           onBlur={(e) => save(r, e.target.value)}
                           placeholder="0.00"
-                          className="h-9 w-24 rounded-lg border border-input bg-card px-2 text-right text-sm tabular-nums sm:h-8 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-9 w-20 rounded-lg border border-input bg-card px-2 text-right text-sm tabular-nums sm:h-8 sm:w-24 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.bal)}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-right tabular-nums">
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(r.bal)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums">
                     {budgetPending
                       ? <div aria-hidden className="ml-auto h-4 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                       : <span className={v >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{formatChf(v)}</span>}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -490,14 +490,14 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('colNumber')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('colNumber')}</TableHead>
                     <TableHead>{t('colRecipient')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('colSubject')}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
                     <TableHead className="text-right">{t('colAmount')}</TableHead>
-                    <TableHead>{t('colStatus')}</TableHead>
-                    <TableHead>{t('colCreatedBy')}</TableHead>
-                    <TableHead className="text-right"></TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('colStatus')}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t('colCreatedBy')}</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -505,18 +505,47 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     const nativeRow = isNativeInvoice(inv)
                     const author = createdBy(inv)
                     const created = createdOn(inv)
+                    const actions = (
+                      <>
+                        {nativeRow && ['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
+                          <Button type="button" size="sm" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
+                            className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+                            <Check />{t('confirmPaymentCta')}
+                          </Button>
+                        )}
+                        {nativeRow && inv.status !== 'cancelled' && (
+                          <Button type="button" size="sm" variant="outline" onClick={() => setPaymentTarget(inv)}>
+                            <Coins />{t('payButton')}
+                          </Button>
+                        )}
+                        {nativeRow && inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                          <Button type="button" size="sm" variant="outline" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}>
+                            {t('cancelInvoiceCta')}
+                          </Button>
+                        )}
+                        {!nativeRow && !inv.member && (
+                          <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
+                            <Link2 />{t('linkToMember')}
+                          </Button>
+                        )}
+                      </>
+                    )
+                    const hasActions = nativeRow ? inv.status !== 'cancelled' : !inv.member
                     return (
-                      <TableRow key={inv.id}>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{inv.number || '–'}</TableCell>
+                      <Fragment key={inv.id}>
+                      <TableRow className={hasActions ? 'max-sm:border-b-0' : undefined}>
+                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{inv.number || '–'}</TableCell>
                         <TableCell className="whitespace-normal break-words text-foreground">
                           {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
                           {!nativeRow && !inv.member && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('notLinked')}</span>}
+                          {/* Phones: number and status under the name — their columns are hidden. */}
+                          <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{inv.number || '–'} · {statusLabel(inv.status)}</span>
                         </TableCell>
                         <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject}</TableCell>
                         <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
-                        <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{statusLabel(inv.status)}</TableCell>
-                        <TableCell className="whitespace-normal break-words text-xs">
+                        <TableCell className="text-right tabular-nums text-foreground whitespace-nowrap">{formatChf(inv.amount)}</TableCell>
+                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{statusLabel(inv.status)}</TableCell>
+                        <TableCell className="hidden lg:table-cell whitespace-normal break-words text-xs">
                           <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${nativeRow
                             ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
                             : 'bg-muted text-muted-foreground'}`}>
@@ -527,32 +556,17 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {[author ?? (nativeRow ? '–' : null), created ? formatDateCompactZurich(created) : null].filter(Boolean).join(' · ')}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1.5">
-                            {nativeRow && ['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
-                              <Button type="button" size="sm" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
-                                className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
-                                <Check />{t('confirmPaymentCta')}
-                              </Button>
-                            )}
-                            {nativeRow && inv.status !== 'cancelled' && (
-                              <Button type="button" size="sm" variant="outline" onClick={() => setPaymentTarget(inv)}>
-                                <Coins />{t('payButton')}
-                              </Button>
-                            )}
-                            {nativeRow && inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                              <Button type="button" size="sm" variant="outline" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}>
-                                {t('cancelInvoiceCta')}
-                              </Button>
-                            )}
-                            {!nativeRow && !inv.member && (
-                              <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
-                                <Link2 />{t('linkToMember')}
-                              </Button>
-                            )}
-                          </div>
+                        <TableCell className="hidden sm:table-cell text-right">
+                          <div className="flex justify-end gap-1.5">{actions}</div>
                         </TableCell>
                       </TableRow>
+                      {/* Phones: the buttons on their own line under the invoice. */}
+                      {hasActions && (
+                        <TableRow className="sm:hidden">
+                          <TableCell colSpan={2} className="pt-0"><div className="flex flex-wrap gap-1.5">{actions}</div></TableCell>
+                        </TableRow>
+                      )}
+                      </Fragment>
                     )
                   })}
                 </TableBody>
@@ -612,14 +626,14 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <TableRow key={inv.id}>
                       <TableCell className="whitespace-normal break-words text-foreground">
                         {inv.recipient_name || '–'}
-                        <span className="mt-0.5 block text-xs text-muted-foreground/80">{inv.recipient_email}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80 [overflow-wrap:anywhere]">{inv.recipient_email}</span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject}</TableCell>
                       <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
-                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
                       <TableCell className="text-right">
-                        <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
-                          <Link2 />{t('linkToMember')}
+                        <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)} aria-label={t('linkToMember')} title={t('linkToMember')}>
+                          <Link2 /><span className="hidden sm:inline">{t('linkToMember')}</span>
                         </Button>
                       </TableCell>
                     </TableRow>

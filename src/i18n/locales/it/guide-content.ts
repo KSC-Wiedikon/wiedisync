@@ -2335,7 +2335,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "**Finanze del club**, sotto **Finanze → Finanze del club** (sul telefono prima **Altro**), è per il ruolo finanze e il comitato. Scegli prima l'**Esercizio**."
+          "text": "**Finanze del club**, sotto **Finanze → Finanze del club** (sul telefono prima **Altro**), apre la contabilità del club sul suo sito, accounting.wiedisync.kscw.ch, con lo stesso login. Tutte le pagine sono nel menu a sinistra (**☰** sul telefono) e **Search** (Ctrl K) trova una pagina o un conto per nome o numero. Scegli l'**Esercizio** in alto nella pagina."
         },
         {
           "t": "h",
@@ -2360,9 +2360,9 @@ export default {
         {
           "t": "ul",
           "items": [
-            "**Panoramica**, **Conto economico**, **Bilancio** e **Conti** rispecchiano la contabilità ClubDesk, aggiornata ogni notte alle 04:00 o con **Sincronizza ora**; **Esporta** produce PDF, Excel o PowerPoint.",
+            "**Dashboard**, **Conto economico**, **Bilancio** e **Conti** rispecchiano la contabilità ClubDesk, aggiornata ogni notte alle 04:00 o con **Sincronizza ora**; **Esporta** produce PDF, Excel o PowerPoint.",
             "**Budget**: budget e consuntivo per conto; si salva da solo.",
-            "**Contabilità**: la partita doppia di Wiedisync — **Giornale**, **Conti**, **Bilancio di verifica**, **Chiusura d'esercizio**, **Registrazione automatica**. Associa i conti di controllo, poi attiva **Crea le registrazioni automaticamente**."
+            "**La contabilità di Wiedisync** (partita doppia): **Bank**, **Journal**, **Trial balance** e **Year-end**, più **Chart of accounts** e **Automatic postings** sotto **Settings**. Associa i conti di controllo, poi attiva **Crea le registrazioni automaticamente**."
           ]
         },
         {

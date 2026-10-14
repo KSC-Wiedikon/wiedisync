@@ -75,22 +75,31 @@ function OpeningBalance({ fiscalYearId }: { fiscalYearId?: string | number | nul
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('colAccount')}</TableHead>
-                  <TableHead className="text-right">{t('colDebit')}</TableHead>
-                  <TableHead className="text-right">{t('colCredit')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">{t('colDebit')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">{t('colCredit')}</TableHead>
+                  <TableHead className="text-right sm:hidden">{t('colAmount')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.proposal.legs.map((l) => (
                   <TableRow key={`${l.account}-${l.side}`}>
                     <TableCell className="whitespace-normal break-words text-foreground"><span className="tabular-nums text-muted-foreground">{l.number}</span> {l.name}</TableCell>
-                    <TableCell className="text-right tabular-nums text-foreground">{l.side === 'debit' ? formatChf(l.amount) : ''}</TableCell>
-                    <TableCell className="text-right tabular-nums text-foreground">{l.side === 'credit' ? formatChf(l.amount) : ''}</TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{l.side === 'debit' ? formatChf(l.amount) : ''}</TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{l.side === 'credit' ? formatChf(l.amount) : ''}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground sm:hidden">
+                      {formatChf(l.amount)}
+                      <span className="block text-[11px] text-muted-foreground">{l.side === 'debit' ? t('colDebit') : t('colCredit')}</span>
+                    </TableCell>
                   </TableRow>
                 ))}
                 <TableRow className="border-t-2 border-input font-semibold">
                   <TableCell className="text-foreground">{t('bkTotal')}</TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(data.proposal.debit)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(data.proposal.credit)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(data.proposal.debit)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(data.proposal.credit)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right text-xs tabular-nums text-foreground sm:hidden">
+                    {t('colDebit')} {formatChf(data.proposal.debit)}
+                    <span className="block">{t('colCredit')} {formatChf(data.proposal.credit)}</span>
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>

@@ -2335,7 +2335,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "**Vereinsfinanzen**, unter **Finanzen → Vereinsfinanzen** (auf dem Handy zuerst **Mehr**), ist für die Finanz-Rolle und den Vorstand. Wähle zuerst das **Geschäftsjahr**; die meisten Tabs beziehen sich darauf."
+          "text": "**Vereinsfinanzen**, unter **Finanzen → Vereinsfinanzen** (auf dem Handy zuerst **Mehr**), öffnet die Buchhaltung auf ihrer eigenen Seite, accounting.wiedisync.kscw.ch, mit demselben Login. Alle Seiten stehen im Menü links (auf dem Handy **☰**), und die **Suche** (Ctrl K) findet eine Seite oder ein Konto nach Name oder Nummer. Wähle oben auf der Seite das **Geschäftsjahr**; die meisten Seiten beziehen sich darauf."
         },
         {
           "t": "h",
@@ -2362,7 +2362,7 @@ export default {
           "items": [
             "**Übersicht**, **Erfolgsrechnung**, **Bilanz** und **Konten** spiegeln die ClubDesk-Buchhaltung, aktualisiert jede Nacht um 04:00 oder per **Jetzt synchronisieren**. **Export** bei Erfolgsrechnung und Bilanz liefert PDF, Excel oder PowerPoint.",
             "**Budget**: Budget gegenüber Ist pro Konto; ein eingetipptes Budget speichert sich von selbst.",
-            "**Buchhaltung**: Wiedisyncs eigene doppelte Buchführung — **Journal**, **Konten**, **Saldenbilanz**, **Jahresabschluss**, **Auto-Buchung**. Ordne zuerst die Sammelkonten zu, dann schalte **Buchungen automatisch erstellen** ein."
+            "**Wiedisyncs eigene Buchhaltung** (doppelte Buchführung): **Bank**, **Journal**, **Probebilanz** und **Jahresabschluss**, dazu unter **Einstellungen** der **Kontenplan** und die **Automatischen Buchungen**. Ordne zuerst die Sammelkonten zu, dann schalte **Buchungen automatisch erstellen** ein."
           ]
         },
         {

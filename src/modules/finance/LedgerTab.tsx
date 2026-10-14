@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw, Paperclip } from 'lucide-react'
+import { Loader2, Plus, Undo2, Trash2, Scale, Lock, Settings2, RefreshCw, Paperclip } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
@@ -30,48 +30,26 @@ const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?
 // TkExpensesPage, so "still loading" never looks like "the books are empty".
 const Spinner = () => <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground/80" /></div>
 
-type Section = 'journal' | 'accounts' | 'trial' | 'close' | 'settings'
+export type LedgerSectionKey = 'journal' | 'accounts' | 'trial' | 'close' | 'settings'
 
-export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | number | null }) {
-  const { t } = useTranslation('finance')
-  const [section, setSection] = useState<Section>('journal')
+/**
+ * One section of the native ledger, as its own page of accounting.wiedisync.kscw.ch
+ * (journal, chart of accounts, trial balance, year-end close, automatic postings).
+ * Follows the app-wide fiscal-year picker — no second dropdown here.
+ */
+export function LedgerSection({ section, fiscalYearId }: { section: LedgerSectionKey; fiscalYearId?: string | number | null }) {
   const { data: years, isLoading: fyLoading } = useLedgerFiscalYears()
-  // Follows the single global fiscal-year selector in the FinancePage header — no
-  // second dropdown here.
   const fyId = String(fiscalYearId ?? '')
   const activeFy = useMemo(() => (years ?? []).find((y) => String(y.id) === fyId) ?? (years ?? [])[0], [years, fyId])
   const effFy = activeFy ? String(activeFy.id) : ''
 
-  const SECTIONS: { key: Section; icon: typeof BookOpen; label: string }[] = [
-    { key: 'journal', icon: BookOpen, label: t('ledJournal') },
-    { key: 'accounts', icon: ListTree, label: t('ledAccounts') },
-    { key: 'trial', icon: Scale, label: t('ledTrialBalance') },
-    { key: 'close', icon: Lock, label: t('ledClose') },
-    { key: 'settings', icon: Settings2, label: t('ledAutopost') },
-  ]
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">{t('ledIntro')}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        {SECTIONS.map((s) => (
-          <Button key={s.key} type="button" onClick={() => setSection(s.key)}
-            variant={section === s.key ? 'default' : 'ghost'} aria-pressed={section === s.key}
-            className={section === s.key ? 'bg-selected text-selected-foreground hover:bg-selected/90' : 'text-muted-foreground'}>
-            <s.icon className="h-4 w-4" />{s.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* fyLoading is passed down because `effFy` is '' until the years land — which
-          disables the child queries, so their own isLoading stays false in that window. */}
-      {section === 'journal' && <Journal fyId={effFy} fyClosed={activeFy?.status === 'closed'} fyLoading={fyLoading} />}
-      {section === 'accounts' && <Accounts />}
-      {section === 'trial' && <TrialBalance fyId={effFy} period={activeFy?.label || effFy} fyLoading={fyLoading} />}
-      {section === 'close' && <CloseYear fy={activeFy} fyLoading={fyLoading} />}
-      {section === 'settings' && <AutopostSettings />}
-    </div>
-  )
+  // fyLoading is passed down because `effFy` is '' until the years land — which
+  // disables the child queries, so their own isLoading stays false in that window.
+  if (section === 'journal') return <Journal fyId={effFy} fyClosed={activeFy?.status === 'closed'} fyLoading={fyLoading} />
+  if (section === 'accounts') return <Accounts />
+  if (section === 'trial') return <TrialBalance fyId={effFy} period={activeFy?.label || effFy} fyLoading={fyLoading} />
+  if (section === 'close') return <CloseYear fy={activeFy} fyLoading={fyLoading} />
+  return <AutopostSettings />
 }
 
 /* ── Journal ─────────────────────────────────────────────────────────── */
@@ -132,8 +110,8 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('ledColDate')}</TableHead>
-                <TableHead>{t('ledColBeleg')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('ledColDate')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('ledColBeleg')}</TableHead>
                 <TableHead>{t('ledColText')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('ledColDebit')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('ledColCredit')}</TableHead>
@@ -144,16 +122,17 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
             <TableBody>
               {rows.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-muted px-1 text-[10px]">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-muted px-1 text-[10px]">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
                   <TableCell className="whitespace-normal break-words text-foreground">{e.text || '–'}
-                    <span className="block text-[11px] text-muted-foreground/80 sm:hidden">{e.debit_account_number} → {e.credit_account_number}</span></TableCell>
+                    {/* Phones: date, receipt no. and accounts under the text — the columns are hidden. */}
+                    <span className="block text-[11px] text-muted-foreground/80 sm:hidden">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}{e.beleg ? ` · ${e.beleg}` : ''} · {e.debit_account_number} → {e.credit_account_number}</span></TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.debit_account_number} {e.debit_account_name}</TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.credit_account_number} {e.credit_account_name}</TableCell>
-                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(e.amount_chf))}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground whitespace-nowrap">{formatChf(toNum(e.amount_chf))}</TableCell>
                   <TableCell className="text-right">
                     {e.source === 'native' && (
-                      <div className="flex justify-end gap-1">
+                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
                         {(() => {
                           const n = coverage?.counts?.[String(e.id)] ?? 0
                           const missing = n === 0 && !['Eroeffnung', 'Abschluss', 'Storno'].includes(e.typ || '')
@@ -247,18 +226,21 @@ function Accounts() {
         <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>{t('ledColNumber')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('ledColNumber')}</TableHead>
               <TableHead>{t('ledColName')}</TableHead>
-              <TableHead>{t('ledColType')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('ledColType')}</TableHead>
               <TableHead className="hidden sm:table-cell">{t('ledColSource')}</TableHead>
               <TableHead className="text-right"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((a) => (
                 <TableRow key={a.id} className={`${a.active ? '' : 'opacity-50'}`}>
-                  <TableCell className="whitespace-nowrap tabular-nums text-foreground">{a.number}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-foreground">{a.name}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{typeLabel(a.type)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap tabular-nums text-foreground">{a.number}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground">
+                    <span className="tabular-nums text-muted-foreground sm:hidden">{a.number} </span>{a.name}
+                    <span className="block text-xs text-muted-foreground sm:hidden">{typeLabel(a.type)}</span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{typeLabel(a.type)}</TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{a.source === 'native' ? t('ledSourceNative') : t('ledSourceClubdesk')}</TableCell>
                   <TableCell className="text-right">
                     {a.source === 'native'
@@ -336,20 +318,24 @@ function TrialBalance({ fyId, period, fyLoading }: { fyId: string; period: strin
         <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>{t('ledColNumber')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('ledColNumber')}</TableHead>
               <TableHead>{t('ledColName')}</TableHead>
-              <TableHead className="text-right">{t('ledColDebit')}</TableHead>
-              <TableHead className="text-right">{t('ledColCredit')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('ledColDebit')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('ledColCredit')}</TableHead>
               <TableHead className="text-right">{t('ledColBalance')}</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.account}>
-                  <TableCell className="whitespace-nowrap tabular-nums text-foreground">{r.number}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-foreground/85">{r.name}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">{r.debit ? formatChf(r.debit) : '–'}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">{r.credit ? formatChf(r.credit) : '–'}</TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-foreground">{formatChf(r.balance)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap tabular-nums text-foreground">{r.number}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground/85">
+                    <span className="tabular-nums text-muted-foreground sm:hidden">{r.number} </span>{r.name}
+                    {/* Phones: debit and credit under the name — their columns are hidden. */}
+                    <span className="block text-xs tabular-nums text-muted-foreground sm:hidden">{t('ledColDebit')} {r.debit ? formatChf(r.debit) : '–'} · {t('ledColCredit')} {r.credit ? formatChf(r.credit) : '–'}</span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-muted-foreground">{r.debit ? formatChf(r.debit) : '–'}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-right tabular-nums text-muted-foreground">{r.credit ? formatChf(r.credit) : '–'}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums font-medium text-foreground">{formatChf(r.balance)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

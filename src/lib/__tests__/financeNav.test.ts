@@ -37,6 +37,16 @@ describe('buildFinanceGroups', () => {
     expect(routesOf(groups).clubFinance).toEqual(['/finance/tk-expenses', '/admin/finance'])
   })
 
+  it('club finances open the books app when it lives on another origin', () => {
+    const groups = buildFinanceGroups({ hasTeam: false, isTk: true, canAccessFinance: true, accountingOrigin: 'https://accounting.wiedisync.kscw.ch' })
+    const entry = groups.flatMap((g) => g.items).find((i) => i.to === '/admin/finance')
+    expect(entry).toMatchObject({ href: 'https://accounting.wiedisync.kscw.ch/', external: true })
+    // Same origin (local dev): a plain in-app route.
+    const local = buildFinanceGroups({ hasTeam: false, isTk: true, canAccessFinance: true })
+      .flatMap((g) => g.items).find((i) => i.to === '/admin/finance')
+    expect(local?.external).toBeUndefined()
+  })
+
   it('never emits an empty group', () => {
     const combos = [false, true]
     for (const hasTeam of combos) for (const isTk of combos) for (const canAccessFinance of combos) {

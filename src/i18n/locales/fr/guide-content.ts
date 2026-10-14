@@ -2335,7 +2335,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "**Finances du club**, sous **Finances → Finances du club** (**Plus** d'abord sur un téléphone), s'adresse au rôle finance et au comité. Choisissez d'abord l'**Exercice** ; la plupart des onglets s'y réfèrent."
+          "text": "**Finances du club**, sous **Finances → Finances du club** (**Plus** d'abord sur un téléphone), ouvre la comptabilité du club sur son propre site, accounting.wiedisync.kscw.ch, avec le même identifiant. Toutes les pages sont dans le menu à gauche (**☰** sur un téléphone), et **Search** (Ctrl K) trouve une page ou un compte par son nom ou son numéro. Choisissez l'**Exercice** en haut de la page ; la plupart des pages s'y réfèrent."
         },
         {
           "t": "h",
@@ -2360,9 +2360,9 @@ export default {
         {
           "t": "ul",
           "items": [
-            "**Aperçu**, **Compte de résultat**, **Bilan** et **Comptes** reflètent la comptabilité ClubDesk, actualisée chaque nuit à 04:00 ou via **Synchroniser maintenant**. **Exporter** sur le compte de résultat et le bilan donne un PDF, un fichier Excel ou PowerPoint.",
+            "**Dashboard**, **Compte de résultat**, **Bilan** et **Comptes** reflètent la comptabilité ClubDesk, actualisée chaque nuit à 04:00 ou via **Synchroniser maintenant**. **Exporter** sur le compte de résultat et le bilan donne un PDF, un fichier Excel ou PowerPoint.",
             "**Budget** : budget et réel par compte ; un budget saisi s'enregistre tout seul.",
-            "**Comptabilité** : le livre en partie double propre à Wiedisync — **Journal**, **Comptes**, **Balance des soldes**, **Clôture de l’exercice**, **Écritures automatiques**. Associez les comptes collectifs, puis activez **Créer les écritures automatiquement**."
+            "**La comptabilité propre à Wiedisync** (partie double) : **Bank**, **Journal**, **Trial balance** et **Year-end**, ainsi que **Chart of accounts** et **Automatic postings** sous **Settings**. Associez les comptes collectifs, puis activez **Créer les écritures automatiquement**."
           ]
         },
         {

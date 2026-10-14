@@ -115,6 +115,25 @@ export default function BankTab({ fiscalYearId }: { fiscalYearId?: string | numb
     )
   }
 
+  /** The booking for a line: the account picker (open), the entry (posted) or the
+   *  ignore note. Its own column on wider screens, under the payment on phones. */
+  const bookingCell = (l: BankLine) => (
+    l.status === 'open' ? (
+      canWrite ? (
+        <div className="space-y-1">
+          <AccountSelect accounts={accounts} value={choice[l.id] ?? l.proposed_account ?? ''} onChange={(v) => setChoice((c) => ({ ...c, [l.id]: v }))} ariaLabel={t('bkColBooking')} />
+          {proposalChip(l)}
+        </div>
+      ) : (
+        <span className="text-xs text-muted-foreground">{l.proposed_account_number ? `${l.proposed_account_number} ${l.proposed_account_name}` : t('bkNoProposal')}{proposalChip(l)}</span>
+      )
+    ) : l.status === 'posted' ? (
+      <span className="text-xs text-muted-foreground"><span className="text-foreground">{l.entry_beleg}</span> · {l.entry_debit} → {l.entry_credit}</span>
+    ) : (
+      <span className="text-xs italic text-muted-foreground">{t('bkIgnored')}{l.note ? `: ${l.note}` : ''}</span>
+    )
+  )
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">{t('bkBankIntro')}</p>
@@ -153,10 +172,10 @@ export default function BankTab({ fiscalYearId }: { fiscalYearId?: string | numb
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('ledColDate')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('ledColDate')}</TableHead>
                 <TableHead>{t('bkColCounterparty')}</TableHead>
-                <TableHead className="text-right">{t('colAmount')}</TableHead>
-                <TableHead>{t('bkColBooking')}</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">{t('colAmount')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('bkColBooking')}</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -165,34 +184,27 @@ export default function BankTab({ fiscalYearId }: { fiscalYearId?: string | numb
                 const amt = toNum(l.amount)
                 return (
                   <TableRow key={l.id} className="align-top">
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateCompactZurich(l.booking_date)}</TableCell>
-                    <TableCell className="min-w-[12rem] whitespace-normal break-words">
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{formatDateCompactZurich(l.booking_date)}</TableCell>
+                    <TableCell className="whitespace-normal break-words sm:min-w-[12rem]">
+                      {/* Phones: date and amount first, then the booking below — the other columns are hidden. */}
+                      <span className="mb-0.5 flex justify-between gap-2 text-xs sm:hidden">
+                        <span className="text-muted-foreground">{formatDateCompactZurich(l.booking_date)}</span>
+                        <span className={`whitespace-nowrap font-medium tabular-nums ${amt >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{amt >= 0 ? '+' : '−'}{formatChf(Math.abs(amt))}</span>
+                      </span>
                       <span className="font-medium text-foreground">{l.counterparty_name || '–'}</span>
                       {l.remittance && <span className="block text-xs text-muted-foreground">{l.remittance}</span>}
-                      {l.reference && <span className="block font-mono text-[10px] text-muted-foreground/70">{l.reference}</span>}
+                      {l.reference && <span className="block break-all font-mono text-[10px] text-muted-foreground/70">{l.reference}</span>}
+                      <div className="mt-2 sm:hidden">{bookingCell(l)}</div>
                     </TableCell>
-                    <TableCell className={`whitespace-nowrap text-right tabular-nums ${amt >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <TableCell className={`hidden sm:table-cell whitespace-nowrap text-right tabular-nums ${amt >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {amt >= 0 ? '+' : '−'}{formatChf(Math.abs(amt))}
                     </TableCell>
-                    <TableCell className="min-w-[12rem] whitespace-normal">
-                      {l.status === 'open' ? (
-                        canWrite ? (
-                          <div className="space-y-1">
-                            <AccountSelect accounts={accounts} value={choice[l.id] ?? l.proposed_account ?? ''} onChange={(v) => setChoice((c) => ({ ...c, [l.id]: v }))} ariaLabel={t('bkColBooking')} />
-                            {proposalChip(l)}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{l.proposed_account_number ? `${l.proposed_account_number} ${l.proposed_account_name}` : t('bkNoProposal')}{proposalChip(l)}</span>
-                        )
-                      ) : l.status === 'posted' ? (
-                        <span className="text-xs text-muted-foreground"><span className="text-foreground">{l.entry_beleg}</span> · {l.entry_debit} → {l.entry_credit}</span>
-                      ) : (
-                        <span className="text-xs italic text-muted-foreground">{t('bkIgnored')}{l.note ? `: ${l.note}` : ''}</span>
-                      )}
+                    <TableCell className="hidden sm:table-cell min-w-[12rem] whitespace-normal">
+                      {bookingCell(l)}
                     </TableCell>
                     <TableCell className="text-right">
                       {canWrite && (
-                        <div className="flex justify-end gap-1">
+                        <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
                           {l.status === 'open' ? (
                             <>
                               <IconButton size="sm" label={t('bkPost')} disabled={busy === l.id} onClick={() => book(l)}>{busy === l.id ? <Loader2 className="animate-spin" /> : <Check />}</IconButton>

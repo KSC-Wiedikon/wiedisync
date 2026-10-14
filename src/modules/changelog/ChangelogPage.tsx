@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.36.0'
+const APP_VERSION = '2.37.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.37.0',
+    date: '14.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Club finances now open the books site (accounting.wiedisync.kscw.ch) straight from the Finances menu, already logged in. Old links to the finance page lead there too.",
+          "The books site is rebuilt: one page per task with a menu down the side, a search for every page and account (Ctrl K), and a dashboard with the key figures, a to-do list and income and expenses per month.",
+          "Every list is a table, and every table fits a phone.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.36.0',
     date: '14.10.2026',

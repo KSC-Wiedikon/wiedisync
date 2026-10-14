@@ -186,6 +186,23 @@ export default function ExpensesTab() {
     return <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground/80" /></div>
   }
 
+
+  /** Receipt + edit — their own column on wider screens, under the name on phones. */
+  const rowActions = (e: FinanceExpense) => (
+    <>
+      {e.file && <ReceiptButton expenseId={e.id} />}
+      <IconButton
+        size="sm"
+        type="button"
+        onClick={() => (editingId === e.id ? (setEditingId(null), setEdit(null)) : startEdit(e))}
+        className="text-muted-foreground hover:text-foreground/85"
+        label={t('expenseEdit')}
+        aria-expanded={editingId === e.id}
+      >
+        {editingId === e.id ? <X /> : <Pencil />}
+      </IconButton>
+    </>
+  )
   return (
     <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
       <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('tabExpenses')}</h3>
@@ -197,26 +214,30 @@ export default function ExpensesTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('colDate')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
                 <TableHead>{t('expenseMember')}</TableHead>
-                <TableHead className="text-right">{t('expenseAmount')}</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">{t('expenseAmount')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('expenseVendor')}</TableHead>
                 <TableHead>{t('expenseStatusCol')}</TableHead>
-                <TableHead>{t('expenseTkCol')}</TableHead>
-                <TableHead />
+                <TableHead className="hidden md:table-cell">{t('expenseTkCol')}</TableHead>
+                <TableHead className="hidden sm:table-cell" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((e) => (
                 <Fragment key={e.id}>
                   <TableRow className="min-h-[44px]">
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                       {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
                     </TableCell>
                     <TableCell className="whitespace-normal break-words text-sm font-medium text-foreground">
                       {memberDisplayName(e)}
+                      {/* Phones: date, amount, vendor and the buttons here — their columns are hidden. */}
+                      <span className="block text-xs font-normal text-muted-foreground sm:hidden">{e.date_created ? formatDateCompactZurich(e.date_created) : '—'}{e.vendor ? ` · ${e.vendor}` : ''}</span>
+                      <span className="block whitespace-nowrap tabular-nums sm:hidden">{formatExpenseAmount(e)}</span>
+                      <div className="mt-1 flex gap-1 sm:hidden">{rowActions(e)}</div>
                     </TableCell>
-                    <TableCell className="text-right text-sm font-medium tabular-nums text-foreground">
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-right text-sm font-medium tabular-nums text-foreground">
                       {formatExpenseAmount(e)}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-foreground/85">
@@ -242,26 +263,13 @@ export default function ExpensesTab() {
                       {e.status_changed_by_name && (
                         <p className="mt-1 text-[11px] text-muted-foreground/80">{e.status_changed_by_name}</p>
                       )}
+                      <div className="mt-2 md:hidden"><TkConfirmCell e={e} /></div>
                     </TableCell>
-                    <TableCell className="align-top">
+                    <TableCell className="hidden md:table-cell align-top">
                       <TkConfirmCell e={e} />
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
-                        {e.file && (
-                          <ReceiptButton expenseId={e.id} />
-                        )}
-                        <IconButton
-                          size="sm"
-                          type="button"
-                          onClick={() => (editingId === e.id ? (setEditingId(null), setEdit(null)) : startEdit(e))}
-                          className="text-muted-foreground hover:text-foreground/85"
-                          label={t('expenseEdit')}
-                          aria-expanded={editingId === e.id}
-                        >
-                          {editingId === e.id ? <X /> : <Pencil />}
-                        </IconButton>
-                      </div>
+                    <TableCell className="hidden sm:table-cell text-right">
+                      <div className="flex flex-row items-center justify-end gap-1">{rowActions(e)}</div>
                     </TableCell>
                   </TableRow>
                   {editingId === e.id && edit && (

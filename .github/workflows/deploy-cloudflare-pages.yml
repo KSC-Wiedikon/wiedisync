@@ -78,6 +78,10 @@ jobs:
           # Empty string is falsy in that expression, so it correctly yields dev.
           VITE_DIRECTUS_URL: ${{ startsWith(matrix.project, 'kscw-spielplanung') && (github.ref_name == 'prod' && 'https://directus.kscw.ch' || 'https://directus-dev.kscw.ch') || '' }}
           VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
+          # Member app ↔ books hops (/admin/finance redirects to the books; the books link
+          # back to member-app pages). Both apps are on .kscw.ch, so the login carries over.
+          VITE_ACCOUNTING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://accounting.wiedisync.kscw.ch' || 'https://accounting-dev.kscw.ch' }}
+          VITE_MEMBER_APP_ORIGIN: ${{ github.ref_name == 'prod' && 'https://wiedisync.kscw.ch' || 'https://wiedisync-dev.kscw.ch' }}
           # Member app only — the old wiedisync-spielplanung project set NONE of these,
           # and the scheduling bundle must keep behaving exactly as it does today
           # (no runtime Sentry, no Maps key).

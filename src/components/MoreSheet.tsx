@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight, Trophy, Globe, ExternalLink } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
-import { SCHEDULING_ORIGIN } from '../lib/api'
+import { SCHEDULING_ORIGIN, externalAccountingOrigin } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/financeNav'
 import { handlePWAExternalClick } from '../utils/pwa'
@@ -50,10 +50,12 @@ interface NavItem { to: string; labelKey: string; icon: ReactNode }
 // and, for admin, the /admin hub table. Adding a page there lights it up on every
 // surface; this file only maps the shared entry (i18n key + icon component) onto
 // the sheet's NavItem shape.
-const toSheetItem = (e: AdminNavEntry | FinanceNavEntry): NavItem => ({
+const toSheetItem = (e: AdminNavEntry | FinanceNavEntry): SheetItem => ({
   to: e.to,
   labelKey: e.labelKey,
   icon: <e.icon className={iconClass} />,
+  href: 'href' in e ? e.href : undefined,
+  external: 'external' in e ? e.external : undefined,
 })
 
 function buildSecondaryItems(
@@ -85,7 +87,7 @@ function buildSecondaryItems(
   // surfaces cannot drift again. isTk mirrors useNavItems: section TK or anyone
   // with finance access gets the expense confirmation queue.
   const isTk = sched.isVbAdmin || sched.isBbAdmin || sched.canAccessFinance
-  const finance: SheetGroup[] = buildFinanceGroups({ hasTeam: sched.hasTeam, isTk, canAccessFinance: sched.canAccessFinance })
+  const finance: SheetGroup[] = buildFinanceGroups({ hasTeam: sched.hasTeam, isTk, canAccessFinance: sched.canAccessFinance, accountingOrigin: externalAccountingOrigin() })
     .map((g) => ({ labelKey: g.labelKey, items: g.items.map(toSheetItem) }))
   // Spielplaner tools — the whole game-scheduling feature opens as ONE "Planning"
   // entry (mirrors `useNavItems` / the desktop top nav); it has its own in-app

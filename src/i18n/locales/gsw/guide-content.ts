@@ -2335,7 +2335,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "**Vereinsfinanze**, under **Finanze → Vereinsfinanze** (am Handy zerscht **Meh**), isch für d Finanz-Rolle und de Vorstand. Wähl zerscht s **Gschäftsjahr**; di meischte Tabs läse s."
+          "text": "**Vereinsfinanze**, under **Finanze → Vereinsfinanze** (am Handy zerscht **Meh**), macht d Buechhaltig uf ihrere eigete Siite uf, accounting.wiedisync.kscw.ch, mit em gliiche Login. Alli Siite sind im Menü links (am Handy **☰**), und d **Suechi** (Ctrl K) findet e Siite oder es Konto nach Name oder Nummer. Wähl obe uf de Siite s **Gschäftsjahr**; di meischte Siite läse s."
         },
         {
           "t": "h",
@@ -2362,7 +2362,7 @@ export default {
           "items": [
             "**Übersicht**, **Erfolgsrechnig**, **Bilanz** und **Konte** spiegled d ClubDesk-Buechhaltig, jedi Nacht am 04:00 aktualisiert oder über **Jetzt synchronisieren**. **Export** uf de Erfolgsrechnig und de Bilanz git PDF, Excel oder PowerPoint.",
             "**Budget**: Budget gäge Ischt pro Konto; es iitippts Budget speicheret sich vo sälber.",
-            "**Buchhaltung**: d eigeni doppleti Buechhaltig vo Wiedisync — **Journal**, **Konten**, **Saldenbilanz**, **Jahresabschluss**, **Auto-Buchung**. Ordne zerscht d Sammelkonte zue, dänn schalt **Buchungen automatisch erstellen** ii."
+            "**Wiedisyncs eigeti Buechhaltig** (doppleti Buechfüehrig): **Bank**, **Journal**, **Probebilanz** und **Jahresabschluss**, dezue under **Einstellungen** de **Kontenplan** und di **Automatischen Buchungen**. Ordne zerscht d Sammelkonte zue, dänn schalt **Buchungen automatisch erstellen** ii."
           ]
         },
         {
