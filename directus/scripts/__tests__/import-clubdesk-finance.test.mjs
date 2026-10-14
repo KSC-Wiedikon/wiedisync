@@ -87,3 +87,30 @@ test('camt re-link (5b2) restores clubdesk_guess from match_clubdesk_id after th
   assert.ok(sql.includes("UPDATE finance_payments p SET match_status = 'link_lost'"), 'missing link_lost flip');
   assert.ok(sql.includes("CASE WHEN p.match_status = 'link_lost' THEN 'clubdesk_guess'"), 'missing link_lost restore');
 });
+
+test('shrink guard runs before the mirror refresh and names the export\'s fiscal years', () => {
+  // The DELETE+reinsert replaces the whole mirror, so an export that lost years
+  // (14.10.2026: 7 years → 2020/21 only) or most invoices (the "Alle" filter not
+  // found → drafts only) would erase them silently. The guard must abort first.
+  const guard = sql.indexOf('-- 3b. Shrink guard');
+  const deleteBookings = sql.indexOf("DELETE FROM finance_transactions WHERE source = 'clubdesk';");
+  const deleteInvoices = sql.indexOf("DELETE FROM finance_invoices WHERE source = 'clubdesk';");
+  assert.ok(guard > 0 && guard < deleteBookings && guard < deleteInvoices, 'guard missing or after a DELETE');
+  const block = sql.slice(guard, deleteBookings);
+  assert.ok(block.includes("ARRAY['2025/26']::text[]"), 'export fiscal years not passed to the guard');
+  assert.ok(block.includes('RAISE EXCEPTION'), 'guard must abort, not warn');
+  assert.ok(/< 0\.9 \*/.test(block), 'invoice shrink threshold missing');
+});
+
+test('--allow-shrink drops the guard (deliberate rebuild)', () => {
+  const inv = join(tmpdir(), `clubdesk-finance-inv2-${process.pid}.csv`);
+  const bk = join(tmpdir(), `clubdesk-finance-bk2-${process.pid}.csv`);
+  writeFileSync(inv, invBytes);
+  writeFileSync(bk, bkBytes);
+  const r2 = spawnSync('node', [script, 'prod', inv, bk, '--emit-sql', '--allow-shrink'], { encoding: 'utf-8' });
+  rmSync(inv, { force: true });
+  rmSync(bk, { force: true });
+  assert.equal(r2.status, 0, r2.stderr);
+  assert.ok(!r2.stdout.includes('-- 3b. Shrink guard'), 'guard still emitted with --allow-shrink');
+  assert.ok(r2.stdout.includes("DELETE FROM finance_transactions WHERE source = 'clubdesk';"));
+});

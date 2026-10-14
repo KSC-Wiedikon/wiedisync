@@ -31,6 +31,7 @@ import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
 import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result.js'
 import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
 import { externalWritesEnv, skipExternalJob } from '../../kscw-endpoints/src/external-accounts.js'
+import { financeSyncProblem, financeSyncAlertMail } from '../../kscw-endpoints/src/clubdesk-finance-watchdog.js'
 import { runVmCheck, VM_CHECK_LEAD_MS } from '../../kscw-endpoints/src/vm-sheet-check.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
@@ -5259,22 +5260,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // 02:00 UTC), outside Directus, and writes its own `sync_runs` heartbeat
   // (source clubdesk_finance). It failed silently twice — 82 nights in June–Sept
   // and 11.–14.10.2026 — so a failed or missing night now lands in the error log
-  // and Sentry. Prod only: only prod has the nightly job.
+  // and Sentry AND mails the owner (OWNER_EMAIL) every morning until it is healthy:
+  // the error log is only read when someone goes looking. Prod only: only prod has
+  // the nightly job. Rules in clubdesk-finance-watchdog.js.
   schedule('15 5 * * *', async () => {
     if (skipExternalJob('clubdesk_finance_watchdog', log)) return
     try {
       const row = await database('sync_runs').where({ source: 'clubdesk_finance' }).first()
-      const ageH = row?.last_run_at ? (Date.now() - new Date(row.last_run_at).getTime()) / 3600000 : Infinity
-      let problem = null
-      if (!row) problem = 'no heartbeat recorded yet'
-      else if (row.status === 'error') problem = `last run failed: ${row.error_message || 'unknown error'}`
-      else if (ageH > 30) problem = `no successful run for ${Math.round(ageH)} h`
-      if (problem) {
-        log.error({ msg: `ClubDesk finance sync watchdog: ${problem}`, event: 'cron.clubdesk_finance_watchdog' })
-        logCronError('clubdesk_finance_sync', new Error(`ClubDesk finance sync: ${problem}`), { ageHours: Math.round(ageH) })
-      }
+      const found = financeSyncProblem(row)
+      if (!found) return
+      log.error({ msg: `ClubDesk finance sync watchdog: ${found.problem}`, event: 'cron.clubdesk_finance_watchdog' })
+      logCronError('clubdesk_finance_sync', new Error(`ClubDesk finance sync: ${found.problem}`), { ageHours: found.ageHours })
+      const { subject, text } = financeSyncAlertMail(found, { frontendUrl: FRONTEND_URL })
+      const { MailService } = services
+      await new MailService({ schema: await getSchema(), knex: database }).send({ to: OWNER_EMAIL, subject, text })
     } catch (err) {
       log.error({ msg: `ClubDesk finance watchdog: ${err.message}`, event: 'cron.clubdesk_finance_watchdog' })
+      logCronError('clubdesk_finance_watchdog', err)
     }
   })
 

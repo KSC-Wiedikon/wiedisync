@@ -52,10 +52,12 @@ const EMIT_SQL = rawArgs.includes('--emit-sql')
 const getOpt = (k) => { const a = rawArgs.find(x => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : '' }
 const ACTOR_NAME = getOpt('actor-name') || 'ClubDesk finance import'
 const ACTOR_EMAIL = getOpt('actor-email') || ''
+// Skips the step-3b shrink guard — only for a deliberate rebuild from a smaller export.
+const ALLOW_SHRINK = rawArgs.includes('--allow-shrink')
 const positional = rawArgs.filter(a => !a.startsWith('--'))
 const [envName, invoicesCsv, bookingsCsv] = positional
 if (!envName || !ENVS[envName] || !invoicesCsv || !bookingsCsv) {
-  console.error('Usage: import-clubdesk-finance.mjs <dev|prod> <invoices.csv> <bookings.csv> [--local] [--emit-sql] [--actor-name=…] [--actor-email=…]')
+  console.error('Usage: import-clubdesk-finance.mjs <dev|prod> <invoices.csv> <bookings.csv> [--local] [--emit-sql] [--allow-shrink] [--actor-name=…] [--actor-email=…]')
   process.exit(1)
 }
 const env = ENVS[envName]
@@ -159,6 +161,10 @@ const fyMap = new Map() // label -> {label,starts_on,ends_on}
 const collectFy = (iso) => { if (iso) { const f = fiscalYearOf(iso); fyMap.set(f.label, f) } }
 for (const r of bk.rows) collectFy(date(r[bk.idx['Datum']]))
 for (const r of inv.rows) collectFy(date(r[inv.idx['Rechnungsdatum']]))
+// The fiscal years the BOOKINGS export covers (invoice dates don't count) — the
+// step-3b guard refuses to delete a year the mirror holds but this export lacks.
+const bookingFyLabels = [...new Set(bk.rows.map(r => date(r[bk.idx['Datum']])).filter(Boolean)
+  .map(d => fiscalYearOf(d).label))].sort()
 
 // ── build the psql transaction ──────────────────────────────────────
 const g = (csv, r, name) => name in csv.idx ? r[csv.idx[name]] : '' // safe getter
@@ -235,6 +241,30 @@ const checksum = (p) => createHash('sha256').update(readFileSync(p)).digest('hex
 const invSha = checksum(invoicesCsv)
 const bkSha = checksum(bookingsCsv)
 
+// 3b. Steps 4 and 5 replace each mirror wholesale, so a short export erases data
+// without an error: on 14.10.2026 one run turned 7 fiscal years into 2020/21 only
+// (the export covered just the selected Buchungsjahr), and the scraper exports the
+// current view — drafts only — when it can't find the "Alle" invoice filter. Abort
+// the transaction instead (the nightly job then records an error heartbeat and the
+// watchdog mails the owner). A year the mirror holds must be in the export, and the
+// invoice count may not fall by more than 10 %. --allow-shrink skips this.
+const shrinkGuard = ALLOW_SHRINK ? '' : `
+-- 3b. Shrink guard (skipped with --allow-shrink)
+DO $$ DECLARE missing text; held int; BEGIN
+  SELECT string_agg(DISTINCT fy.label, ', ' ORDER BY fy.label) INTO missing
+    FROM finance_transactions t JOIN finance_fiscal_years fy ON fy.id = t.fiscal_year
+   WHERE t.source = 'clubdesk'
+     AND fy.label <> ALL (ARRAY[${bookingFyLabels.map(sql).join(', ')}]::text[]);
+  IF missing IS NOT NULL THEN
+    RAISE EXCEPTION 'bookings export lacks fiscal year(s) % that the mirror holds — not replacing the mirror (--allow-shrink to override)', missing;
+  END IF;
+  SELECT count(*) INTO held FROM finance_invoices WHERE source = 'clubdesk';
+  IF ${invRows.length} < 0.9 * held THEN
+    RAISE EXCEPTION 'invoices export has ${invRows.length} rows, the mirror % — more than 10%% fewer, not replacing it (--allow-shrink to override)', held;
+  END IF;
+END $$;
+`
+
 const psqlInput = `
 BEGIN;
 
@@ -275,7 +305,7 @@ FROM (VALUES
   ${accountValues}
 ) AS v(number, name, type, division)
 ON CONFLICT (number) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type, division = EXCLUDED.division;
-
+${shrinkGuard}
 -- 4. ledger (full refresh of the clubdesk mirror)
 DELETE FROM finance_transactions WHERE source = 'clubdesk';
 INSERT INTO finance_transactions
