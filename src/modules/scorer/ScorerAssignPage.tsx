@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
 import { memberDisplayName, relId } from '../../utils/relations'
 import { useCollection, invalidateForCollection } from '../../lib/query'
@@ -15,6 +15,7 @@ import TeamChip from '../../components/TeamChip'
 import { useConfirm } from '../../components/ConfirmProvider'
 import AssignmentEditor from './components/AssignmentEditor'
 import DutyOverview from './components/DutyOverview'
+import LiveAssignmentTable from './components/LiveAssignmentTable'
 import SportToggle from '../../components/SportToggle'
 import TabBar from '../../components/TabBar'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, classifyVbMode, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
@@ -62,7 +63,7 @@ export default function ScorerAssignPage() {
   const { user, isSuperAdmin, hasAdminAccessToSport } = useAuth()
   const confirm = useConfirm()
   // Only a superadmin runs (or re-runs) the auto-assignment — owner decision
-  // 14.10.2026. Sport admins still see the Overview and any draft they hold.
+  // 14.10.2026. Everyone else edits the saved duties in the live table.
   const canRunAlgorithm = isSuperAdmin
 
   const season = getCurrentSeason()
@@ -379,6 +380,10 @@ export default function ScorerAssignPage() {
   }, [bbAssignments, sportGames])
 
   const assignments = sportTab === 'volleyball' ? vbAssignments : bbAssignments
+  // The planner (draft) replaces the live table only for a superadmin. A draft a
+  // sport admin made before 14.10.2026 stays in their browser, unused — it can
+  // no longer be rolled out over the saved duties.
+  const showPlanner = canRunAlgorithm && assignments.length > 0
 
   // Actions
   function handleRunAlgorithm() {
@@ -401,6 +406,14 @@ export default function ScorerAssignPage() {
   async function handleRerun() {
     if (!(await confirm({ message: t('rerunConfirm'), danger: true }))) return
     handleRunAlgorithm()
+  }
+
+  // Leave a draft without rolling it out — the games keep their saved duties.
+  async function handleDiscardDraft() {
+    if (!(await confirm({ message: t('discardDraftConfirm'), danger: true }))) return
+    setSaveMsg(null)
+    if (sportTab === 'volleyball') setVbAssignments([])
+    else setBbDraft([])
   }
 
   async function handleSaveAll() {
@@ -468,8 +481,10 @@ export default function ScorerAssignPage() {
       // snapshot until the page was reloaded. It lied precisely about the
       // operation you would open it to verify.
       if (tasks.length > 0) invalidateForCollection('games')
-      // Rolled out = saved; from now on the game's saved teams are the truth.
-      if (sportTab === 'basketball') setBbDraft((prev) => prev.map((a) => (a.manual ? { ...a, manual: undefined } : a)))
+      // Rolled out = saved; from now on the games are the truth. Clearing the
+      // draft brings back the live table, which shows (and edits) exactly that.
+      if (sportTab === 'volleyball') setVbAssignments([])
+      else setBbDraft([])
       setSaveMsg({ text: t('saveSuccess', { count: tasks.length }), error: false })
     } catch {
       setSaveMsg({ text: t('saveError'), error: true })
@@ -870,41 +885,41 @@ export default function ScorerAssignPage() {
 
       {tab === 'plan' && (<>
 
-      {/* Actions bar */}
+      {/* Actions bar — superadmin only: running the algorithm and handling its
+          draft. Everyone else works in the live table below. */}
+      {canRunAlgorithm && (
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        {canRunAlgorithm && (
-          <Button
-            size="sm"
-            onClick={handleRunAlgorithm}
-            loading={running && assignments.length === 0}
-            // Locked once a situation is loaded (draft restored or rolled out) so a
-            // stray click can't recompute over it — deliberate re-runs use Recompute.
-            disabled={dataLoading || homeGames.length === 0 || assignments.length > 0}
-            title={assignments.length > 0 ? t('runLockedHint') : undefined}
-          >
-            {running && assignments.length === 0 ? t('running') : t('runAlgorithm')}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          onClick={handleRunAlgorithm}
+          loading={running && assignments.length === 0}
+          // Locked once a draft is loaded so a stray click can't recompute over
+          // it — deliberate re-runs use Recompute.
+          disabled={dataLoading || homeGames.length === 0 || assignments.length > 0}
+          title={assignments.length > 0 ? t('runLockedHint') : undefined}
+        >
+          {running && assignments.length === 0 ? t('running') : t('runAlgorithm')}
+        </Button>
 
-        {canRunAlgorithm && assignments.length > 0 && (
+        {showPlanner && (
           <Button size="sm" variant="ghost" onClick={handleRerun} loading={running} title={t('rerunHint')}>
             {running ? t('running') : t('rerun')}
           </Button>
         )}
 
-        {assignments.length > 0 && (
+        {showPlanner && (
           <Button size="sm" onClick={handleSaveAll} loading={saving} title={t('rollOutHint')}>
             {saving ? t('rollingOut') : t('rollOut')}
           </Button>
         )}
 
-        {assignments.length > 0 && (
+        {showPlanner && (
           <Button size="sm" variant="outline" onClick={handleDownloadXlsx}>
             {t('downloadXlsx')}
           </Button>
         )}
 
-        {assignments.length > 0 && (
+        {showPlanner && (
           <>
             <input
               ref={uploadInputRef}
@@ -918,30 +933,24 @@ export default function ScorerAssignPage() {
             </Button>
           </>
         )}
+
+        {showPlanner && (
+          <Button size="sm" variant="ghost" onClick={handleDiscardDraft} disabled={saving} className="text-muted-foreground">
+            {t('discardDraft')}
+          </Button>
+        )}
       </div>
+      )}
 
       {/* Status messages */}
       <div className="mt-2 flex flex-wrap gap-2">
         {dataLoading && <LoadingSpinner />}
-        {canRunAlgorithm && !dataLoading && homeGames.length > 0 && assignments.length === 0 && (
-          <span className="text-sm text-muted-foreground">{t('gamesLoaded', { count: homeGames.length })}</span>
-        )}
-        {/* Without the Run button the tab is empty for everyone else — say where
-            single duties are changed instead of leaving a dead end. */}
-        {!canRunAlgorithm && !dataLoading && assignments.length === 0 && (
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span>{t('planCentralHint')}</span>
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/scorer?sport=${sportTab}`}>{t('openScorerDuty')}</Link>
-            </Button>
-          </div>
-        )}
-        {assignments.length > 0 && (
+        {showPlanner && (
           <span className="text-sm text-green-600 dark:text-green-400">
             {t('assignmentsDone', { assigned: assignedCount, total: homeGames.length })}
           </span>
         )}
-        {assignments.length > 0 && (
+        {showPlanner && (
           <span className="text-sm text-muted-foreground/80">· {t('draftSaved')}</span>
         )}
         {saveMsg && (
@@ -954,6 +963,7 @@ export default function ScorerAssignPage() {
       {/* Algorithm rules — collapsible; content switches with the sport
           because VB and BB use different engines (AssignmentAlgorithm.ts vs
           AssignmentAlgorithmBb.ts). */}
+      {canRunAlgorithm && (
       <details className="mt-4 rounded-xl border border-hairline bg-surface-sunken px-4 py-3 text-sm">
         <summary className="cursor-pointer select-none font-medium text-foreground/85">
           {t('rulesTitle')}
@@ -981,12 +991,13 @@ export default function ScorerAssignPage() {
           <p className="text-xs italic text-muted-foreground">{t('rulesExisting')}</p>
         </div>
       </details>
+      )}
 
       {/* Team summary — kept at the top so the "who got how many duties"
           overview is visible before the per-game detail table. Split by sport
           via sportTab (each engine only fills its own sport's counts). Hidden
           until a draft exists: before a run every duty column is just "—". */}
-      {sportTab === 'volleyball' && assignments.length > 0 && vbTeamCounts.size > 0 && (
+      {sportTab === 'volleyball' && showPlanner && vbTeamCounts.size > 0 && (
         <div className="mt-6">
           <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
@@ -1047,7 +1058,7 @@ export default function ScorerAssignPage() {
         </div>
       )}
 
-      {sportTab === 'basketball' && assignments.length > 0 && bbTeamCounts.size > 0 && (
+      {sportTab === 'basketball' && showPlanner && bbTeamCounts.size > 0 && (
         <div className="mt-6">
           <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
@@ -1077,8 +1088,22 @@ export default function ScorerAssignPage() {
         </div>
       )}
 
-      {/* Results table */}
-      {assignments.length > 0 && (
+      {/* Live table — the saved duties, edited in place (no draft open). */}
+      {!showPlanner && !dataLoading && homeGames.length > 0 && (
+        <LiveAssignmentTable
+          games={homeGames}
+          teams={teams}
+          sportTeams={sportTab === 'volleyball' ? vbTeams : bbTeams}
+          members={members}
+          teamMemberIds={teamMemberIds}
+          guestMemberIds={guestMemberIds}
+          hallNameById={hallNameById}
+          sport={sportTab}
+        />
+      )}
+
+      {/* Results table (the planner's draft) */}
+      {showPlanner && (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <Table className="w-full text-left text-sm">
             <TableHeader>

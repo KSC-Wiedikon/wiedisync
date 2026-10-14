@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Mach **Admin → Spielbetrib → Schriiber-Zuteilig** uf (Desktop) oder **Meh → Admin → Spielbetrib → Schriiber-Zuteilig** (Handy). Du bruuchsch Volleyball- oder Basketball-Admin-Zuegriff. D Siite deckt di aktuelli **Saison** ab. Under **Zueteilig** planisch, d **Übersicht** zeigt, was uf de Spiel gspeicheret isch. D automatischi Zueteilig startet nume en Superadmin; en einzelne Iisatz änderisch im Tab **Spiel** unter **Schriiberdienst**."
+          "text": "Mach **Admin → Spielbetrib → Schriiber-Zuteilig** uf (Desktop) oder **Meh → Admin → Spielbetrib → Schriiber-Zuteilig** (Handy). Du bruuchsch Volleyball- oder Basketball-Admin-Zuegriff. D Siite deckt di aktuelli **Saison** ab. Under **Zueteilig** planisch, d **Übersicht** zeigt, was uf de Spiel gspeicheret isch. D automatischi Zueteilig startet nume en Superadmin. Solang kein Entwurf offe isch, listet **Zueteilig** alli chömede Heimspiel mit ihrne gspeicherete Iisätz: Dienstteam oder Person änderisch direkt i de Tabälle – jedi Änderig wird sofort gspeicheret."
         },
         {
           "t": "h",
