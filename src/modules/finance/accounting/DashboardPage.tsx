@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { BellRing, ChevronRight, CircleCheck, GitCompareArrows, Landmark, Paperclip, Receipt, RefreshCw } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
+import TruncatedText from '../../../components/TruncatedText'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../../utils/dateHelpers'
 import {
   formatChf, isOpenInvoice, toNum, useAllExpenses, useDunningCandidates, useFinanceImports, useFinanceInvoices,
@@ -11,7 +12,7 @@ import { useBankLines, useParallel, useReceiptCoverage } from '../../../hooks/us
 import { useAuth } from '../../../hooks/useAuth'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { useAccountingFy } from './fyContext'
-import { useClubBook, type MonthPoint } from './useClubBook'
+import { resultEffect, useClubBook, type MonthPoint } from './useClubBook'
 
 const card = 'rounded-2xl border border-hairline bg-card shadow-card'
 const sectionTitle = 'text-base font-semibold text-foreground'
@@ -74,7 +75,9 @@ export default function DashboardPage() {
   }, [bank, expenses, dunning, parallel, coverage, imports, isRevisor, now, t])
 
   if (fyLoading || book.loading) return null
-  const recent = book.transactions.slice(0, 12)
+  // A ClubDesk compound booking ("Rechnung (Sammel)") is a header with no amount and
+  // no credit account; its "Sammelposition" lines carry the money and follow it.
+  const recent = book.transactions.filter((tx) => tx.amount_chf != null).slice(0, 12)
   const divLabel = (d: string) => d === 'vb' ? t('divVb') : d === 'bb' ? t('divBb') : t('divClub')
 
   return (
@@ -154,22 +157,28 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recent.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-foreground">{tx.booking_date ? formatDateCompactZurich(tx.booking_date) : '–'}</TableCell>
-                    <TableCell className="whitespace-normal break-words text-foreground/85">
-                      {tx.text || '–'}
-                      <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{tx.booking_date ? formatDateCompactZurich(tx.booking_date) : '–'} · {tx.debit_account_number} → {tx.credit_account_number || '–'}</span>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground" title={tx.debit_account_name ?? ''}>
-                      <Link to={`/accounts?acc=${encodeURIComponent(tx.debit_account_number ?? '')}`} className="hover:underline">{tx.debit_account_number || '–'}</Link>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground" title={tx.credit_account_name ?? ''}>
-                      <Link to={`/accounts?acc=${encodeURIComponent(tx.credit_account_number ?? '')}`} className="hover:underline">{tx.credit_account_number || '–'}</Link>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-right tabular-nums text-foreground">{formatChf(tx.amount_chf)}</TableCell>
-                  </TableRow>
-                ))}
+                {recent.map((tx) => {
+                  // Green + for income, red − for an expense; a transfer between the club's own accounts stays neutral.
+                  const effect = resultEffect(tx, book.typeByNum)
+                  const kind = effect > 0.005 ? 'income' : effect < -0.005 ? 'expense' : null
+                  return (
+                    <TableRow key={tx.id}>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-foreground">{tx.booking_date ? formatDateCompactZurich(tx.booking_date) : '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-foreground/85">
+                        {tx.text || '–'}
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{tx.booking_date ? formatDateCompactZurich(tx.booking_date) : '–'} · {tx.debit_account_number} → {tx.credit_account_number || '–'}</span>
+                      </TableCell>
+                      <AccountCell num={tx.debit_account_number} name={tx.debit_account_name || book.nameByNum.get(tx.debit_account_number ?? '') || ''} />
+                      <AccountCell num={tx.credit_account_number} name={tx.credit_account_name || book.nameByNum.get(tx.credit_account_number ?? '') || ''} />
+                      <TableCell
+                        className={`whitespace-nowrap text-right tabular-nums ${kind === 'income' ? pos : kind === 'expense' ? neg : 'text-foreground'}`}
+                        title={kind ? t(kind) : undefined}
+                      >
+                        {kind === 'income' ? '+' : kind === 'expense' ? '−' : ''}{formatChf(tx.amount_chf)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -178,6 +187,16 @@ export default function DashboardPage() {
 
       <p className="text-xs text-muted-foreground/80">{t('mirrorNote')}</p>
     </div>
+  )
+}
+
+/** Account number (links to its ledger) with the account's name beneath it where the table has room. */
+function AccountCell({ num, name }: { num: string | null; name: string }) {
+  return (
+    <TableCell className="hidden sm:table-cell text-muted-foreground" title={name}>
+      <Link to={`/accounts?acc=${encodeURIComponent(num ?? '')}`} className="hover:underline">{num || '–'}</Link>
+      {num && name && <TruncatedText text={name} className="hidden max-w-[11rem] text-xs text-muted-foreground/80 md:block" />}
+    </TableCell>
   )
 }
 

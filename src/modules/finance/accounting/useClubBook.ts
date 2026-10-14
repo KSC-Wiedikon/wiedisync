@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useFinanceAccounts, useFinanceTransactions, toNum } from '../../../hooks/useFinance'
-import type { FinanceAccount, FinanceTransaction } from '../types'
+import type { AccountType, FinanceAccount, FinanceTransaction } from '../types'
 
 export type AcctRow = FinanceAccount & { bal: number }
 
@@ -23,6 +23,21 @@ function statsFrom(rows: FinanceTransaction[]) {
 
 export interface MonthPoint { month: string; income: number; expense: number }
 
+/** Year-end closing and opening entries move balances between years — they are not income or expense. */
+const isYearEntry = (tx: FinanceTransaction) => tx.typ === 'Abschluss' || tx.typ === 'Eröffnung' || tx.typ === 'Eroeffnung'
+
+/**
+ * What one booking does to the year's result: + for income (or an expense refunded),
+ * − for an expense (or income paid back), 0 for a transfer between balance-sheet
+ * accounts and for the closing/opening entries.
+ */
+export function resultEffect(tx: FinanceTransaction, typeByNum: Map<string, AccountType | null>): number {
+  if (isYearEntry(tx)) return 0
+  const amt = toNum(tx.amount_chf)
+  const isPl = (num: string | null) => { const t = num ? typeByNum.get(num) : null; return t === 'income' || t === 'expense' }
+  return (isPl(tx.credit_account_number) ? amt : 0) - (isPl(tx.debit_account_number) ? amt : 0)
+}
+
 /**
  * The club's book for one fiscal year, as the reports read it: the ClubDesk mirror
  * (source='clubdesk'), the book of record while the two books run in parallel. The
@@ -40,9 +55,10 @@ export function useClubBook(fyId: string) {
   const loading = accountsRaw === undefined || (!!fyId && txRaw === undefined)
 
   const nameByNum = useMemo(() => { const m = new Map<string, string>(); for (const a of accounts) m.set(a.number, a.name); return m }, [accounts])
+  const typeByNum = useMemo(() => { const m = new Map<string, AccountType | null>(); for (const a of accounts) m.set(a.number, a.type); return m }, [accounts])
   // P&L excludes the year-end closing and opening entries: the closing zeroes the
   // income/expense accounts, so a CLOSED year would otherwise read as 0.
-  const plTransactions = useMemo(() => transactions.filter((tx) => tx.typ !== 'Abschluss' && tx.typ !== 'Eroeffnung'), [transactions])
+  const plTransactions = useMemo(() => transactions.filter((tx) => !isYearEntry(tx)), [transactions])
   const allStats = useMemo(() => statsFrom(transactions), [transactions])
   const plStats = useMemo(() => statsFrom(plTransactions), [plTransactions])
 
@@ -76,8 +92,6 @@ export function useClubBook(fyId: string) {
 
   /** Income and expenses per calendar month (YYYY-MM), oldest first. */
   const monthly = useMemo<MonthPoint[]>(() => {
-    const typeByNum = new Map<string, FinanceAccount['type']>()
-    for (const a of accounts) typeByNum.set(a.number, a.type)
     const m = new Map<string, MonthPoint>()
     for (const tx of plTransactions) {
       const month = (tx.booking_date || '').slice(0, 7)
@@ -93,10 +107,10 @@ export function useClubBook(fyId: string) {
       m.set(month, p)
     }
     return [...m.values()].sort((a, b) => a.month.localeCompare(b.month))
-  }, [accounts, plTransactions])
+  }, [typeByNum, plTransactions])
 
   return {
-    loading, accounts, transactions, plTransactions, nameByNum, accountRows,
+    loading, accounts, transactions, plTransactions, nameByNum, typeByNum, accountRows,
     incomeRows, expenseRows, assetRows, liabEqRows,
     totalIncome, totalExpense, result: totalIncome - totalExpense, totalAssets, totalLiabEq,
     treasury, divisions, monthly,
