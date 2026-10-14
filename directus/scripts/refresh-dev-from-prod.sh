@@ -139,6 +139,7 @@ SCRUB="$WORK/scrub.sql"
 REPIN="$WORK/repin.sql"
 PGUARD="$WORK/prod-guard.sql"
 RLOG="$WORK/restore.log"
+LICKEEP="$WORK/devlicense.sql"
 printf '%s' "$6" | base64 -d > "$SCRUB" 2>/dev/null
 if [ ! -s "$SCRUB" ]; then
   echo "!! Scrub SQL did not arrive — aborting (dev untouched)."; exit 1
@@ -190,6 +191,11 @@ echo "[1/7] Capturing dev service-account creds (for re-pin after clone)"
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A -F'|' </dev/null \
   -c "SELECT id, email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
   > "$CREDS" 2>/dev/null || true
+
+# Dev's own Directus licence activation — see [5b/7] in refresh-dev-daily.sh.
+docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A </dev/null \
+  -c "SELECT format('UPDATE directus_settings SET project_id = %L, license_key = %L, license_token = %L;', project_id, license_key, license_token) FROM directus_settings WHERE license_key IS NOT NULL LIMIT 1;" \
+  > "$LICKEEP" 2>/dev/null || true
 
 echo "[1b/7] Fingerprinting prod credentials (prod-equality guard)"
 # One UPDATE per credential kind, listing md5() of every PROD token / password
@@ -278,17 +284,23 @@ if [ "$fail" -eq 1 ]; then
   exit 1
 fi
 
-# Clear the cloned Directus license so dev runs keyless (Core/grace) and never
-# re-activates. The clone carries prod's license_key/license_token encrypted with
-# PROD's KEY/SECRET — dev can't decrypt them and would re-activate from the env
-# LICENSE_KEY, burning a fresh activation slot every night until the 5-activation
-# cap is exhausted (dev crash-loops on "Activation limit exceeded"). Dev has no
-# LICENSE_KEY in its .env (commented out 2026-07-15), so nulling these keeps dev
-# in the 30-day Core grace period, which resets on every nightly clone. Prod is
-# untouched. Runs unconditionally (independent of the PII scrub flag).
-echo "[5b/7] Clearing cloned license (dev runs keyless / Core grace)"
+# Directus licence: drop prod's, put dev's own activation back (dev has its own
+# key since 14.10.2026). Full rationale in refresh-dev-daily.sh at the same step —
+# keep the two identical. Runs unconditionally (independent of the PII scrub flag).
+echo "[5b/7] Licence: clearing prod's, restoring dev's own activation"
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
   -c "UPDATE directus_settings SET license_key=NULL, license_token=NULL;" >/dev/null 2>&1 || true
+if [ -s "$LICKEEP" ]; then
+  if docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$LICKEEP" >/dev/null 2>&1; then
+    echo "      dev's activation restored"
+  else
+    echo "      WARN could not restore dev's activation — Directus activates again at start (uses one of the key's slots)"
+  fi
+else
+  docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
+    -c "UPDATE directus_settings SET project_id = (lpad(to_hex((extract(epoch FROM clock_timestamp())*1000)::bigint), 12, '0') || '7' || substr(md5(random()::text), 1, 3) || to_hex(8 + floor(random()*4)::int) || substr(md5(random()::text), 1, 15))::uuid;" >/dev/null 2>&1 || true
+  echo "      dev had no activation of its own — fresh project_id; it activates from LICENSE_KEY at start"
+fi
 
 if [ "$DO_SCRUB" = "1" ]; then
   echo "[6/7] Scrubbing credentials + PII (refresh-dev-scrub.sql)"

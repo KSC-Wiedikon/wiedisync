@@ -130,6 +130,7 @@ CREDS="$WORK/devcreds.txt"
 REPIN="$WORK/repin.sql"
 PGUARD="$WORK/prod-guard.sql"
 RLOG="$WORK/restore.log"
+LICKEEP="$WORK/devlicense.sql"
 
 # Emails kept REAL after scrub (admin/cron logins + OAuth accounts). Used both
 # as the scrub allowlist and as the re-pin filter. Keep in sync with
@@ -241,6 +242,13 @@ log "[1/7] Capturing dev service-account creds (for re-pin after clone)"
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A -F'|' </dev/null \
   -c "SELECT id, email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
   > "$CREDS" 2>/dev/null || true
+
+# Dev's own Directus licence activation (own key since 14.10.2026, see [5b/7]):
+# one UPDATE that puts dev's project_id + licence key + token back after the clone.
+# Empty when dev has not activated yet.
+docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A </dev/null \
+  -c "SELECT format('UPDATE directus_settings SET project_id = %L, license_key = %L, license_token = %L;', project_id, license_key, license_token) FROM directus_settings WHERE license_key IS NOT NULL LIMIT 1;" \
+  > "$LICKEEP" 2>/dev/null || true
 
 # Built now (not after the clone) because the rollback path needs it too.
 # Fields: $1=id  $2=email  $3=password  $4=token.
@@ -369,17 +377,34 @@ if [ "$fail" -eq 1 ]; then
   exit 1
 fi
 
-# Clear the cloned Directus license so dev runs keyless (Core/grace) and never
-# re-activates. The clone carries prod's license_key/license_token encrypted with
-# PROD's KEY/SECRET — dev can't decrypt them and would re-activate from the env
-# LICENSE_KEY, burning a fresh activation slot every night until the 5-activation
-# cap is exhausted (dev crash-loops on "Activation limit exceeded"). Dev has no
-# LICENSE_KEY in its .env (commented out 2026-07-15), so nulling these keeps dev
-# in the 30-day Core grace period, which resets on every nightly clone. Prod is
-# untouched.
-log "[5b/7] Clearing cloned license (dev runs keyless / Core grace)"
+# Directus licence: drop prod's, put dev's own activation back. Since 14.10.2026
+# dev has its OWN Open Innovation Grant key (LICENSE_KEY in its .env; prod's key
+# is never on dev). The clone carries prod's project_id, license_key and
+# license_token, and Directus binds an activation to the project_id, so dev keeps
+# its own three values across the clone:
+#   - restored -> Directus only REFRESHES its activation at start (no new slot);
+#   - nulled instead -> it ACTIVATES again from LICENSE_KEY every night and burns
+#     the key's activation slots (5) in days, then crash-loops on "Activation
+#     limit exceeded" — what happened with prod's key in July 2026.
+# Without a key dev is NOT in a perpetual grace: Core's 30-day grace counts from
+# the v12 migration timestamp, which the clone copies from prod (11.07.2026), so
+# keyless dev is locked (/items, filtered permissions, realtime, member login).
+# If dev has no activation yet, it gets a fresh project_id (UUIDv7, like Directus
+# makes) so its first activation is never made under prod's project_id.
+log "[5b/7] Licence: clearing prod's, restoring dev's own activation"
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
   -c "UPDATE directus_settings SET license_key=NULL, license_token=NULL;" >/dev/null 2>&1 || true
+if [ -s "$LICKEEP" ]; then
+  if docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$LICKEEP" >/dev/null 2>&1; then
+    log "      dev's activation restored"
+  else
+    log "      WARN could not restore dev's activation — Directus activates again at start (uses one of the key's slots)"
+  fi
+else
+  docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
+    -c "UPDATE directus_settings SET project_id = (lpad(to_hex((extract(epoch FROM clock_timestamp())*1000)::bigint), 12, '0') || '7' || substr(md5(random()::text), 1, 3) || to_hex(8 + floor(random()*4)::int) || substr(md5(random()::text), 1, 15))::uuid;" >/dev/null 2>&1 || true
+  log "      dev had no activation of its own — fresh project_id; it activates from LICENSE_KEY at start"
+fi
 
 log "[6/7] Scrubbing credentials + PII ($(basename "$SCRUB_SQL"))"
 if ! scrub; then
