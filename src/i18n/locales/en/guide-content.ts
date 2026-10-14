@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Open **Admin → Game operations → Scorer assignment** (desktop) or **More → Admin → Game operations → Scorer assignment** (phone). You need volleyball or basketball admin access. The page covers the current **Season**. **Assignment** is where you plan; **Overview** shows what is saved on the games."
+          "text": "Open **Admin → Game operations → Scorer assignment** (desktop) or **More → Admin → Game operations → Scorer assignment** (phone). You need volleyball or basketball admin access. The page covers the current **Season**. **Assignment** is where you plan; **Overview** shows what is saved on the games. Only a superadmin runs the automatic assignment; to change a single duty, use the **Games** tab on **Scorer duty**."
         },
         {
           "t": "h",

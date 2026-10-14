@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Öffne **Admin → Spielbetrieb → Schreiber-Zuteilung** (Desktop) oder **Mehr → Admin → Spielbetrieb → Schreiber-Zuteilung** (Handy). Du brauchst Volleyball- oder Basketball-Admin-Zugang. Die Seite deckt die aktuelle **Saison** ab. Unter **Zuteilung** planst du; **Übersicht** zeigt, was auf den Spielen gespeichert ist."
+          "text": "Öffne **Admin → Spielbetrieb → Schreiber-Zuteilung** (Desktop) oder **Mehr → Admin → Spielbetrieb → Schreiber-Zuteilung** (Handy). Du brauchst Volleyball- oder Basketball-Admin-Zugang. Die Seite deckt die aktuelle **Saison** ab. Unter **Zuteilung** planst du; **Übersicht** zeigt, was auf den Spielen gespeichert ist. Die automatische Zuteilung startet nur ein Superadmin; einen einzelnen Einsatz änderst du im Tab **Spiele** unter **Schreiberdienst**."
         },
         {
           "t": "h",

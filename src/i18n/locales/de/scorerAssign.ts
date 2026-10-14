@@ -89,6 +89,8 @@ export default {
   // Status
   noGames: 'Keine Spiele geladen.',
   gamesLoaded: '{{count}} Spiele geladen.',
+  planCentralHint: 'Die automatische Einteilung wird zentral ausgeführt. Einen einzelnen Einsatz änderst du im Tab Spiele unter Schreiberdienst.',
+  openScorerDuty: 'Schreiberdienst öffnen',
   assignmentsDone: 'Zuteilung abgeschlossen. {{assigned}} von {{total}} Spielen zugewiesen.',
   saveSuccess: '{{count}} Spiele aktualisiert.',
   saveError: 'Fehler beim Speichern.',

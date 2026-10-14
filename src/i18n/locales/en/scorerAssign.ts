@@ -89,6 +89,8 @@ export default {
   // Status
   noGames: 'No games loaded.',
   gamesLoaded: '{{count}} games loaded.',
+  planCentralHint: 'The automatic assignment is run centrally. To change a single duty, use the Games tab on Scorer duty.',
+  openScorerDuty: 'Open Scorer duty',
   assignmentsDone: 'Assignment complete. {{assigned}} of {{total}} games assigned.',
   saveSuccess: '{{count}} games updated.',
   saveError: 'Error saving.',
