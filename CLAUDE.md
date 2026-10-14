@@ -28,7 +28,7 @@ volleyball.ch. Do not give it any.
 ## Tech Stack
 - Frontend: React 19 + TypeScript + Vite + TailwindCSS v4 + shadcn/ui
 - UI: shadcn primitives in `src/components/ui/` (lowercase), KSCW wrappers in `src/components/` (PascalCase)
-- Backend: Directus 11 (Postgres, REST, Realtime, Auth) on Hetzner VPS — plain Docker, not Coolify
+- Backend: Directus 12 (Postgres, REST, Realtime, Auth) on Hetzner VPS — plain Docker, not Coolify
 - Hosting: Cloudflare Pages (frontend), Hetzner + CF Tunnel (backend)
 - Language: **English-first**, multilingual UI (DE / EN / FR / GSW / IT). Locale defaults to browser language; unrecognised browsers fall back to English. Write new i18n strings in English first, then translate to DE at minimum. Code identifiers in English.
 
@@ -108,33 +108,33 @@ If a future change tempts you to add a permission row in a numbered SQL file: st
 - See `INFRA.md → Hetzner VPS Management`.
 
 ## Domains
-- `kscw.ch` — Public website (Astro, CF Pages project `kscw-website`) since the 2026-06-18 cutover — no longer ClubDesk. `kscw-website.pages.dev` 302-redirects here (`functions/_middleware.js` in that repo).
-- `wiedisync.kscw.ch` — React prod, CF Pages `wiedisync` (`prod` branch) → `directus.kscw.ch`
+- `kscw.ch` — Public website (Astro, CF Pages project **`kscw-web`** in the club Cloudflare account, Direct Upload, deployed by GitHub Actions) since the 2026-06-18 cutover — no longer ClubDesk. `kscw-website.pages.dev` (old project in Luca's personal account) 302-redirects here.
+- `wiedisync.kscw.ch` — React prod, CF Pages **`kscw-wiedisync`** (club account, Direct Upload; GitHub Actions deploys on push to `prod`) → `directus.kscw.ch`
 - `wiedisync-dev.kscw.ch` — **React dev where login works** (CF Pages `kscw-wiedisync-dev`, production branch `dev` → `directus-dev.kscw.ch`, added 2026-09-29). The dev session cookie is `SameSite=Lax` on `directus-dev.kscw.ch`, so any `*.pages.dev` preview (e.g. `dev.kscw-wiedisync.pages.dev`) can load but can NEVER stay logged in — only a `.kscw.ch` host can. A new cookie-session host must also go into `kscw-hooks/src/cors-credentials.js` — into the prod OR the dev list (one per instance since 2026-10-12); the same list decides which origins may open an authenticated WebSocket.
-- `dev.wiedisync.pages.dev` — React dev, CF Pages (`dev` branch) → `directus-dev.kscw.ch` (auto-detected in `src/lib/api.ts`). ⚠ **`wiedisync.pages.dev` (no `dev.` prefix) is the PROD-branch alias, not dev** — it serves the same build as `wiedisync.kscw.ch`. It still talks to `directus-dev.kscw.ch`, because `api.ts` pins prod Directus by hostname (`host === 'wiedisync.kscw.ch'`) and a `pages.dev` origin is not in that list — so it is prod code against dev data. ⚠⚠ **Never verify a prod deploy against it**: it tracks the project's production deployment and is correct even when the real hostname is not (2026-08-11 froze for ~3 releases; INFRA.md → Troubleshooting).
-- `spielplanung-dev.kscw.ch` — Spielplanung **dev** (CF Pages `wiedisync-spielplanung-dev`, `dev` branch → `directus-dev.kscw.ch`). ⚠ Until 2026-08-11 this was a second custom domain on the PROD project and served prod code against **prod data**; it is a real dev environment now. It is the only `.kscw.ch` scheduling host, so it is where authenticated (cookie-SSO) scheduling work happens — `*.pages.dev` cannot hold the `.kscw.ch` session cookie.
-- `spielplanung.wiedisync.kscw.ch` — Spielplanung standalone app (own CF Pages project; built via `npm run build:scheduling` / `VITE_APP_TARGET=scheduling`; cookie-session SSO from the member app). In-app `/admin/spielplanung|terminplanung` routes redirect here.
+- `wiedisync.pages.dev` / `dev.wiedisync.pages.dev` (and `wiedisync-spielplanung*.pages.dev`, `kscw-website.pages.dev`) — old Pages projects in Luca's **personal** Cloudflare account, frozen since 12.08/18.08.2026: stale builds, **not** a test target (dev is `wiedisync-dev.kscw.ch`). ⚠ They are still allow-listed in code (CSP-report CORS in `kscw-endpoints/src/index.js`, `kscw-hooks/src/turnstile.js`, dev link fallbacks, push/sentry-tunnel/live-relay Workers) — remove those entries **before** deleting the projects, or anyone could claim the freed `*.pages.dev` names.
+- `spielplanung-dev.kscw.ch` — Spielplanung **dev** (CF Pages `kscw-spielplanung-dev`, club account, `dev` branch → `directus-dev.kscw.ch`). ⚠ Until 2026-08-11 this was a second custom domain on the PROD project and served prod code against **prod data**; it is a real dev environment now. It is the only `.kscw.ch` scheduling host, so it is where authenticated (cookie-SSO) scheduling work happens — `*.pages.dev` cannot hold the `.kscw.ch` session cookie.
+- `spielplanung.wiedisync.kscw.ch` — Spielplanung standalone app (CF Pages `kscw-spielplanung`, club account; built via `npm run build:scheduling` / `VITE_APP_TARGET=scheduling`; cookie-session SSO from the member app). In-app `/admin/spielplanung|terminplanung` routes redirect here.
 - `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on Hetzner, not Coolify)
-- `kscw-website.pages.dev` — CF Pages project behind `kscw.ch`. Dev-first like wiedisync (`dev` branch → preview, `prod` branch → live at `kscw.ch`); promote `dev` → `prod` with user approval.
-- `kscw-push.lucanepa.workers.dev` — Web push CF Worker
+- `kscw-web` — CF Pages project behind `kscw.ch` (repo `kscw-website`). Dev-first like wiedisync (`dev` branch → preview `dev.kscw-web.pages.dev`, `prod` branch → live at `kscw.ch`); promote `dev` → `prod` with user approval.
+- `kscw-push.kscw.workers.dev` — Web push CF Worker in the **club** account; prod's `PUSH_WORKER_URL` points here. Deploy with `CLOUDFLARE_ACCOUNT_ID=989cbb0f25ed3f11e417908694ef8da5`. ⚠ An older copy `kscw-push.lucanepa.workers.dev` lives in Luca's personal account (still the code's fallback URL) — never deploy there.
 
 See `INFRA.md → Domains & Hosting Overview` for full map.
 
 ## Branches & Dev-First Workflow
 - `prod` → production (`wiedisync.kscw.ch` / `directus.kscw.ch`)
-- `dev` → preview (`wiedisync.pages.dev` / `directus-dev.kscw.ch`)
+- `dev` → dev (`wiedisync-dev.kscw.ch` / `directus-dev.kscw.ch`)
 
 **All changes go through `dev` first.** Never push to `prod` unless explicitly told. Flow:
 1. Commit on `dev`
 2. Frontend deploys automatically on push
 3. Backend: `npm run ext:deploy:dev` — runs `ext:install` (npm ci in `kscw-endpoints`; skipping this once crashed ALL `/kscw/*` routes) → rsync `directus/extensions/` to VPS → restart container → `ext:smoke:dev` curl-check. Note: `directus/scripts/` is a separate bind-mount deployed via `npm run scripts:deploy:dev|prod`, NOT covered by `ext:deploy`.
-4. Test on `wiedisync.pages.dev` → `directus-dev.kscw.ch`
+4. Test on `wiedisync-dev.kscw.ch` → `directus-dev.kscw.ch`
 5. With user approval, merge `dev` → `prod` and push
 6. `npm run ext:deploy:prod` for backend extensions
 
 ## Session Workflow
 1. **Start**: Read `CLAUDE.md` + `INFRA.md` before doing anything.
-2. **End**: Record dev/deploy history in **`docs/DEVLOG.md`** (one dated line) — NOT inline in this file. git log + DEVLOG are the record; keep CLAUDE.md instruction-only. If you touch "Recent dev log" below, prune it back to ~5 entries.
+2. **End**: Record dev/deploy history in **`docs/DEVLOG.md`** (one dated line) — NOT inline in this file. git log + DEVLOG are the record; keep CLAUDE.md instruction-only.
 3. **Before finishing**: Ask "Should this commit be added to the changelog and version bumped?" If yes: update `CHANGELOG.md`, bump `package.json` (semver), and update `APP_VERSION` + `CHANGELOG` array in `src/modules/changelog/ChangelogPage.tsx` (in-app via Options → What's New). `ChangelogPage` entries and `CHANGELOG.md` are both in English (consistent with the English-first convention).
 
 ### Versioning discipline (don't bump for every micro-fix)
@@ -142,14 +142,3 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 - **Batch** small fixes — when several minor things land together, bump once and write a single short entry like *"Bug fixes and polish"* without enumerating each item. Detail belongs in commit messages, not the in-app changelog.
 - **Bump + write detailed entry** only when there's user-visible behavior change, a new feature, a schema migration, security work, or a non-obvious bug fix worth explaining. The audience for `ChangelogPage` is end users — they don't care that v4.6.6 fixed a bug that v4.6.7 had to refix, they care that the count is right.
 - If the same area of code gets multiple commits in a single day chasing the same root cause, **collapse into one entry** before the day ends. Iterative debugging notes belong in git, not the in-app changelog.
-
-## Recent dev log
-<!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
-     (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
-     Keep this list pruned to ~5 entries. -->
-- **2026-09-27** Car pooling back, per game/training/event (default off) + "Open to" team scope for shared activities; per-offer teams + return time; endpoint-only `carpools.js`, migrations 378–380, v2.21.0 (dev+prod)
-- **2026-09-22** DU18 Fire/Spark derby: fixed home/away + KWI calendar push — `teams.bb_source_id` was stale after Basketplan's season rollover (broke sv-sync-style intra-club derby detection); migration 369 repoints it, resynced (no version bump, dev+prod)
-- **2026-09-22** Coach/TR can no longer invite new people into WiediSync outside `/registration` — deleted `team-invites/create`+`/claim`, restricted `signup-invites/create` to admin/vorstand (security hardening, ext+frontend dev+prod, v2.14.2)
-- **2026-09-21** ClubDesk register triple (Status/Sektion/Eintritt) + Anrede now seeded at registration time instead of only at push time; migration 366 backfilled both for existing members (fill-only, no version bump, dev+prod)
-- **2026-09-15** Season health `/admin/season-health` — superadmin whole-season diagnostic: 191 static-SQL checks in 8 sections + roster/team tables, VB/BB/club tabs, `npm run health:sql:dev` proves the registry on psql (no migration, dev+prod)
-**Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).
