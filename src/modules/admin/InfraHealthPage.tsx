@@ -38,12 +38,16 @@ const DAY = 24 * 3600000
  * Wednesday morning until the following Monday. Pressing "Run now" turned it green
  * and it drifted back two days later, every week (09.09.2026).
  */
-const SYNC_SOURCES: { key: string; labelKey: string; endpoint: string; staleMs: number }[] = [
+// `path` overrides the default `/kscw/admin/<endpoint>` trigger.
+const SYNC_SOURCES: { key: string; labelKey: string; endpoint: string; staleMs: number; path?: string }[] = [
   { key: 'sv_sync', labelKey: 'infraSvSync', endpoint: 'sv-sync', staleMs: 2 * DAY },      // daily 06:00
   { key: 'bp_sync', labelKey: 'infraBpSync', endpoint: 'bp-sync', staleMs: 2 * DAY },      // daily 06:05
   { key: 'vm_sync', labelKey: 'infraVmSync', endpoint: 'vm-sync', staleMs: 8 * DAY },      // WEEKLY, Mondays 04:00
   { key: 'svrz_sync', labelKey: 'infraSvrzSync', endpoint: 'svrz-sync', staleMs: 2 * DAY },// daily 04:30
   { key: 'gcal_sync', labelKey: 'infraGcalSync', endpoint: 'gcal-sync', staleMs: 2 * DAY },// daily 04:00
+  // VPS host cron 02:00 UTC; writes its own heartbeat. "Run now" queues the same
+  // on-demand import the finance page's Sync button does (host dispatcher, ~1 min).
+  { key: 'clubdesk_finance', labelKey: 'infraClubdeskFinance', endpoint: '', staleMs: 2 * DAY, path: '/kscw/finance/ledger/clubdesk-sync' },
 ]
 
 function statusColor(s: Status) {
@@ -163,12 +167,12 @@ export default function InfraHealthPage() {
   // the click (capped). VM / SVRZ are long-running (return 202 immediately);
   // the poll cap just stops the spinner — the heartbeat reflects completion
   // on the next manual refresh regardless.
-  const triggerSync = useCallback(async (source: string, endpoint: string) => {
+  const triggerSync = useCallback(async (source: string, endpoint: string, path?: string) => {
     setTriggering(prev => ({ ...prev, [source]: true }))
     const clickedAt = Date.now()
     let async202 = false
     try {
-      const res = await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', credentials: 'include' })
+      const res = await fetch(`${PROD_URL}${path ?? `/kscw/admin/${endpoint}`}`, { method: 'POST', credentials: 'include' })
       async202 = res.status === 202 // VM / SVRZ run as background children
       // A refusal used to be swallowed here — spinner off, nothing said — so
       // "Run now" on the SVRZ sync one second after "Run now" on the VM sync
@@ -242,7 +246,7 @@ export default function InfraHealthPage() {
         name: t(src.labelKey),
         status,
         detail,
-        onRefresh: () => triggerSync(src.key, src.endpoint),
+        onRefresh: () => triggerSync(src.key, src.endpoint, src.path),
         refreshing: !!triggering[src.key],
       }
     })

@@ -92,6 +92,7 @@ export default {
   infraSvSync: 'Swiss Volley sync',
   infraBpSync: 'Basketplan sync',
   infraGcalSync: 'Google Calendar sync',
+  infraClubdeskFinance: 'ClubDesk finance sync',
   infraVmSync: 'Volleymanager sync',
   infraSvrzSync: 'SVRZ scheduling sync',
   infraRunNow: 'Run now',

@@ -5251,6 +5251,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 10b³. Watchdog: ClubDesk finance sync (daily 05:15 UTC) ──
+  // The sync runs on the VPS host (/opt/clubdesk-sync/clubdesk-finance-sync.sh,
+  // 02:00 UTC), outside Directus, and writes its own `sync_runs` heartbeat
+  // (source clubdesk_finance). It failed silently twice — 82 nights in June–Sept
+  // and 11.–14.10.2026 — so a failed or missing night now lands in the error log
+  // and Sentry. Prod only: only prod has the nightly job.
+  schedule('15 5 * * *', async () => {
+    if (skipExternalJob('clubdesk_finance_watchdog', log)) return
+    try {
+      const row = await database('sync_runs').where({ source: 'clubdesk_finance' }).first()
+      const ageH = row?.last_run_at ? (Date.now() - new Date(row.last_run_at).getTime()) / 3600000 : Infinity
+      let problem = null
+      if (!row) problem = 'no heartbeat recorded yet'
+      else if (row.status === 'error') problem = `last run failed: ${row.error_message || 'unknown error'}`
+      else if (ageH > 30) problem = `no successful run for ${Math.round(ageH)} h`
+      if (problem) {
+        log.error({ msg: `ClubDesk finance sync watchdog: ${problem}`, event: 'cron.clubdesk_finance_watchdog' })
+        logCronError('clubdesk_finance_sync', new Error(`ClubDesk finance sync: ${problem}`), { ageHours: Math.round(ageH) })
+      }
+    } catch (err) {
+      log.error({ msg: `ClubDesk finance watchdog: ${err.message}`, event: 'cron.clubdesk_finance_watchdog' })
+    }
+  })
+
   // ── 10c. Cron: SVRZ scheduling sync (daily 04:30 UTC) ──
   // Calls svrz-scheduling-sync.mjs — walks SVRZ JSON API, upserts games + contacts
   schedule('30 4 * * *', async () => {

@@ -163,9 +163,14 @@ for (const r of inv.rows) collectFy(date(r[inv.idx['Rechnungsdatum']]))
 // ── build the psql transaction ──────────────────────────────────────
 const g = (csv, r, name) => name in csv.idx ? r[csv.idx[name]] : '' // safe getter
 
+// ClubDesk numbers bookings 1, 2, 3 … again in EVERY Buchungsjahr, and the scraper
+// now exports all years into one file — so the bare ID would collide on the
+// `finance_transactions_clubdesk_id_uidx` unique index. Key it per fiscal year
+// ("2025/26#17"); opening/closing rows have no ID and stay NULL.
+const bookingKey = (id, iso) => (id && iso ? `${fiscalYearOf(iso).label}#${id}` : null)
 const bookingValues = bk.rows.map(r => {
   const v = (n) => g(bk, r, n)
-  return `(${sql(clean(v('ID')) || null)}, ${sql(clean(v('Typ')))}, ${sql(clean(v('Beleg')))}, ` +
+  return `(${sql(bookingKey(clean(v('ID')), date(v('Datum'))))}, ${sql(clean(v('Typ')))}, ${sql(clean(v('Beleg')))}, ` +
     `${sql(date(v('Datum')))}, ${sql(clean(v('Text')))}, ` +
     `${sql(clean(v('Soll (Nummer)')))}, ${sql(clean(v('Soll (Bezeichnung)')))}, ` +
     `${sql(clean(v('Haben (Nummer)')))}, ${sql(clean(v('Haben (Bezeichnung)')))}, ` +

@@ -24,10 +24,13 @@
  * on class names. Finanzen is found by clicking launcher icons until a VISIBLE
  * "Rechnungen" tab appears (self-calibrating, survives icon reordering). Export
  * delivers via GET /clubdesk/reportstore?reportId=<uuid>.
+ *
+ * Bookings: "Export Buchungen" covers only the Buchungsjahr selected in the panel,
+ * so every year is selected and exported in turn (exportAllBookingYears).
  */
 
 import { launchBrowser } from './clubdesk-browser.mjs'
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -184,6 +187,127 @@ async function openFinanceTable(page, which, leftNavFilter) {
   log(`Finanzen → ${which} open.`)
 }
 
+const YEAR_RANGE = /^\d{2}\.\d{2}\.\d{4} - \d{2}\.\d{2}\.\d{4}/
+
+/** The Buchungsjahr combo in Buchhaltung's left panel: its label and current value.
+ *  ⚠ The toolbar ALSO has a "Buchungsjahr" menu button (x≈380) — the panel label is
+ *  the one left of the grid, so anchor on x < 260. */
+const yearCombo = (page) =>
+  page.evaluate((src) => {
+    const range = new RegExp(src)
+    let label = null
+    for (const e of document.querySelectorAll('*')) {
+      if ((e.innerText || '').trim() !== 'Buchungsjahr' || e.getClientRects().length === 0) continue
+      const r = e.getBoundingClientRect()
+      if (r.left < 260 && r.width > 0 && (!label || r.width * r.height < label.w * label.h)) {
+        label = { x: r.left + r.width / 2, y: r.top + r.height / 2, bottom: r.bottom, w: r.width, h: r.height }
+      }
+    }
+    if (!label) return null
+    let value = null
+    for (const e of document.querySelectorAll('*')) {
+      const t = (e.innerText || '').trim()
+      if (!range.test(t) || e.getClientRects().length === 0) continue
+      const r = e.getBoundingClientRect()
+      if (r.left > 260 || r.top < label.bottom - 2 || r.top > label.bottom + 40) continue
+      if (!value || r.width * r.height < value.w * value.h) {
+        value = { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, w: r.width, h: r.height, text: t }
+      }
+    }
+    return value ? { label, value } : null
+  }, YEAR_RANGE.source)
+
+/** The open year list: one entry per fiscal year, top to bottom (oldest first). */
+const yearListItems = (page, belowY) =>
+  page.evaluate(({ src, belowY }) => {
+    const exact = new RegExp(src + '$')
+    const out = []
+    for (const e of document.querySelectorAll('*')) {
+      const t = (e.innerText || '').trim()
+      if (!exact.test(t) || e.getClientRects().length === 0) continue
+      const r = e.getBoundingClientRect()
+      if (r.left > 260 || r.top <= belowY || r.width <= 0) continue
+      if (out.some((o) => o.text === t && Math.abs(o.y - (r.top + r.height / 2)) < 4)) continue
+      out.push({ text: t, x: r.left + r.width / 2, y: r.top + r.height / 2, area: r.width * r.height })
+    }
+    // Keep the smallest element per year text (the leaf, not its row wrapper).
+    const best = new Map()
+    for (const o of out) if (!best.has(o.text) || o.area < best.get(o.text).area) best.set(o.text, o)
+    return [...best.values()].sort((a, b) => a.y - b.y)
+  }, { src: YEAR_RANGE.source, belowY })
+
+async function openYearList(page) {
+  const combo = await yearCombo(page)
+  if (!combo) throw new Error('Buchungsjahr selector not found in the Buchhaltung panel.')
+  // The trigger caret sits at the panel's right edge between label and value; the
+  // value text opens the list too. Try the caret first, then the text.
+  for (const pt of [{ x: combo.value.right + 12, y: (combo.label.y + combo.value.y) / 2 }, { x: combo.value.x, y: combo.value.y }]) {
+    await page.mouse.click(pt.x, pt.y)
+    await sleep(1200)
+    const items = await yearListItems(page, combo.value.y)
+    if (items.length) return { combo, items }
+  }
+  throw new Error('The Buchungsjahr list did not open.')
+}
+
+/** Select one fiscal year and wait until the grid shows it. */
+async function selectYear(page, yearText) {
+  const { items } = await openYearList(page)
+  const item = items.find((i) => i.text === yearText)
+  if (!item) throw new Error(`Fiscal year "${yearText}" not in the Buchungsjahr list (${items.map((i) => i.text).join(', ')}).`)
+  await page.mouse.click(item.x, item.y)
+  const deadline = Date.now() + 20000
+  for (;;) {
+    await sleep(500)
+    const c = await yearCombo(page)
+    if (c && c.value.text.startsWith(yearText)) break
+    if (Date.now() > deadline) throw new Error(`Selecting "${yearText}" did not take effect.`)
+  }
+  await page.waitForTimeout(2500) // let the grid reload for the new year
+}
+
+/**
+ * Export the bookings of EVERY fiscal year into one CSV. ClubDesk's "Export
+ * Buchungen" only covers the year currently selected in the Buchhaltung panel, and
+ * which year that is depends on the account: Luca's login opened on 2025/26, the
+ * wiedisync@kscw.ch service account on 2020/21 — so the 14.10.2026 04:01 run
+ * replaced the whole mirror with 2020/21. Each year is exported in turn and the
+ * files are joined under one header; the selection is put back afterwards.
+ */
+async function exportAllBookingYears(page, outPath) {
+  const { combo, items } = await openYearList(page)
+  const original = items.find((i) => combo.value.text.startsWith(i.text))?.text ?? null
+  await page.keyboard.press('Escape').catch(() => {})
+  await sleep(600)
+  const years = items.map((i) => i.text)
+  log(`[Buchhaltung] ${years.length} fiscal years: ${years.join(' | ')}`)
+  const parts = []
+  for (const [n, year] of years.entries()) {
+    await selectYear(page, year)
+    const dl = await exportCurrentTable(page, `Buchhaltung ${year}`)
+    const part = `${outPath}.${n}`
+    await dl.saveAs(part)
+    assertCsv(part, `Buchhaltung ${year}`, ['Soll (Nummer)', 'Haben (Nummer)', 'Betrag (CHF)'])
+    parts.push(part)
+  }
+  if (original) await selectYear(page, original).catch((e) => log(`⚠ Could not restore the year selection: ${e.message}`))
+  // Join: the first file whole, the rest without their header line (must match).
+  const firstLine = (buf) => { const i = buf.indexOf(0x0a); return i < 0 ? buf : buf.subarray(0, i + 1) }
+  const bufs = parts.map((p) => readFileSync(p))
+  const header = firstLine(bufs[0])
+  const chunks = [bufs[0]]
+  for (const [n, buf] of bufs.slice(1).entries()) {
+    const h = firstLine(buf)
+    if (!h.equals(header)) throw new Error(`[Buchhaltung] Header of ${years[n + 1]} differs from ${years[0]} — not joining.`)
+    const last = chunks[chunks.length - 1]
+    if (last.length && last[last.length - 1] !== 0x0a) chunks.push(Buffer.from('\r\n'))
+    chunks.push(buf.subarray(h.length))
+  }
+  writeFileSync(outPath, Buffer.concat(chunks))
+  for (const p of parts) rmSync(p, { force: true })
+  log(`[Buchhaltung] Joined ${years.length} years → ${outPath}`)
+}
+
 /** Sanity-check a downloaded CSV has the expected header columns. */
 function assertCsv(path, label, mustHave) {
   const header = new TextDecoder('windows-1252').decode(readFileSync(path)).split(/\r?\n/)[0] || ''
@@ -227,11 +351,9 @@ async function run() {
     log(`Downloaded Rechnungen via ${invDl.url()}`)
     assertCsv(OUT_INVOICES, 'Rechnungen', ['[Id]', 'Betrag', 'Rechnungsdatum'])
 
-    // ── Buchhaltung → export ──────────────────────────────────────────
+    // ── Buchhaltung → export, every fiscal year ───────────────────────
     await openFinanceTable(page, 'Buchhaltung')
-    const bkDl = await exportCurrentTable(page, 'Buchhaltung')
-    await bkDl.saveAs(OUT_BOOKINGS)
-    log(`Downloaded Buchhaltung via ${bkDl.url()}`)
+    await exportAllBookingYears(page, OUT_BOOKINGS)
     assertCsv(OUT_BOOKINGS, 'Buchhaltung', ['Soll (Nummer)', 'Haben (Nummer)', 'Betrag (CHF)'])
 
     log(`✓ Done. Invoices → ${OUT_INVOICES}, Bookings → ${OUT_BOOKINGS}`)

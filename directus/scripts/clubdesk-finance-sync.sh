@@ -28,13 +28,39 @@ esac
 INV="$DIR/clubdesk-rechnungen.csv"
 BOOK="$DIR/clubdesk-buchhaltung.csv"
 SQL="$DIR/finance-import.sql"
-cleanup() { rm -f "$INV" "$BOOK" "$SQL"; }
+STARTED=$(date +%s)
+STAGE=start
+
+# Heartbeat in sync_runs (source clubdesk_finance) — the Infra Health card and the
+# daily kscw-hooks watchdog read it. This job failed silently twice before
+# (82 nights in June–Sept, 11.–14.10.2026); now a failure or a missing night shows.
+heartbeat() { # status, error message (may be empty)
+  local ms=$(( ($(date +%s) - STARTED) * 1000 )) msg=${2//\'/\'\'}
+  docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -q -v ON_ERROR_STOP=1 -c "
+    INSERT INTO sync_runs (source, last_run_at, status, rows_changed, duration_ms, error_message)
+    SELECT 'clubdesk_finance', now(), '$1',
+           (SELECT count(*) FROM finance_transactions WHERE source = 'clubdesk'), $ms, NULLIF('$msg', '')
+    ON CONFLICT (source) DO UPDATE SET last_run_at = EXCLUDED.last_run_at, status = EXCLUDED.status,
+      rows_changed = EXCLUDED.rows_changed, duration_ms = EXCLUDED.duration_ms, error_message = EXCLUDED.error_message" \
+    >/dev/null 2>&1 || echo "⚠ heartbeat write failed"
+}
+
+# "$BOOK".N = the per-year parts the scraper joins; left behind if it dies mid-run.
+cleanup() {
+  local rc=$?
+  rm -f "$INV" "$BOOK" "$BOOK".* "$SQL"
+  if [ "$rc" -ne 0 ]; then heartbeat error "exit $rc during $STAGE"; fi
+}
 trap cleanup EXIT
 
 echo "=== ClubDesk finance sync start $(TZ=Europe/Zurich date +'%d.%m.%Y %H:%M:%S') (env=$ENVNAME db=$DB) ==="
+STAGE=scrape
 docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
   node /work/clubdesk-scrape-finance.mjs /work/clubdesk-rechnungen.csv /work/clubdesk-buchhaltung.csv
+STAGE=import
 docker run --rm -w /work -v "$DIR":/work "$NODE_IMG" \
   node /work/import-clubdesk-finance.mjs "$ENVNAME" /work/clubdesk-rechnungen.csv /work/clubdesk-buchhaltung.csv --emit-sql > "$SQL"
+STAGE=apply
 docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -v ON_ERROR_STOP=1 < "$SQL"
+heartbeat ok ""
 echo "=== ClubDesk finance sync done $(TZ=Europe/Zurich date +'%d.%m.%Y %H:%M:%S') ==="
