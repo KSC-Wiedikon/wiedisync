@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
 import { memberDisplayName, relId } from '../../utils/relations'
 import { useCollection, invalidateForCollection } from '../../lib/query'
@@ -59,8 +59,11 @@ export default function ScorerAssignPage() {
   const { t, i18n } = useTranslation('scorerAssign')
   // Exports are ALWAYS English, whatever the UI language (app-wide convention).
   const tEn = useMemo(() => i18n.getFixedT('en', 'scorerAssign'), [i18n])
-  const { user, hasAdminAccessToSport } = useAuth()
+  const { user, isSuperAdmin, hasAdminAccessToSport } = useAuth()
   const confirm = useConfirm()
+  // Only a superadmin runs (or re-runs) the auto-assignment — owner decision
+  // 14.10.2026. Sport admins still see the Overview and any draft they hold.
+  const canRunAlgorithm = isSuperAdmin
 
   const season = getCurrentSeason()
   const { start: seasonStart, end: seasonEnd } = getSeasonDateRange(season)
@@ -869,19 +872,21 @@ export default function ScorerAssignPage() {
 
       {/* Actions bar */}
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button
-          size="sm"
-          onClick={handleRunAlgorithm}
-          loading={running && assignments.length === 0}
-          // Locked once a situation is loaded (draft restored or rolled out) so a
-          // stray click can't recompute over it — deliberate re-runs use Recompute.
-          disabled={dataLoading || homeGames.length === 0 || assignments.length > 0}
-          title={assignments.length > 0 ? t('runLockedHint') : undefined}
-        >
-          {running && assignments.length === 0 ? t('running') : t('runAlgorithm')}
-        </Button>
+        {canRunAlgorithm && (
+          <Button
+            size="sm"
+            onClick={handleRunAlgorithm}
+            loading={running && assignments.length === 0}
+            // Locked once a situation is loaded (draft restored or rolled out) so a
+            // stray click can't recompute over it — deliberate re-runs use Recompute.
+            disabled={dataLoading || homeGames.length === 0 || assignments.length > 0}
+            title={assignments.length > 0 ? t('runLockedHint') : undefined}
+          >
+            {running && assignments.length === 0 ? t('running') : t('runAlgorithm')}
+          </Button>
+        )}
 
-        {assignments.length > 0 && (
+        {canRunAlgorithm && assignments.length > 0 && (
           <Button size="sm" variant="ghost" onClick={handleRerun} loading={running} title={t('rerunHint')}>
             {running ? t('running') : t('rerun')}
           </Button>
@@ -918,8 +923,18 @@ export default function ScorerAssignPage() {
       {/* Status messages */}
       <div className="mt-2 flex flex-wrap gap-2">
         {dataLoading && <LoadingSpinner />}
-        {!dataLoading && homeGames.length > 0 && assignments.length === 0 && (
+        {canRunAlgorithm && !dataLoading && homeGames.length > 0 && assignments.length === 0 && (
           <span className="text-sm text-muted-foreground">{t('gamesLoaded', { count: homeGames.length })}</span>
+        )}
+        {/* Without the Run button the tab is empty for everyone else — say where
+            single duties are changed instead of leaving a dead end. */}
+        {!canRunAlgorithm && !dataLoading && assignments.length === 0 && (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span>{t('planCentralHint')}</span>
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/scorer?sport=${sportTab}`}>{t('openScorerDuty')}</Link>
+            </Button>
+          </div>
         )}
         {assignments.length > 0 && (
           <span className="text-sm text-green-600 dark:text-green-400">
@@ -969,8 +984,9 @@ export default function ScorerAssignPage() {
 
       {/* Team summary — kept at the top so the "who got how many duties"
           overview is visible before the per-game detail table. Split by sport
-          via sportTab (each engine only fills its own sport's counts). */}
-      {sportTab === 'volleyball' && vbTeamCounts.size > 0 && (
+          via sportTab (each engine only fills its own sport's counts). Hidden
+          until a draft exists: before a run every duty column is just "—". */}
+      {sportTab === 'volleyball' && assignments.length > 0 && vbTeamCounts.size > 0 && (
         <div className="mt-6">
           <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
@@ -1031,7 +1047,7 @@ export default function ScorerAssignPage() {
         </div>
       )}
 
-      {sportTab === 'basketball' && bbTeamCounts.size > 0 && (
+      {sportTab === 'basketball' && assignments.length > 0 && bbTeamCounts.size > 0 && (
         <div className="mt-6">
           <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">

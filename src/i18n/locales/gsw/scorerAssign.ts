@@ -89,6 +89,8 @@ export default {
   // Status
   noGames: 'Käni Spiel glade.',
   gamesLoaded: '{{count}} Spiel glade.',
+  planCentralHint: 'Die automatischi Iiteilig wird zentral gmacht. En einzelne Iisatz änderisch im Tab Spiel unter Schriiberdienst.',
+  openScorerDuty: 'Schriiberdienst öffne',
   assignmentsDone: 'Zueteilig abgschlosse. {{assigned}} vo {{total}} Spiel zuewise.',
   saveSuccess: '{{count}} Spiel aktualisiert.',
   saveError: 'Fähler bim Speichere.',

@@ -89,6 +89,8 @@ export default {
   // Status
   noGames: 'Nessuna partita caricata.',
   gamesLoaded: '{{count}} partite caricate.',
+  planCentralHint: 'L’assegnazione automatica viene eseguita centralmente. Per modificare un singolo servizio, usa la scheda Partite in Servizio segnapunti.',
+  openScorerDuty: 'Apri Servizio segnapunti',
   assignmentsDone: 'Assegnazione completata. {{assigned}} di {{total}} partite assegnate.',
   saveSuccess: '{{count}} partite aggiornate.',
   saveError: 'Errore durante il salvataggio.',

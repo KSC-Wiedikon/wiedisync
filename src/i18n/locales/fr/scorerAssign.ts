@@ -89,6 +89,8 @@ export default {
   // Status
   noGames: 'Aucun match charge.',
   gamesLoaded: '{{count}} matchs charges.',
+  planCentralHint: 'L’attribution automatique est effectuée de manière centralisée. Pour modifier un seul service, utilisez l’onglet Matchs du Service de marqueur.',
+  openScorerDuty: 'Ouvrir le Service de marqueur',
   assignmentsDone: 'Attribution terminee. {{assigned}} sur {{total}} matchs attribues.',
   saveSuccess: '{{count}} matchs mis a jour.',
   saveError: 'Erreur lors de l\'enregistrement.',
