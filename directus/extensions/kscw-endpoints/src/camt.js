@@ -80,6 +80,10 @@ function structuredRef(tx) {
   return { reference: null, refType: null }
 }
 
+/** A transaction's own amount node: <Amt>, else <AmtDtls><TxAmt><Amt> (ISO 20022
+ *  allows either) — the first that holds a number. null when it states none. */
+const txAmtNode = (tx) => [tx?.Amt, tx?.AmtDtls?.TxAmt?.Amt].find((n) => num(txt(n)) != null) ?? null
+
 /**
  * @returns {{type:'053'|'054', credits: Array<{
  *   uid:string|null, amount:number|null, currency:string|null, valueDate:string|null,
@@ -110,9 +114,15 @@ export function parseCamt(xml) {
       const valueDate = txt(ntry?.ValDt?.Dt) || txt(ntry?.BookgDt?.Dt) || null
       const entryRef = txt(ntry.AcctSvcrRef)
       const txs = arr(ntry?.NtryDtls?.TxDtls)
-      const list = txs.length ? txs : [null]   // some banks omit TxDtls — use entry level
+      // A batch is split only when EVERY payment states its own amount. Otherwise
+      // the entry total is the only trustworthy figure: it comes back as one credit
+      // (no reference, so it lands unmatched for the treasurer) — handing the total
+      // to each payment booked 300 against a 100 invoice (fixed 14.10.2026). Some
+      // banks omit TxDtls altogether — entry level too. Same rule as parseStatement.
+      const split = txs.length > 1 && txs.every((tx) => txAmtNode(tx) != null)
+      const list = split ? txs : txs.length === 1 ? txs : [null]
       list.forEach((tx, i) => {
-        const amtNode = tx?.Amt ?? ntry.Amt
+        const amtNode = txAmtNode(tx) ?? ntry.Amt
         const { reference, refType } = tx ? structuredRef(tx) : { reference: null, refType: null }
         const ustrd = tx ? arr(tx?.RmtInf?.Ustrd).map(txt).filter(Boolean).join(' ').trim() : ''
         // Dedupe key, in descending order of how reliably unique it is:
@@ -233,7 +243,7 @@ export function parseStatement(xml) {
       const entryRef = realRef(ntry.AcctSvcrRef) || `${id || `stmt${si}`}:${ni}`
       const extraEntry = txt(ntry.AddtlNtryInf)
       const txs = arr(ntry?.NtryDtls?.TxDtls)
-      const txAmount = (tx) => num(txt(tx?.Amt)) ?? num(txt(tx?.AmtDtls?.TxAmt?.Amt))
+      const txAmount = (tx) => num(txt(txAmtNode(tx)))
       // Split only when every transaction states its own amount — otherwise the
       // entry total is the only trustworthy figure.
       const split = txs.length > 1 && txs.every((tx) => txAmount(tx) != null)
@@ -253,7 +263,7 @@ export function parseStatement(xml) {
           bookingDate,
           valueDate,
           amount: Math.round(sign * amount * 100) / 100,
-          currency: (tx?.Amt ?? ntry.Amt)?.['@_Ccy'] ?? null,
+          currency: (txAmtNode(tx) ?? ntry.Amt)?.['@_Ccy'] ?? null,
           counterpartyName: cp.name,
           counterpartyIban: cp.iban,
           reference,

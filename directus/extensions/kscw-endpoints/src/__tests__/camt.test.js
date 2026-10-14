@@ -206,6 +206,61 @@ describe('invoiceNumbersFromMessage', () => {
   })
 })
 
+// ── Batch amounts given only in AmtDtls ─────────────────────────────────────
+// ISO 20022 lets a TxDtls carry its amount in <AmtDtls><TxAmt><Amt> instead of
+// <Amt>. parseCamt only read <Amt> and fell back to the ENTRY total for every
+// payment, so a 100 + 200 Sammelbuchung came out as 300 + 300 — and the camt
+// import then booked 300 against a 100 invoice (found 14.10.2026).
+const batch054 = (txs) => `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.08">
+  <BkToCstmrDbtCdtNtfctn>
+    <Ntfctn>
+      <Ntry>
+        <Amt Ccy="CHF">300.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <ValDt><Dt>2026-10-14</Dt></ValDt>
+        <AcctSvcrRef>ENTRY-B</AcctSvcrRef>
+        <NtryDtls>${txs}</NtryDtls>
+      </Ntry>
+    </Ntfctn>
+  </BkToCstmrDbtCdtNtfctn>
+</Document>`
+const amtDtlsTx = (amt, ref) => `
+          <TxDtls>
+            <AmtDtls><TxAmt><Amt Ccy="CHF">${amt}</Amt></TxAmt></AmtDtls>
+            <RmtInf><Strd><CdtrRefInf><Ref>${ref}</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>`
+const REF_101 = 'RF18000000000000000000101'
+const REF_102 = 'RF18000000000000000000102'
+
+describe('parseCamt — batch amounts in AmtDtls/TxAmt', () => {
+  it('gives each payment its own amount (100 + 200 → 100 and 200, not 300 + 300)', () => {
+    const { credits } = parseCamt(batch054(amtDtlsTx('100.00', REF_101) + amtDtlsTx('200.00', REF_102)))
+    expect(credits.map((c) => c.amount)).toEqual([100, 200])
+    expect(credits.map((c) => c.currency)).toEqual(['CHF', 'CHF'])
+    expect(credits.map((c) => c.reference)).toEqual([REF_101, REF_102])
+    expect(credits.map((c) => c.uid)).toEqual(['ENTRY-B#0', 'ENTRY-B#1'])
+  })
+
+  it('never hands the batch total to one payment of several', () => {
+    // Only one of the two payments states an amount, so per-payment figures can't
+    // be trusted: the entry comes back as ONE credit for its total with no
+    // reference — an unmatched line for the treasurer, never 300 on one invoice.
+    const { credits } = parseCamt(batch054(amtDtlsTx('100.00', REF_101) + `
+          <TxDtls><RmtInf><Ustrd>Rechnung 102</Ustrd></RmtInf></TxDtls>`))
+    expect(credits).toHaveLength(1)
+    expect(credits[0]).toMatchObject({ amount: 300, currency: 'CHF', uid: 'ENTRY-B#0', reference: null })
+  })
+
+  it('a single payment without its own amount still takes the entry amount', () => {
+    const { credits } = parseCamt(batch054(`
+          <TxDtls><RmtInf><Strd><CdtrRefInf><Ref>${REF_101}</Ref></CdtrRefInf></Strd></RmtInf></TxDtls>`))
+    expect(credits).toHaveLength(1)
+    expect(credits[0]).toMatchObject({ amount: 300, currency: 'CHF', reference: REF_101 })
+  })
+})
+
 // ── THE VALIDATION GATE ─────────────────────────────────────────────────────
 // Drop a redacted real UBS export at src/__tests__/fixtures/real-ubs-camt054.xml
 // (keep <Ntry> blocks intact; scrub balances / account numbers). This block
