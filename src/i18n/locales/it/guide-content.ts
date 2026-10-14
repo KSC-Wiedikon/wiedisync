@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Apri **Admin → Operazioni di gara → Assegnazione refertisti** (desktop) o **Altro → Admin → Operazioni di gara → Assegnazione refertisti** (telefono); serve l'accesso admin pallavolo o pallacanestro. La pagina copre la **Stagione** in corso: in **Assegnazione** pianifichi, **Panoramica** mostra ciò che è salvato sulle partite. Solo un superadmin avvia l’assegnazione automatica; per modificare un singolo servizio usa la scheda **Partite** in **Servizio segnapunti**."
+          "text": "Apri **Admin → Operazioni di gara → Assegnazione refertisti** (desktop) o **Altro → Admin → Operazioni di gara → Assegnazione refertisti** (telefono); serve l'accesso admin pallavolo o pallacanestro. La pagina copre la **Stagione** in corso: in **Assegnazione** pianifichi, **Panoramica** mostra ciò che è salvato sulle partite. Solo un superadmin avvia l’assegnazione automatica. Finché non è aperta una bozza, **Assegnazione** elenca tutte le prossime partite in casa con i servizi salvati: cambia squadra di servizio o persona direttamente nella tabella — ogni modifica viene salvata subito."
         },
         {
           "t": "h",

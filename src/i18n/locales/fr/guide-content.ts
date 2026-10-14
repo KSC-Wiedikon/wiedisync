@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Ouvrez **Admin → Opérations de match → Attribution des marqueurs** (ordinateur) ou **Plus → Admin → Opérations de match → Attribution des marqueurs** (téléphone). Vous devez disposer d'un accès admin volleyball ou basketball. La page couvre la **Saison** en cours. **Attribution** est l'onglet où vous planifiez ; **Vue d'ensemble** montre ce qui est enregistré sur les matchs. Seul un superadmin lance l’attribution automatique ; pour modifier un seul service, utilisez l’onglet **Matchs** du **Service de marqueur**."
+          "text": "Ouvrez **Admin → Opérations de match → Attribution des marqueurs** (ordinateur) ou **Plus → Admin → Opérations de match → Attribution des marqueurs** (téléphone). Vous devez disposer d'un accès admin volleyball ou basketball. La page couvre la **Saison** en cours. **Attribution** est l'onglet où vous planifiez ; **Vue d'ensemble** montre ce qui est enregistré sur les matchs. Seul un superadmin lance l’attribution automatique. Tant qu’aucun brouillon n’est ouvert, **Attribution** liste tous les prochains matchs à domicile avec leurs services enregistrés : modifiez l’équipe de service ou la personne directement dans le tableau — chaque modification est enregistrée immédiatement."
         },
         {
           "t": "h",
