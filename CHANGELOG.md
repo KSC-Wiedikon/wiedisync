@@ -2,6 +2,19 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.36.0 — 2026-10-14
+
+### New
+
+- A separate site for the club's books — accounting.wiedisync.kscw.ch — for the board, the treasurer and the auditors.
+- Import the monthly bank statement: each payment gets a proposed account (from the invoice it pays or a booking rule) and is booked with one click. Receipts can be attached to every booking.
+- Parallel run with ClubDesk: the two sets of books are compared month by month and each month is signed off. Annual accounts as PDF and a yearly archive kept for 10 years.
+- New role Auditor: read-only access to the books, receipts and reports.
+
+### Fixed
+
+- The nightly ClubDesk finance import now brings in every fiscal year, not only the one ClubDesk shows by default.
+
 ## v2.35.0 — 2026-10-14
 
 ### New

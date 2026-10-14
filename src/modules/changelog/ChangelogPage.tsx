@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.35.0'
+const APP_VERSION = '2.36.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,27 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.36.0',
+    date: '14.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "A separate site for the club's books — accounting.wiedisync.kscw.ch — for the board, the treasurer and the auditors.",
+          "Import the monthly bank statement: each payment gets a proposed account (from the invoice it pays or a booking rule) and is booked with one click. Receipts can be attached to every booking.",
+          "Parallel run with ClubDesk: the two sets of books are compared month by month and each month is signed off. Annual accounts as PDF and a yearly archive kept for 10 years.",
+          "New role Auditor: read-only access to the books, receipts and reports.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "The nightly ClubDesk finance import now brings in every fiscal year, not only the one ClubDesk shows by default.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.35.0',
     date: '14.10.2026',
