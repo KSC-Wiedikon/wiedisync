@@ -15,6 +15,7 @@ export default {
   sendingResetLink: 'Link wird gesendet...',
   enterEmailFirst: 'Bitte gib zuerst deine E-Mail ein.',
   accountAlreadyExists: 'Ein Konto mit dieser E-Mail existiert bereits. Bitte melde dich an.',
+  sharedEmailHouseholdHint: 'Diese E-Mail gehört zum Login eines Familienmitglieds. Melde dich damit an — ein Admin kann weitere Familienmitglieder mit demselben Login verknüpfen, und du wechselst oben in der App zwischen ihnen.',
   noAccountYet: 'Noch kein Konto?',
 
   // Profile
@@ -98,7 +99,7 @@ export default {
   inviteClaimedTitle: 'Einladung bereits verwendet',
   inviteClaimedDescription: 'Diese Einladung wurde bereits verwendet. Falls das du warst, kannst du dich einfach anmelden.',
   inviteNoEmail: 'Für dich ist keine E-Mail-Adresse hinterlegt. Bitte einen Admin, zuerst eine hinzuzufügen.',
-  inviteEmailInUse: 'Diese E-Mail hat bereits ein Konto — jedes Konto braucht eine eigene E-Mail-Adresse. Bitte einen Admin, zuerst eine persönliche E-Mail für dich zu hinterlegen.',
+  inviteEmailInUse: 'Diese E-Mail hat in deiner Familie bereits ein Login. Melde dich stattdessen damit an — ein Admin kann diese Person mit dem Login verknüpfen, damit du zwischen den Familienmitgliedern wechseln kannst.',
   inviteRedeemFailed: 'Das Konto konnte nicht aktiviert werden. Bitte versuche es erneut.',
   inviteFetchErrorTitle: 'Etwas ist schiefgelaufen',
   inviteFetchErrorDescription: 'Deine Einladung konnte gerade nicht geprüft werden. Bitte überprüfe deine Verbindung und versuche es erneut — deine Einladung ist weiterhin gültig.',

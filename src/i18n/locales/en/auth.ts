@@ -15,6 +15,7 @@ export default {
   sendingResetLink: 'Sending link...',
   enterEmailFirst: 'Please enter your email first.',
   accountAlreadyExists: 'An account with this email already exists. Please sign in.',
+  sharedEmailHouseholdHint: 'This email belongs to a family member\'s login. Sign in with it — an admin can link other family members to the same login, and you switch between them with the bar at the top of the app.',
   noAccountYet: 'Don\'t have an account?',
 
   // Profile
@@ -98,7 +99,7 @@ export default {
   inviteClaimedTitle: 'Invite already used',
   inviteClaimedDescription: 'This invite has already been used. If that was you, you can simply sign in.',
   inviteNoEmail: 'No email address is stored for you. Ask an admin to add one first.',
-  inviteEmailInUse: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
+  inviteEmailInUse: 'This email already has a login in your family. Sign in with it instead — an admin can link this person to that login so you can switch between family members.',
   inviteRedeemFailed: 'Could not activate the account. Please try again.',
   inviteFetchErrorTitle: 'Something went wrong',
   inviteFetchErrorDescription: 'We could not check your invite right now. Please check your connection and try again — your invite is still valid.',

@@ -211,7 +211,7 @@ export default function SignUpPage() {
 
     try {
       const res = await kscwApi<{
-        exists: boolean; claimed: boolean;
+        exists: boolean; claimed: boolean; shared_email?: boolean;
         existing_teams?: { name: string; sport?: string }[];
       }>('/check-email', {
         method: 'POST',
@@ -220,7 +220,9 @@ export default function SignUpPage() {
 
       if (res.exists && res.claimed) {
         // Account already claimed — redirect to login with notice
-        navigate('/login', { state: { email: email.trim().toLowerCase(), accountExists: true } })
+        // shared_email: the login belongs to a sibling/parent on the same
+        // address — the login page explains the household switch instead.
+        navigate('/login', { state: { email: email.trim().toLowerCase(), accountExists: true, sharedEmail: !!res.shared_email } })
         return
       } else if (res.exists) {
         // Account exists but not claimed — show existing teams and send OTP
