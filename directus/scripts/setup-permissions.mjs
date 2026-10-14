@@ -473,7 +473,7 @@ async function auditAdministratorRole(roleMap) {
  * Never revokes; same non-fatal rule as §3c.
  */
 const PER_USER_POLICIES = new Set([
-  'KSCW Team Responsible', 'KSCW Terminplanung', 'KSCW Finance', 'KSCW Spielplaner', 'KSCW Vorstand',
+  'KSCW Team Responsible', 'KSCW Terminplanung', 'KSCW Finance', 'KSCW Revisor', 'KSCW Spielplaner', 'KSCW Vorstand',
   // vb_admin / bb_admin section policies (M7, 2026-10-12) — attached per user in §13.
   ...SPORT_POLICIES.map((p) => p.name),
 ])
@@ -1424,6 +1424,11 @@ async function main() {
   // read/update on top of the member's base policy. Native-invoice WRITES still
   // go through the /kscw/finance/* endpoints (gated in code via canManageFinance).
   const FINANCE_POLICY = await findOrCreatePolicy('KSCW Finance', { icon: 'account_balance', app_access: true })
+  // Revisor (the auditors the statutes elect, 14.10.2026). Attached per user to
+  // members with 'revisor' in their role array (§13 + the role-sync hook). READ-ONLY
+  // on the books: the same finance reads as Finance, no member PII, no writes. The
+  // /kscw/finance/* endpoints let them read (finance-access.js) and never write.
+  const REVISOR_POLICY = await findOrCreatePolicy('KSCW Revisor', { icon: 'fact_check', app_access: true })
 
   // LedBox scoreboard publisher (migration 272). Held by ONE service user via a
   // static token, never attached to a role — the hall's LED board authenticates
@@ -1588,6 +1593,8 @@ async function main() {
   // Finance is held only by finance members (not every authenticated user), so
   // clearing it here doesn't risk the universally-held-policy "permission wall".
   await clearPolicyPermissions(FINANCE_POLICY, 'Finance')
+  // Revisor is held only by the elected auditors — same reasoning as Finance.
+  await clearPolicyPermissions(REVISOR_POLICY, 'Revisor')
   // Spielplaner is likewise held only by spielplaner users (§14) — no "wall" risk.
   await clearPolicyPermissions(SPIELPLANER_POLICY, 'Spielplaner')
   // LedBox publisher holds exactly one collection — safe to clear and recreate.
@@ -3778,6 +3785,23 @@ async function main() {
 
   console.log(`  ✓ Finance permissions set`)
 
+  // ── 9c². Revisor permissions (read-only books) ─────────────────
+  //
+  // Everything the finance dashboard reads through /items, nothing it writes, and
+  // no member PII beyond the base member policy: an auditor checks the books, the
+  // receipts and the invoices, not the register. Bank lines, receipts on journal
+  // entries, sign-offs and archives are endpoint-only (migration 411) and gated in
+  // code (finance-access.js → read).
+  console.log('\n9c². Revisor permissions...')
+  for (const col of FINANCE_READ_ALL) {
+    await setPermRead(REVISOR_POLICY, col)
+  }
+  await setPermRead(REVISOR_POLICY, 'finance_invoice_documents')
+  await setPermRead(REVISOR_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
+  await setPermRead(REVISOR_POLICY, 'finance_payouts')
+  await setPermRead(REVISOR_POLICY, 'referee_expenses')
+  console.log(`  ✓ Revisor permissions set`)
+
   // ── 9d. Spielplaner permissions ────────────────────────────────
   //
   // Manual games in the Spielplanung planner (ManualGameModal / SpielplanungPage)
@@ -4038,6 +4062,7 @@ async function main() {
   // flag gets the row too — harmless, admin_access bypasses rows.
   const ROLE_POLICY_BACKFILLS = [
     ['finance', FINANCE_POLICY, 'FINANCE'],
+    ['revisor', REVISOR_POLICY, 'REVISOR'],
     ['vorstand', VORSTAND_POLICY, 'VORSTAND'],
     ...SPORT_SECTION_POLICIES.map((sp) => [sp.appRole, sp.id, sp.label]),
   ]

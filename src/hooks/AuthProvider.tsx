@@ -24,7 +24,7 @@ import { bootstrapIdentityKey } from '../lib/identityBootstrap'
 /** Base roles carried on `members.role` — typed off the Member enum so a renamed
  *  role fails at compile time instead of silently never matching. */
 type BaseRole = Member['role'][number]
-const BASE_ROLES: readonly BaseRole[] = ['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance']
+const BASE_ROLES: readonly BaseRole[] = ['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance', 'revisor']
 const isBaseRole = (r: string): r is BaseRole => (BASE_ROLES as readonly string[]).includes(r)
 const isLicenceFlag = (r: string): r is LicenceType => (LICENCE_TYPES as readonly string[]).includes(r)
 
@@ -722,6 +722,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // implicitly have it; the finance dashboard opens for board OR finance.
   const isFinance = roles.includes('finance') || isGlobalAdmin
   const canAccessFinance = isVorstand || isFinance
+  // 'revisor' = the auditors the statutes elect: read-only on the books, no write
+  // path anywhere (the backend enforces it — finance-access.js).
+  const isRevisor = roles.includes('revisor') && !canAccessFinance
+  const canReadFinance = canAccessFinance || roles.includes('revisor')
   const isCoach = coachTeamIds.length > 0 || isGlobalAdmin
   const primarySport: 'volleyball' | 'basketball' | 'both' =
     memberSports.size === 1 ? [...memberSports][0] : 'both'
@@ -802,7 +806,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   }), [
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
@@ -812,7 +816,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   ])
 

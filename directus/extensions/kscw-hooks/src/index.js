@@ -960,6 +960,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // 'finance' is orthogonal (layered policy), not a base role → reconcile
         // the per-user FINANCE policy alongside the base-role sync.
         await reconcileRolePolicy(id, 'finance')
+        await reconcileRolePolicy(id, 'revisor')
         await reconcileRolePolicy(id, 'vorstand')
         await reconcileRolePolicy(id, 'vb_admin')
         await reconcileRolePolicy(id, 'bb_admin')
@@ -1175,6 +1176,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // them — it holds both flags' users alike.
   const ROLE_POLICIES = {
     finance: 'KSCW Finance',
+    // The elected auditors: read-only books (setup-permissions.mjs §9c²).
+    revisor: 'KSCW Revisor',
     vorstand: 'KSCW Vorstand',
     vb_admin: 'KSCW Sport Admin VB',
     bb_admin: 'KSCW Sport Admin BB',

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw } from 'lucide-react'
+import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw, Paperclip } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import DatePicker from '@/components/ui/DatePicker'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import ReportExportMenu from './ReportExportMenu'
+import ReceiptsDialog from './books/ReceiptsDialog'
+import { useReceiptCoverage } from '../../hooks/useFinanceBooks'
+import { useAuth } from '../../hooks/useAuth'
 import type { FinanceReport } from './reportExport'
 import {
   useLedgerAccounts, useLedgerEntries, useLedgerTrialBalance, useLedgerFiscalYears, useLedgerSettings,
@@ -76,7 +79,14 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
   const { t } = useTranslation('finance')
   const confirm = useConfirm()
   const qc = useQueryClient()
-  const { data: entries, isLoading } = useLedgerEntries(fyId || null, !!fyId)
+  // While the two books run in parallel either can be shown; unset = the server's
+  // default (native once it has entries, else the ClubDesk mirror).
+  const [book, setBook] = useState<'native' | 'clubdesk' | undefined>(undefined)
+  const { data: entries, isLoading } = useLedgerEntries(fyId || null, !!fyId, book)
+  const { data: coverage } = useReceiptCoverage(fyId || null, !!fyId)
+  const { canAccessFinance } = useAuth()
+  const canWrite = canAccessFinance
+  const [receiptsFor, setReceiptsFor] = useState<{ id: number; beleg: string | null; text: string | null } | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<number | null>(null)
   const refresh = () => qc.invalidateQueries({ queryKey: ['finance'] })
@@ -91,10 +101,27 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
   const loading = fyLoading || isLoading
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1" role="group" aria-label={t('bkBook')}>
+          {(['native', 'clubdesk'] as const).map((b) => {
+            const shown = book ?? (rows[0]?.source as 'native' | 'clubdesk' | undefined)
+            return (
+              <Button key={b} type="button" size="sm" variant={shown === b ? 'default' : 'ghost'} aria-pressed={shown === b}
+                className={shown === b ? 'bg-selected text-selected-foreground hover:bg-selected/90' : 'text-muted-foreground'}
+                onClick={() => setBook(b)}>
+                {b === 'native' ? t('bkBookNative') : t('bkBookClubdesk')}
+              </Button>
+            )
+          })}
+        </div>
+        {coverage && coverage.needing > 0 && (
+          <span className={`text-xs ${coverage.missing ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+            {t('bkReceiptCoverage', { with: coverage.withReceipt, total: coverage.needing })}
+          </span>
+        )}
         {/* Stays disabled until the year's status is known — posting into a closed year
             is rejected 409, and the button must not flip enabled → disabled under a tap. */}
-        <Button type="button" disabled={fyClosed || fyLoading} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledPostEntry')}</Button>
+        {canWrite && <Button type="button" className="ml-auto" disabled={fyClosed || fyLoading} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledPostEntry')}</Button>}
       </div>
       {loading ? (
         <Spinner />
@@ -125,10 +152,20 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.credit_account_number} {e.credit_account_name}</TableCell>
                   <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(e.amount_chf))}</TableCell>
                   <TableCell className="text-right">
-                    {!fyClosed && e.source === 'native' && (
+                    {e.source === 'native' && (
                       <div className="flex justify-end gap-1">
-                        <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-muted-foreground">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>
-                        {!e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
+                        {(() => {
+                          const n = coverage?.counts?.[String(e.id)] ?? 0
+                          const missing = n === 0 && !['Eroeffnung', 'Abschluss', 'Storno'].includes(e.typ || '')
+                          return (
+                            <IconButton size="sm" variant="outline" label={`${t('bkReceipts')} (${n})`} onClick={() => setReceiptsFor({ id: e.id, beleg: e.beleg, text: e.text })}
+                              className={missing ? 'text-amber-600 dark:text-amber-400' : n ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                              <Paperclip />
+                            </IconButton>
+                          )
+                        })()}
+                        {canWrite && !fyClosed && <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-muted-foreground">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>}
+                        {canWrite && !fyClosed && !e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
                       </div>
                     )}
                   </TableCell>
@@ -139,6 +176,7 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
         </div>
       )}
       <PostEntryModal open={open} onClose={() => setOpen(false)} fyId={fyId} onDone={refresh} />
+      <ReceiptsDialog entry={receiptsFor} closedYear={fyClosed} onClose={() => setReceiptsFor(null)} />
     </div>
   )
 }

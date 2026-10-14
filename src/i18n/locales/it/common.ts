@@ -183,6 +183,7 @@ export default {
     superuser: 'Superuser',
     website_admin: 'Admin sito web',
     finance: 'Finanze',
+    revisor: 'Revisore dei conti',
     verein: 'Club',
     social: 'Sociale',
     meeting: 'Riunione',

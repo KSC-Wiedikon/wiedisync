@@ -16,6 +16,7 @@
  *
  * Validated against the ISO-20022 shape; re-verify against a real UBS export before prod.
  */
+import { financeActor } from './finance-access.js'
 import { parseCamt, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { writeUserLog } from './activity-log.js'
 import { recomputeInvoice } from './finance-recompute.js'
@@ -30,19 +31,8 @@ export function registerFinanceCamt(router, { database, logger }) {
   const tokens = (s) => (s || '').toLowerCase().replace(/[^a-zäöüéè ]/g, ' ').split(/\s+/).filter((t) => t.length >= 3)
   const overlap = (a, b) => a.filter((t) => b.includes(t)).length
 
-  async function vorstand(req) {
-    if (req.accountability?.admin) return { ok: true, name: null, email: null }
-    const userId = req.accountability?.user
-    if (!userId) return { ok: false }
-    const m = await database('members').where('user', userId).first('first_name', 'last_name', 'email', 'role')
-    if (!m) return { ok: false }
-    const roles = Array.isArray(m.role) ? m.role : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
-    return {
-      ok: ['vorstand', 'admin', 'superuser', 'finance'].some((r) => roles.includes(r)),
-      name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
-      email: m.email || null,
-    }
-  }
+  // ok = may write (board / finance); read = may look (adds the 'revisor' role).
+  const vorstand = (req) => financeActor(database, req)
 
   const payRow = (c, importId, extra) => ({
     payment_date: /^\d{4}-\d{2}-\d{2}$/.test(c.valueDate || '') ? c.valueDate : null,
@@ -171,7 +161,7 @@ export function registerFinanceCamt(router, { database, logger }) {
   router.get('/finance/payments', async (req, res) => {
     try {
       const actor = await vorstand(req)
-      if (!actor.ok) return res.status(403).json({ error: 'Forbidden' })
+      if (!actor.read) return res.status(403).json({ error: 'Forbidden' })
       const rows = await database('finance_payments as p')
         .leftJoin('finance_invoices as ni', 'ni.id', 'p.invoice')
         .leftJoin('finance_invoices as cg', 'cg.id', 'p.clubdesk_guess')

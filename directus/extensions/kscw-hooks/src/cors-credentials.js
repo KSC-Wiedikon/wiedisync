@@ -27,6 +27,8 @@ import { isProdInstance } from '../../kscw-endpoints/src/external-accounts.js'
 const PROD_CREDENTIALED_ORIGINS = [
   'https://wiedisync.kscw.ch',
   'https://spielplanung.wiedisync.kscw.ch',
+  // The club's books (CF Pages `kscw-accounting`, 14.10.2026).
+  'https://accounting.wiedisync.kscw.ch',
 ]
 
 const DEV_CREDENTIALED_ORIGINS = [
@@ -37,6 +39,8 @@ const DEV_CREDENTIALED_ORIGINS = [
   // Member-app dev on .kscw.ch (CF Pages `kscw-wiedisync-dev`) — the only dev
   // host where the Lax session cookie is same-site, i.e. where login sticks.
   'https://wiedisync-dev.kscw.ch',
+  // Books dev (CF Pages `kscw-accounting-dev`).
+  'https://accounting-dev.kscw.ch',
 ]
 
 // Local dev servers (Vite on localhost, the Tailscale dev box). Dev only.

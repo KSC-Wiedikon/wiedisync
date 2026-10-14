@@ -33,12 +33,21 @@ void startNativeSystemBars()
 
 const root = createRoot(document.getElementById('root')!)
 
-// Two build targets share this single entry. `VITE_APP_TARGET` is statically
-// replaced at build time, so the dynamic import in the untaken branch is
-// dead-code-eliminated — the member build never bundles SchedulingApp and the
-// scheduling build (`npm run build:scheduling`) never bundles the member App.
+// Three build targets share this single entry. `VITE_APP_TARGET` is statically
+// replaced at build time, so the dynamic import in an untaken branch is
+// dead-code-eliminated — the member build never bundles SchedulingApp /
+// AccountingApp, the scheduling build (`npm run build:scheduling`) and the
+// accounting build (`npm run build:accounting`) never bundle the member App.
 async function bootstrap() {
-  if (import.meta.env.VITE_APP_TARGET === 'scheduling') {
+  if (import.meta.env.VITE_APP_TARGET === 'accounting') {
+    const { default: AccountingApp } = await import('./AccountingApp')
+    root.render(
+      <StrictMode>
+        <BootSignal />
+        <AccountingApp />
+      </StrictMode>,
+    )
+  } else if (import.meta.env.VITE_APP_TARGET === 'scheduling') {
     const { default: SchedulingApp } = await import('./SchedulingApp')
     root.render(
       <StrictMode>

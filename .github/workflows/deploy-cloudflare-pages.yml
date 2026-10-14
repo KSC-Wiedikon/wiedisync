@@ -43,6 +43,14 @@ jobs:
           - project: kscw-wiedisync-dev
             script: build
             dev_only: true
+          # The club's books — accounting.wiedisync.kscw.ch (14.10.2026). Prod host is
+          # pinned to prod Directus by name in api.ts; the dev project backs
+          # accounting-dev.kscw.ch (a .kscw.ch host, so the dev login sticks).
+          - project: kscw-accounting
+            script: build:accounting
+          - project: kscw-accounting-dev
+            script: build:accounting
+            dev_only: true
     name: ${{ matrix.project }} (${{ github.ref_name }})
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

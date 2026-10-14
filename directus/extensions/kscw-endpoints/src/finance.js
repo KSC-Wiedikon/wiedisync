@@ -212,6 +212,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
   // finance endpoint is board work; only the sport-admin tier below is sport-scoped.
   const canManageFinance = (req, mem) =>
     !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
+  // Read-only finance access = the above OR the 'revisor' role (the auditors the
+  // statutes elect). Every GET under /finance/* that shows club-wide books uses
+  // this; every write keeps canManageFinance, so a Revisor can look but never post.
+  const canReadFinance = (req, mem) => canManageFinance(req, mem) || (!!mem && mem.roles.includes('revisor'))
 
   /** Team ids the member leads (coach / captain / team-responsible). */
   async function ledTeamIds(memberId) {
@@ -522,7 +526,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       // Gate: finance ∪ sport admin of the team's sport ∪ lead ∪ on the roster.
       const led = await ledTeamIds(mem.id)
-      let allowed = canManageFinance(req, mem) || isSportAdminFor(mem, team.sport) || led.includes(teamId)
+      let allowed = canReadFinance(req, mem) || isSportAdminFor(mem, team.sport) || led.includes(teamId)
       if (!allowed) {
         // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
         // staff branch) — hence the duplicated binding (same as scorer-claim.js).
@@ -801,7 +805,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/invoices/:id/payments', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const rows = await database('finance_payments').where('invoice', id)
         .orderBy([{ column: 'payment_date', order: 'asc' }, { column: 'id', order: 'asc' }])
@@ -1186,7 +1190,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dues-rates', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       const rates = Number.isInteger(fyId)
         ? await database('finance_dues_rates').where('fiscal_year', fyId).orderBy(['category', 'sektion'])
@@ -1276,7 +1280,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/members/:id/fee', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) return res.status(400).json({ error: 'id required' })
 
@@ -1541,7 +1545,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dues-runs', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       let q = database('finance_dues_runs as r')
         .leftJoin('finance_fiscal_years as fy', 'fy.id', 'r.fiscal_year')
@@ -1559,7 +1563,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dues-runs/:id/invoices', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const run = await database('finance_dues_runs').where('id', id).first('id', 'label')
       if (!run) return res.status(404).json({ error: 'Not found' })
@@ -1587,7 +1591,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/email-settings', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       return res.json(await emailSettings())
     } catch (e) { return err(res, req, 'email-settings', e) }
   })
@@ -1723,7 +1727,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dues-runs/:id/email-job', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const job = await database('finance_email_jobs').where('dues_run', id)
         .orderBy('id', 'desc').first('id', 'status', 'test_mode', 'total', 'sent', 'failed', 'error', 'date_created', 'date_updated')
@@ -1744,7 +1748,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/team-entries', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const teamId = Number(req.query.team)
       const fyId = Number(req.query.fiscal_year)
       let q = database('finance_team_entries')
@@ -1858,7 +1862,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/teams-summary', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       const hasFy = Number.isInteger(fyId)
       const entries = await database('finance_team_entries')
@@ -2067,7 +2071,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dunning/candidates', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const today = todayISO()
       const rows = await database('finance_invoices as fi')
         .leftJoin('members as m', 'm.id', 'fi.member')
@@ -2180,7 +2184,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/dunning/:id/history', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const notices = await database('finance_dunning_notices').where('invoice', id)
         .orderBy('level', 'asc').select('id', 'level', 'reminder_fee', 'channel', 'sent_at', 'created_by_name', 'date_created')
@@ -2209,7 +2213,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/contacts', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const contacts = await database('finance_billing_contacts').where('active', true)
         .orderBy('name').select('id', 'kind', 'name', 'email', 'address', 'plz', 'ort', 'billing_iban', 'notes').limit(1000)
       return res.json({ contacts })

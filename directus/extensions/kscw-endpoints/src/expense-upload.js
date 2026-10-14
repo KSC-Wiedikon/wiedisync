@@ -594,7 +594,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
 
       const mem = await actingMember(req)
       const isOwner = !!mem && mem.id === expense.member
-      if (!isOwner && !canManageFinance(req, mem)) return res.status(404).json({ error: 'Not found' })
+      // The auditors ('revisor') may open every receipt too — read-only, like the books.
+      if (!isOwner && !canManageFinance(req, mem) && !(mem && mem.roles.includes('revisor'))) return res.status(404).json({ error: 'Not found' })
 
       // No owner scoping here — finance may fetch a file another user uploaded.
       // No folder filter either: a legacy receipt at the root, one still in the

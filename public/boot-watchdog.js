@@ -40,7 +40,7 @@
 
   // Same pinning as src/lib/api.ts: the prod hostnames talk to prod Directus,
   // every other origin (dev, pages.dev previews) to dev.
-  var isProd = host === 'wiedisync.kscw.ch' || host === 'spielplanung.wiedisync.kscw.ch'
+  var isProd = host === 'wiedisync.kscw.ch' || host === 'spielplanung.wiedisync.kscw.ch' || host === 'accounting.wiedisync.kscw.ch'
   var collector = (isProd ? 'https://directus.kscw.ch' : 'https://directus-dev.kscw.ch') + '/kscw/client-error'
 
   var booted = false

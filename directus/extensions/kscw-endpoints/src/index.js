@@ -84,6 +84,7 @@ import { registerExpenseUpload } from './expense-upload.js'
 import { registerFinance } from './finance.js'
 import { registerFinanceCamt } from './finance-camt.js'
 import { registerFinanceLedger } from './finance-ledger.js'
+import { registerFinanceBooks } from './finance-books.js'
 import { registerDeleteImpact } from './delete-impact.js'
 import { registerRetention } from './retention.js'
 import { registerEmailAccounts } from './email-accounts.js'
@@ -363,7 +364,7 @@ export default {
       // Only our own origins; a report endpoint is not a general relay.
       const origin = req.headers.origin
       const ALLOWED = ['https://kscw.ch', 'https://www.kscw.ch', 'https://wiedisync.kscw.ch',
-        'https://spielplanung.wiedisync.kscw.ch', 'https://wiedisync.pages.dev']
+        'https://spielplanung.wiedisync.kscw.ch', 'https://accounting.wiedisync.kscw.ch', 'https://wiedisync.pages.dev']
       if (origin && ALLOWED.includes(origin)) {
         res.set('Access-Control-Allow-Origin', origin)
         res.set('Access-Control-Allow-Headers', 'content-type')
@@ -2840,6 +2841,7 @@ export default {
     registerFinance(router, ctx)
     registerFinanceCamt(router, ctx)
     registerFinanceLedger(router, ctx)
+    registerFinanceBooks(router, ctx)
     registerDeleteImpact(router, ctx)
     registerRetention(router, ctx)
     registerEmailAccounts(router, ctx)

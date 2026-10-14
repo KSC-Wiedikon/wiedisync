@@ -16,6 +16,7 @@
  * Corrections in a CLOSED year are reversal-only (DB trigger enforces immutability).
  */
 import { writeUserLog } from './activity-log.js'
+import { financeActor } from './finance-access.js'
 import { planYearEndClose } from './finance-close.js'
 import { loadLedgerSettings, reconcileAllLedger, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 
@@ -31,19 +32,8 @@ export function registerFinanceLedger(router, { database, logger }) {
     return res.status(code).json({ error: 'Internal error' })
   }
 
-  async function gate(req) {
-    if (req.accountability?.admin) return { ok: true, name: null, email: null }
-    const userId = req.accountability?.user
-    if (!userId) return { ok: false }
-    const m = await database('members').where('user', userId).first('first_name', 'last_name', 'email', 'role')
-    if (!m) return { ok: false }
-    const roles = Array.isArray(m.role) ? m.role : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
-    return {
-      ok: ['vorstand', 'admin', 'superuser', 'finance'].some((r) => roles.includes(r)),
-      name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
-      email: m.email || null,
-    }
-  }
+  // ok = may write (board / finance); read = may look (adds the 'revisor' role).
+  const gate = (req) => financeActor(database, req)
 
   async function fiscalYearForDate(iso) {
     return database('finance_fiscal_years').where('starts_on', '<=', iso).andWhere('ends_on', '>=', iso).orderBy('id').first('id', 'status')
@@ -52,7 +42,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Accounts (Kontenplan) ───────────────────────────────────────────────
   router.get('/finance/ledger/accounts', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const accounts = await database('finance_accounts')
         .modify((qb) => { if (req.query.active !== 'all') qb.where('active', true) })
         .orderBy('number').select('id', 'number', 'name', 'type', 'division', 'active', 'source')
@@ -110,13 +100,15 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Journal entries ─────────────────────────────────────────────────────
   router.get('/finance/ledger/entries', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       // One book at a time — never mix native + ClubDesk (they mirror the same events).
-      let q = database('finance_transactions').whereIn('source', await ledgerSources(fyId))
+      // ?book=native|clubdesk picks one explicitly (the parallel run shows both).
+      const book = ['native', 'clubdesk'].includes(req.query.book) ? [req.query.book] : await ledgerSources(fyId)
+      let q = database('finance_transactions').whereIn('source', book)
         .orderBy([{ column: 'booking_date', order: 'desc' }, { column: 'id', order: 'desc' }])
         .select('id', 'beleg', 'booking_date', 'text', 'debit_account', 'debit_account_number', 'debit_account_name',
-          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name', 'source')
+          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name', 'source', 'ref_kind', 'ref_id')
       if (Number.isInteger(fyId)) q = q.where('fiscal_year', fyId)
       return res.json({ entries: await q.limit(2000) })
     } catch (e) { return err(res, req, 'entries', e) }
@@ -193,6 +185,9 @@ export function registerFinanceLedger(router, { database, logger }) {
         throw e
       }
       const row = ins[0]
+      // A reversed bank posting gives its statement line back, so it can be booked again.
+      await database('finance_bank_lines').where('entry', o.id)
+        .update({ status: 'open', entry: null, posted_by_name: null, posted_by_email: null, posted_at: null })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_reversal', reversal_of: o.id, beleg } })
       return res.json({ entry: row })
     } catch (e) { return err(res, req, 'entry-reverse', e) }
@@ -205,7 +200,13 @@ export function registerFinanceLedger(router, { database, logger }) {
       const o = await database('finance_transactions').where('id', id).andWhere('source', 'native').first('id')
       if (!o) return res.status(404).json({ error: 'Not found' })
       try {
-        await database('finance_transactions').where('id', id).del() // trigger blocks closed-year native rows
+        // A deleted bank posting gives its statement line back (same transaction, so a
+        // refused closed-year delete leaves the line posted).
+        await database.transaction(async (trx) => {
+          await trx('finance_bank_lines').where('entry', id)
+            .update({ status: 'open', entry: null, posted_by_name: null, posted_by_email: null, posted_at: null })
+          await trx('finance_transactions').where('id', id).del() // trigger blocks closed-year native rows
+        })
       } catch (e) {
         if (/closed fiscal year/i.test(e.message)) return res.status(409).json({ error: 'Entry is in a closed fiscal year — post a reversal instead' })
         throw e
@@ -218,7 +219,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Trial balance (Saldenbilanz) — native postings for a fiscal year ─────
   router.get('/finance/ledger/trial-balance', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       // Single book (see ledgerSources) — never SUM native + ClubDesk or every shared
       // account's balance doubles. Matches the native-only year-end close.
@@ -247,7 +248,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Fiscal years + year-end close (Jahresabschluss) ─────────────────────
   router.get('/finance/ledger/fiscal-years', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const years = await database('finance_fiscal_years').orderBy('starts_on', 'desc')
         .select('id', 'label', 'starts_on', 'ends_on', 'status', 'closed_on', 'closed_by_name')
       return res.json({ fiscal_years: years })
@@ -354,7 +355,7 @@ export function registerFinanceLedger(router, { database, logger }) {
 
   router.get('/finance/ledger/settings', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const settings = await loadLedgerSettings(database)
       return res.json({ settings })
     } catch (e) { return err(res, req, 'settings', e) }
@@ -424,7 +425,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Per-category dues income mapping (migration 154) ────────────────────
   router.get('/finance/ledger/income-map', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const map = await database('finance_income_account_map').select('fee_category', 'account')
       const fromMembers = await database('members').whereNotNull('beitragskategorie').distinct('beitragskategorie').pluck('beitragskategorie')
       const fromInvoices = await database('finance_invoices').where('source', 'native').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
@@ -491,7 +492,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   // writes back sync_state. GET is polled by the button.
   router.get('/finance/ledger/clubdesk-sync', async (req, res) => {
     try {
-      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const s = await database('finance_ledger_settings').where('id', 1).first('sync_state', 'sync_message', 'sync_requested_at', 'sync_finished_at')
       const li = await database('finance_imports').max('date_created as t').first()
       return res.json({ state: s?.sync_state || 'idle', message: s?.sync_message || null, requested_at: s?.sync_requested_at || null, finished_at: s?.sync_finished_at || null, last_import: li?.t || null })

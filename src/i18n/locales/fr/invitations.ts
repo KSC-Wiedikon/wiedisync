@@ -15,6 +15,7 @@ export default {
   role_bb_admin: 'Admin BB',
   role_superuser: 'Superutilisateur',
   role_finance: 'Finances',
+  role_revisor: 'Vérificateur des comptes',
   role_coach: 'Entraîneur',
   role_team_responsible: 'Responsable d\'équipe',
   role_captain: 'Capitaine',

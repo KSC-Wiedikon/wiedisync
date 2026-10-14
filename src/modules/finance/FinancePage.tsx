@@ -23,15 +23,22 @@ import LedgerTab from './LedgerTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 import ExpensesTab from './ExpensesTab'
 import ReportExportMenu from './ReportExportMenu'
+import BankTab from './books/BankTab'
+import ParallelTab from './books/ParallelTab'
+import YearEndTab from './books/YearEndTab'
+import SwitchTab from './books/SwitchTab'
+import { useAuth } from '../../hooks/useAuth'
 import type { FinanceReport } from './reportExport'
 
 type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'expenses' | 'members' | 'teams' | 'sync'
+  | 'bank' | 'year' | 'parallel' | 'switch'
 
 const TAB_LABEL: Record<Tab, string> = {
   overview: 'tabOverview', income: 'tabIncome', budget: 'tabBudget', balance: 'tabBalance',
   ledger: 'tabLedger', accounts: 'tabAccounts', invoices: 'tabInvoices', dues: 'tabDues',
   dunning: 'tabDunning', expenses: 'tabExpenses', members: 'tabMembers', teams: 'tabTeams',
   sync: 'tabSync',
+  bank: 'tabBank', year: 'tabYear', parallel: 'tabParallel', switch: 'tabSwitch',
 }
 
 /** Tabs grouped by the treasurer's job, not by which component was built first.
@@ -39,10 +46,16 @@ const TAB_LABEL: Record<Tab, string> = {
 const TAB_GROUPS: Array<{ key: string; labelKey: string; tabs: Tab[] }> = [
   { key: 'summary', labelKey: 'tabGroupSummary', tabs: ['overview'] },
   { key: 'billing', labelKey: 'tabGroupBilling', tabs: ['dues', 'invoices', 'dunning'] },
-  { key: 'books', labelKey: 'tabGroupBooks', tabs: ['income', 'balance', 'budget', 'ledger', 'accounts'] },
+  { key: 'books', labelKey: 'tabGroupBooks', tabs: ['income', 'balance', 'budget', 'ledger', 'accounts', 'bank', 'year'] },
+  // The parallel books (accounting.wiedisync.kscw.ch, 14.10.2026): native vs
+  // ClubDesk month by month, and whether the switch criteria hold.
+  { key: 'parallel', labelKey: 'tabGroupParallel', tabs: ['parallel', 'switch'] },
   { key: 'records', labelKey: 'tabGroupRecords', tabs: ['members', 'teams', 'expenses'] },
   { key: 'data', labelKey: 'tabGroupData', tabs: ['sync'] },
 ]
+/** Tabs a read-only auditor ('revisor') does not get: the member register (no
+ *  member PII on their policy) and the sync trigger (a write). */
+const REVISOR_HIDDEN: Tab[] = ['members', 'sync']
 
 /** On-demand "Sync now" — requests a ClubDesk finance import and polls until the
  *  host dispatcher reports done/failed (state changes in the handler, not an effect). */
@@ -191,7 +204,9 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'ledger', 'accounts', 'invoices', 'dues', 'dunning', 'expenses', 'members', 'teams', 'sync']
+  const { isRevisor } = useAuth()
+  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'ledger', 'accounts', 'invoices', 'dues', 'dunning', 'expenses', 'members', 'teams', 'sync', 'bank', 'year', 'parallel', 'switch']
+    .filter((x) => !(isRevisor && REVISOR_HIDDEN.includes(x as Tab))) as Tab[]
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -340,7 +355,7 @@ export default function FinancePage() {
               <div key={g.key} className="min-w-0">
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t(g.labelKey)}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {g.tabs.map((id) => (
+                  {g.tabs.filter((id) => TABS.includes(id)).map((id) => (
                     <TabBtn key={id} active={tab === id} label={t(TAB_LABEL[id])} onClick={() => setTab(id)} />
                   ))}
                 </div>
@@ -348,6 +363,13 @@ export default function FinancePage() {
             ))}
           </nav>
 
+          {isRevisor && (
+            <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">{t('bkReadOnlyBanner')}</p>
+          )}
+          {tab === 'bank' && <BankTab fiscalYearId={activeFyId} />}
+          {tab === 'year' && <YearEndTab fiscalYearId={activeFyId} />}
+          {tab === 'parallel' && <ParallelTab fiscalYearId={activeFyId} />}
+          {tab === 'switch' && <SwitchTab />}
           {/* ── Invoices (native create/manage + orphan member-linking) ── */}
           {tab === 'invoices' && <InvoiceManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
 

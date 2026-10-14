@@ -933,7 +933,7 @@ export const deleteBillingContact = (id: number) =>
 
 // ── Native ledger (book of record) ──────────────────────────────────────
 export interface LedgerAccount { id: number; number: string; name: string; type: string | null; division: string | null; active: boolean; source: string }
-export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null; source: string }
+export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null; source: string; ref_kind?: string | null; ref_id?: number | null }
 export interface TrialBalanceRow { account: number; number: string; name: string; type: string | null; division: string | null; nominal: boolean; debit: number; credit: number; balance: number }
 export interface LedgerFiscalYear { id: number; label: string | null; starts_on: string; ends_on: string; status: string; closed_on: string | null; closed_by_name: string | null }
 export interface LedgerSettings { id: number; autopost_enabled: boolean; debitoren_account: number | null; bank_account: number | null; income_account: number | null; sponsoring_account: number | null; bad_debt_account: number | null; expense_account: number | null; prepayment_account: number | null }
@@ -942,8 +942,11 @@ export const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense
 export function useLedgerAccounts(enabled = true, all = false) {
   return useQuery({ queryKey: ['finance', 'ledger-accounts', all], queryFn: () => kscwApi<{ accounts: LedgerAccount[] }>(`/finance/ledger/accounts${all ? '?active=all' : ''}`), enabled, select: (r) => r.accounts })
 }
-export function useLedgerEntries(fiscalYearId?: string | number | null, enabled = true) {
-  return useQuery({ queryKey: ['finance', 'ledger-entries', String(fiscalYearId ?? '')], queryFn: () => kscwApi<{ entries: LedgerEntry[] }>(`/finance/ledger/entries${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`), enabled, select: (r) => r.entries })
+/** `book` picks one book explicitly; without it the server shows the native book
+ *  once it has entries for the year, else the ClubDesk mirror. */
+export function useLedgerEntries(fiscalYearId?: string | number | null, enabled = true, book?: 'native' | 'clubdesk') {
+  const qs = [fiscalYearId ? `fiscal_year=${fiscalYearId}` : '', book ? `book=${book}` : ''].filter(Boolean).join('&')
+  return useQuery({ queryKey: ['finance', 'ledger-entries', String(fiscalYearId ?? ''), book ?? ''], queryFn: () => kscwApi<{ entries: LedgerEntry[] }>(`/finance/ledger/entries${qs ? `?${qs}` : ''}`), enabled, select: (r) => r.entries })
 }
 export function useLedgerTrialBalance(fiscalYearId?: string | number | null, enabled = true) {
   return useQuery({ queryKey: ['finance', 'ledger-trial', String(fiscalYearId ?? '')], queryFn: () => kscwApi<{ rows: TrialBalanceRow[]; totals: { debit: number; credit: number; balanced: boolean } }>(`/finance/ledger/trial-balance${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`), enabled })

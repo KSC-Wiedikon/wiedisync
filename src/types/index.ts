@@ -153,7 +153,7 @@ export interface Member extends BaseRecord {
   number: number
   position: MemberPosition[]
   photo: string
-  role: ('user' | 'vorstand' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser' | 'finance')[]
+  role: ('user' | 'vorstand' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser' | 'finance' | 'revisor')[]
   kscw_membership_active: boolean
   birthdate: string
 

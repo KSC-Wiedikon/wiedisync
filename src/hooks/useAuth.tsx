@@ -96,6 +96,10 @@ export interface AuthContextValue {
   isFinance: boolean
   /** May open the club-finance dashboard — board OR finance role. */
   canAccessFinance: boolean
+  /** Only the read-only auditor role ('revisor'), without board/finance powers. */
+  isRevisor: boolean
+  /** May READ the books (accounting app): board, finance, or 'revisor'. */
+  canReadFinance: boolean
   getGuestLevel: (teamId: string) => number
   isGuestIn: (teamId: string) => boolean
   isLoading: boolean

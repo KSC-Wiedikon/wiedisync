@@ -187,6 +187,7 @@ export default {
     superuser: 'Superuser',
     website_admin: 'Website admin',
     finance: 'Finance',
+    revisor: 'Auditor',
     verein: 'Club',
     social: 'Social',
     meeting: 'Meeting',

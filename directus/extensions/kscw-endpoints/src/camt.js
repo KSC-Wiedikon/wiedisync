@@ -166,3 +166,102 @@ export function invoiceNumbersFromMessage(msg) {
   for (const m of s.matchAll(/\b(\d{3,8})\b/g)) bare.push(m[1])
   return [...new Set([...explicit, ...bare])]
 }
+
+/** Counterparty of one transaction: the debtor for money in, the creditor for money out. */
+function counterparty(tx, credit) {
+  const p = tx?.RltdPties
+  const party = credit ? p?.Dbtr : p?.Cdtr
+  const acct = credit ? p?.DbtrAcct : p?.CdtrAcct
+  return {
+    name: txt(party?.Nm) || txt(party?.Pty?.Nm) || null,
+    iban: norm(txt(acct?.Id?.IBAN)),
+  }
+}
+
+/** Signed balance of one <Bal> node (+ credit, − debit). */
+function balanceOf(bal) {
+  const amt = num(txt(bal?.Amt))
+  if (amt == null) return null
+  const sign = txt(bal?.CdtDbtInd) === 'DBIT' ? -1 : 1
+  return { amount: Math.round(sign * amt * 100) / 100, date: txt(bal?.Dt?.Dt) || (txt(bal?.Dt?.DtTm) || '').slice(0, 10) || null }
+}
+
+/**
+ * camt.053 account statement → every BOOKED entry, money in AND out — the input of
+ * bookkeeping, unlike parseCamt (incoming payments only, for invoice matching).
+ *
+ * One line per transaction: a batch entry (Sammelbuchung) with several <TxDtls>
+ * that each carry an amount is split, so each payment can meet its own invoice;
+ * otherwise the entry is one line. `bankRef` is the line's stable identity across
+ * re-imports: the bank's own transaction reference, else the entry reference (or
+ * statement id + entry position) plus the transaction's position.
+ *
+ * The statement's opening and closing balances come back too: opening + the sum of
+ * its lines must equal closing, which proves nothing was dropped.
+ *
+ * @returns {{ statements: Array<{ id: string|null, iban: string|null,
+ *   opening: {amount:number,date:string|null}|null, closing: {amount:number,date:string|null}|null,
+ *   lines: Array<{ bankRef: string, bookingDate: string|null, valueDate: string|null,
+ *     amount: number, currency: string|null, counterpartyName: string|null,
+ *     counterpartyIban: string|null, reference: string|null, remittance: string|null }> }> }}
+ */
+export function parseStatement(xml) {
+  if (/<!DOCTYPE/i.test(String(xml ?? ''))) {
+    throw new Error('Invalid camt file: DOCTYPE is not allowed')
+  }
+  const root = parser.parse(xml)?.Document
+  if (!root) throw new Error('Not a camt file (no <Document> root)')
+  if (!root.BkToCstmrStmt) throw new Error('Not an account statement — expected camt.053 (BkToCstmrStmt)')
+  const statements = []
+  arr(root.BkToCstmrStmt.Stmt).forEach((st, si) => {
+    const id = txt(st?.Id) || txt(st?.ElctrncSeqNb) || null
+    const iban = norm(txt(st?.Acct?.Id?.IBAN))
+    let opening = null, closing = null
+    for (const b of arr(st?.Bal)) {
+      const code = (txt(b?.Tp?.CdOrPrtry?.Cd) || txt(b?.Tp?.CdOrPrtry?.Prtry) || '').toUpperCase()
+      if ((code === 'OPBD' || code === 'PRCD') && !opening) opening = balanceOf(b)
+      if (code === 'CLBD') closing = balanceOf(b)
+    }
+    const lines = []
+    arr(st?.Ntry).forEach((ntry, ni) => {
+      if (!isBooked(ntry)) return
+      const credit = txt(ntry.CdtDbtInd) === 'CRDT'
+      const sign = credit ? 1 : -1
+      const bookingDate = txt(ntry?.BookgDt?.Dt) || (txt(ntry?.BookgDt?.DtTm) || '').slice(0, 10) || null
+      const valueDate = txt(ntry?.ValDt?.Dt) || (txt(ntry?.ValDt?.DtTm) || '').slice(0, 10) || null
+      const entryAmt = num(txt(ntry.Amt))
+      const entryRef = realRef(ntry.AcctSvcrRef) || `${id || `stmt${si}`}:${ni}`
+      const extraEntry = txt(ntry.AddtlNtryInf)
+      const txs = arr(ntry?.NtryDtls?.TxDtls)
+      const txAmount = (tx) => num(txt(tx?.Amt)) ?? num(txt(tx?.AmtDtls?.TxAmt?.Amt))
+      // Split only when every transaction states its own amount — otherwise the
+      // entry total is the only trustworthy figure.
+      const split = txs.length > 1 && txs.every((tx) => txAmount(tx) != null)
+      const list = split ? txs : [txs[0] ?? null]
+      list.forEach((tx, ti) => {
+        const amount = split ? txAmount(tx) : entryAmt
+        if (amount == null) return
+        const { reference } = tx ? structuredRef(tx) : { reference: null }
+        const cp = tx ? counterparty(tx, credit) : { name: null, iban: null }
+        const remittance = [
+          ...(tx ? arr(tx?.RmtInf?.Ustrd).map(txt) : []),
+          tx ? txt(tx?.AddtlTxInf) : null,
+          extraEntry,
+        ].filter(Boolean).join(' · ').trim() || null
+        lines.push({
+          bankRef: (tx && realRef(tx?.Refs?.AcctSvcrRef)) || `${entryRef}#${ti}`,
+          bookingDate,
+          valueDate,
+          amount: Math.round(sign * amount * 100) / 100,
+          currency: (tx?.Amt ?? ntry.Amt)?.['@_Ccy'] ?? null,
+          counterpartyName: cp.name,
+          counterpartyIban: cp.iban,
+          reference,
+          remittance,
+        })
+      })
+    })
+    statements.push({ id, iban, opening, closing, lines })
+  })
+  return { statements }
+}

@@ -334,6 +334,11 @@ UPDATE game_vm_sheets        SET list      = pg_temp.kscw_vm_list(list)        W
 UPDATE finance_payouts          SET iban = pg_temp.kscw_iban(iban), payee_address = pg_temp.kscw_street(payee_address)
  WHERE iban IS NOT NULL OR payee_address IS NOT NULL;
 UPDATE finance_expenses         SET pay_to_iban = pg_temp.kscw_iban(pay_to_iban) WHERE pay_to_iban IS NOT NULL;
+-- Bank statement lines + booking rules (migration 411): every payer's and payee's
+-- IBAN as the bank reported it, and the club's own account.
+UPDATE finance_bank_lines       SET account_iban = pg_temp.kscw_iban(account_iban), counterparty_iban = pg_temp.kscw_iban(counterparty_iban)
+ WHERE account_iban IS NOT NULL OR counterparty_iban IS NOT NULL;
+UPDATE finance_bank_rules       SET match_iban = pg_temp.kscw_iban(match_iban) WHERE match_iban IS NOT NULL;
 UPDATE finance_billing_contacts SET
   billing_iban = pg_temp.kscw_iban(billing_iban),
   address      = pg_temp.kscw_street(address),
