@@ -258,8 +258,9 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
         source: 'native', typ: 'Standard', beleg: await nextBeleg(trx, 'J', date), booking_date: date, text: body,
         debit_account: dr.id, debit_account_number: dr.number, debit_account_name: dr.name,
         credit_account: cr.id, credit_account_number: cr.number, credit_account_name: cr.name,
+        // The link lives on finance_bank_lines.entry — ref_kind is CHECK-limited to
+        // the auto-posting kinds (issue/settle/…), so it stays NULL here.
         amount_chf: legs.amount, fiscal_year: fy.id, created_by_name: actor.name, created_by_email: actor.email,
-        ref_kind: 'bank_line', ref_id: line.id, auto: false,
       }).returning('*')
       await trx('finance_bank_lines').where('id', line.id).update({
         status: 'posted', entry: entry.id, fiscal_year: fy.id,
