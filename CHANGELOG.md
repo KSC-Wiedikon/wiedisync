@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.35.0 — 2026-10-14
+
+### New
+
+- Scorer assignment: the Assignment tab now lists every upcoming home game with its duty teams and people, and volleyball and basketball admins can change them right in the table. Each change is saved immediately.
+
+### Changed
+
+- Only a superadmin runs the automatic scorer assignment.
+
 ## v2.34.0 — 2026-10-13
 
 ### New

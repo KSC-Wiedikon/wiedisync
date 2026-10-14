@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.34.0'
+const APP_VERSION = '2.35.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.35.0',
+    date: '14.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Scorer assignment: the Assignment tab now lists every upcoming home game with its duty teams and people, and volleyball and basketball admins can change them right in the table. Each change is saved immediately.",
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          "Only a superadmin runs the automatic scorer assignment.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.34.0',
     date: '13.10.2026',
