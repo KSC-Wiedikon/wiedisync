@@ -27,7 +27,9 @@ import { isProdInstance } from '../../kscw-endpoints/src/external-accounts.js'
 const PROD_CREDENTIALED_ORIGINS = [
   'https://wiedisync.kscw.ch',
   'https://spielplanung.wiedisync.kscw.ch',
-  // The club's books (CF Pages `kscw-accounting`, 14.10.2026).
+  // The club's books (CF Pages `kscw-accounting`, 14.10.2026). Also needs its
+  // entry in prod's CORS_ORIGIN env — this list only keeps the credentials header,
+  // Directus itself sends Access-Control-Allow-Origin.
   'https://accounting.wiedisync.kscw.ch',
 ]
 
