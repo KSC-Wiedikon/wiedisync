@@ -15,6 +15,7 @@ export default {
   sendingResetLink: 'Invio link...',
   enterEmailFirst: 'Inserisci prima la tua email.',
   accountAlreadyExists: 'Esiste già un account con questa email. Accedi.',
+  sharedEmailHouseholdHint: 'Questa e-mail appartiene all\'account di un familiare. Accedi con essa — un admin può collegare altri familiari allo stesso account e passi dall\'uno all\'altro con la barra in alto nell\'app.',
   noAccountYet: 'Non hai un account?',
 
   // Profile
@@ -98,7 +99,7 @@ export default {
   inviteClaimedTitle: 'Invito già utilizzato',
   inviteClaimedDescription: 'Questo invito è già stato utilizzato. Se eri tu, puoi semplicemente accedere.',
   inviteNoEmail: 'Non è registrato alcun indirizzo e-mail per te. Chiedi prima a un admin di aggiungerne uno.',
-  inviteEmailInUse: 'Questa e-mail ha già un account — ogni account richiede un proprio indirizzo e-mail. Chiedi prima a un admin di impostare un\'e-mail personale per te.',
+  inviteEmailInUse: 'Questa e-mail ha già un account nella tua famiglia. Accedi invece con quello — un admin può collegare questa persona a quell\'account così potrai passare da un familiare all\'altro.',
   inviteRedeemFailed: 'Impossibile attivare l\'account. Riprova.',
   inviteFetchErrorTitle: 'Qualcosa è andato storto',
   inviteFetchErrorDescription: 'Al momento non è stato possibile verificare il tuo invito. Controlla la connessione e riprova — il tuo invito è ancora valido.',

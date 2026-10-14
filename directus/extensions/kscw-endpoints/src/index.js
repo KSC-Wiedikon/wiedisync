@@ -701,11 +701,24 @@ export default {
           .select('id')
           .first()
 
+        // Shared family address: the login on this email belongs to a DIFFERENT
+        // member than the row `.first()` happened to pick (a sibling or parent).
+        // Claiming would only end in `email_in_use` at /set-password, after an
+        // OTP round trip. Send them to /login instead: a second family member
+        // joins that login as a managed household member, never through a
+        // claim of their own (Alexander siblings, 2026-10-14 — the mother kept
+        // getting "jedes Konto braucht eine eigene E-Mail" for the younger child).
+        const loginOwner = directusUser
+          ? await database('members').where('user', directusUser.id).first('id')
+          : null
+        const sharedEmail = !!(member && loginOwner && String(loginOwner.id) !== String(member.id))
+
         const result = {
           exists: !!member || !!directusUser,
-          claimed: member?.wiedisync_active || (!!directusUser && !member) || false,
+          claimed: member?.wiedisync_active || (!!directusUser && !member) || sharedEmail || false,
           shell: member?.shell || false,
         }
+        if (sharedEmail) result.shared_email = true
 
         // For unclaimed members: team names/sport for pre-fill.
         //

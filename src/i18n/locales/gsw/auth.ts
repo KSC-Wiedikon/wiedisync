@@ -15,6 +15,7 @@ export default {
   sendingResetLink: 'Link wird gschickt...',
   enterEmailFirst: 'Bitte gib zersch dini E-Mail ii.',
   accountAlreadyExists: 'Es Konto mit dere E-Mail gits scho. Bitte logg di ii.',
+  sharedEmailHouseholdHint: 'Die E-Mail ghört zum Login vomene Familiemitglied. Logg di demit ii — en Admin cha wiiteri Familiemitglieder mit em gliiche Login verchnüpfe, und du wechslisch obe i de App zwüsche ine.',
   noAccountYet: 'No käs Konto?',
 
   // Profile
@@ -98,7 +99,7 @@ export default {
   inviteClaimedTitle: 'Yladig scho bruucht',
   inviteClaimedDescription: 'Die Yladig isch scho bruucht worde. Falls das du gsi bisch, chasch dich eifach aamälde.',
   inviteNoEmail: 'Für di isch kei E-Mail-Adrässe hinderleit. Bitte en Admin, zersch eini z ergänze.',
-  inviteEmailInUse: 'Die E-Mail hät scho es Konto — jedes Konto bruucht e eigeni E-Mail-Adrässe. Bitte en Admin, zersch e persönlichi E-Mail für di z hinderlege.',
+  inviteEmailInUse: 'Die E-Mail hät i dinere Familie scho es Login. Logg di stattdesse demit ii — en Admin cha die Person mit em Login verchnüpfe, dass du zwüsche de Familiemitglieder chasch wechsle.',
   inviteRedeemFailed: 'S Konto hät nöd chönne aktiviert werde. Bitte probier\'s nomal.',
   inviteFetchErrorTitle: 'Öppis isch schiefgloffe',
   inviteFetchErrorDescription: 'Dini Yladig hät grad nöd chönne prüeft werde. Bitte check dini Verbindig und probier\'s nomal — dini Yladig isch wiiterhin gültig.',

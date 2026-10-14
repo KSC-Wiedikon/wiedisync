@@ -6084,9 +6084,71 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return x === y || x.startsWith(y) || y.startsWith(x)
   }
 
+  // Roster rows for a registration's named teams. Shared by approval and by a
+  // later edit of `team` on an already-approved registration — before that edit
+  // path existed, correcting the team after approval changed nothing on the
+  // roster (Amelie Guntli, reg 61: approved as DU14, corrected to DU18 Spark a
+  // week later, then taken off DU14 → on no team at all). Returns the names of
+  // the teams a row was added to.
+  async function addRegistrationTeamsToRoster(db, reg, memberId, log) {
+    const rolle = (reg.rolle || '').toLowerCase()
+    const added = []
+    if (reg.team && reg.membership_type !== 'passive') {
+      const teamNames = reg.team.split(',').map(t => t.trim()).filter(Boolean)
+      // `season` is selected so the roster insert below can stamp the TEAM's own
+      // season instead of the wall clock (they disagree for all of May and
+      // between the Jun-1 cutover and the rollover).
+      const teamRows = await db('teams')
+        .whereIn('name', teamNames).andWhere('active', true).select('id', 'name', 'season')
+
+      const season = getCurrentSeason()
+
+      for (const team of teamRows) {
+        if (rolle.includes('trainer') || rolle.includes('coach') ||
+            rolle.includes('teamverantwortlich') || rolle.includes('team responsible')) {
+          // COACH / TR requested (2026-07-05 audit MED #6). `rolle` + `team` are
+          // applicant-controlled public-form fields, and coach/TR membership
+          // materializes the LEADER policy (team leadership + member-PII access +
+          // roster/game/fine write scope). Auto-granting that on a routine
+          // approval let an applicant self-assert leadership over any existing
+          // team. Do NOT auto-create the coach/TR junction here — leadership is
+          // an explicit, deliberate staff action (roster editor / admin, which is
+          // itself scope-guarded now). Surface a clear, admin-visible warning so
+          // staff know to grant it manually.
+          log.warn({ msg: `Registration approval requested COACH/TR on "${team.name}" — NOT auto-granted (applicant-supplied rolle). Grant leadership manually if intended.`, memberId, team: team.name, rolle })
+          logWarning('registration_leader_not_autogranted',
+            `Member ${memberId} approved with rolle="${rolle}" on team "${team.name}" — coach/TR NOT auto-granted; assign manually if intended.`,
+            { memberId, team: team.name, rolle })
+        } else {
+          // Everyone else (player / andere / other / unspecified) → roster player.
+          // A guest registration (funktion "Guest" → rolle) is rostered as a guest
+          // (guest_level 1): lower training priority, blocked from league games,
+          // and expected in ClubDesk's '<group> (Guest)' subgroup by the sync check
+          // (user 2026-07-15). Core players stay guest_level 0.
+          const isGuestRolle = rolle === 'guest' || rolle === 'gast'
+          // Probe by (member, team) — the UNIQUE key — not by season, and stamp
+          // the TEAM's own season rather than the wall clock. Keyed on season the
+          // probe missed an existing row whose stamp lagged and the insert then
+          // hit the unique constraint; stamping the clock wrote a season the team
+          // does not have, which the rollover's clone then skips.
+          const rosterSeason = team.season ?? season
+          const exists = await db('member_teams')
+            .where({ member: memberId, team: team.id }).first()
+          if (!exists) {
+            await db('member_teams').insert({
+              member: memberId, team: team.id, season: rosterSeason, guest_level: isGuestRolle ? 1 : 0,
+            })
+            log.info({ msg: 'Added to team roster', memberId, team: team.name, season: rosterSeason, guest: isGuestRolle })
+            added.push(team.name)
+          }
+        }
+      }
+    }
+    return added
+  }
+
   async function createMemberFromRegistration(db, reg, log) {
     const email = reg.email.toLowerCase().trim()
-    const rolle = (reg.rolle || '').toLowerCase()
 
     // 0. A staff-confirmed link wins over every heuristic below. /admin/anmeldungen
     // can merge a registration onto an existing member (registration.js →
@@ -6356,56 +6418,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
 
     // 3. Link to team(s) based on rolle
-    if (reg.team && reg.membership_type !== 'passive') {
-      const teamNames = reg.team.split(',').map(t => t.trim()).filter(Boolean)
-      // `season` is selected so the roster insert below can stamp the TEAM's own
-      // season instead of the wall clock (they disagree for all of May and
-      // between the Jun-1 cutover and the rollover).
-      const teamRows = await db('teams')
-        .whereIn('name', teamNames).andWhere('active', true).select('id', 'name', 'season')
-
-      const season = getCurrentSeason()
-
-      for (const team of teamRows) {
-        if (rolle.includes('trainer') || rolle.includes('coach') ||
-            rolle.includes('teamverantwortlich') || rolle.includes('team responsible')) {
-          // COACH / TR requested (2026-07-05 audit MED #6). `rolle` + `team` are
-          // applicant-controlled public-form fields, and coach/TR membership
-          // materializes the LEADER policy (team leadership + member-PII access +
-          // roster/game/fine write scope). Auto-granting that on a routine
-          // approval let an applicant self-assert leadership over any existing
-          // team. Do NOT auto-create the coach/TR junction here — leadership is
-          // an explicit, deliberate staff action (roster editor / admin, which is
-          // itself scope-guarded now). Surface a clear, admin-visible warning so
-          // staff know to grant it manually.
-          log.warn({ msg: `Registration approval requested COACH/TR on "${team.name}" — NOT auto-granted (applicant-supplied rolle). Grant leadership manually if intended.`, memberId, team: team.name, rolle })
-          logWarning('registration_leader_not_autogranted',
-            `Member ${memberId} approved with rolle="${rolle}" on team "${team.name}" — coach/TR NOT auto-granted; assign manually if intended.`,
-            { memberId, team: team.name, rolle })
-        } else {
-          // Everyone else (player / andere / other / unspecified) → roster player.
-          // A guest registration (funktion "Guest" → rolle) is rostered as a guest
-          // (guest_level 1): lower training priority, blocked from league games,
-          // and expected in ClubDesk's '<group> (Guest)' subgroup by the sync check
-          // (user 2026-07-15). Core players stay guest_level 0.
-          const isGuestRolle = rolle === 'guest' || rolle === 'gast'
-          // Probe by (member, team) — the UNIQUE key — not by season, and stamp
-          // the TEAM's own season rather than the wall clock. Keyed on season the
-          // probe missed an existing row whose stamp lagged and the insert then
-          // hit the unique constraint; stamping the clock wrote a season the team
-          // does not have, which the rollover's clone then skips.
-          const rosterSeason = team.season ?? season
-          const exists = await db('member_teams')
-            .where({ member: memberId, team: team.id }).first()
-          if (!exists) {
-            await db('member_teams').insert({
-              member: memberId, team: team.id, season: rosterSeason, guest_level: isGuestRolle ? 1 : 0,
-            })
-            log.info({ msg: 'Added to team roster', memberId, team: team.name, season: rosterSeason, guest: isGuestRolle })
-          }
-        }
-      }
-    }
+    await addRegistrationTeamsToRoster(db, reg, memberId, log)
 
     return memberId
   }
@@ -6703,6 +6716,42 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ⚠ Process-local: it would not survive multi-instance scaling. Directus runs
   // as a single container here.
   const approvalsInFlight = new Set()
+
+  // ── Team corrected on an already-approved registration ─────────────────────
+  // Approval rosters the member on the teams the registration names at that
+  // moment; a later edit of `team` used to change nothing. Now the member is
+  // added to the newly named team(s). Rows on teams the registration no longer
+  // names are LEFT IN PLACE (someone may legitimately play on both) and surfaced
+  // as an admin-visible warning instead, so a correction never strands the
+  // member on no team and never removes anyone silently.
+  action('items.update', async ({ collection, keys, payload }) => {
+    if (collection !== 'registrations') return
+    if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'team')) return
+    // A PATCH that approves in the same request is handled by the approval path.
+    if (payload.status === 'approved') return
+    for (const id of (Array.isArray(keys) ? keys : [])) {
+      try {
+        const reg = await database('registrations').where('id', id).first()
+        if (!reg || reg.status !== 'approved' || !reg.member) continue
+        const added = await addRegistrationTeamsToRoster(database, reg, reg.member, log)
+        if (!added.length) continue
+        const named = String(reg.team || '').split(',').map(t => t.trim()).filter(Boolean)
+        const sport = reg.membership_type === 'volleyball' || reg.membership_type === 'basketball' ? reg.membership_type : null
+        const others = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
+          .where('mt.member', reg.member).andWhere('t.active', true)
+          .modify((q) => { if (sport) q.andWhere('t.sport', sport) })
+          .whereNotIn('t.name', named).pluck('t.name')
+        log.info({ msg: 'Approved registration team changed — rostered on the new team', registrationId: id, memberId: reg.member, added, stillOn: others })
+        if (others.length) {
+          logWarning('registration_team_changed_after_approval',
+            `Registration ${id}: team changed to "${reg.team}" after approval. Member ${reg.member} was added to ${added.join(', ')} but is still on ${others.join(', ')} — remove them there if this was a move.`,
+            { registrationId: id, memberId: reg.member, added, stillOn: others })
+        }
+      } catch (err) {
+        log.error({ msg: `Registration team-change roster sync failed: ${err.message}`, registrationId: id, stack: err.stack })
+      }
+    }
+  })
 
   action('items.update', async ({ collection, keys, payload }, { schema }) => {
     if (collection !== 'registrations') return

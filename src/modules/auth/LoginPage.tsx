@@ -15,7 +15,7 @@ export default function LoginPage() {
   const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const location = useLocation()
-  const locationState = location.state as { email?: string; accountExists?: boolean } | null
+  const locationState = location.state as { email?: string; accountExists?: boolean; sharedEmail?: boolean } | null
 
   // Where to land after a successful login. AuthRoute puts the attempted path
   // here so a shared deep link (`/events/42`) survives the detour through the
@@ -41,6 +41,18 @@ export default function LoginPage() {
     if (stored) sessionStorage.removeItem('login-redirect-exists')
     return stored
   })
+  // Same lifetime as showAccountExists: a family address whose login belongs
+  // to a sibling/parent. Explains the household switch instead of a bare
+  // "account exists", which read as "register the child with another email".
+  const [showSharedEmail] = useState(() => {
+    if (locationState?.sharedEmail) {
+      sessionStorage.setItem('login-redirect-shared', 'true')
+      return true
+    }
+    const stored = sessionStorage.getItem('login-redirect-shared') === 'true'
+    if (stored) sessionStorage.removeItem('login-redirect-shared')
+    return stored
+  })
   useEffect(() => {
     if (user) navigate(returnTo, { replace: true })
   }, [user, navigate, returnTo])
@@ -54,6 +66,7 @@ export default function LoginPage() {
       await login(email, password)
       sessionStorage.removeItem('login-redirect-email')
       sessionStorage.removeItem('login-redirect-exists')
+      sessionStorage.removeItem('login-redirect-shared')
       navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message.toLowerCase() : ''
@@ -91,6 +104,9 @@ export default function LoginPage() {
           {showAccountExists && (
             <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-center text-sm font-medium text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300">
               {t('accountAlreadyExists')}
+              {showSharedEmail && (
+                <p className="mt-1 text-xs font-normal">{t('sharedEmailHouseholdHint')}</p>
+              )}
             </div>
           )}
 
