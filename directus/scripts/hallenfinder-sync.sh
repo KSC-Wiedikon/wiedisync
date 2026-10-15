@@ -30,12 +30,29 @@ esac
 SQL="$DIR/import.sql"
 DETAILS_SQL="$DIR/import-details.sql"
 
-cleanup() { rm -f "$SQL" "$DETAILS_SQL"; }
+STAGE=start
+
+# A failed night lands in sync_runs as status 'error' (the success row is written
+# by the scrape's own SQL). Without this the row stayed 'ok' from 24.08.2026 while
+# every run until 16.10.2026 failed — only the log knew.
+heartbeat_error() {
+  local msg=${1//\'/\'\'}
+  docker exec "$PG" psql -U supabase_admin -d "$DB" -X -q -v ON_ERROR_STOP=1 -c "
+    UPDATE sync_runs SET last_run_at = now(), status = 'error', error_message = '$msg'
+     WHERE source = 'hallenfinder_sync'" >/dev/null 2>&1 || echo "⚠ heartbeat write failed" >&2
+}
+
+cleanup() {
+  local rc=$?
+  rm -f "$SQL" "$DETAILS_SQL"
+  if [ "$rc" -ne 0 ]; then heartbeat_error "exit $rc during $STAGE"; fi
+}
 trap cleanup EXIT
 
 echo "=== Hallenfinder sync start $(date -u +%FT%TZ) (env=$ENVNAME db=$DB) ==="
 
 # 1. Scrape (plain node fetch in the container) -> SQL on the mounted host dir.
+STAGE=scrape
 docker run --rm -w /work -v "$DIR":/work "$IMG" \
   node /work/hallenfinder-scrape.mjs --emit-sql > "$SQL"
 
@@ -45,6 +62,7 @@ if [ ! -s "$SQL" ]; then
 fi
 
 # 2. Load into Postgres from the host (transaction is inside the SQL).
+STAGE=import
 docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -v ON_ERROR_STOP=1 < "$SQL"
 
 # 3. Detail pass (migration 269): dimensions, photo and rental contact per hall.
@@ -53,6 +71,7 @@ docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -v ON_ERROR_STOP=1 < "$S
 #    for no new information. Force an off-schedule run with HALLENFINDER_DETAILS=1.
 if [ "$(date -u +%d)" = "01" ] || [ "${HALLENFINDER_DETAILS:-0}" = "1" ]; then
   echo "--- detail pass $(date -u +%FT%TZ) ---"
+  STAGE=details
   # The scrape script has no DB access by design, so the id list comes from here.
   IDS=$(docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc \
     "SELECT string_agg(facility_id::text, ',') FROM city_halls" | tr -d '[:space:]')

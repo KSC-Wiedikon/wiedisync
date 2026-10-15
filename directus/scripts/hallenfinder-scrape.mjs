@@ -20,6 +20,14 @@
  * every row, and the endpoint returned zero results under every filter. The
  * per-date variant cannot answer "≥90 min from 19:00"; only this one can.
  *
+ * ⚠ The city form REJECTS a start date fewer than 8 days ahead ("Datum muss
+ * min. 7 Tage in der Zukunft liegen" — today+7 is still refused) and re-renders
+ * the empty search form. Sending the season start unconditionally is what broke
+ * every nightly run from 25.08.2026 (seven days before 01.09) to 16.10.2026, so
+ * the query starts at max(season start, today+8). Rows keep the season's
+ * start/end as their key, but their `dates` only cover the weeks actually
+ * queried — past weeks are no longer the city's to vouch for.
+ *
  * Usage:
  *   node hallenfinder-scrape.mjs [--emit-sql] [--season-start=YYYY-MM-DD]
  *        [--season-end=YYYY-MM-DD] [--weekdays=1,2,3,4,5] [--from=18:00]
@@ -28,7 +36,7 @@
  *   (no --emit-sql → prints a JSON summary to stdout for dry-runs)
  */
 
-import { parseSearchResult } from './hallenfinder/parse-result.mjs'
+import { parseSearchResult, parseFormErrors } from './hallenfinder/parse-result.mjs'
 import { fetchHolidayRanges, isHoliday } from './hallenfinder/schulferien.mjs'
 
 const BASE = 'https://www.ssd-sporthallen.stadt-zuerich.ch/freieTermine.php'
@@ -50,10 +58,28 @@ const LIMIT = args.limit ? Number(args.limit) : Infinity
 const WEEKDAYS = (args.weekdays ? String(args.weekdays).split(',') : ['1', '2', '3', '4', '5']).map(Number)
 
 function log(...a) { if (!QUIET) console.error(...a) }
+// Failures go to stderr even with --emit-sql: stdout is the SQL, stderr is the
+// cron log, and a quiet failure there hid this job's 7-week outage in 2026.
+function warn(...a) { console.error(...a) }
 
-/** Default season = upcoming/current winter (Sep 1 → Mar 31). */
+// The city refuses a start date fewer than this many days ahead (see header).
+const MIN_LEAD_DAYS = 8
+
+/** Today in Zürich + MIN_LEAD_DAYS, as YYYY-MM-DD: the earliest date the city will search from. */
+function earliestQueryable() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(new Date())
+  const d = new Date(`${today}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + MIN_LEAD_DAYS)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Default season = upcoming/current winter (Sep 1 → Mar 31), judged from the
+ * earliest queryable date, so the last week of March already rolls over to the
+ * next winter instead of asking for a range that ends before it starts.
+ */
 function defaultSeason() {
-  const now = new Date()
+  const now = new Date(`${earliestQueryable()}T00:00:00Z`)
   const y = now.getUTCFullYear(), m = now.getUTCMonth() // 0=Jan
   if (m >= 8) return { start: `${y}-09-01`, end: `${y + 1}-03-31` }       // Sep–Dec → this winter
   if (m <= 2) return { start: `${y - 1}-09-01`, end: `${y}-03-31` }        // Jan–Mar → mid winter
@@ -63,6 +89,8 @@ const season = {
   start: args['season-start'] || defaultSeason().start,
   end: args['season-end'] || defaultSeason().end,
 }
+// First date actually sent as tag_ab (and the first week stored in `dates`).
+const queryStart = season.start > earliestQueryable() ? season.start : earliestQueryable()
 
 // ── date helpers ──────────────────────────────────────────────────
 function isoToParts(iso) { const [y, m, d] = iso.split('-').map(Number); return { y, m, d } }
@@ -87,7 +115,7 @@ async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)) }
  */
 async function fetchWeekday(wd) {
   const url = `${BASE}?terminart=periodisch&switch=no&hallentyp=`
-    + `&wochentag=${wd}&tag_ab=${toDDMMYYYY(season.start)}&tag_bis=${toDDMMYYYY(season.end)}`
+    + `&wochentag=${wd}&tag_ab=${toDDMMYYYY(queryStart)}&tag_bis=${toDDMMYYYY(season.end)}`
     + `&zeit_von=${encodeURIComponent(FROM)}&zeit_bis=${encodeURIComponent(TO)}`
     + `&mindestbelegungszeit=${MIN_PARAM}&hallenname=&submitted=1`
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -99,13 +127,22 @@ async function fetchWeekday(wd) {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const html = await resp.text()
       const parsed = parseSearchResult(html)
-      if (parsed.count === null) throw new Error('no result marker (unexpected HTML)')
+      if (parsed.count === null) {
+        // The city re-rendered the form with validation errors: the query itself
+        // is wrong, so retrying the same URL cannot help.
+        const formErrors = parseFormErrors(html)
+        if (formErrors.length) {
+          warn(`  ! weekday ${wd}: city rejected the query: ${formErrors.join(' | ')}`)
+          return null
+        }
+        throw new Error('no result marker (unexpected HTML)')
+      }
       if (parsed.count !== parsed.halls.length) {
-        log(`  ! weekday ${wd}: count ${parsed.count} != parsed ${parsed.halls.length} (parser drift?)`)
+        warn(`  ! weekday ${wd}: count ${parsed.count} != parsed ${parsed.halls.length} (parser drift?)`)
       }
       return parsed
     } catch (err) {
-      log(`  retry ${attempt}/3 for weekday ${wd}: ${err.message}`)
+      warn(`  retry ${attempt}/3 for weekday ${wd}: ${err.message}`)
       if (attempt === 3) return null
       await sleep(DELAY * attempt * 2)
     }
@@ -128,7 +165,10 @@ function q(v) { return v === null || v === undefined ? 'NULL' : `'${String(v).re
 function qJson(obj) { return `'${JSON.stringify(obj).replace(/'/g, "''")}'::jsonb` }
 
 async function main() {
-  log(`Hallenfinder scrape — season ${season.start}…${season.end}, weekdays ${WEEKDAYS.join(',')}, `
+  if (queryStart > season.end) {
+    throw new Error(`season ${season.start}…${season.end} ends before the earliest queryable date ${queryStart}`)
+  }
+  log(`Hallenfinder scrape — season ${season.start}…${season.end} (querying from ${queryStart}), weekdays ${WEEKDAYS.join(',')}, `
     + `${FROM}-${TO} min ${MIN_MINUTES}m`)
   const holidays = await fetchHolidayRanges()
   log(`Loaded ${holidays.length} Schulferien ranges`)
@@ -136,7 +176,7 @@ async function main() {
   // One recurring query per weekday — the city tool itself does the
   // "free every week of the range" reasoning, and reports the free window.
   const targetWeekdays = WEEKDAYS.slice(0, LIMIT)
-  log(`Querying ${targetWeekdays.length} weekday(s) over ${season.start}…${season.end}…`)
+  log(`Querying ${targetWeekdays.length} weekday(s) over ${queryStart}…${season.end}…`)
 
   const hallsSeen = new Map()                 // id → {name,hall_type,address,postal_code,districts…}
   const windowByHallWeekday = new Map()       // `${id}|${wd}` → window string ("18:00-22:00")
@@ -146,7 +186,7 @@ async function main() {
 
   for (const wd of targetWeekdays) {
     const res = await fetchWeekday(wd)
-    if (res === null) { failedWeekdays.push(wd); log(`  ! weekday ${wd}: giving up`); await sleep(DELAY); continue }
+    if (res === null) { failedWeekdays.push(wd); warn(`  ! weekday ${wd}: giving up`); await sleep(DELAY); continue }
     scrapedWeekdays.push(wd)
     for (const h of res.halls) {
       const id = Number(h.facilityId)
@@ -164,7 +204,8 @@ async function main() {
     log(`  weekday ${wd}: ${res.halls.length} halls`)
     await sleep(DELAY)
   }
-  log(`Done: ${hallsSeen.size} halls, ${windowByHallWeekday.size} (hall,weekday) combos`
+  const report = failedWeekdays.length ? warn : log
+  report(`Done: ${hallsSeen.size} halls, ${windowByHallWeekday.size} (hall,weekday) combos`
     + `${droppedNoWindow ? `, ${droppedNoWindow} dropped for missing window` : ''}`
     + `${failedWeekdays.length ? `, FAILED weekdays: ${failedWeekdays.join(',')}` : ''}`)
   if (!scrapedWeekdays.length) {
@@ -177,7 +218,7 @@ async function main() {
   // holiday weeks from its counts.
   const allDatesByWeekday = new Map()
   for (const wd of scrapedWeekdays) {
-    allDatesByWeekday.set(wd, [...datesInRange(season.start, season.end)].filter((iso) => isoWeekday(iso) === wd))
+    allDatesByWeekday.set(wd, [...datesInRange(queryStart, season.end)].filter((iso) => isoWeekday(iso) === wd))
   }
   const rows = []
   for (const [key, win] of windowByHallWeekday) {
@@ -191,7 +232,7 @@ async function main() {
   if (!EMIT_SQL) {
     // Dry-run summary.
     const summary = {
-      season, weekdays: WEEKDAYS, halls: hallsSeen.size, availabilityRows: rows.length,
+      season, queryStart, weekdays: WEEKDAYS, halls: hallsSeen.size, availabilityRows: rows.length,
       sample: rows.slice(0, 3).map((r) => {
         const nh = r.dates.filter((d) => !d.holiday && !d.errored)
         return {

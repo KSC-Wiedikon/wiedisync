@@ -58,6 +58,28 @@ export function parseResultCount(html) {
 }
 
 /**
+ * The city's form-validation messages, when it rejected the query instead of
+ * searching (e.g. "Datum muss min. 7 Tage in der Zukunft liegen" on the start
+ * date). Such a page re-renders the search form with no result count, so
+ * parseResultCount() is null; this says WHY. Empty array on a normal page.
+ */
+export function parseFormErrors(html) {
+  const msgs = []
+  for (const m of html.matchAll(/class="error_msg"[^>]*>([\s\S]*?)<\/span>/gi)) {
+    const t = stripTags(m[1])
+    if (t) msgs.push(t)
+  }
+  const box = html.match(/class="mod_message failure[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+  if (box) {
+    for (const li of box[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)) {
+      const t = stripTags(li[1])
+      if (t && !msgs.includes(t)) msgs.push(t)
+    }
+  }
+  return msgs
+}
+
+/**
  * Parse a full result page into { count, halls }.
  * Each hall lives in a `teaser_container` div; we slice the page on that class
  * and pull the fields out of each slice with tolerant regexes.

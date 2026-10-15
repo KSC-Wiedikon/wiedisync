@@ -1,0 +1,32 @@
+<!-- Trimmed capture of freieTermine.php?terminart=periodisch&tag_ab=01.09.2026 fetched 16.10.2026:
+     the city rejects a start date fewer than 8 days ahead and re-renders the form with no result count. -->
+<html><head><meta charset="utf-8"></head><body class="freie-termine">
+<div class="mod_form mod_search">
+    <div class="mod_message failure ">
+    <h3 class="title" data-form="formMessageTitle" tabindex="-1">Folgende Fehler sind aufgetreten</h3>
+    <ul>
+        <li>Bitte vervollständigen Sie die obligatorischen (*) Benutzerdaten.</li>
+    </ul>
+</div>
+    <form action="#">
+      <div class="row datefield section">
+    <label class="date_ttl" for="tag_ab">Startdatum *</label>
+    
+    <div class="mod_formtextinput error" data-init="formtextinput">
+        <input
+            data-formdatepicker="input"
+            type="text"
+                        name="tag_ab"
+            id="tag_ab"
+            value="01.09.2026"
+        />
+        <button  class="open_calendar " type="button" data-formdatepicker="openCalendar"><span>Open calendar</span></button>
+        
+            </div>
+    
+            <span class="error_msg" tabindex="-1">Datum muss min. 7 Tage in der Zukunft liegen</span>
+    </div>
+      </div>
+    </form>
+</div>
+</body></html>

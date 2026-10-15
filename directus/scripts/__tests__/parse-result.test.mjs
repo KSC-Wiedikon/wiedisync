@@ -3,10 +3,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { parseSearchResult, parseResultCount } from '../hallenfinder/parse-result.mjs'
+import { parseSearchResult, parseResultCount, parseFormErrors } from '../hallenfinder/parse-result.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const html = readFileSync(join(here, 'fixtures', 'freieTermine-periodisch-di.html'), 'utf-8')
+const rejected = readFileSync(join(here, 'fixtures', 'freieTermine-rejected-startdate.html'), 'utf-8')
 
 test('parseResultCount reads the "N Treffer" checksum', () => {
   assert.equal(parseResultCount(html), 3)
@@ -45,4 +46,19 @@ test('parseResultCount treats the "keine Treffer" page as 0, not null', () => {
   const none = '<span id="search_result_summary_message" class="total">Ihre Suchanfrage ergab keine Treffer</span>'
   assert.equal(parseResultCount(none), 0)
   assert.equal(parseSearchResult(none).halls.length, 0)
+})
+
+// 25.08.–16.10.2026: every nightly run sent tag_ab=01.09.2026, the city refused
+// it as fewer than 7 days ahead, and the scraper only ever logged "no result marker".
+test('a rejected query has no result count, and parseFormErrors says why', () => {
+  assert.equal(parseResultCount(rejected), null, 'a validation page must not read as "0 Treffer"')
+  assert.equal(parseSearchResult(rejected).halls.length, 0)
+  assert.deepEqual(parseFormErrors(rejected), [
+    'Datum muss min. 7 Tage in der Zukunft liegen',
+    'Bitte vervollständigen Sie die obligatorischen (*) Benutzerdaten.',
+  ])
+})
+
+test('parseFormErrors is empty on a normal result page', () => {
+  assert.deepEqual(parseFormErrors(html), [])
 })
