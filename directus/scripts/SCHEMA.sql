@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T18:26:57.936Z
+-- Generated:   2026-10-15T21:48:54.391Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ex7aeqFFwgaJhp2e4A4ec7FzEcAct4cvIP9oc7P2lCPsLhsnpEqRhTa4f1kbC4C
+\restrict apanox2Xilhvmux5riXH6WqPjT8PvK05M75TySagWZvdogAmeosqYgIu9vplIs8
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1280,45 +1280,6 @@ $$;
 
 
 --
--- Name: members_sync_nationality(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.members_sync_nationality() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  first_code text;
-  resolved   text;
-BEGIN
-  IF (TG_OP = 'INSERT' AND NULLIF(btrim(COALESCE(NEW.nationalitaet_codes, '')), '') IS NOT NULL)
-     OR (TG_OP = 'UPDATE' AND NEW.nationalitaet_codes IS DISTINCT FROM OLD.nationalitaet_codes) THEN
-    first_code := upper(btrim(split_part(COALESCE(NEW.nationalitaet_codes, ''), ',', 1)));
-    IF first_code = '' THEN
-      NEW.nationalitaet := NULL;
-    ELSE
-      SELECT name_de_clubdesk INTO resolved FROM country_codes WHERE code = first_code;
-      IF resolved IS NOT NULL THEN
-        NEW.nationalitaet := resolved;
-      END IF;
-    END IF;
-    RETURN NEW;
-  END IF;
-
-  IF (TG_OP = 'INSERT' AND NULLIF(btrim(COALESCE(NEW.nationalitaet, '')), '') IS NOT NULL)
-     OR (TG_OP = 'UPDATE' AND NEW.nationalitaet IS DISTINCT FROM OLD.nationalitaet) THEN
-    SELECT code INTO resolved FROM country_name_aliases
-      WHERE alias = lower(btrim(COALESCE(NEW.nationalitaet, '')));
-    IF resolved IS NOT NULL THEN
-      NEW.nationalitaet_codes := resolved;
-      NEW.nationalitaet := (SELECT name_de_clubdesk FROM country_codes WHERE code = resolved);
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END $$;
-
-
---
 -- Name: members_vorstand_implies_admin(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1425,7 +1386,8 @@ BEGIN
   -- member somehow holds two (a re-issue paid twice is a treasurer's problem,
   -- not a reason to show them unpaid). Only rows whose answer moves are
   -- written, so the members row (and its own statement trigger) is left alone
-  -- on the nightly no-op.
+  -- on the nightly no-op. Paid = 'paid', or ClubDesk's 'Bezahlt (teilw.
+  -- abgeschrieben)' (migration 419; was ILIKE 'bezahlt%' on the German text).
   WITH paid AS (
     SELECT DISTINCT ON (fi.member)
            fi.member                                        AS member_id,
@@ -1434,7 +1396,7 @@ BEGIN
     WHERE fi.member IS NOT NULL
       AND fi.subject ILIKE '%mitgliederbeitrag%'
       AND fi.subject ~ pat
-      AND (fi.status ILIKE 'bezahlt%' OR fi.status = 'paid')
+      AND fi.status IN ('paid', 'paid_partially_written_off')
     ORDER BY fi.member, coalesce(fi.closed_on, fi.confirmed_at::date) DESC NULLS LAST, fi.id DESC
   ),
   target AS (
@@ -3339,7 +3301,7 @@ CREATE TABLE public.basketball_groups (
     sex character varying(6) NOT NULL,
     format character varying(16) DEFAULT 'provisional'::character varying NOT NULL,
     games_total integer,
-    modus text,
+    mode text,
     note text,
     date_created timestamp with time zone DEFAULT now(),
     date_updated timestamp with time zone,
@@ -3362,6 +3324,13 @@ COMMENT ON TABLE public.basketball_groups IS 'ProBasket groups we play in, proje
 --
 
 COMMENT ON COLUMN public.basketball_groups.games_total IS 'Anzahl Spiele per team (home + away) from the ProBasket workbook. NULL = not stated. Home games = games_total/2; an odd value cannot split evenly.';
+
+
+--
+-- Name: COLUMN basketball_groups.mode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_groups.mode IS 'Group mode as the ProBasket workbook states it, verbatim (e.g. "Hin- und Rückrunde"). Column modus before migration 420.';
 
 
 --
@@ -3637,7 +3606,7 @@ CREATE TABLE public.basketball_team_rules (
     enabled boolean DEFAULT true NOT NULL,
     category character varying(16) DEFAULT 'seniors'::character varying NOT NULL,
     league character varying(16) DEFAULT 'JUN_REG'::character varying NOT NULL,
-    ferien_hard boolean DEFAULT false NOT NULL,
+    school_holidays_hard boolean DEFAULT false NOT NULL,
     allowed_dows jsonb DEFAULT '[5, 6, 0]'::jsonb NOT NULL,
     preferred_dows jsonb DEFAULT '[]'::jsonb NOT NULL,
     start_min character varying(5),
@@ -3689,10 +3658,10 @@ COMMENT ON COLUMN public.basketball_team_rules.league IS 'ProBasket league code 
 
 
 --
--- Name: COLUMN basketball_team_rules.ferien_hard; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN basketball_team_rules.school_holidays_hard; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.basketball_team_rules.ferien_hard IS 'ProBasket "Spiel- und Sperrdaten 2026/2027", verbatim: "In folgenden Zeitfenster werden in allen interregionalen Ligen, sowie in der 1. / 2. Seniorenligen keine Spiele durch den Verband angesetzt. In allen anderen Ferien gilt eine grundsaetzliche Spielpflicht." true = a Ferien blackout HARD-blocks this team; false = it is only a soft score penalty. Sperrdaten ("Sperrdaten fuer alle") block everyone regardless of this flag. Explicit column, never derived from teams.league.';
+COMMENT ON COLUMN public.basketball_team_rules.school_holidays_hard IS 'ProBasket "Spiel- und Sperrdaten 2026/2027", verbatim: "In folgenden Zeitfenster werden in allen interregionalen Ligen, sowie in der 1. / 2. Seniorenligen keine Spiele durch den Verband angesetzt. In allen anderen Ferien gilt eine grundsaetzliche Spielpflicht." true = a Ferien blackout HARD-blocks this team; false = it is only a soft score penalty. Sperrdaten ("Sperrdaten fuer alle") block everyone regardless of this flag. Explicit column, never derived from teams.league.';
 
 
 --
@@ -3905,7 +3874,8 @@ CREATE TABLE public.basketplan_people (
     referee_youth_since date,
     last_scored_at date,
     scraped_at timestamp with time zone DEFAULT now() NOT NULL,
-    licence_category text
+    licence_category text,
+    CONSTRAINT basketplan_people_licence_category_no_legacy CHECK (((licence_category IS NULL) OR (licence_category !~* '^(offizielle/r|ufficiale|officiel(/le)?)$'::text)))
 );
 
 
@@ -3920,7 +3890,7 @@ COMMENT ON TABLE public.basketplan_people IS 'Staging for the authenticated Bask
 -- Name: COLUMN basketplan_people.licence_category; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.basketplan_people.licence_category IS 'Licence category from the club licence list (Senior / U 6..U 20 / Offizielle/r). Harvested from showPrintLicences.do — the person page does not carry it. Applied to members.licence_category fill-or-BB-refresh only; Volleymanager codes (RLL/JLL/…) are never overwritten.';
+COMMENT ON COLUMN public.basketplan_people.licence_category IS 'Licence category from the club licence list (Senior / U 6..U 20 / official — Offizielle/r before migration 420). Harvested from showPrintLicences.do — the person page does not carry it. Applied to members.licence_category fill-or-BB-refresh only; Volleymanager codes (RLL/JLL/…) are never overwritten.';
 
 
 --
@@ -4549,7 +4519,8 @@ CREATE TABLE public.bb_tournaments (
     kscw_bp_team_ids text[] DEFAULT '{}'::text[] NOT NULL,
     first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    list_status character varying(60)
+    list_status character varying(60),
+    CONSTRAINT bb_tournaments_list_status_values CHECK (((list_status IS NULL) OR ((list_status)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[]))))
 );
 
 
@@ -4558,6 +4529,13 @@ CREATE TABLE public.bb_tournaments (
 --
 
 COMMENT ON TABLE public.bb_tournaments IS 'Basketplan youth tournaments, mirrored by bp-sync (bp-tournaments.js). id = Basketplan tournamentId. No contact data. Endpoint-only (migration 398).';
+
+
+--
+-- Name: COLUMN bb_tournaments.list_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bb_tournaments.list_status IS 'Basketplan tournament-list action column as a slug: open (Anmelden) | closed (Anmeldefrist abgelaufen / geschlossen / voll) | NULL (no action, or a wording we do not know — stays pickable). Migration 420; was the raw text.';
 
 
 --
@@ -4954,88 +4932,102 @@ CREATE TABLE public.clubdesk_export (
     row_id bigint NOT NULL,
     imported_at timestamp with time zone DEFAULT now() NOT NULL,
     source_file text,
-    gruppe text,
-    funktion text,
-    nachname text,
-    vorname text,
-    firma text,
-    rolle text,
-    rolle_2 text,
-    anrede text,
-    titel text,
-    briefanrede text,
-    benutzer_id text,
-    adresse text,
-    adress_zusatz text,
-    plz text,
-    ort text,
-    land text,
-    nationalitaet text,
-    telefon_privat text,
-    telefon_geschaeft text,
-    telefon_mobil text,
+    group_name text,
+    function text,
+    last_name text,
+    first_name text,
+    company text,
+    role text,
+    role_2 text,
+    salutation text,
+    title text,
+    letter_salutation text,
+    user_id text,
+    address text,
+    address_extra text,
+    postal_code text,
+    city text,
+    country text,
+    nationality text,
+    phone_private text,
+    phone_business text,
+    phone_mobile text,
     fax text,
     email text,
-    email_alternativ text,
-    gruppen text,
+    email_alternative text,
+    groups text,
     status text,
-    eintritt text,
-    mitgliedsjahre text,
-    austritt text,
-    zivilstand text,
-    geschlecht text,
-    geburtsdatum text,
-    alter_ text,
-    jahrgang text,
-    bemerkungen text,
-    firmen_webseite text,
-    rechnungsversand text,
-    nie_mahnen text,
+    joined_on text,
+    membership_years text,
+    left_on text,
+    marital_status text,
+    sex text,
+    birthdate text,
+    age text,
+    birth_year text,
+    remarks text,
+    company_website text,
+    invoice_delivery text,
+    never_dun text,
     iban text,
     bic text,
-    kontoinhaber text,
-    lizenznummer text,
-    lizenzart text,
-    lizenz_bestellt text,
-    sektion text,
-    beitragskategorie text,
-    betrag_bezahlt text,
-    clubnummer text,
-    mittelschule_zh text,
-    offiziellen_lizenz text,
-    mitgliederbeitrag text,
-    ahv_nummer text,
-    passivmitglied text,
-    offiziellen_100er text,
-    gruppe_2 text,
-    funktion_2 text,
-    gruppen_2 text,
-    jg text,
+    account_holder text,
+    licence_no text,
+    licence_type text,
+    licence_ordered text,
+    section text,
+    fee_category text,
+    amount_paid text,
+    club_number text,
+    cantonal_school text,
+    official_licence text,
+    membership_fee text,
+    ahv_number text,
+    passive_member text,
+    officials_surcharge text,
+    group_name_2 text,
+    function_2 text,
+    groups_2 text,
+    birth_year_short text,
     clubdesk_id text,
-    zuletzt_geaendert_am text,
-    zuletzt_geaendert_von text,
-    gruppen_bracketed text,
-    rolle_bracketed text,
+    last_changed_at text,
+    last_changed_by text,
+    groups_bracketed text,
+    role_bracketed text,
     wiedisync_id text,
     js_id text,
     federation_of_origin text,
-    gast text,
-    trainer_lizenz text
+    guest text,
+    trainer_licence text
 );
 
 
 --
--- Name: COLUMN clubdesk_export.gast; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE clubdesk_export; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.clubdesk_export.gast IS 'ClubDesk "Gast" checkbox (Ja/Nein) as exported. Written ONLY by wiedisync''s sync-up push; staged here so computeClubdeskDrift can compare it against the current-season roster. Never flows back into members — member_teams.guest_level is the source of truth.';
+COMMENT ON TABLE public.clubdesk_export IS 'Staging mirror of the ClubDesk member export ("Alle Kontakte"), one row per contact and group. TRUNCATEd and reloaded by every sync-down (import-clubdesk-csv.mjs). Column names are English since migration 418 (= clubdesk_field_map.staging_column); VALUES are raw ClubDesk strings.';
 
 
 --
--- Name: COLUMN clubdesk_export.trainer_lizenz; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN clubdesk_export.nationality; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.clubdesk_export.trainer_lizenz IS 'ClubDesk "Trainer Lizenz" free-text cell as exported — the coaching qualification in ClubDesk''s own wording, comma-separated ("J+S, B"). Parsed back into members.trainer_licences codes (JS/C/B/A) fill-only by the down-sync, and re-rendered on the way up by trainerLicenceCell. Free text rather than a picklist on purpose: a member can hold J+S AND a ladder rung.';
+COMMENT ON COLUMN public.clubdesk_export.nationality IS 'ClubDesk "Nationalität" cell as exported (German country name, single value). Compared against the FIRST of members.nationality_codes.';
+
+
+--
+-- Name: COLUMN clubdesk_export.guest; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_export.guest IS 'ClubDesk "Gast" checkbox (Ja/Nein) as exported. Written ONLY by wiedisync''s sync-up push; staged here so computeClubdeskDrift can compare it against the current-season roster. Never flows back into members — member_teams.guest_level is the source of truth.';
+
+
+--
+-- Name: COLUMN clubdesk_export.trainer_licence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_export.trainer_licence IS 'ClubDesk "Trainer Lizenz" free-text cell as exported — the coaching qualification in ClubDesk''s own wording, comma-separated ("J+S, B"). Parsed back into members.trainer_licences codes (JS/C/B/A) by the down-sync, and re-rendered on the way up by trainerLicenceCell.';
 
 
 --
@@ -5044,23 +5036,23 @@ COMMENT ON COLUMN public.clubdesk_export.trainer_lizenz IS 'ClubDesk "Trainer Li
 
 CREATE VIEW public.clubdesk_people AS
  SELECT DISTINCT ON (COALESCE(NULLIF(clubdesk_id, ''::text), lower(NULLIF(email, ''::text)))) clubdesk_id,
-    nachname,
-    vorname,
+    last_name,
+    first_name,
     email,
-    email_alternativ,
+    email_alternative,
     status,
-    geschlecht,
-    geburtsdatum,
-    jahrgang,
-    alter_,
-    lizenznummer,
-    lizenzart,
-    sektion,
-    beitragskategorie,
-    offiziellen_lizenz,
-    passivmitglied,
-    telefon_mobil,
-    gruppen,
+    sex,
+    birthdate,
+    birth_year,
+    age,
+    licence_no,
+    licence_type,
+    section,
+    fee_category,
+    official_licence,
+    passive_member,
+    phone_mobile,
+    groups,
     imported_at
    FROM public.clubdesk_export
   ORDER BY COALESCE(NULLIF(clubdesk_id, ''::text), lower(NULLIF(email, ''::text))), row_id;
@@ -5072,26 +5064,26 @@ CREATE VIEW public.clubdesk_people AS
 
 CREATE VIEW public.clubdesk_basketball AS
  SELECT clubdesk_id,
-    nachname,
-    vorname,
+    last_name,
+    first_name,
     email,
-    email_alternativ,
+    email_alternative,
     status,
-    geschlecht,
-    geburtsdatum,
-    jahrgang,
-    alter_,
-    lizenznummer,
-    lizenzart,
-    sektion,
-    beitragskategorie,
-    offiziellen_lizenz,
-    passivmitglied,
-    telefon_mobil,
-    gruppen,
+    sex,
+    birthdate,
+    birth_year,
+    age,
+    licence_no,
+    licence_type,
+    section,
+    fee_category,
+    official_licence,
+    passive_member,
+    phone_mobile,
+    groups,
     imported_at
    FROM public.clubdesk_people
-  WHERE (sektion = 'Basketball'::text);
+  WHERE (section = 'Basketball'::text);
 
 
 --
@@ -5413,26 +5405,26 @@ ALTER SEQUENCE public.clubdesk_value_map_id_seq OWNED BY public.clubdesk_value_m
 
 CREATE VIEW public.clubdesk_volleyball AS
  SELECT clubdesk_id,
-    nachname,
-    vorname,
+    last_name,
+    first_name,
     email,
-    email_alternativ,
+    email_alternative,
     status,
-    geschlecht,
-    geburtsdatum,
-    jahrgang,
-    alter_,
-    lizenznummer,
-    lizenzart,
-    sektion,
-    beitragskategorie,
-    offiziellen_lizenz,
-    passivmitglied,
-    telefon_mobil,
-    gruppen,
+    sex,
+    birthdate,
+    birth_year,
+    age,
+    licence_no,
+    licence_type,
+    section,
+    fee_category,
+    official_licence,
+    passive_member,
+    phone_mobile,
+    groups,
     imported_at
    FROM public.clubdesk_people
-  WHERE (sektion = 'Volleyball'::text);
+  WHERE (section = 'Volleyball'::text);
 
 
 --
@@ -5993,9 +5985,17 @@ CREATE TABLE public.events (
     permissions_section text DEFAULT 'both'::text NOT NULL,
     additional_halls json,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
+    CONSTRAINT events_event_type_values CHECK (((event_type IS NULL) OR ((event_type)::text = ANY ((ARRAY['club'::character varying, 'social'::character varying, 'meeting'::character varying, 'tournament'::character varying, 'training_weekend'::character varying, 'friendly'::character varying, 'other'::character varying])::text[])))),
     CONSTRAINT events_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
+
+
+--
+-- Name: COLUMN events.event_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.event_type IS 'club | social | meeting | tournament | training_weekend | friendly | other (migration 420; were verein / trainingsweekend). club + tournament are the club-wide / public types.';
 
 
 --
@@ -6378,8 +6378,8 @@ CREATE TABLE public.finance_billing_contacts (
     name character varying(255) NOT NULL,
     email character varying(255),
     address character varying(255),
-    plz character varying(10),
-    ort character varying(100),
+    postal_code character varying(10),
+    city character varying(100),
     billing_iban character varying(34),
     notes character varying(255),
     active boolean DEFAULT true NOT NULL,
@@ -6474,7 +6474,7 @@ CREATE TABLE public.finance_dues_rates (
     id integer NOT NULL,
     fiscal_year integer NOT NULL,
     category character varying(100) NOT NULL,
-    sektion character varying(64),
+    club_section character varying(64),
     amount_chf numeric(12,2) NOT NULL,
     subject_template character varying(255),
     active boolean DEFAULT true NOT NULL,
@@ -6493,7 +6493,14 @@ CREATE TABLE public.finance_dues_rates (
 -- Name: TABLE finance_dues_rates; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.finance_dues_rates IS 'Per-(fiscal_year, beitragskategorie[, sektion]) membership-fee schedule. sektion NULL = category default; a sektion row overrides. Treasurer-entered (no dues amount is mirrored from ClubDesk).';
+COMMENT ON TABLE public.finance_dues_rates IS 'Per-(fiscal_year, fee_category[, club_section]) membership-fee schedule. club_section NULL = category default; a club_section row overrides. Treasurer-entered (no dues amount is mirrored from ClubDesk).';
+
+
+--
+-- Name: COLUMN finance_dues_rates.club_section; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_dues_rates.club_section IS 'Optional club-section override (volleyball | basketball | club); NULL = the category default.';
 
 
 --
@@ -7032,7 +7039,6 @@ CREATE TABLE public.finance_invoices (
     subject character varying(255),
     amount numeric(12,2),
     status character varying(32),
-    dunning_status character varying(32),
     due_date date,
     amount_paid numeric(12,2),
     open_amount numeric(12,2),
@@ -7046,7 +7052,7 @@ CREATE TABLE public.finance_invoices (
     cd_changed_at timestamp with time zone,
     recipient_name character varying(255),
     recipient_email character varying(255),
-    cd_benutzer_id character varying(64),
+    cd_user_id character varying(64),
     member integer,
     fiscal_year integer,
     source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
@@ -7074,11 +7080,12 @@ CREATE TABLE public.finance_invoices (
     currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
     cd_contact_id character varying(64),
     recipient_address character varying(255),
-    recipient_zip character varying(16),
+    recipient_postal_code character varying(16),
     recipient_city character varying(128),
     lines jsonb,
     CONSTRAINT finance_invoices_native_status_check CHECK ((((source)::text <> 'native'::text) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))),
-    CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
+    CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text]))),
+    CONSTRAINT finance_invoices_status_values CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying, 'paid_partially_written_off'::character varying, 'written_off'::character varying, 'draft'::character varying])::text[]))))
 );
 
 
@@ -7086,7 +7093,7 @@ CREATE TABLE public.finance_invoices (
 -- Name: TABLE finance_invoices; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.finance_invoices IS 'Member invoices/dues mirrored from the ClubDesk Rechnungen export. Invoice fields + a member link ONLY — AHV/IBAN/home address present in the source CSV are deliberately NOT mirrored (keep the finance module low-PII). number is NULL for draft (Entwurf) invoices; clubdesk_id ([Id]) is the stable upsert key. member matched on recipient_email, fallback cd_benutzer_id.';
+COMMENT ON TABLE public.finance_invoices IS 'Member invoices/dues: the ClubDesk Rechnungen mirror (source clubdesk) plus native invoices. Invoice fields + a member link ONLY — AHV/IBAN/home address present in the source CSV are deliberately NOT mirrored (keep the finance module low-PII). clubdesk_id is the invoice Nummer (stable upsert key); member matched on recipient_email, fallback the recipient contact id (cd_contact_id).';
 
 
 --
@@ -7094,6 +7101,27 @@ COMMENT ON TABLE public.finance_invoices IS 'Member invoices/dues mirrored from 
 --
 
 COMMENT ON COLUMN public.finance_invoices.clubdesk_id IS 'The ClubDesk invoice number (export column Nummer). Before migration 288 this wrongly held the recipient contact id, which capped the mirror at one invoice per person.';
+
+
+--
+-- Name: COLUMN finance_invoices.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.status IS 'Invoice status slug (migration 419): open | pending_confirmation | partial | paid | cancelled (native lifecycle, CHECK finance_invoices_native_status_check), plus paid_partially_written_off | written_off | draft for ClubDesk mirror rows. ClubDesk wording via clubdesk_value_map domain invoice_status / finance-values.js.';
+
+
+--
+-- Name: COLUMN finance_invoices.payment_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.payment_method IS 'Payment method slug (qr_bill_no_reference …), clubdesk_value_map domain payment_method. An unknown ClubDesk Zahlungsart is imported verbatim.';
+
+
+--
+-- Name: COLUMN finance_invoices.cd_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.cd_user_id IS 'ClubDesk login id of the recipient (Benutzer-Id). Was cd_benutzer_id (migration 419).';
 
 
 --
@@ -7135,7 +7163,7 @@ COMMENT ON COLUMN public.finance_invoices.email_sent_at IS 'When this native due
 -- Name: COLUMN finance_invoices.dunning_level; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finance_invoices.dunning_level IS 'Highest dunning level issued for this native invoice (0=none, 1/2/3). Denormalised from finance_dunning_notices.';
+COMMENT ON COLUMN public.finance_invoices.dunning_level IS 'Highest dunning level (0 = none, 1/2/3 …). Native rows: denormalised from finance_dunning_notices. ClubDesk mirror rows: the number in ClubDesk''s Mahnstatus (''2. Mahnung'' → 2). Replaces dunning_status (migration 419).';
 
 
 --
@@ -7153,10 +7181,10 @@ COMMENT ON COLUMN public.finance_invoices.recipient_address IS 'Street address t
 
 
 --
--- Name: COLUMN finance_invoices.recipient_zip; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN finance_invoices.recipient_postal_code; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finance_invoices.recipient_zip IS 'Postal code as at billing time (see recipient_address).';
+COMMENT ON COLUMN public.finance_invoices.recipient_postal_code IS 'Postal code as at billing time (see recipient_address).';
 
 
 --
@@ -7200,7 +7228,7 @@ ALTER SEQUENCE public.finance_invoices_id_seq OWNED BY public.finance_invoices.i
 CREATE TABLE public.finance_ledger_settings (
     id integer DEFAULT 1 NOT NULL,
     autopost_enabled boolean DEFAULT false NOT NULL,
-    debitoren_account integer,
+    receivables_account integer,
     bank_account integer,
     income_account integer,
     sponsoring_account integer,
@@ -7224,6 +7252,13 @@ CREATE TABLE public.finance_ledger_settings (
 --
 
 COMMENT ON COLUMN public.finance_ledger_settings.autopost_enabled IS 'Post native invoices/payments to the GL automatically (accrual). OFF since migration 294: season one on wiedisync issues invoices while ClubDesk keeps the books on cash basis. Turning this on requires bad_debt_account + expense_account to be mapped first.';
+
+
+--
+-- Name: COLUMN finance_ledger_settings.receivables_account; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_ledger_settings.receivables_account IS 'Accounts receivable (Debitoren) account the auto-posting books invoices against.';
 
 
 --
@@ -7392,8 +7427,8 @@ CREATE TABLE public.finance_payouts (
     iban character varying(34) NOT NULL,
     payee_name character varying(255),
     payee_address character varying(255),
-    payee_zip character varying(10),
-    payee_ort character varying(100),
+    payee_postal_code character varying(10),
+    payee_city character varying(100),
     status character varying(16) DEFAULT 'open'::character varying NOT NULL,
     created_by_name character varying(255),
     created_by_email character varying(255),
@@ -7526,8 +7561,8 @@ ALTER SEQUENCE public.finance_transaction_documents_id_seq OWNED BY public.finan
 CREATE TABLE public.finance_transactions (
     id integer NOT NULL,
     clubdesk_id character varying(32),
-    typ character varying(48),
-    beleg character varying(64),
+    entry_type character varying(48),
+    voucher_no character varying(64),
     booking_date date NOT NULL,
     text text,
     debit_account_number character varying(16),
@@ -7550,6 +7585,7 @@ CREATE TABLE public.finance_transactions (
     ref_kind character varying(24),
     ref_id integer,
     auto boolean DEFAULT false NOT NULL,
+    CONSTRAINT finance_transactions_entry_type_values CHECK (((entry_type IS NULL) OR ((entry_type)::text = ANY ((ARRAY['standard'::character varying, 'invoice'::character varying, 'invoice_collective'::character varying, 'invoice_collective_item'::character varying, 'opening'::character varying, 'closing'::character varying, 'reversal'::character varying])::text[])))),
     CONSTRAINT finance_transactions_ref_kind_check CHECK (((ref_kind IS NULL) OR ((ref_kind)::text = ANY ((ARRAY['issue'::character varying, 'settle'::character varying, 'settle_over'::character varying, 'round'::character varying, 'team'::character varying])::text[])))),
     CONSTRAINT finance_transactions_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
@@ -7559,7 +7595,21 @@ CREATE TABLE public.finance_transactions (
 -- Name: TABLE finance_transactions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.finance_transactions IS 'Double-entry ledger mirrored from the ClubDesk Buchhaltung export. debit_/credit_account_number+name are the raw Soll/Haben values; debit_account/credit_account are the resolved finance_accounts FKs. typ ∈ Eröffnung/Abschluss/Rechnung/Rechnung (Sammel)/Rechnung (Sammelposition)/Standard (free text — ClubDesk may add more).';
+COMMENT ON TABLE public.finance_transactions IS 'Double-entry ledger mirrored from the ClubDesk Buchhaltung export (source clubdesk) plus the native book (source native). debit_/credit_account_number+name are the raw Soll/Haben values; debit_account/credit_account are the resolved finance_accounts FKs. entry_type is a booking-type slug (migration 419).';
+
+
+--
+-- Name: COLUMN finance_transactions.entry_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.entry_type IS 'Booking type slug (migration 419): standard | invoice | invoice_collective | invoice_collective_item | opening | closing | reversal. ClubDesk Typ via clubdesk_value_map domain booking_type / finance-values.js.';
+
+
+--
+-- Name: COLUMN finance_transactions.voucher_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.voucher_no IS 'Voucher number (ClubDesk Beleg; native J-/A-/E-/AP- numbers).';
 
 
 --
@@ -8530,7 +8580,7 @@ CREATE TABLE public.game_scheduling_seasons (
     id integer NOT NULL,
     season character varying(255) DEFAULT NULL::character varying,
     status character varying(255) DEFAULT NULL::character varying,
-    spielsamstage json,
+    game_saturdays json,
     team_slot_config json,
     notes text,
     date_created timestamp with time zone,
@@ -8543,6 +8593,20 @@ CREATE TABLE public.game_scheduling_seasons (
     use_club_portals boolean DEFAULT false NOT NULL,
     bb_slot_config jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.game_saturdays; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.game_saturdays IS 'Volleyball Spielsamstage: [{date, slots:[{time, hall_id}]}] (column spielsamstage before migration 420).';
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.team_slot_config; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.team_slot_config IS 'Per-team volleyball home-slot sources: {"<team id>": {"sources": ["hall_slot", "game_saturday"]}} (legacy single "source"; slugs since migration 420).';
 
 
 --
@@ -8577,7 +8641,7 @@ COMMENT ON COLUMN public.game_scheduling_seasons.vm_authority_date IS 'Date the 
 -- Name: COLUMN game_scheduling_seasons.bb_slot_config; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.game_scheduling_seasons.bb_slot_config IS 'Club-level basketball slot-generation config: {version, timeslots:[{dow,time,allow[],tolerate[]}], spielsamstage:[{date,status,note}]}. dow uses JS getDay (5=Fri, 6=Sat, 0=Sun); the TIMES are not authoritative here — they reference the fixed grid in src/modules/gameScheduling/utils/probasketSeason.ts (FRIDAY_SLOTS/SATURDAY_SLOTS/SUNDAY_SLOTS), so the two cannot drift. allow = the slot is meant for this category; tolerate = permitted but scored lower. spielsamstage.status: given (volleyball already booked KWI that weekend) | desired | fraglich | bei_bedarf. The per-LEAGUE season windows and the ProBasket Ferien/Sperrdaten are NOT stored here — they live in probasketSeason.ts and are mirrored by kscw-endpoints/src/basketball-slots.js.';
+COMMENT ON COLUMN public.game_scheduling_seasons.bb_slot_config IS 'Club-level basketball slot-generation config: {version, timeslots:[{dow,time,allow[],tolerate[]}], game_saturdays:[{date,status,note}], game_saturdays_hard, max_weekends, max_weekends_crisis}. dow uses JS getDay (5=Fri, 6=Sat, 0=Sun); the TIMES are not authoritative here — they reference the fixed grid in src/modules/gameScheduling/utils/probasketSeason.ts (FRIDAY_SLOTS/SATURDAY_SLOTS/SUNDAY_SLOTS), so the two cannot drift. allow = the slot is meant for this category; tolerate = permitted but scored lower. game_saturdays.status: given (volleyball already booked KWI that weekend) | desired | uncertain | if_needed. Keys were spielsamstage / spielsamstage_hard and statuses fraglich / bei_bedarf before migration 420. The per-LEAGUE season windows and the ProBasket Ferien/Sperrdaten are NOT stored here — they live in probasketSeason.ts and are mirrored by kscw-endpoints/src/basketball-slots.js.';
 
 
 --
@@ -8617,8 +8681,16 @@ CREATE TABLE public.game_scheduling_slots (
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
     additional_halls json,
+    CONSTRAINT game_scheduling_slots_source_values CHECK (((source IS NULL) OR ((source)::text = ANY ((ARRAY['hall_slot'::character varying, 'game_saturday'::character varying, 'game_hall'::character varying, 'game_sunday'::character varying, 'manual'::character varying, 'derby'::character varying])::text[])))),
     CONSTRAINT game_scheduling_slots_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['available'::character varying, 'booked'::character varying, 'blocked'::character varying])::text[]))))
 );
+
+
+--
+-- Name: COLUMN game_scheduling_slots.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_slots.source IS 'hall_slot | game_saturday | game_hall | game_sunday | manual | derby (migration 420; were spielsamstag / spielhalle / spielsonntag).';
 
 
 --
@@ -9460,7 +9532,6 @@ CREATE TABLE public.members (
     address character varying(255),
     postal_code character varying(10),
     city character varying(100),
-    nationalitaet character varying(100),
     salutation character varying(10),
     ahv_number character varying(20),
     fee_category character varying(100),
@@ -9510,7 +9581,7 @@ CREATE TABLE public.members (
     e2ee_kdf_salt text,
     e2ee_key_created timestamp with time zone,
     nickname text,
-    nationalitaet_codes character varying(200),
+    nationality_codes character varying(200),
     federation_of_origin character varying(8),
     otn1_bb boolean DEFAULT false NOT NULL,
     otn2_bb boolean DEFAULT false NOT NULL,
@@ -9556,7 +9627,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
     CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
-    CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
+    CONSTRAINT members_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'active'::character varying, 'passive'::character varying, 'honorary'::character varying, 'former'::character varying, 'deceased'::character varying, 'gap_year'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
@@ -9606,13 +9677,6 @@ COMMENT ON COLUMN public.members.shell_expires IS 'When an unclaimed shell invit
 --
 
 COMMENT ON COLUMN public.members.requested_team IS 'Join-team picker choice awaiting coach approval; FK to teams since migration 248.';
-
-
---
--- Name: COLUMN members.nationalitaet; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.nationalitaet IS 'DERIVED — German display name of the first code in nationalitaet_codes. Kept because the ClubDesk push/drift/echo path reads it. Maintained by trigger members_sync_nationality_trg; do not write it directly.';
 
 
 --
@@ -9868,10 +9932,10 @@ COMMENT ON COLUMN public.members.nickname IS 'Preferred display name shown inste
 
 
 --
--- Name: COLUMN members.nationalitaet_codes; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.nationality_codes; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.nationalitaet_codes IS 'Canonical nationality: ordered, comma-separated ISO 3166-1 alpha-2 codes ("CH,IT"). The FIRST code is primary and is what members.nationalitaet mirrors for ClubDesk (whose field is single-valued).';
+COMMENT ON COLUMN public.members.nationality_codes IS 'Nationality: ordered, comma-separated ISO 3166-1 alpha-2 codes ("IT,CH"). The FIRST code is primary — the ClubDesk push sends country_codes.name_de_clubdesk of it as the single-valued Nationalität cell (migration 418).';
 
 
 --
@@ -10827,6 +10891,26 @@ ALTER SEQUENCE public.registrations_id_seq OWNED BY public.registrations.id;
 
 
 --
+-- Name: scheduler_assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scheduler_assignments (
+    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_created uuid,
+    member integer NOT NULL,
+    kscw_team integer NOT NULL
+);
+
+
+--
+-- Name: TABLE scheduler_assignments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.scheduler_assignments IS 'Per-team Spielplaner: member may schedule home games of kscw_team (table spielplaner_assignments before migration 420).';
+
+
+--
 -- Name: scheduling_blocks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11321,19 +11405,6 @@ CREATE SEQUENCE public.slot_claims_id_seq
 --
 
 ALTER SEQUENCE public.slot_claims_id_seq OWNED BY public.slot_claims.id;
-
-
---
--- Name: spielplaner_assignments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.spielplaner_assignments (
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_created uuid,
-    member integer NOT NULL,
-    kscw_team integer NOT NULL
-);
 
 
 --
@@ -11901,10 +11972,10 @@ CREATE TABLE public.svrz_games (
 
 
 --
--- Name: svrz_spielplaner_contacts; Type: TABLE; Schema: public; Owner: -
+-- Name: svrz_scheduler_contacts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.svrz_spielplaner_contacts (
+CREATE TABLE public.svrz_scheduler_contacts (
     id uuid NOT NULL,
     svrz_persistence_id character varying(255) DEFAULT NULL::character varying NOT NULL,
     season_uuid character varying(255) DEFAULT NULL::character varying NOT NULL,
@@ -11922,6 +11993,13 @@ CREATE TABLE public.svrz_spielplaner_contacts (
     last_synced_at timestamp with time zone,
     team_identifier character varying(255)
 );
+
+
+--
+-- Name: TABLE svrz_scheduler_contacts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.svrz_scheduler_contacts IS 'Club-level Spielplaner contacts from SVRZ, synced daily by svrz-scheduling-sync.mjs (table svrz_spielplaner_contacts before migration 420).';
 
 
 --
@@ -14642,6 +14720,14 @@ ALTER TABLE ONLY public.registrations
 
 
 --
+-- Name: scheduler_assignments scheduler_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduler_assignments
+    ADD CONSTRAINT scheduler_assignments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: scheduling_blocks scheduling_blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14754,14 +14840,6 @@ ALTER TABLE ONLY public.slot_claims
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_pkey PRIMARY KEY (id);
-
-
---
 -- Name: sponsors sponsors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14802,19 +14880,19 @@ ALTER TABLE ONLY public.svrz_games
 
 
 --
--- Name: svrz_spielplaner_contacts svrz_spielplaner_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: svrz_scheduler_contacts svrz_scheduler_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.svrz_spielplaner_contacts
-    ADD CONSTRAINT svrz_spielplaner_contacts_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.svrz_scheduler_contacts
+    ADD CONSTRAINT svrz_scheduler_contacts_pkey PRIMARY KEY (id);
 
 
 --
--- Name: svrz_spielplaner_contacts svrz_spielplaner_contacts_svrz_persistence_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: svrz_scheduler_contacts svrz_scheduler_contacts_svrz_persistence_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.svrz_spielplaner_contacts
-    ADD CONSTRAINT svrz_spielplaner_contacts_svrz_persistence_id_unique UNIQUE (svrz_persistence_id);
+ALTER TABLE ONLY public.svrz_scheduler_contacts
+    ADD CONSTRAINT svrz_scheduler_contacts_svrz_persistence_id_unique UNIQUE (svrz_persistence_id);
 
 
 --
@@ -14906,11 +14984,11 @@ ALTER TABLE ONLY public.trainings
 
 
 --
--- Name: spielplaner_assignments uq_spielplaner_assignments_member_team; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: scheduler_assignments uq_scheduler_assignments_member_team; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT uq_spielplaner_assignments_member_team UNIQUE (member, kscw_team);
+ALTER TABLE ONLY public.scheduler_assignments
+    ADD CONSTRAINT uq_scheduler_assignments_member_team UNIQUE (member, kscw_team);
 
 
 --
@@ -15424,7 +15502,7 @@ CREATE INDEX finance_budget_lines_fy_idx ON public.finance_budget_lines USING bt
 -- Name: finance_dues_rates_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX finance_dues_rates_uq ON public.finance_dues_rates USING btree (fiscal_year, lower((category)::text), COALESCE(sektion, ''::character varying));
+CREATE UNIQUE INDEX finance_dues_rates_uq ON public.finance_dues_rates USING btree (fiscal_year, lower((category)::text), COALESCE(club_section, ''::character varying));
 
 
 --
@@ -16159,21 +16237,21 @@ CREATE INDEX idx_clubdesk_export_email ON public.clubdesk_export USING btree (lo
 -- Name: idx_clubdesk_export_email_alt; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clubdesk_export_email_alt ON public.clubdesk_export USING btree (lower(email_alternativ));
+CREATE INDEX idx_clubdesk_export_email_alt ON public.clubdesk_export USING btree (lower(email_alternative));
 
 
 --
 -- Name: idx_clubdesk_export_lic; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clubdesk_export_lic ON public.clubdesk_export USING btree (lizenznummer);
+CREATE INDEX idx_clubdesk_export_lic ON public.clubdesk_export USING btree (licence_no);
 
 
 --
--- Name: idx_clubdesk_export_sektion; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_clubdesk_export_section; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clubdesk_export_sektion ON public.clubdesk_export USING btree (sektion);
+CREATE INDEX idx_clubdesk_export_section ON public.clubdesk_export USING btree (section);
 
 
 --
@@ -16394,6 +16472,13 @@ CREATE INDEX idx_password_reset_tokens_user ON public.password_reset_tokens USIN
 
 
 --
+-- Name: idx_scheduler_assignments_kscw_team; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_scheduler_assignments_kscw_team ON public.scheduler_assignments USING btree (kscw_team);
+
+
+--
 -- Name: idx_signup_tokens_expires; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16412,13 +16497,6 @@ CREATE INDEX idx_signup_tokens_hash ON public.signup_tokens USING btree (token_h
 --
 
 CREATE UNIQUE INDEX idx_slot_claims_active_unique ON public.slot_claims USING btree (hall_slot, date) WHERE ((status)::text = 'active'::text);
-
-
---
--- Name: idx_spielplaner_assignments_kscw_team; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_spielplaner_assignments_kscw_team ON public.spielplaner_assignments USING btree (kscw_team);
 
 
 --
@@ -17112,13 +17190,6 @@ CREATE TRIGGER live_match_logs_drop_unknown_game BEFORE INSERT OR UPDATE OF game
 --
 
 CREATE TRIGGER members_normalize_trainer_licences_trg BEFORE INSERT OR UPDATE OF trainer_licences ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_normalize_trainer_licences();
-
-
---
--- Name: members members_sync_nationality_trg; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER members_sync_nationality_trg BEFORE INSERT OR UPDATE OF nationalitaet, nationalitaet_codes ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_sync_nationality();
 
 
 --
@@ -18477,14 +18548,6 @@ ALTER TABLE ONLY public.finance_ledger_settings
 
 
 --
--- Name: finance_ledger_settings finance_ledger_settings_debitoren_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finance_ledger_settings
-    ADD CONSTRAINT finance_ledger_settings_debitoren_account_fkey FOREIGN KEY (debitoren_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
-
-
---
 -- Name: finance_ledger_settings finance_ledger_settings_expense_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18522,6 +18585,14 @@ ALTER TABLE ONLY public.finance_ledger_settings
 
 ALTER TABLE ONLY public.finance_ledger_settings
     ADD CONSTRAINT finance_ledger_settings_prepayment_account_fkey FOREIGN KEY (prepayment_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_receivables_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_receivables_account_fkey FOREIGN KEY (receivables_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
 
 
 --
@@ -19405,6 +19476,30 @@ ALTER TABLE ONLY public.registrations
 
 
 --
+-- Name: scheduler_assignments scheduler_assignments_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduler_assignments
+    ADD CONSTRAINT scheduler_assignments_kscw_team_foreign FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scheduler_assignments scheduler_assignments_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduler_assignments
+    ADD CONSTRAINT scheduler_assignments_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scheduler_assignments scheduler_assignments_user_created_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduler_assignments
+    ADD CONSTRAINT scheduler_assignments_user_created_foreign FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: scheduling_blocks scheduling_blocks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19506,30 +19601,6 @@ ALTER TABLE ONLY public.site_text
 
 ALTER TABLE ONLY public.slot_claims
     ADD CONSTRAINT slot_claims_claimed_by_member_foreign FOREIGN KEY (claimed_by_member) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: spielplaner_assignments spielplaner_assignments_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_kscw_team_foreign FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
-
-
---
--- Name: spielplaner_assignments spielplaner_assignments_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: spielplaner_assignments spielplaner_assignments_user_created_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_user_created_foreign FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
 
 
 --
@@ -19940,7 +20011,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ex7aeqFFwgaJhp2e4A4ec7FzEcAct4cvIP9oc7P2lCPsLhsnpEqRhTa4f1kbC4C
+\unrestrict apanox2Xilhvmux5riXH6WqPjT8PvK05M75TySagWZvdogAmeosqYgIu9vplIs8
 
 
 
@@ -19956,7 +20027,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 421 migration(s) already in the schema above.
+-- Migration tracker seed — 424 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20390,6 +20461,9 @@ FROM (VALUES
   ('414-members-english-names.sql'),
   ('415-member-values-salutation-school-official.sql'),
   ('416-member-values-section-status.sql'),
-  ('417-fee-category-english.sql')
+  ('417-fee-category-english.sql'),
+  ('418-nationality-clubdesk-export.sql'),
+  ('419-finance-english.sql'),
+  ('420-scheduling-events-basketball-english.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
