@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T13:54:40.857Z
+-- Generated:   2026-10-15T17:41:27.080Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 074i2l7hYREgj2NtsdVmeZfNAzpbBRUyRQPGIs9bZowGlTHLtIoqj5B0aLUm2F7
+\restrict 2s6gPd023Z909cYHwBQ8mnC0lBOS1iKYMrCOey5pmjbSOHjkdwJiN6M9C2XJqGD
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -9544,11 +9544,13 @@ CREATE TABLE public.members (
     dues_paid_at date,
     licence_ordered_at date,
     permissions_section text DEFAULT 'both'::text NOT NULL,
+    CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
     CONSTRAINT members_left_on_needs_departed_status CHECK (((left_on IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
+    CONSTRAINT members_licence_category_no_legacy CHECK (((licence_category IS NULL) OR ((licence_category)::text !~* '^(offizielle/r|ufficiale|officiel(/le)?)$'::text))),
     CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
     CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
@@ -9556,6 +9558,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Aktivmitglied'::character varying, 'Passivmitglied'::character varying, 'Ehrenmitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying, 'Zwischenjahr'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
 );
@@ -9608,6 +9611,13 @@ COMMENT ON COLUMN public.members.requested_team IS 'Join-team picker choice awai
 --
 
 COMMENT ON COLUMN public.members.nationalitaet IS 'DERIVED — German display name of the first code in nationalitaet_codes. Kept because the ClubDesk push/drift/echo path reads it. Maintained by trigger members_sync_nationality_trg; do not write it directly.';
+
+
+--
+-- Name: COLUMN members.salutation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.salutation IS 'mr | ms (migration 415). ClubDesk Anrede Herr/Frau via member-values.js / clubdesk_value_map.';
 
 
 --
@@ -10048,7 +10058,7 @@ COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName L
 -- Name: COLUMN members.cantonal_school; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.cantonal_school IS 'Which Zurich Kantonsschule this member attends. ''Nein'' = asked and not at one; NULL = never asked. Mirrors the signup form''s list (kscw-website weiteres/anmeldung.astro); intentionally unconstrained — see migration 315.';
+COMMENT ON COLUMN public.members.cantonal_school IS 'School name; ''none'' = asked, not at a Kantonsschule; ''other'' = a school the list does not name; NULL = never asked (migration 415).';
 
 
 --
@@ -10738,6 +10748,7 @@ CREATE TABLE public.registrations (
     CONSTRAINT registrations_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT registrations_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT registrations_role_values CHECK (((role IS NULL) OR ((role)::text = ANY ((ARRAY['player'::character varying, 'coach'::character varying, 'guest'::character varying, 'team_responsible'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT registrations_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
     CONSTRAINT registrations_sex_values CHECK (((sex IS NULL) OR ((sex)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying])::text[]))))
 );
 
@@ -19925,7 +19936,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 074i2l7hYREgj2NtsdVmeZfNAzpbBRUyRQPGIs9bZowGlTHLtIoqj5B0aLUm2F7
+\unrestrict 2s6gPd023Z909cYHwBQ8mnC0lBOS1iKYMrCOey5pmjbSOHjkdwJiN6M9C2XJqGD
 
 
 
@@ -19941,7 +19952,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 418 migration(s) already in the schema above.
+-- Migration tracker seed — 419 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20372,6 +20383,7 @@ FROM (VALUES
   ('411-finance-books.sql'),
   ('412-clubdesk-maps.sql'),
   ('413-registrations-english.sql'),
-  ('414-members-english-names.sql')
+  ('414-members-english-names.sql'),
+  ('415-member-values-salutation-school-official.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
