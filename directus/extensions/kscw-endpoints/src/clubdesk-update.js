@@ -5,7 +5,10 @@
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
 import { roleToClubdesk, normalizeOfficials, officialsList } from './registration-values.js'
-import { normalizeSalutation, salutationToClubdesk, cantonalSchoolToLegacy, normalizeLicenceCategory, LICENCE_CATEGORY_OFFICIAL } from './member-values.js'
+import {
+  normalizeSalutation, salutationToClubdesk, cantonalSchoolToLegacy, normalizeLicenceCategory, LICENCE_CATEGORY_OFFICIAL,
+  normalizeClubSection, clubSectionToClubdesk, normalizeRegisterStatus, registerStatusToClubdesk, DEPARTED_REGISTER_STATUSES,
+} from './member-values.js'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
@@ -341,6 +344,9 @@ export const CD_REGISTER_FIELDS = ['register_status', 'joined_on', 'left_on', 'f
  * members_austritt_needs_departed_status (migration 302). 'Zwischenjahr' is
  * deliberately absent: a gap year is a member taking a season off.
  */
+// ⚠ ClubDesk's spelling — compare it against the register / clubdesk_export.
+// members.register_status holds slugs since migration 416: use
+// DEPARTED_REGISTER_STATUSES (member-values.js) for wiedisync's own values.
 export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
 
 // ── Telefon Mobil / Land / Mittelschule ZH (2026-09-13) ──────────────────────
@@ -674,8 +680,9 @@ export const PROPOSAL_COLUMNS = {
   federation_of_origin: 'federation',
   trainer_licences: 'trainer_licences',
   fee_category: 'text',
-  club_section: 'text',
-  register_status: 'text',
+  // Slugs since migration 416; the conflict rule stages ClubDesk's German cell.
+  club_section: 'club_section',
+  register_status: 'register_status',
   joined_on: 'date',
   left_on: 'date',
   referee_vb: 'bool',
@@ -693,6 +700,14 @@ export function coerceProposalValue(field, raw, ctx = {}) {
   const v = String(raw ?? '').trim()
   if (!v) return { ok: false }
   if (type === 'bool') return { ok: v === 'true', value: true }
+  if (type === 'club_section') {
+    const s = normalizeClubSection(v)
+    return s ? { ok: true, value: s } : { ok: false }
+  }
+  if (type === 'register_status') {
+    const s = normalizeRegisterStatus(v)
+    return s ? { ok: true, value: s } : { ok: false }
+  }
   if (type === 'salutation') {
     const s = normalizeSalutation(v)
     return s ? { ok: true, value: s } : { ok: false }
@@ -779,10 +794,11 @@ export function coerceProposalValue(field, raw, ctx = {}) {
 
 export function deriveStatus(reg, member) {
   if (reg) {
+    // Slugs since migration 416 (the push maps them to ClubDesk's wording).
     return String(reg.membership_type || '').trim().toLowerCase() === 'passive'
-      ? 'Passivmitglied' : 'Aktivmitglied'
+      ? 'passive' : 'active'
   }
-  return member?.wiedisync_active === true ? 'Aktivmitglied' : ''
+  return member?.wiedisync_active === true ? 'active' : ''
 }
 
 // Derive the ClubDesk "Offiziellen Lizenz" cell from the member's licence
@@ -844,10 +860,11 @@ export function deriveSchiedsrichter(m) {
 export function deriveSektion(reg) {
   if (!reg) return ''
   const mt = String(reg.membership_type || '').trim().toLowerCase()
-  if (mt === 'volleyball') return 'Volleyball'
-  if (mt === 'basketball') return 'Basketball'
+  // Slugs since migration 416 (the push maps them to ClubDesk's wording).
+  if (mt === 'volleyball') return 'volleyball'
+  if (mt === 'basketball') return 'basketball'
   // passive (or unknown) → approver's choice, default KSCW
-  return String(reg.club_section_choice || '').trim() || 'KSCW'
+  return normalizeClubSection(reg.club_section_choice) || 'club'
 }
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
@@ -1173,7 +1190,7 @@ export async function resolveFeeWaivers(database, memberIds = null) {
     // Fixed precedence so the printed reason is stable for somebody who is two
     // of these at once (an honorary coach reads 'honorary', not whichever the
     // query happened to evaluate first).
-    if (r.register_status === 'Ehrenmitglied') out.set(Number(r.id), 'honorary')
+    if (normalizeRegisterStatus(r.register_status) === 'honorary') out.set(Number(r.id), 'honorary')
     else if (r.is_vorstand === true) out.set(Number(r.id), 'vorstand')
     else if (r.is_coach === true) out.set(Number(r.id), 'coach')
   }
@@ -1472,12 +1489,12 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // An admin-set register status beats the derivation: deriveStatus can
         // only ever say Aktiv-/Passivmitglied, so a contact being created as an
         // Ehrenmitglied would otherwise land in the register as an ordinary one.
-        String(m.register_status || '').trim() || m.cd_status || '',
+        registerStatusToClubdesk(String(m.register_status || '').trim() || m.cd_status || ''),
         deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true }),
         // Resolved by /up from the registration; a member with no approved
         // registration falls back to their own members.sektion.
-        m.cd_sektion || String(m.club_section || '').trim(),
+        clubSectionToClubdesk(m.cd_sektion || String(m.club_section || '').trim()),
         deriveSchiedsrichter(m),
         // Licence number + category from the issuing authority (Volleymanager /
         // Basketplan) — a brand-new contact has no register value to protect.
@@ -1536,7 +1553,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         ? new Set([...changed, 'mitgliederbeitrag'])
         : changed
       const statusOut = registerCell('register_status', {
-        changed, wiedi: m.register_status, clubdesk: m.register_status_cd,
+        changed, wiedi: registerStatusToClubdesk(m.register_status), clubdesk: m.register_status_cd,
       })
       // ⚠ Austritt is gated on the Status cell THIS ROW ACTUALLY SENDS, not on
       // wiedisync's own status. The two are one fact and the register has no
@@ -1610,7 +1627,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         String(m.land_cd || '').trim() || CD_LAND_DEFAULT,
         String(m.mittelschule_zh_cd || '').trim() || kantonsschuleCell(m.cantonal_school),
         // Sektion / Lizenz bestellt (2026-09-24) — same fill-only regime.
-        String(m.sektion_cd || '').trim() || String(m.club_section || '').trim(),
+        String(m.sektion_cd || '').trim() || clubSectionToClubdesk(String(m.club_section || '').trim()),
         String(m.lizenz_bestellt_cd || '').trim() || m.lizenz_bestellt || '',
       )
     }
@@ -1955,7 +1972,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     // ClubDesk shows up here as a CONFLICT the moment the two disagree,
     // instead of being quietly overwritten on some later push.
     cmpEcho('register_status', r.register_status, r.cd_status,
-      driftLower(r.register_status), driftLower(r.cd_status))
+      driftLower(registerStatusToClubdesk(r.register_status)), driftLower(r.cd_status))
     // Beitragskategorie became a gated register cell on 2026-08-14, so its
     // divergence has to be VISIBLE for the same reason the status's is: the
     // push only carries it when the member's change names it, and until then
@@ -3338,7 +3355,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   const FEE_PASSIV_CATEGORY = 'Passivmitglied'
   const FEE_PASSIV_AMOUNT = 40
   /** Statuses whose fee rule is still undecided — counted, never flagged. */
-  const FEE_UNDECIDED_STATUSES = ['Zwischenjahr']
+  const FEE_UNDECIDED_STATUSES = ['gap_year']
 
   /** ClubDesk's Mitgliederbeitrag cell → number, or null when the cell is empty.
    *  An empty cell is "the register has not said", which is a DIFFERENT finding
@@ -3402,7 +3419,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       if (isFree) {
         // The group half of the honorary axis belongs to honorary_drift.
-        if (r.in_honorary_group === true && r.register_status === 'Ehrenmitglied') continue
+        if (r.in_honorary_group === true && normalizeRegisterStatus(r.register_status) === 'honorary') continue
         checked++
         const override = overrideNum(r.fee_base_override)
         const billed = !FEE_FREE_CATEGORIES.includes(kat)
@@ -3413,10 +3430,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         if (billed) findings.push({ ...row, kind: 'free_but_billed', expected: 0 })
         continue
       }
-      if (FEE_UNDECIDED_STATUSES.includes(r.register_status || '')) { notEvaluated++; continue }
+      if (FEE_UNDECIDED_STATUSES.includes(normalizeRegisterStatus(r.register_status) || '')) { notEvaluated++; continue }
       checked++
 
-      if (r.register_status === FEE_PASSIV_CATEGORY) {
+      if (normalizeRegisterStatus(r.register_status) === 'passive') {
         if (kat !== FEE_PASSIV_CATEGORY) {
           findings.push({ ...row, kind: 'passiv_wrong_category', expected: FEE_PASSIV_AMOUNT })
         } else if (registerAmount === null) {
@@ -3832,7 +3849,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         // (migration 302) rejects an exit date under a non-departed status, so
         // accepting a status the register no longer calls departed has to clear the
         // date in the same statement or the UPDATE aborts.
-        if (p.field === 'register_status' && !DEPARTED_STATUSES.includes(coerced.value)) {
+        if (p.field === 'register_status' && !DEPARTED_REGISTER_STATUSES.includes(coerced.value)) {
           patch.left_on = null
         }
         // The mirror image, and the one the UI can actually reach: accepting an
@@ -3846,17 +3863,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         let sibling = null
         if (p.field === 'left_on') {
           const held = (await database('members').where('id', p.member_id).first('register_status'))?.register_status ?? null
-          if (held !== null && !DEPARTED_STATUSES.includes(String(held))) {
+          if (held !== null && !DEPARTED_REGISTER_STATUSES.includes(normalizeRegisterStatus(held))) {
             sibling = await database('clubdesk_sync_proposals')
               .where({ member_id: p.member_id, field: 'register_status', status: 'pending' })
-              .whereIn('proposed_value', DEPARTED_STATUSES)
+              // The SQL rules stage slugs, the conflict rule ClubDesk's wording.
+              .whereIn('proposed_value', [...DEPARTED_REGISTER_STATUSES, ...DEPARTED_STATUSES])
               .first('id', 'proposed_value', 'rule')
             // No sibling means the status half was refused (or decided in an
             // older run): the two systems genuinely disagree about whether this
             // person left. Leave the date pending for a human rather than
             // forcing a departure nobody approved.
             if (!sibling) { skipped++; continue }
-            patch.register_status = sibling.proposed_value
+            patch.register_status = normalizeRegisterStatus(sibling.proposed_value)
           }
         }
         // ⚠ A `fill` proposal fills an EMPTY wiedisync cell — that is the whole
@@ -5014,7 +5032,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       JOIN cd ON cd.cid = m.clubdesk_id
      WHERE m.kscw_membership_active = true
        AND (
-         (m.register_status = 'Ehrenmitglied' AND NOT EXISTS (
+         (m.register_status = 'honorary' AND NOT EXISTS (
            SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
             WHERE btrim(g) = 'Ehrenmitglieder'))
          OR (EXISTS (

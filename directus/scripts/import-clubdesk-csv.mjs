@@ -545,10 +545,11 @@ const psqlInput =
   "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS cd_phone,\n" +
   "         left(NULLIF(btrim(js_id),''),32) AS cd_js_id,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) AS cd_categ,\n" +
-  "         left(NULLIF(btrim(sektion),''),32) AS cd_sektion,\n" +
+  // Club section and register status are slugs in wiedisync since migration 416.
+  "         cd_to_app('section', NULLIF(btrim(sektion),'')) AS cd_sektion,\n" +
   "         CASE WHEN btrim(status) IN ('Kein Mitglied','Aktivmitglied','Passivmitglied',\n" +
   "                                     'Ehrenmitglied','Ehemaliges Mitglied','Verstorben','Zwischenjahr')\n" +
-  '              THEN btrim(status) END AS cd_reg_status,\n' +
+  "              THEN cd_to_app('register_status', btrim(status)) END AS cd_reg_status,\n" +
   "         CASE WHEN btrim(coalesce(eintritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
   "              THEN to_date(btrim(eintritt),'DD.MM.YYYY') END AS cd_eintritt,\n" +
   "         CASE WHEN btrim(coalesce(austritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
@@ -679,10 +680,10 @@ const psqlInput =
   "  UNION ALL SELECT id, cdid, 'left_on', left_on::text, cd_austritt::text, 'overwrite'\n" +
   '    FROM mem WHERE cd_austritt IS NOT NULL AND left_on IS NOT NULL\n' +
   '      AND cd_austritt IS DISTINCT FROM left_on\n' +
-  "      AND COALESCE(cd_reg_status, register_status) IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
+  "      AND COALESCE(cd_reg_status, register_status) IN ('non_member','former','deceased')\n" +
   "  UNION ALL SELECT id, cdid, 'left_on', NULL, cd_austritt::text, 'fill'\n" +
   '    FROM mem WHERE cd_austritt IS NOT NULL AND left_on IS NULL\n' +
-  "      AND COALESCE(cd_reg_status, register_status) IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
+  "      AND COALESCE(cd_reg_status, register_status) IN ('non_member','former','deceased')\n" +
   // ── set_true: the register asserts a qualification we do not hold ──
   // Never a clearing rule: ClubDesk holds ONE value per contact while a member can
   // hold several licences, so absence from the cell is absence of evidence.

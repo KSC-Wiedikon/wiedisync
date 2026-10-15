@@ -21,7 +21,7 @@ describe('ClubDesk field labels', () => {
     // vacuously true and the suite goes green while the screen fills with raw
     // identifiers. Silence is not success.
     expect(Object.keys(PROPOSAL_COLUMNS).length).toBeGreaterThan(20)
-    expect(PROPOSAL_COLUMNS.club_section).toBe('text')
+    expect(PROPOSAL_COLUMNS.club_section).toBe('club_section')
   })
 
   it('every proposable column has a label — this is what `club_section` slipped through', () => {

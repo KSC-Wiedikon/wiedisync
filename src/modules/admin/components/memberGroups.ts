@@ -239,11 +239,11 @@ export function buildMemberGroups(
   // including the people already listed under a sport. Those answer different
   // questions and a member legitimately belongs to both.
   const REGISTER_GROUPS = [
-    { key: 'honorary', labelKey: 'explorerGroupHonorary', status: 'Ehrenmitglied' },
-    { key: 'passive', labelKey: 'explorerGroupPassive', status: 'Passivmitglied' },
-    { key: 'gapyear', labelKey: 'explorerGroupGapYear', status: 'Zwischenjahr' },
-    { key: 'former', labelKey: 'explorerGroupFormer', status: 'Ehemaliges Mitglied' },
-    { key: 'nonmember', labelKey: 'explorerGroupNonMember', status: 'Kein Mitglied' },
+    { key: 'honorary', labelKey: 'explorerGroupHonorary', status: 'honorary' },
+    { key: 'passive', labelKey: 'explorerGroupPassive', status: 'passive' },
+    { key: 'gapyear', labelKey: 'explorerGroupGapYear', status: 'gap_year' },
+    { key: 'former', labelKey: 'explorerGroupFormer', status: 'former' },
+    { key: 'nonmember', labelKey: 'explorerGroupNonMember', status: 'non_member' },
   ] as const
 
   // ── Sport ───────────────────────────────────────────────────────────

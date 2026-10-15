@@ -381,7 +381,10 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
 
   it('accepts the columns the register is allowed to influence', () => {
     expect(coerceProposalValue('address', 'Sängglenstrasse 6')).toEqual({ ok: true, value: 'Sängglenstrasse 6' })
-    expect(coerceProposalValue('register_status', 'Aktivmitglied')).toEqual({ ok: true, value: 'Aktivmitglied' })
+    // The conflict rule stages ClubDesk's wording; the accept stores the slug (416).
+    expect(coerceProposalValue('register_status', 'Aktivmitglied')).toEqual({ ok: true, value: 'active' })
+    expect(coerceProposalValue('register_status', 'former')).toEqual({ ok: true, value: 'former' })
+    expect(coerceProposalValue('club_section', 'KSCW')).toEqual({ ok: true, value: 'club' })
   })
 
   it('takes dates in BOTH vocabularies and emits ISO — the conflict rule stages the Swiss cell', () => {
@@ -490,7 +493,7 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // the bottom, which for `email` would mean any register free-text landing in
     // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation'],
+      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation', 'club_section', 'register_status'],
         `${field} has type ${type}`).toContain(type)
     }
   })
@@ -736,18 +739,19 @@ describe('deriveGruppen officials', () => {
 })
 
 describe('deriveSektion', () => {
-  it('sektion from sport, passive uses approver choice (default KSCW)', () => {
-    expect(deriveSektion({ membership_type: 'volleyball' })).toBe('Volleyball')
-    expect(deriveSektion({ membership_type: 'basketball' })).toBe('Basketball')
-    expect(deriveSektion({ membership_type: 'passive', club_section_choice: 'Volleyball' })).toBe('Volleyball')
-    expect(deriveSektion({ membership_type: 'passive' })).toBe('KSCW')
+  it('section from sport, passive uses approver choice (default club) — slugs, migration 416', () => {
+    expect(deriveSektion({ membership_type: 'volleyball' })).toBe('volleyball')
+    expect(deriveSektion({ membership_type: 'basketball' })).toBe('basketball')
+    expect(deriveSektion({ membership_type: 'passive', club_section_choice: 'volleyball' })).toBe('volleyball')
+    expect(deriveSektion({ membership_type: 'passive', club_section_choice: 'Volleyball' })).toBe('volleyball')
+    expect(deriveSektion({ membership_type: 'passive' })).toBe('club')
     expect(deriveSektion(null)).toBe('')
   })
   // The Passivmitglied Ja/Nein checkbox was deleted in ClubDesk on 2026-07-30 —
   // passive membership rides on Status alone (see deriveStatus below).
   it('passive registrations are marked via Status, not a checkbox', () => {
     expect(CD_PUSH_CREATE_HEADERS).not.toContain('Passivmitglied')
-    expect(deriveStatus({ membership_type: 'passive' }, { wiedisync_active: true })).toBe('Passivmitglied')
+    expect(deriveStatus({ membership_type: 'passive' }, { wiedisync_active: true })).toBe('passive')
   })
 })
 
@@ -825,14 +829,14 @@ describe('deriveMitgliederbeitrag', () => {
 })
 
 describe('deriveStatus', () => {
-  it('registration → Aktivmitglied, passive registration → Passivmitglied', () => {
-    expect(deriveStatus({ membership_type: 'volleyball' }, { wiedisync_active: false })).toBe('Aktivmitglied')
-    expect(deriveStatus({ membership_type: 'basketball' }, null)).toBe('Aktivmitglied')
-    expect(deriveStatus({ membership_type: 'passive' }, { wiedisync_active: true })).toBe('Passivmitglied')
+  it('registration → active, passive registration → passive (slugs, migration 416)', () => {
+    expect(deriveStatus({ membership_type: 'volleyball' }, { wiedisync_active: false })).toBe('active')
+    expect(deriveStatus({ membership_type: 'basketball' }, null)).toBe('active')
+    expect(deriveStatus({ membership_type: 'passive' }, { wiedisync_active: true })).toBe('passive')
   })
 
-  it('no registration → Aktivmitglied only when wiedisync_active, else empty', () => {
-    expect(deriveStatus(null, { wiedisync_active: true })).toBe('Aktivmitglied')
+  it('no registration → active only when wiedisync_active, else empty', () => {
+    expect(deriveStatus(null, { wiedisync_active: true })).toBe('active')
     expect(deriveStatus(null, { wiedisync_active: false })).toBe('')
     expect(deriveStatus(null, null)).toBe('')
     expect(deriveStatus(undefined, { wiedisync_active: 1 })).toBe('')
@@ -1488,5 +1492,26 @@ describe('member values at the ClubDesk border (migration 415)', () => {
     expect(coerceProposalValue('salutation', 'Herr')).toEqual({ ok: true, value: 'mr' })
     expect(coerceProposalValue('salutation', 'ms')).toEqual({ ok: true, value: 'ms' })
     expect(coerceProposalValue('salutation', 'Dr.')).toEqual({ ok: false })
+  })
+})
+
+describe('register status + section at the ClubDesk border (migration 416)', () => {
+  it('a CREATE row sends ClubDesk wording for slug values', async () => {
+    const { buildPushCsv, CD_PUSH_CREATE_HEADERS } = await import('../clubdesk-update.js')
+    const m = {
+      id: 1, uuid: 'u-1', first_name: 'Mia', last_name: 'Muster', email: 'm@x.ch',
+      register_status: null, cd_status: 'passive', cd_sektion: 'club', club_section: 'club',
+      salutation: 'ms', cantonal_school: 'none', licence_category: 'official',
+    }
+    const csv = buildPushCsv([m], { create: true })
+    const [header, row] = csv.replace(/^﻿/, '').trim().split(/\r?\n/)
+    const cols = header.split(';'); const cells = row.split(';')
+    const cell = (h) => cells[cols.indexOf(h)]
+    expect(CD_PUSH_CREATE_HEADERS).toContain('Status')
+    expect(cell('Status')).toBe('Passivmitglied')
+    expect(cell('Sektion')).toBe('KSCW')
+    expect(cell('Anrede')).toBe('Frau')
+    expect(cell('Mittelschule ZH')).toBe('')
+    expect(cell('Lizenzart')).toBe('')
   })
 })

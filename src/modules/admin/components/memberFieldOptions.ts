@@ -16,6 +16,7 @@
 // headers, "Yes"/"No", the field labels next door). Sentence case per CLAUDE.md.
 
 import { KANTONSSCHULEN, KANTONSSCHULE_NONE, kantonsschuleLabel } from '../../../utils/kantonsschulen'
+import { registerStatusLabel } from '@member-values'
 
 export interface FieldOption {
   value: string
@@ -48,14 +49,16 @@ export interface MemberSelectField {
  * audience.js — which is deliberately the ACTIVE subset, not this whole list,
  * because a mailing to "all members" must not reach the departed.
  */
+// Slugs since migration 416; labels are the register's German wording
+// (registerStatusLabel, @member-values), which ClubDesk receives on the push.
 export const REGISTER_STATUS_VALUES = [
-  'Kein Mitglied',
-  'Aktivmitglied',
-  'Passivmitglied',
-  'Ehrenmitglied',
-  'Ehemaliges Mitglied',
-  'Verstorben',
-  'Zwischenjahr',
+  'non_member',
+  'active',
+  'passive',
+  'honorary',
+  'former',
+  'deceased',
+  'gap_year',
 ] as const
 
 export type RegisterStatus = (typeof REGISTER_STATUS_VALUES)[number]
@@ -72,9 +75,9 @@ export type RegisterStatus = (typeof REGISTER_STATUS_VALUES)[number]
  * keeps billing them.
  */
 export const DEPARTED_REGISTER_STATUSES: ReadonlySet<string> = new Set([
-  'Kein Mitglied',
-  'Ehemaliges Mitglied',
-  'Verstorben',
+  'non_member',
+  'former',
+  'deceased',
 ])
 
 /** True when `value` is a status that ends the membership. */
@@ -213,7 +216,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
    */
   register_status: {
     nullable: true,
-    options: REGISTER_STATUS_VALUES.map((v) => ({ value: v, label: v })),
+    options: REGISTER_STATUS_VALUES.map((v) => ({ value: v, label: registerStatusLabel(v) })),
   },
   /**
    * The three club sections. A closed set in the data (prod 2026-08-13:
@@ -232,9 +235,10 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
   club_section: {
     nullable: true,
     options: [
-      { value: 'Volleyball', label: 'Volleyball' },
-      { value: 'Basketball', label: 'Basketball' },
-      { value: 'KSCW', label: 'KSCW (club-level)' },
+      // Slugs since migration 416 (ClubDesk: Volleyball / Basketball / KSCW).
+      { value: 'volleyball', label: 'Volleyball' },
+      { value: 'basketball', label: 'Basketball' },
+      { value: 'club', label: 'KSCW (club-level)' },
     ],
   },
   /**

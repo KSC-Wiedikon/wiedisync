@@ -103,7 +103,7 @@ const SURCHARGE_DUE = `(
  */
 const OWES_NOTHING = `(
      lower(${FEE_CAT}) IN ('gratis', 'kein beitrag')
-  OR m.register_status = 'Ehrenmitglied'
+  OR m.register_status = 'honorary'
   OR COALESCE(m.role, '[]'::jsonb) @> '["vorstand"]'::jsonb
   OR (m.fee_base_override IS NOT NULL AND m.fee_base_override <= 0
       AND (m.fee_surcharge_override IS FALSE
@@ -117,7 +117,7 @@ const OWES_NOTHING = `(
  */
 const FEE_PAYER = `m.kscw_membership_active
    AND ${REAL_PERSON}
-   AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+   AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')
    AND NOT ${OWES_NOTHING}`
 
 /** Fiscal year row for the season (label == short season on prod). */
@@ -232,7 +232,7 @@ SELECT ${MEMBER_COLS}, m.club_section, m.fee_category,
        ${HAS_PAID_DUES} AS paid
   FROM members m
  WHERE m.kscw_membership_active AND ${REAL_PERSON}
-   AND m.register_status = 'Zwischenjahr'
+   AND m.register_status = 'gap_year'
  ORDER BY m.last_name, m.first_name, m.id`,
   },
   {
@@ -389,7 +389,7 @@ SELECT ${MEMBER_COLS}, m.club_section, m.fee_category, m.register_status,
   FROM members m
  WHERE m.kscw_membership_active
    AND ${REAL_PERSON}
-   AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+   AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')
    AND lower(${FEE_CAT}) <> 'kein beitrag'
    AND NOT ${RATE_FOR_MEMBER}
  ORDER BY m.fee_category NULLS FIRST, m.last_name, m.first_name, m.id`,
@@ -408,7 +408,7 @@ SELECT m.fee_category AS category, m.club_section, count(*)::int AS members,
   FROM members m
  WHERE m.kscw_membership_active
    AND ${REAL_PERSON}
-   AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+   AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')
    AND NULLIF(${FEE_CAT}, '') IS NOT NULL
    AND lower(${FEE_CAT}) <> 'kein beitrag'
    AND NOT ${RATE_FOR_MEMBER}

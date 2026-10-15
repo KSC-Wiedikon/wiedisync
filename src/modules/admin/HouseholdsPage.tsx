@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import IconButton from '@/components/IconButton'
+import { registerStatusLabel } from '@member-values'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, KeyRound, Pencil, StickyNote } from 'lucide-react'
@@ -170,7 +171,7 @@ function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
                   <span className="font-medium">{m.last_name} {m.first_name}</span>
                   {m.birthdate && <span className="text-xs text-muted-foreground">{String(m.birthdate).slice(0, 4)}</span>}
                   {role === 'guardian' && m.register_status && (
-                    <Badge variant="outline" className="text-[10px]">{m.register_status}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{registerStatusLabel(m.register_status)}</Badge>
                   )}
                   <span className="ml-auto max-w-[45%] truncate text-xs text-muted-foreground" title={m.email ?? undefined}>{m.email}</span>
                   {reason && (

@@ -62,3 +62,36 @@ export function licenceCategoryToClubdesk(v) {
   const s = normalizeLicenceCategory(v)
   return s === LICENCE_CATEGORY_OFFICIAL ? 'Offizielle/r' : (s ?? '')
 }
+
+// ── club_section (members) / club_section_choice (registrations) ────────────
+// ClubDesk's register Sektion. Not to be confused with permissions_section,
+// the derived access scope (volleyball | basketball | both).
+export const CLUB_SECTION_VALUES = ['volleyball', 'basketball', 'club']
+const CLUB_SECTION_CD = { volleyball: 'Volleyball', basketball: 'Basketball', club: 'KSCW' }
+const CLUB_SECTION_IN = { volleyball: 'volleyball', basketball: 'basketball', club: 'club', kscw: 'club' }
+export function normalizeClubSection(v) { return CLUB_SECTION_IN[trim(v).toLowerCase()] ?? null }
+export function clubSectionToClubdesk(v) {
+  const s = normalizeClubSection(v)
+  return s ? CLUB_SECTION_CD[s] : trim(v)
+}
+
+// ── register_status (members) ───────────────────────────────────────────────
+export const REGISTER_STATUS_VALUES = ['active', 'passive', 'honorary', 'former', 'non_member', 'deceased', 'gap_year']
+const REGISTER_STATUS_CD = {
+  active: 'Aktivmitglied', passive: 'Passivmitglied', honorary: 'Ehrenmitglied',
+  former: 'Ehemaliges Mitglied', non_member: 'Kein Mitglied', deceased: 'Verstorben', gap_year: 'Zwischenjahr',
+}
+const REGISTER_STATUS_IN = Object.fromEntries([
+  ...REGISTER_STATUS_VALUES.map((v) => [v, v]),
+  ...Object.entries(REGISTER_STATUS_CD).map(([slug, cd]) => [cd.toLowerCase(), slug]),
+])
+/** Statuses that mean the person has left (a left_on date is only valid with these). */
+export const DEPARTED_REGISTER_STATUSES = ['non_member', 'former', 'deceased']
+export function normalizeRegisterStatus(v) { return REGISTER_STATUS_IN[trim(v).toLowerCase()] ?? null }
+export function registerStatusToClubdesk(v) {
+  const s = normalizeRegisterStatus(v)
+  return s ? REGISTER_STATUS_CD[s] : trim(v)
+}
+/** Display label (the register's German wording, as the admin pages always showed it). */
+export function registerStatusLabel(v) { return registerStatusToClubdesk(v) }
+export function isDepartedRegisterStatus(v) { return DEPARTED_REGISTER_STATUSES.includes(normalizeRegisterStatus(v)) }

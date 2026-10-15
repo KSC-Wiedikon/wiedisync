@@ -27,7 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
-import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory } from '../../kscw-endpoints/src/member-values.js'
+import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus } from '../../kscw-endpoints/src/member-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -6023,7 +6023,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return /^[A-Z]{2}$/.test(v) ? v : null
   }
 
-  // ── members: German values arriving after migration 415 ────────────────
+  // ── members: German values arriving after migrations 415 / 416 ─────────
   // Salutation, cantonal school and the officials licence category are slugs
   // now, behind CHECKs. A cached pre-415 bundle, the Data Studio or an import
   // can still send 'Herr' / 'Nein' / 'Offizielle/r'; normalise instead of 400.
@@ -6032,6 +6032,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if ('salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
     if ('cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
     if ('licence_category' in payload && payload.licence_category != null) payload.licence_category = normalizeLicenceCategory(payload.licence_category)
+    // Migration 416: club section + register status. An unknown value is left
+    // as sent, so the CHECK names it instead of it silently becoming NULL.
+    if ('club_section' in payload && payload.club_section) payload.club_section = normalizeClubSection(payload.club_section) ?? payload.club_section
+    if ('register_status' in payload && payload.register_status) payload.register_status = normalizeRegisterStatus(payload.register_status) ?? payload.register_status
     return payload
   }
   filter('members.items.create', (payload) => normalizeMemberValues(payload))
@@ -6039,6 +6043,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('registrations.items.update', (payload) => {
     if (payload && 'salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
     if (payload && 'cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
+    if (payload && payload.club_section_choice) payload.club_section_choice = normalizeClubSection(payload.club_section_choice) ?? payload.club_section_choice
     return payload
   })
 

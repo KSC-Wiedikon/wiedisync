@@ -1,3 +1,4 @@
+import { normalizeClubSection } from './member-values.js'
 /**
  * Member audience resolution — the single definition of "who is in this group".
  *
@@ -434,7 +435,8 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
         .where('m.kscw_membership_active', true)
         .whereIn('cp.status', MEMBER_REGISTER_STATUSES)
-        .where('m.club_section', spec.audience_sektion)
+        // members.club_section is a slug since migration 416; the spec keeps ClubDesk's wording.
+        .where('m.club_section', normalizeClubSection(spec.audience_sektion))
         .distinct('m.id')
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)

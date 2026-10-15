@@ -1,5 +1,6 @@
 // src/modules/admin/components/ExplorerMemberFilters.tsx
 import { useMemo } from 'react'
+import { registerStatusLabel } from '@member-values'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Filter, X } from 'lucide-react'
@@ -311,7 +312,7 @@ export default function ExplorerMemberFilters({ value, onChange, seasons }: Prop
                 key={s}
                 active={value.registerStatus.includes(s)}
                 onClick={() => onChange({ ...value, registerStatus: toggleIn(value.registerStatus, s) })}
-                label={s === 'unset' ? t('memberFilterRegisterStatusUnset') : s}
+                label={s === 'unset' ? t('memberFilterRegisterStatusUnset') : registerStatusLabel(s)}
               />
             ))}
           </PillRow>

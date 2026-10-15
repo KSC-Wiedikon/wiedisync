@@ -52,7 +52,7 @@ import { DEPARTED_REGISTER_STATUSES } from './memberFieldOptions'
  * billing them.
  */
 export const DEPARTED_ORDERED: readonly string[] =
-  ['Ehemaliges Mitglied', 'Kein Mitglied', 'Verstorben']
+  ['former', 'non_member', 'deceased']
     .filter((v) => DEPARTED_REGISTER_STATUSES.has(v))
 
 /** The four `members` columns a departure writes. */

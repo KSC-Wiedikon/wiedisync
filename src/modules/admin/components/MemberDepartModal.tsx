@@ -22,6 +22,7 @@
 // skipping the roster half is the one half-applied outcome worth refusing.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { registerStatusLabel } from '@member-values'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertTriangle, Loader2 } from 'lucide-react'
@@ -65,7 +66,7 @@ export default function MemberDepartModal({
     // A member already carrying a departed status keeps it — re-opening the
     // dialog to correct the DATE must not silently re-classify them.
     const current = String(member.register_status ?? '')
-    return DEPARTED_ORDERED.includes(current) ? current : (DEPARTED_ORDERED[0] ?? 'Ehemaliges Mitglied')
+    return DEPARTED_ORDERED.includes(current) ? current : (DEPARTED_ORDERED[0] ?? 'former')
   })
   const [exitDate, setExitDate] = useState<string>(() => {
     // An exit date that is ALREADY set is never overwritten: it is usually the
@@ -197,7 +198,7 @@ export default function MemberDepartModal({
             </SelectTrigger>
             <SelectContent>
               {DEPARTED_ORDERED.map((v) => (
-                <SelectItem key={v} value={v}>{v}</SelectItem>
+                <SelectItem key={v} value={v}>{registerStatusLabel(v)}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -13,3 +13,16 @@ export function cantonalSchoolToLegacy(v: unknown): string
 export const LICENCE_CATEGORY_OFFICIAL: 'official'
 export function normalizeLicenceCategory(v: unknown): string | null
 export function licenceCategoryToClubdesk(v: unknown): string
+
+export type ClubSection = 'volleyball' | 'basketball' | 'club'
+export const CLUB_SECTION_VALUES: ClubSection[]
+export function normalizeClubSection(v: unknown): ClubSection | null
+export function clubSectionToClubdesk(v: unknown): string
+
+export type RegisterStatus = 'active' | 'passive' | 'honorary' | 'former' | 'non_member' | 'deceased' | 'gap_year'
+export const REGISTER_STATUS_VALUES: RegisterStatus[]
+export const DEPARTED_REGISTER_STATUSES: RegisterStatus[]
+export function normalizeRegisterStatus(v: unknown): RegisterStatus | null
+export function registerStatusToClubdesk(v: unknown): string
+export function registerStatusLabel(v: unknown): string
+export function isDepartedRegisterStatus(v: unknown): boolean

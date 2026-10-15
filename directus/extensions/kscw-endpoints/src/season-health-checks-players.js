@@ -50,7 +50,7 @@ const BB_TEAM = `${ACTIVE_TEAM} AND ${TEAM_SPORT} = 'basketball'`
  * should surface once, not once per check. Alias members as `m`.
  */
 const EXPECTED_TO_PLAY = `m.kscw_membership_active = true
-   AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')`
+   AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')`
 
 /**
  * The club workflow status, but only if its stamp is THIS season — a stale
@@ -75,8 +75,8 @@ const IN_VM = `EXISTS (
  */
 const IS_MINOR = `(m.birthdate IS NULL OR m.birthdate > ({{today}} - INTERVAL '18 years'))`
 
-/** ClubDesk register statuses that mean "left" (the austritt CHECK's list). */
-const DEPARTED_STATUS = `('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')`
+/** Register statuses (slugs since migration 416) that mean "left" (the austritt CHECK's list). */
+const DEPARTED_STATUS = `('non_member', 'former', 'deceased')`
 
 /** ClubDesk fee categories that do not imply playing (clubdesk-update.js NON_PLAYING_KAT). */
 const NON_PLAYING_FEE = `('', 'Passivmitglied', 'Gratis', 'Kein Beitrag')`
@@ -573,7 +573,7 @@ SELECT ${MEMBER_COLS}, ${TEAM_COLS},
   JOIN members m ON m.id = mt.member
  WHERE ${REAL_PERSON}
    AND m.kscw_membership_active = true
-   AND m.register_status = 'Zwischenjahr'
+   AND m.register_status = 'gap_year'
  ORDER BY sport, umbrella, t.name, m.last_name, m.first_name, m.id`,
   },
   {
@@ -620,7 +620,7 @@ SELECT ${MEMBER_COLS},
   FROM members m
  WHERE m.kscw_membership_active = true
    AND ${REAL_PERSON}
-   AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Passivmitglied', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+   AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'passive', 'non_member', 'former', 'deceased')
    AND btrim(COALESCE(m.fee_category, '')) NOT IN ${NON_PLAYING_FEE}
    AND NOT EXISTS (
      SELECT 1 FROM member_teams mt JOIN teams t ON t.id = mt.team AND ${ACTIVE_TEAM}

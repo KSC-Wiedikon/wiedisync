@@ -8,12 +8,12 @@
 import { describe, expect, it } from 'vitest'
 import { DEPARTED_ORDERED, alreadyDeparted, buildDepartPatch } from '../departMember'
 
-const PATCH = buildDepartPatch('Ehemaliges Mitglied', '2026-06-30')
+const PATCH = buildDepartPatch('former', '2026-06-30')
 
 describe('buildDepartPatch', () => {
   it('writes all four columns, both flags off', () => {
     expect(PATCH).toEqual({
-      register_status: 'Ehemaliges Mitglied',
+      register_status: 'former',
       left_on: '2026-06-30',
       kscw_membership_active: false,
       wiedisync_active: false,
@@ -23,14 +23,14 @@ describe('buildDepartPatch', () => {
 
 describe('DEPARTED_ORDERED', () => {
   it('is the register picklist verbatim, without Zwischenjahr', () => {
-    expect(DEPARTED_ORDERED).toEqual(['Ehemaliges Mitglied', 'Kein Mitglied', 'Verstorben'])
-    expect(DEPARTED_ORDERED).not.toContain('Zwischenjahr')
+    expect(DEPARTED_ORDERED).toEqual(['former', 'non_member', 'deceased'])
+    expect(DEPARTED_ORDERED).not.toContain('gap_year')
   })
 })
 
 describe('alreadyDeparted', () => {
   const departed = {
-    register_status: 'Ehemaliges Mitglied',
+    register_status: 'former',
     left_on: '2026-06-30',
     kscw_membership_active: false,
     wiedisync_active: false,
@@ -49,7 +49,7 @@ describe('alreadyDeparted', () => {
   })
 
   it('is false on a different departed status', () => {
-    expect(alreadyDeparted({ ...departed, register_status: 'Kein Mitglied' }, PATCH)).toBe(false)
+    expect(alreadyDeparted({ ...departed, register_status: 'non_member' }, PATCH)).toBe(false)
   })
 
   it('is false while either flag is still on', () => {
@@ -67,7 +67,7 @@ describe('alreadyDeparted', () => {
 
   it('is false on a member who was never departed at all', () => {
     expect(alreadyDeparted(
-      { register_status: 'Aktivmitglied', left_on: null, kscw_membership_active: true, wiedisync_active: true },
+      { register_status: 'active', left_on: null, kscw_membership_active: true, wiedisync_active: true },
       PATCH,
     )).toBe(false)
   })

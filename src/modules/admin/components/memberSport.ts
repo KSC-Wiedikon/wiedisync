@@ -95,6 +95,7 @@ function sportFromSektion(sektion: unknown): MemberSport | null {
     // KSCW is the club-level section (Vorstand, Ehrenmitglieder, staff without
     // a sport). It carries no sport, so it shows both.
     case 'kscw': return 'both'
+    case 'club': return 'both' // slug since migration 416
     default: return null
   }
 }

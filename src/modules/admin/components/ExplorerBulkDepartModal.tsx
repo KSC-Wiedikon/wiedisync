@@ -24,6 +24,7 @@
 // can do to a hundred rows at once.
 
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { registerStatusLabel } from '@member-values'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertTriangle, Loader2 } from 'lucide-react'
@@ -58,7 +59,7 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
   const { t } = useTranslation('admin')
   const confirm = useConfirm()
 
-  const [status, setStatus] = useState<string>(DEPARTED_ORDERED[0] ?? 'Ehemaliges Mitglied')
+  const [status, setStatus] = useState<string>(DEPARTED_ORDERED[0] ?? 'former')
   const [exitDate, setExitDate] = useState<string>(() => todayLocal())
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
@@ -181,7 +182,7 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
             </SelectTrigger>
             <SelectContent>
               {DEPARTED_ORDERED.map((v) => (
-                <SelectItem key={v} value={v}>{v}</SelectItem>
+                <SelectItem key={v} value={v}>{registerStatusLabel(v)}</SelectItem>
               ))}
             </SelectContent>
           </Select>

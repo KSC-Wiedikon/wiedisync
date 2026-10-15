@@ -98,7 +98,7 @@ interface Registration extends BaseRecord {
   bb_doc_schoolcert: string | null
   id_upload_front: string | null
   id_upload_back: string | null
-  /** Passive only, ClubDesk value ('Volleyball' | 'Basketball' | 'KSCW') until phase 2b. */
+  /** Passive only: 'volleyball' | 'basketball' | 'club' (migration 416). */
   club_section_choice: string | null
   /** Required documents an approver waived for THIS row (migration 358) —
    *  comma-separated column names, subtracted from the required set. The
@@ -1409,7 +1409,7 @@ function ExpandedDetails({
         {/* Payout IBAN (reimbursements only, migration 185) — pre-validated mod-97 at submission */}
         {field('iban', 'IBAN')}
         {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
-        {reg.membership_type === 'passive' && selectField('club_section_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
+        {reg.membership_type === 'passive' && selectField('club_section_choice', t('anmeldungenSektion'), ['volleyball', 'basketball', 'club'], { volleyball: 'Volleyball', basketball: 'Basketball', club: 'KSCW' })}
         <RegistrationFeePanel reg={reg} edits={edits} onEdit={setDraftField} />
         {field('remarks', t('anmeldungenNotes'), { full: true })}
         {reg.membership_type === 'basketball' && (
