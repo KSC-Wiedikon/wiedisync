@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T10:05:08.157Z
+-- Generated:   2026-10-15T12:25:16.907Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict NbSgJeS9uTNpqMQR6IVtX6BsiDr3mcG5C4RpkeMZtQvwR1GNkkKE1bXOkVvJFRZ
+\restrict vctUqGIBdJttqv2EIaamoWS0zITeTPJQfLR70qMZR3cRROGCX8qGBchKyeWkztK
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -5927,7 +5927,8 @@ CREATE TABLE public.event_signups (
     form_data jsonb,
     consent jsonb,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    CONSTRAINT event_signups_sex_values CHECK (((sex IS NULL) OR ((sex)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying])::text[]))))
 );
 
 
@@ -10677,47 +10678,44 @@ CREATE TABLE public.registrations (
     id integer NOT NULL,
     status character varying(255) DEFAULT 'pending'::character varying,
     membership_type character varying(255),
-    anrede character varying(255),
-    vorname character varying(255),
-    nachname character varying(255),
+    salutation character varying(255),
+    first_name character varying(255),
+    last_name character varying(255),
     email character varying(255),
-    telefon_mobil character varying(255),
-    adresse character varying(255),
-    plz character varying(255),
-    ort character varying(255),
-    geburtsdatum date,
-    nationalitaet character varying(255),
-    geschlecht character varying(255),
-    ahv_nummer character varying(255),
+    phone character varying(255),
+    address character varying(255),
+    postal_code character varying(255),
+    city character varying(255),
+    birthdate date,
+    sex character varying(255),
+    ahv_number character varying(255),
     team character varying(255),
-    beitragskategorie character varying(255),
-    kantonsschule character varying(255),
-    rolle character varying(255),
-    bemerkungen text,
+    fee_category character varying(255),
+    cantonal_school character varying(255),
+    role character varying(255),
+    remarks text,
     id_upload_front uuid,
     id_upload_back uuid,
     submitted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     approved_at timestamp with time zone,
     approved_by character varying(255),
     reference_number character varying(255),
-    lizenz character varying(255),
-    schiedsrichter_stufe character varying(255),
+    officials_requested character varying(255),
+    referee_level character varying(255),
     bb_doc_lizenz uuid,
     bb_doc_selfdecl uuid,
     bb_doc_natdecl uuid,
     locale character varying(5) DEFAULT 'de'::character varying,
     rejection_reason text,
-    nationalitaet_code character varying(2),
-    sektion_choice character varying(32),
+    club_section_choice character varying(32),
     iban character varying(34),
     member integer,
     bb_situation character varying(32),
-    bb_doc_freibrief uuid,
+    bb_doc_release_letter uuid,
     bb_doc_u18parents uuid,
     bb_doc_schoolcert uuid,
-    nationalitaet_codes character varying(200),
     federation_of_origin character varying(8),
-    bb_recent_licence character varying(4),
+    bb_recent_licence boolean,
     bb_docs_waived text,
     bb_docs_waived_reason text,
     bb_docs_waived_by_name character varying(255),
@@ -10731,21 +10729,17 @@ CREATE TABLE public.registrations (
     rejected_at timestamp with time zone,
     rejected_by_name character varying(255),
     rejected_by_email character varying(255),
+    nationality_codes character varying(200),
     CONSTRAINT registrations_bb_docs_waived_reason_check CHECK (((bb_docs_waived IS NULL) OR (btrim(bb_docs_waived) = ''::text) OR ((bb_docs_waived_reason IS NOT NULL) AND (btrim(bb_docs_waived_reason) <> ''::text)))),
-    CONSTRAINT registrations_bb_recent_licence_check CHECK (((bb_recent_licence IS NULL) OR ((bb_recent_licence)::text = ANY ((ARRAY['ja'::character varying, 'nein'::character varying])::text[])))),
+    CONSTRAINT registrations_bb_situation_values CHECK (((bb_situation IS NULL) OR ((bb_situation)::text = ANY ((ARRAY['new'::character varying, 'returning'::character varying, 'transfer_ch'::character varying, 'transfer_intl'::character varying])::text[])))),
     CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT registrations_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT registrations_fee_discount_range CHECK ((((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
     CONSTRAINT registrations_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
-    CONSTRAINT registrations_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text)))
+    CONSTRAINT registrations_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
+    CONSTRAINT registrations_role_values CHECK (((role IS NULL) OR ((role)::text = ANY ((ARRAY['player'::character varying, 'coach'::character varying, 'guest'::character varying, 'team_responsible'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT registrations_sex_values CHECK (((sex IS NULL) OR ((sex)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying])::text[]))))
 );
-
-
---
--- Name: COLUMN registrations.nationalitaet_codes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.registrations.nationalitaet_codes IS 'Ordered, comma-separated ISO 3166-1 alpha-2 codes from the public form. nationalitaet_code (singular, migration 161) stays as the primary/first code so the BB required-document gate keeps working unchanged.';
 
 
 --
@@ -19931,7 +19925,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict NbSgJeS9uTNpqMQR6IVtX6BsiDr3mcG5C4RpkeMZtQvwR1GNkkKE1bXOkVvJFRZ
+\unrestrict vctUqGIBdJttqv2EIaamoWS0zITeTPJQfLR70qMZR3cRROGCX8qGBchKyeWkztK
 
 
 
@@ -19947,7 +19941,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 416 migration(s) already in the schema above.
+-- Migration tracker seed — 417 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20376,6 +20370,7 @@ FROM (VALUES
   ('409-hall-bookings.sql'),
   ('410-booking-extra-halls.sql'),
   ('411-finance-books.sql'),
-  ('412-clubdesk-maps.sql')
+  ('412-clubdesk-maps.sql'),
+  ('413-registrations-english.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
