@@ -31,3 +31,35 @@ describe('member values', () => {
     expect(licenceCategoryToClubdesk('official')).toBe('Offizielle/r')
   })
 })
+
+describe('fee category vocabulary (migration 417)', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { FEE_CATEGORY_LABELS, normalizeFeeCategory, feeCategoryLabel, feeCategorySport } = await import('../member-values.js')
+  const { CD_BEITRAG_MAP } = await import('../clubdesk-update.js')
+  const scripts = path.resolve(import.meta.dirname, '../../../../scripts')
+  const seed = ['412-clubdesk-maps.sql', '417-fee-category-english.sql']
+    .map((f) => fs.readFileSync(path.join(scripts, f), 'utf8')).join('\n')
+  const rows = [...seed.matchAll(/\('fee_category',\s*'([^']+)',\s*'([^']+)',\s*(true|false)\)/g)]
+    .map(([, slug, cd, canonical]) => ({ slug, cd, canonical: canonical === 'true' }))
+
+  it('matches clubdesk_value_map, row by row', () => {
+    expect(rows.length).toBeGreaterThan(25)
+    for (const r of rows) {
+      expect(normalizeFeeCategory(r.cd), r.cd).toBe(r.slug)
+      if (r.canonical) expect(FEE_CATEGORY_LABELS[r.slug], r.slug).toBe(r.cd)
+    }
+    for (const slug of Object.keys(FEE_CATEGORY_LABELS)) {
+      expect(rows.some((r) => r.slug === slug && r.canonical), slug).toBe(true)
+    }
+  })
+  it('every priced category is a known slug', () => {
+    for (const slug of Object.keys(CD_BEITRAG_MAP)) expect(FEE_CATEGORY_LABELS[slug], slug).toBeTruthy()
+  })
+  it('labels and sports', () => {
+    expect(feeCategoryLabel('bb_youth_league')).toBe('BB Jugend Meisterschaft')
+    expect(feeCategoryLabel('BB Junior:innen')).toBe('BB Jugend Meisterschaft')
+    expect(feeCategorySport('vb_employed')).toBe('volleyball')
+    expect(feeCategorySport('Passivmitglied')).toBeNull()
+  })
+})

@@ -807,7 +807,7 @@ export default function ExplorerGrid({
         case 'passive': {
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
           const inGroup = /passiv/i.test(cd?.gruppen ?? '')
-          return inGroup || m.fee_category === 'Passivmitglied' ? 'Yes' : ''
+          return inGroup || m.fee_category === 'passive' ? 'Yes' : ''
         }
         case 'honorary': {
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined

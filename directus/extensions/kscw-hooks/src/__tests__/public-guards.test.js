@@ -154,12 +154,12 @@ describe('F-27: shared verifier', () => {
 
 describe('F-32: fee category allowlist at approval', () => {
   it('copies a category of the registration\'s own sport', () => {
-    expect(approvedFeeCategory('VB Schüler*in Meisterschaft', 'volleyball')).toBe('VB Schüler*in Meisterschaft')
-    expect(approvedFeeCategory(' BB Minis Turnier ', 'basketball')).toBe('BB Minis Turnier')
-    expect(approvedFeeCategory('Passivmitglied', 'passive')).toBe('Passivmitglied')
+    expect(approvedFeeCategory('VB Schüler*in Meisterschaft', 'volleyball')).toBe('vb_pupil_league')
+    expect(approvedFeeCategory(' BB Minis Turnier ', 'basketball')).toBe('bb_minis_tournament')
+    expect(approvedFeeCategory('Passivmitglied', 'passive')).toBe('passive')
     // ClubDesk-family names are in the map too (admin may type them in review).
-    expect(approvedFeeCategory('VB Studenten/Lehrlinge', 'volleyball')).toBe('VB Studenten/Lehrlinge')
-    expect(approvedFeeCategory('Gratis', 'basketball')).toBe('Gratis')
+    expect(approvedFeeCategory('VB Studenten/Lehrlinge', 'volleyball')).toBe('vb_student_league')
+    expect(approvedFeeCategory('Gratis', 'basketball')).toBe('free')
   })
 
   it('refuses the other sport, unknown values and the non-member bucket', () => {

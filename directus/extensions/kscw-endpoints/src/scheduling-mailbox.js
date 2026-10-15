@@ -72,6 +72,7 @@ import {
   ADMIN_SIGNATURE_LIGHT_HTML, ADMIN_SIGNATURE_TEXT,
 } from './scheduling-signature.js'
 import { sanitizeOutgoingHtml } from './mail-html-sanitize.js'
+import { feeCategoryLabel } from './member-values.js'
 
 // Same Migadu server for both mailboxes; only the credentials + From differ.
 const IMAP_HOST = process.env.SCHEDULING_IMAP_HOST || 'imap.migadu.com'
@@ -1352,7 +1353,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       const category = m.fee_category || ''
       return {
         ...r,
-        fee_category: category,
+        fee_category: category ? feeCategoryLabel(category) : '', // the wording members know
         fee_amount: category ? deriveMitgliederbeitrag(category, m, { isGuest: guests.has(id) }) : '',
         teams: (teamsById.get(id) || []).join(', '),
       }

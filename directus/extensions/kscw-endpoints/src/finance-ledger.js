@@ -19,6 +19,7 @@ import { writeUserLog } from './activity-log.js'
 import { financeActor } from './finance-access.js'
 import { planYearEndClose } from './finance-close.js'
 import { loadLedgerSettings, reconcileAllLedger, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
+import { feeCategorySport } from './member-values.js'
 
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close']
 const DIVISIONS = ['club', 'vb', 'bb']
@@ -475,7 +476,10 @@ export function registerFinanceLedger(router, { database, logger }) {
       const match = (cat) => {
         const c = cat.toLowerCase()
         if (c.includes('passiv')) return income.find((x) => nameHas(x, 'passiv'))
-        const sport = /(^|\W)bb(\W|$)|basketball/.test(c) ? 'bb' : (/(^|\W)vb(\W|$)|volleyball/.test(c) ? 'vb' : null)
+        // Slugs since migration 417 ('bb_employed'); free text keeps the word rule.
+        const slugSport = feeCategorySport(cat)
+        const sport = slugSport === 'basketball' ? 'bb' : slugSport === 'volleyball' ? 'vb'
+          : /(^|\W)bb(\W|$)|basketball/.test(c) ? 'bb' : (/(^|\W)vb(\W|$)|volleyball/.test(c) ? 'vb' : null)
         if (sport) return income.find((x) => nameHas(x, 'aktivmitglieder', sport)) || income.find((x) => x.name.toLowerCase().includes(sport))
         return null
       }

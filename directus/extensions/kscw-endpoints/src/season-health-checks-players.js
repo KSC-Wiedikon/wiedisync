@@ -79,7 +79,7 @@ const IS_MINOR = `(m.birthdate IS NULL OR m.birthdate > ({{today}} - INTERVAL '1
 const DEPARTED_STATUS = `('non_member', 'former', 'deceased')`
 
 /** ClubDesk fee categories that do not imply playing (clubdesk-update.js NON_PLAYING_KAT). */
-const NON_PLAYING_FEE = `('', 'Passivmitglied', 'Gratis', 'Kein Beitrag')`
+const NON_PLAYING_FEE = `('', 'passive', 'free', 'none')` // fee-category slugs (417)
 
 /** Timestamp → Zurich wall-clock text, per the spec's output rule. */
 const zh = (expr) => `to_char(${expr} AT TIME ZONE 'Europe/Zurich', 'YYYY-MM-DD HH24:MI')`

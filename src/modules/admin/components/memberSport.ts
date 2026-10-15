@@ -1,3 +1,4 @@
+import { feeCategorySport } from '@member-values'
 // src/modules/admin/components/memberSport.ts
 //
 // "Which sport is this member in?" — the one answer the Data Explorer needs
@@ -102,9 +103,9 @@ function sportFromSektion(sektion: unknown): MemberSport | null {
 
 /** Step 3 — the `VB ` / `BB ` prefix on the fee category. */
 function sportFromFeeCategory(category: unknown): MemberSport | null {
-  const value = asTrimmedLower(category)
-  if (value.startsWith('vb ')) return 'volleyball'
-  if (value.startsWith('bb ')) return 'basketball'
+  // Slugs since migration 417 ('vb_employed'); a ClubDesk spelling still resolves.
+  const sport = feeCategorySport(category)
+  if (sport) return sport
   // 'Passivmitglied', 'Gratis', 'Kein Beitrag' and anything unrecognised carry
   // no sport — handled by the caller's 'both' default, not claimed here.
   return null

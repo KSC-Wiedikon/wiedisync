@@ -11,7 +11,7 @@ import {
   englishRegistrationBody, normalizeSex, normalizeRole, normalizeOfficials, officialsToClubdesk,
   normalizeBbSituation, normalizeRecentLicence,
 } from './registration-values.js'
-import { normalizeSalutation, normalizeCantonalSchool, cantonalSchoolToLegacy } from './member-values.js'
+import { normalizeSalutation, normalizeCantonalSchool, cantonalSchoolToLegacy, feeCategoryLabel } from './member-values.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
@@ -552,7 +552,7 @@ function buildSummaryCard(reg, locale) {
   return buildInfoCard([
     { label: l.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
     { label: l.team, value: reg.team || '-', halfWidth: true },
-    { label: l.fee, value: reg.fee_category || '-', halfWidth: true },
+    { label: l.fee, value: reg.fee_category ? feeCategoryLabel(reg.fee_category) : '-', halfWidth: true },
     { label: l.dob, value: dob, halfWidth: true },
     { label: l.email, value: reg.email },
     { label: l.phone, value: reg.phone || '-' },
@@ -645,7 +645,7 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
     { label: l.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
     { label: l.adminType, value: capFirst(reg.membership_type), halfWidth: true },
     { label: l.team, value: reg.team || '-', halfWidth: true },
-    { label: l.fee, value: reg.fee_category || '-', halfWidth: true },
+    { label: l.fee, value: reg.fee_category ? feeCategoryLabel(reg.fee_category) : '-', halfWidth: true },
     { label: l.email, value: reg.email, halfWidth: true },
     { label: l.phone, value: reg.phone || '-', halfWidth: true },
     { label: l.address, value: `${reg.address || ''}, ${reg.postal_code || ''} ${reg.city || ''}` },
@@ -2286,7 +2286,8 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       return res.json({
         registration: id,
-        category: reg.fee_category || null,
+        // Display wording (ClubDesk label); the slug is what is stored.
+        category: reg.fee_category ? feeCategoryLabel(reg.fee_category) : null,
         is_guest: false,
         base_source: derived ? 'category_map' : null,
         surcharge_amount: NO_LICENCE_SURCHARGE,

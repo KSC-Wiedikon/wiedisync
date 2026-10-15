@@ -14,6 +14,7 @@ import {
 import { downloadInvoiceBillsPdf } from './qrBillPdf'
 import { DuesEmailSettings, SendDuesEmailModal } from './DuesEmail'
 import { useConfirm } from '../../components/ConfirmProvider'
+import { feeCategoryLabel } from '@member-values'
 
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
 const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -273,7 +274,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               )) : sortedRates.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-normal break-words text-foreground">
-                    {r.category}
+                    {feeCategoryLabel(r.category)}
                     <span className="block text-xs text-muted-foreground sm:hidden">{sektionLabel(r.sektion)}</span>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{sektionLabel(r.sektion)}</TableCell>
@@ -305,7 +306,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 <TableCell>
                   <select value={rCat} onChange={(e) => setRCat(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColCategory')}>
                     <option value="">{t('duesPickCategory')}</option>
-                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {categories.map((c) => <option key={c} value={c}>{feeCategoryLabel(c)}</option>)}
                   </select>
                 </TableCell>
                 <TableCell>
@@ -336,7 +337,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
         <div className="mt-3 grid gap-2 rounded-2xl border border-hairline bg-surface-sunken/60 p-3 sm:hidden">
           <select value={rCat} onChange={(e) => setRCat(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColCategory')}>
             <option value="">{t('duesPickCategory')}</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{feeCategoryLabel(c)}</option>)}
           </select>
           <select value={rSek} onChange={(e) => setRSek(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColSektion')}>
             <option value="">{t('duesSektionDefault')}</option>
@@ -486,7 +487,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {r.name || '–'}
                             {r.missing_email && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('duesStatusNoEmail')}</span>}
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{r.category || '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
+                          <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{r.category ? feeCategoryLabel(r.category) : '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
                           {/* Grant a reduction on this one bill. Re-preview applies it —
                               the club's habit of billing full and writing off later leaves
                               the member holding an invoice that overstates what they owe. */}

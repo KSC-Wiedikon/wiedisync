@@ -1,3 +1,4 @@
+import { feeCategoryLabel } from '@member-values'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -461,7 +462,7 @@ function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categori
       <div className="space-y-2">
         {categories.map((c) => (
           <div key={c} className="grid grid-cols-2 items-center gap-2">
-            <span className="text-sm text-foreground/85">{c}</span>
+            <span className="text-sm text-foreground/85">{feeCategoryLabel(c)}</span>
             <select value={sel[c] || ''} onChange={(e) => setSel((s) => ({ ...s, [c]: e.target.value }))} className={selectCls}>
               <option value="">{t('ledDefaultIncome')}</option>
               {incomeAccts.map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)}

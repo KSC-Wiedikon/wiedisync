@@ -33,24 +33,24 @@
  */
 
 import { CD_BEITRAG_MAP } from './clubdesk-update.js'
+import { normalizeFeeCategory, feeCategorySport } from './member-values.js'
 
-const SPORT_PREFIX = { volleyball: 'VB ', basketball: 'BB ' }
-const ANY_SPORT = new Set(['Gratis'])
+const ANY_SPORT = new Set(['free'])
 
 /**
- * The category to accept / copy onto the member, or null when the value must not
- * be used.
- * @param {unknown} raw            registrations.beitragskategorie
+ * The category SLUG to accept / copy onto the member (migration 417), or null
+ * when the value must not be used. Accepts the slug or any ClubDesk spelling —
+ * kscw-website's signup form still posts the German labels.
+ * @param {unknown} raw            registrations.fee_category
  * @param {unknown} membershipType registrations.membership_type
  */
 export function approvedFeeCategory(raw, membershipType) {
-  const k = String(raw ?? '').trim()
+  const k = normalizeFeeCategory(raw)
   if (!k) return null
   if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return null
   if (ANY_SPORT.has(k)) return k
   const type = String(membershipType ?? '').trim().toLowerCase()
-  if (type === 'passive') return k === 'Passivmitglied' ? k : null
-  const prefix = SPORT_PREFIX[type]
-  if (!prefix) return null
-  return k.startsWith(prefix) ? k : null
+  if (type === 'passive') return k === 'passive' ? k : null
+  if (type !== 'volleyball' && type !== 'basketball') return null
+  return feeCategorySport(k) === type ? k : null
 }

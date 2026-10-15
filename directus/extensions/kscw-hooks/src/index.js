@@ -27,7 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
-import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus } from '../../kscw-endpoints/src/member-values.js'
+import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus, normalizeFeeCategory } from '../../kscw-endpoints/src/member-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -6036,6 +6036,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // as sent, so the CHECK names it instead of it silently becoming NULL.
     if ('club_section' in payload && payload.club_section) payload.club_section = normalizeClubSection(payload.club_section) ?? payload.club_section
     if ('register_status' in payload && payload.register_status) payload.register_status = normalizeRegisterStatus(payload.register_status) ?? payload.register_status
+    // Migration 417: fee category.
+    if ('fee_category' in payload && payload.fee_category) payload.fee_category = normalizeFeeCategory(payload.fee_category) ?? payload.fee_category
     return payload
   }
   filter('members.items.create', (payload) => normalizeMemberValues(payload))
@@ -6044,6 +6046,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (payload && 'salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
     if (payload && 'cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
     if (payload && payload.club_section_choice) payload.club_section_choice = normalizeClubSection(payload.club_section_choice) ?? payload.club_section_choice
+    if (payload && payload.fee_category) payload.fee_category = normalizeFeeCategory(payload.fee_category) ?? payload.fee_category
     return payload
   })
 
@@ -6255,7 +6258,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (regKategorieRaw && !regKategorie) {
         log.warn({ msg: 'Registration fee category not in the allowlist for its sport — not copied onto the member', registrationId: reg.id, memberId, membershipType: reg.membership_type, beitragskategorie: regKategorieRaw })
       }
-      const curKategorie = String(existingMember.fee_category || '').trim()
+      const curKategorie = normalizeFeeCategory(existingMember.fee_category) ?? String(existingMember.fee_category || '').trim()
       if (regKategorie && regKategorie !== curKategorie) {
         updates.fee_category = regKategorie
         if (curKategorie && existingMember.clubdesk_id) {

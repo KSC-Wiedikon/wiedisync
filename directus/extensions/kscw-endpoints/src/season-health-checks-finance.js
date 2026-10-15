@@ -59,19 +59,14 @@ const INVOICE_OPEN = `NOT ${INVOICE_CANCELLED} AND NOT ${INVOICE_PAID} AND COALE
 // feeBreakdown()'s surcharge gate, copied verbatim from clubdesk-update.js:
 // adult categories always owe scorer duty, youth categories only from U16
 // (birth year <= this year - 15); intro tiers, Passiv, Gratis never.
+// Fee-category slugs since migration 417 — the same sets as feeBreakdown().
 const SURCHARGE_ADULT = [
-  'VB Erwerbstätige',
-  'VB Student*in Meisterschaft', 'VB Studenten/Lehrlinge',
-  'BB Erwerbstätige', 'BB Erwerbstätig',
-  'BB Erwerbstätige 1. Liga', 'BB Erwerbstätig 1. Liga',
-  'BB Lernende/Studierende', 'BB Student/Lehrling', 'BB Studenten/Lehrlinge',
-  'BB Lernende/Studierende 1. Liga', 'BB Student/Lehrling 1. Liga',
+  'vb_employed', 'vb_student_league',
+  'bb_employed', 'bb_employed_first_league', 'bb_student', 'bb_student_first_league',
 ]
 const SURCHARGE_YOUTH = [
-  'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
-  'VB Schüler*in Turnier', 'VB Schüler Turnier',
-  'BB Jugend Meisterschaft', 'BB Junior:innen', 'BB 2 Trainings',
-  'BB Minis Turnier', 'BB Minis', 'BB 1 Trainings',
+  'vb_pupil_league', 'vb_pupil_tournament',
+  'bb_youth_league', 'bb_2_trainings', 'bb_minis_tournament', 'bb_1_training',
 ]
 const sqlList = (arr) => arr.map((s) => `'${s.replace(/'/g, "''")}'`).join(', ')
 /** feeBreakdown()'s trimmed category key. */
@@ -88,7 +83,7 @@ const SURCHARGE_DUE = `(
       OR (${FEE_CAT} IN (${sqlList(SURCHARGE_YOUTH)})
           AND m.birthdate IS NOT NULL
           AND EXTRACT(YEAR FROM {{today}})::int - EXTRACT(YEAR FROM m.birthdate)::int >= 15))
- AND NOT (CASE WHEN ${FEE_CAT} LIKE 'VB %' THEN m.scorer_vb
+ AND NOT (CASE WHEN ${FEE_CAT} LIKE 'vb\\_%' THEN m.scorer_vb
                ELSE (m.otr1_bb OR m.otr2_bb OR m.otn1_bb OR m.otn2_bb) END)
 )`
 
@@ -102,7 +97,7 @@ const SURCHARGE_DUE = `(
  * Alias members as `m`.
  */
 const OWES_NOTHING = `(
-     lower(${FEE_CAT}) IN ('gratis', 'kein beitrag')
+     ${FEE_CAT} IN ('free', 'none')
   OR m.register_status = 'honorary'
   OR COALESCE(m.role, '[]'::jsonb) @> '["vorstand"]'::jsonb
   OR (m.fee_base_override IS NOT NULL AND m.fee_base_override <= 0
@@ -390,7 +385,7 @@ SELECT ${MEMBER_COLS}, m.club_section, m.fee_category, m.register_status,
  WHERE m.kscw_membership_active
    AND ${REAL_PERSON}
    AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')
-   AND lower(${FEE_CAT}) <> 'kein beitrag'
+   AND ${FEE_CAT} <> 'none'
    AND NOT ${RATE_FOR_MEMBER}
  ORDER BY m.fee_category NULLS FIRST, m.last_name, m.first_name, m.id`,
   },
@@ -410,7 +405,7 @@ SELECT m.fee_category AS category, m.club_section, count(*)::int AS members,
    AND ${REAL_PERSON}
    AND COALESCE(m.register_status, '') NOT IN ('gap_year', 'non_member', 'former', 'deceased')
    AND NULLIF(${FEE_CAT}, '') IS NOT NULL
-   AND lower(${FEE_CAT}) <> 'kein beitrag'
+   AND ${FEE_CAT} <> 'none'
    AND NOT ${RATE_FOR_MEMBER}
  GROUP BY m.fee_category, m.club_section
  ORDER BY count(*) DESC, m.fee_category, m.club_section NULLS FIRST`,

@@ -36,6 +36,7 @@ import { KANTONSSCHULEN, KANTONSSCHULE_NONE, kantonsschuleLabel } from '../../ut
 import type { MemberPosition } from '../../types'
 import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 import { hasApiErrorCode } from '../../lib/apiErrorCode'
+import { feeCategoryLabel } from '@member-values'
 
 
 interface ProfileEditFormProps {
@@ -948,7 +949,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-xs text-muted-foreground">{t('beitragskategorie')}</span>
-                    <p className="text-foreground/85">{user.fee_category || '—'}</p>
+                    <p className="text-foreground/85">{user.fee_category ? feeCategoryLabel(user.fee_category) : '—'}</p>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">{tc('team')}</span>

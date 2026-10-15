@@ -95,3 +95,67 @@ export function registerStatusToClubdesk(v) {
 /** Display label (the register's German wording, as the admin pages always showed it). */
 export function registerStatusLabel(v) { return registerStatusToClubdesk(v) }
 export function isDepartedRegisterStatus(v) { return DEPARTED_REGISTER_STATUSES.includes(normalizeRegisterStatus(v)) }
+
+// ── fee_category (members, registrations, finance) — migration 417 ──────────
+// slug → ClubDesk's canonical label. The label is also what invoices, emails
+// and the admin pages print (decision 15.10.2026: invoices keep the ClubDesk
+// wording). Keep in step with clubdesk_value_map, domain 'fee_category'
+// (migrations 412 + 417) — a unit test reads both.
+export const FEE_CATEGORY_LABELS = {
+  vb_employed: 'VB Erwerbstätige',
+  vb_student_league: 'VB Student*in Meisterschaft',
+  vb_pupil_league: 'VB Schüler*in Meisterschaft',
+  vb_pupil_tournament: 'VB Schüler*in Turnier',
+  vb_pupil_first_year: 'VB Schüler*in 1. Jahr',
+  vb_tournament_kwi: 'VB Turnier KWI',
+  vb_student_discounted: 'VB Studenten/Lehrlinge mit Abzug',
+  vb_pupil_league_discounted: 'VB Schüler*in Meisterschaft mit Abzug',
+  bb_employed: 'BB Erwerbstätige',
+  bb_employed_first_league: 'BB Erwerbstätige 1. Liga',
+  bb_student: 'BB Lernende/Studierende',
+  bb_student_first_league: 'BB Lernende/Studierende 1. Liga',
+  bb_youth_league: 'BB Jugend Meisterschaft',
+  bb_minis_tournament: 'BB Minis Turnier',
+  bb_2_trainings: 'BB 2 Trainings',
+  bb_1_training: 'BB 1 Trainings',
+  passive: 'Passivmitglied',
+  free: 'Gratis',
+  none: 'Kein Beitrag',
+}
+export const FEE_CATEGORY_VALUES = Object.keys(FEE_CATEGORY_LABELS)
+// Legacy ClubDesk spellings (pull only — never pushed).
+const FEE_CATEGORY_LEGACY = {
+  'VB Studenten/Lehrlinge': 'vb_student_league',
+  'VB Schüler Meisterschaft': 'vb_pupil_league',
+  'VB Schüler Turnier': 'vb_pupil_tournament',
+  'VB Schüler*in erstes Jahr': 'vb_pupil_first_year',
+  'BB Erwerbstätig': 'bb_employed',
+  'BB Erwerbstätig 1. Liga': 'bb_employed_first_league',
+  'BB Student/Lehrling': 'bb_student',
+  'BB Studenten/Lehrlinge': 'bb_student',
+  'BB Student/Lehrling 1. Liga': 'bb_student_first_league',
+  'BB Junior:innen': 'bb_youth_league',
+  'BB Minis': 'bb_minis_tournament',
+}
+// Matching like cd_to_app(): exact first, then case- and whitespace-blind.
+const feeKey = (v) => String(v ?? '').toLowerCase().replace(/\s+/g, '')
+const FEE_CATEGORY_IN = new Map([
+  ...FEE_CATEGORY_VALUES.map((slug) => [feeKey(slug), slug]),
+  ...Object.entries(FEE_CATEGORY_LABELS).map(([slug, label]) => [feeKey(label), slug]),
+  ...Object.entries(FEE_CATEGORY_LEGACY).map(([label, slug]) => [feeKey(label), slug]),
+])
+/** Slug, ClubDesk label or legacy spelling → slug, or null when unknown. */
+export function normalizeFeeCategory(v) { return FEE_CATEGORY_IN.get(feeKey(v)) ?? null }
+/** Slug (or any known spelling) → ClubDesk label; an unknown value is returned trimmed. */
+export function feeCategoryLabel(v) {
+  const s = normalizeFeeCategory(v)
+  return s ? FEE_CATEGORY_LABELS[s] : trim(v)
+}
+/** 'volleyball' | 'basketball' | null — the sport a category belongs to. */
+export function feeCategorySport(v) {
+  const s = normalizeFeeCategory(v)
+  if (!s) return null
+  if (s.startsWith('vb_')) return 'volleyball'
+  if (s.startsWith('bb_')) return 'basketball'
+  return null
+}

@@ -8,6 +8,7 @@ import { roleToClubdesk, normalizeOfficials, officialsList } from './registratio
 import {
   normalizeSalutation, salutationToClubdesk, cantonalSchoolToLegacy, normalizeLicenceCategory, LICENCE_CATEGORY_OFFICIAL,
   normalizeClubSection, clubSectionToClubdesk, normalizeRegisterStatus, registerStatusToClubdesk, DEPARTED_REGISTER_STATUSES,
+  normalizeFeeCategory, feeCategoryLabel, feeCategorySport,
 } from './member-values.js'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
@@ -679,7 +680,7 @@ export const PROPOSAL_COLUMNS = {
   // writing it verbatim, which is what 500'd every federation accept.
   federation_of_origin: 'federation',
   trainer_licences: 'trainer_licences',
-  fee_category: 'text',
+  fee_category: 'fee_category', // slug since migration 417
   // Slugs since migration 416; the conflict rule stages ClubDesk's German cell.
   club_section: 'club_section',
   register_status: 'register_status',
@@ -700,6 +701,10 @@ export function coerceProposalValue(field, raw, ctx = {}) {
   const v = String(raw ?? '').trim()
   if (!v) return { ok: false }
   if (type === 'bool') return { ok: v === 'true', value: true }
+  if (type === 'fee_category') {
+    const s = normalizeFeeCategory(v)
+    return s ? { ok: true, value: s } : { ok: false }
+  }
   if (type === 'club_section') {
     const s = normalizeClubSection(v)
     return s ? { ok: true, value: s } : { ok: false }
@@ -886,9 +891,10 @@ export const CD_KATEGORIE_MAP = {
   // 'BB Lernende/Studierende': '…',
   // 'VB Turnier KWI': '…',
 }
+/** Any fee category (a slug since migration 417, or a ClubDesk spelling) → the
+ *  label the register's picklist accepts. An unknown value travels as is. */
 export function mapKategorie(v) {
-  const k = String(v ?? '').trim()
-  return Object.prototype.hasOwnProperty.call(CD_KATEGORIE_MAP, k) ? CD_KATEGORIE_MAP[k] : k
+  return feeCategoryLabel(v)
 }
 
 // Category → Mitgliederbeitrag (CHF/season), confirmed by the user 2026-07-06:
@@ -905,26 +911,33 @@ export function mapKategorie(v) {
 // "Speziallizenz, einmalig so tief"), never ours to overwrite. The map holds
 // the WITH-scorer-licence BASE amount; the CHF 100 no-Schreiber surcharge is
 // applied on top by deriveMitgliederbeitrag (user rule 2026-07-06).
+// ⚠ Keyed by the fee-category SLUG since migration 417 (member-values.js); read
+// it through feeBase(), which accepts slugs and every ClubDesk spelling.
 export const CD_BEITRAG_MAP = {
-  'VB Erwerbstätige': 440,
-  'VB Student*in Meisterschaft': 380, 'VB Studenten/Lehrlinge': 380,
-  'VB Schüler*in Meisterschaft': 310, 'VB Schüler Meisterschaft': 310,
-  'VB Schüler*in Turnier': 210, 'VB Schüler Turnier': 210,
-  'VB Turnier KWI': 110, 'VB Schüler*in 1. Jahr': 110,
-  'BB Erwerbstätige': 520, 'BB Erwerbstätig': 520,
-  'BB Erwerbstätige 1. Liga': 570, 'BB Erwerbstätig 1. Liga': 570,
-  'BB Lernende/Studierende': 420, 'BB Student/Lehrling': 420, 'BB Studenten/Lehrlinge': 420,
-  'BB Lernende/Studierende 1. Liga': 470, 'BB Student/Lehrling 1. Liga': 470,
-  'BB Jugend Meisterschaft': 320, 'BB Junior:innen': 320, 'BB 2 Trainings': 320,
-  'BB Minis Turnier': 220, 'BB Minis': 220, 'BB 1 Trainings': 220,
-  'Passivmitglied': 40,
-  'Gratis': 0,
+  vb_employed: 440,
+  vb_student_league: 380,
+  vb_pupil_league: 310,
+  vb_pupil_tournament: 210,
+  vb_tournament_kwi: 110, vb_pupil_first_year: 110,
+  bb_employed: 520,
+  bb_employed_first_league: 570,
+  bb_student: 420,
+  bb_student_first_league: 470,
+  bb_youth_league: 320, bb_2_trainings: 320,
+  bb_minis_tournament: 220, bb_1_training: 220,
+  passive: 40,
+  free: 0,
   // Terminal, non-member bucket (created 2026-07-30). Covers BOTH
-  // `Ehemaliges Mitglied` (left the club) and `Kein Mitglied` (sponsors,
-  // parents, contacts who were never members) — Status says which, the
-  // category says only "owes no Mitgliederbeitrag". Distinct from 'Gratis',
-  // which is a MEMBER who owes nothing (coach/staff, migration 262).
-  'Kein Beitrag': 0,
+  // `former` (left the club) and `non_member` (sponsors, parents, contacts who
+  // were never members) — the register status says which, the category says
+  // only "owes no Mitgliederbeitrag". Distinct from 'free', which is a MEMBER
+  // who owes nothing (coach/staff, migration 262).
+  none: 0,
+}
+/** Base fee of a category in any spelling, or null when it has none. */
+export function feeBase(kategorie) {
+  const s = normalizeFeeCategory(kategorie)
+  return s && Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, s) ? CD_BEITRAG_MAP[s] : null
 }
 // The CHF 100 no-licence surcharge (VB: website "Mitgliederbeitrag für aktive
 // Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"; BB: user rule 2026-07-06
@@ -940,22 +953,16 @@ export const CD_BEITRAG_MAP = {
 // ADULT categories are inherently U16+ → surcharge on a missing licence
 // regardless of birthdate. Both ClubDesk name families listed.
 const SURCHARGE_ADULT = new Set([
-  'VB Erwerbstätige',
-  'VB Student*in Meisterschaft', 'VB Studenten/Lehrlinge',
-  'BB Erwerbstätige', 'BB Erwerbstätig',
-  'BB Erwerbstätige 1. Liga', 'BB Erwerbstätig 1. Liga',
-  'BB Lernende/Studierende', 'BB Student/Lehrling', 'BB Studenten/Lehrlinge',
-  'BB Lernende/Studierende 1. Liga', 'BB Student/Lehrling 1. Liga',
+  'vb_employed', 'vb_student_league',
+  'bb_employed', 'bb_employed_first_league', 'bb_student', 'bb_student_first_league',
 ])
 // YOUTH categories are mixed-age → surcharge ONLY when the member is U16+ by
 // birthdate (isU16Plus). U14/Minis players never pay it. The intro tiers
 // "VB Turnier KWI" / "VB Schüler*in 1. Jahr" and Passiv/Gratis are in NEITHER
 // set → never surcharged.
 const SURCHARGE_YOUTH = new Set([
-  'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
-  'VB Schüler*in Turnier', 'VB Schüler Turnier',
-  'BB Jugend Meisterschaft', 'BB Junior:innen', 'BB 2 Trainings',
-  'BB Minis Turnier', 'BB Minis', 'BB 1 Trainings',
+  'vb_pupil_league', 'vb_pupil_tournament',
+  'bb_youth_league', 'bb_2_trainings', 'bb_minis_tournament', 'bb_1_training',
 ])
 // U16-and-above age gate (user 2026-07-06: surcharge only for U16+). "U16" is a
 // birth-year band, so approximate by age — a player who turns at least 15 in
@@ -1016,15 +1023,16 @@ function overrideNum(v) {
  * simply has none of those keys and behaves exactly as before.
  */
 export function feeBreakdown(kategorie, member = null, opts = {}) {
-  const k = String(kategorie ?? '').trim()
+  // Slug since migration 417; a ClubDesk spelling is accepted and normalised.
+  // An unknown category keeps its text (billable only through an override).
+  const k = normalizeFeeCategory(kategorie) ?? String(kategorie ?? '').trim()
   // Postgres `numeric` arrives as a string through pg — coerce, don't test typeof.
   const raw = opts?.baseOverride
   const override = raw === null || raw === undefined || raw === '' ? null : Number(raw)
   const memberBase = overrideNum(member?.fee_base_override)
   const base = memberBase !== null ? memberBase
     : override !== null && Number.isFinite(override) ? override
-    : Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k) ? CD_BEITRAG_MAP[k]
-    : null
+    : feeBase(k)
   if (base === null) return null
 
   // Boolean since migration 300: true charges the CHF 100, false waives it,
@@ -1065,7 +1073,7 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
   if (memberSurcharge !== null) {
     surcharge = memberSurcharge
   } else if (member) {
-    const isVb = k.startsWith('VB ')
+    const isVb = feeCategorySport(k) === 'volleyball'
     const hasLicence = isVb
       ? member.scorer_vb === true
       : (member.otr1_bb === true || member.otr2_bb === true
@@ -3351,8 +3359,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // `free` rule: /clubdesk-group-sync's honorary_drift already reports exactly
   // that pair (in the group, not on 'Gratis'), and two surfaces for one fact is
   // how the retired group-count rows in dataHealthChecks.ts went stale.
-  const FEE_FREE_CATEGORIES = ['Gratis', 'Kein Beitrag']
-  const FEE_PASSIV_CATEGORY = 'Passivmitglied'
+  // Fee-category slugs (migration 417).
+  const FEE_FREE_CATEGORIES = ['free', 'none']
+  const FEE_PASSIV_CATEGORY = 'passive'
   const FEE_PASSIV_AMOUNT = 40
   /** Statuses whose fee rule is still undecided — counted, never flagged. */
   const FEE_UNDECIDED_STATUSES = ['gap_year']
@@ -3401,7 +3410,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     let notEvaluated = 0
     let checked = 0
     for (const r of res.rows) {
-      const kat = String(r.fee_category || '').trim()
+      const kat = normalizeFeeCategory(r.fee_category) ?? String(r.fee_category || '').trim()
       const registerAmount = feeCellNum(r.cd_betrag)
       const waiverReason = waivers.get(Number(r.id)) || null
       const isFree = waiverReason !== null
@@ -3409,7 +3418,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         member_id: r.id,
         member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
         register_status: r.register_status || null,
-        category: kat || null,
+        category: kat ? feeCategoryLabel(kat) : null, // display wording
         register_amount: registerAmount,
         expected: null,
         // Why this member is expected to be free, so the row explains itself
@@ -4725,7 +4734,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
   // Non-playing fee categories: these legitimately have no roster row.
   // Anything else is a "playing" fee — being billed to play.
-  const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis', 'Kein Beitrag']
+  const NON_PLAYING_KAT = ['passive', 'free', 'none'] // fee-category slugs (417)
 
   // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
   // subgroup, core players in '<group> (Spieler*in)' — one row per
@@ -5038,7 +5047,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
          OR (EXISTS (
            SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
             WHERE btrim(g) = 'Ehrenmitglieder')
-           AND COALESCE(NULLIF(btrim(m.fee_category), ''), '') <> 'Gratis')
+           AND COALESCE(NULLIF(btrim(m.fee_category), ''), '') <> 'free')
        )
      ORDER BY m.last_name, m.first_name`
 
@@ -5056,8 +5065,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
   // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
   // signal for members with no roster row.
-  const katSport = (kat) => (kat || '').startsWith('VB ') ? 'volleyball'
-    : (kat || '').startsWith('BB ') ? 'basketball' : ''
+  const katSport = (kat) => feeCategorySport(kat) ?? ''
 
   // `missing` and `coach_no_group` share this shape. `groups` stays the display
   // list; `allocations` is the machine-readable half the ADD worklist is built
@@ -5094,7 +5102,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     member_id: r.member_id,
     member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
     clubdesk_id: r.clubdesk_id,
-    kat: r.kat || '',
+    kat: feeCategoryLabel(r.kat), // display: the register's wording
     sport: katSport(r.kat),
     last_season: r.last_season || null,
     coach_of: r.coach_of || '',
@@ -5112,7 +5120,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
     clubdesk_id: r.clubdesk_id,
     teams: r.teams || '',
-    kat: r.kat || '',
+    kat: feeCategoryLabel(r.kat), // display: the register's wording
     // Teamless members fall back to the fee-category prefix.
     sport: r.sports || katSport(r.kat),
     has_team: !!r.teams,
@@ -5160,7 +5168,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
     clubdesk_id: r.clubdesk_id,
     register_status: r.register_status || '',
-    kat: r.fee_category || '',
+    kat: feeCategoryLabel(r.fee_category),
     fee_waived: r.fee_waived === true,
     in_group: r.in_group === true,
     // 'status_only' → add them to the ClubDesk group (the honour list is

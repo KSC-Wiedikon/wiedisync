@@ -32,6 +32,7 @@ import { registerNewsletter } from '../newsletter.js'
 import { registerPasswordReset } from '../password-reset.js'
 import { registerBugfixes } from '../bugfixes.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { normalizeFeeCategory } from '../member-values.js'
 
 // ── fakes ─────────────────────────────────────────────────────────────────────
 
@@ -410,7 +411,8 @@ describe('registration fee category (F-32, submit side)', () => {
     for (const [type, opts] of Object.entries(WEBSITE_OPTIONS)) {
       for (const o of opts) {
         expect(feeCategoryRejected(o, type), `${type}: ${o}`).toBe(false)
-        expect(approvedFeeCategory(o, type)).toBe(o)
+        // The stored value is the slug since migration 417.
+        expect(approvedFeeCategory(o, type)).toBe(normalizeFeeCategory(o))
       }
     }
   })

@@ -24,7 +24,7 @@ const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
   phone: '+41 79 000 00 00', address: 'Weg 1', postal_code: '8003', city: 'Zürich',
   birthdate: '1999-03-15', sex: 'm', clubdesk_id: '1001283',
-  fee_category: 'VB Erwerbstätige', joined_on: '2026-06-27T18:22:00.000Z',
+  fee_category: 'vb_employed', joined_on: '2026-06-27T18:22:00.000Z',
   gruppen: 'VB H1 (Spieler*in)', cd_status: 'Aktivmitglied',
 }
 
@@ -199,7 +199,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // The legacy form Kategorie is MAPPED to ClubDesk's wording exactly like
     // the create path; the fee still derives from the RAW category, under BB
     // rules (a VB scorer licence does not lift the BB officials surcharge).
-    const mapped = cellsOf({ fee_category: 'BB Junior:innen', scorer_vb: true })
+    const mapped = cellsOf({ fee_category: 'bb_youth_league', scorer_vb: true })
     expect(mapped[16]).toBe('BB Jugend Meisterschaft')
     expect(mapped[18]).toBe('420') // youth 320 + 100 (U16+ by birthdate, no BB officials licence)
     // A pure guest is billed the guest rate on the fill, same flag as the Gast cell.
@@ -213,7 +213,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
   // un-surcharged bases, 1.-Liga prices) to fix 11 stale basketball rows.
   it('a pending push that NAMES mitgliederbeitrag overwrites the register (migration 305)', () => {
     const cells = cellsOf({
-      fee_category: 'BB Jugend Meisterschaft',
+      fee_category: 'bb_youth_league',
       birthdate: '2008-05-01', // U16+ → the officials surcharge applies
       scorer_vb: false, otr1_bb: false, otr2_bb: false,
       mitgliederbeitrag_cd: '410', // the register, stale by the +10 increase
@@ -249,7 +249,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
   // 'Kein Beitrag' (the terminal non-member bucket) onto 'Gratis'.
   it('a pending push that NAMES beitragskategorie overwrites the register category', () => {
     const cells = cellsOf({
-      fee_category: 'Gratis',
+      fee_category: 'free',
       beitragskategorie_cd: 'Kein Beitrag',
       mitgliederbeitrag_cd: '0',
       clubdesk_push_changes: [{ field: 'fee_category', old_value: 'Kein Beitrag', new_value: 'Gratis' }],
@@ -259,7 +259,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
 
   it('sends the MAPPED ClubDesk name, not the signup-form spelling', () => {
     const cells = cellsOf({
-      fee_category: 'BB Junior:innen',   // signup-form name
+      fee_category: 'bb_youth_league',   // signup-form name
       beitragskategorie_cd: 'BB Minis Turnier',
       clubdesk_push_changes: [{ field: 'fee_category', old_value: 'BB Minis Turnier', new_value: 'BB Jugend Meisterschaft' }],
     })
@@ -271,7 +271,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // The two are one decision. Sending only the category would leave the legal
     // register self-contradictory, the same trap Status/Austritt are paired for.
     const cells = cellsOf({
-      fee_category: 'Gratis',
+      fee_category: 'free',
       beitragskategorie_cd: 'VB Erwerbstätige',
       mitgliederbeitrag_cd: '440',            // what the register still says
       clubdesk_push_changes: [{ field: 'fee_category', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
@@ -284,7 +284,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // fee_base_override is migration 308's "the register wins" mechanism; a
     // category change must not silently undo 113 hand-set amounts.
     const cells = cellsOf({
-      fee_category: 'Gratis',
+      fee_category: 'free',
       beitragskategorie_cd: 'VB Erwerbstätige',
       mitgliederbeitrag_cd: '440',
       fee_base_override: 330, fee_surcharge_override: false,
@@ -296,7 +296,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
 
   it('a push flagged for something ELSE leaves the register category alone', () => {
     const cells = cellsOf({
-      fee_category: 'Gratis',
+      fee_category: 'free',
       beitragskategorie_cd: 'VB Erwerbstätige',
       clubdesk_push_changes: [{ field: 'iban', old_value: null, new_value: 'CH…' }],
     })
@@ -493,7 +493,7 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // the bottom, which for `email` would mean any register free-text landing in
     // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation', 'club_section', 'register_status'],
+      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation', 'club_section', 'register_status', 'fee_category'],
         `${field} has type ${type}`).toContain(type)
     }
   })
@@ -878,13 +878,11 @@ describe('mapKategorie', () => {
     expect(mapKategorie(undefined)).toBe('')
   })
 
-  it('applies the ClubDesk mapping when an entry exists', () => {
-    CD_KATEGORIE_MAP['__test__'] = 'Mapped'
-    try {
-      expect(mapKategorie('__test__')).toBe('Mapped')
-    } finally {
-      delete CD_KATEGORIE_MAP.__test__
-    }
+  it('maps slugs and legacy spellings to the register label (migration 417)', () => {
+    expect(mapKategorie('vb_employed')).toBe('VB Erwerbstätige')
+    expect(mapKategorie('bb_youth_league')).toBe('BB Jugend Meisterschaft')
+    expect(mapKategorie('BB Junior:innen')).toBe('BB Jugend Meisterschaft')
+    expect(mapKategorie('BB Minis')).toBe('BB Minis Turnier')
   })
 
   it('translates the legacy BB youth form values (2026-07-06 rename)', () => {
@@ -1098,9 +1096,9 @@ describe('feeBreakdown', () => {
 
   it('itemises base and surcharge rather than just the total', () => {
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 100, discount: 0, guest_discount: 0, amount: 540 })
+      .toEqual({ category: 'vb_employed', base: 440, surcharge: 100, discount: 0, guest_discount: 0, amount: 540 })
     expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
+      .toEqual({ category: 'vb_employed', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
   })
 
   it('agrees with deriveMitgliederbeitrag on every mapped category', () => {
@@ -1116,22 +1114,22 @@ describe('feeBreakdown', () => {
 
   it('a guest is discounted and never surcharged', () => {
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { isGuest: true }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 110, amount: 330 })
+      .toEqual({ category: 'vb_employed', base: 440, surcharge: 0, discount: 0, guest_discount: 110, amount: 330 })
   })
 
   it('caps the guest discount at the base — no negative invoice', () => {
     // 'VB Turnier KWI' is 110: the discount takes it to exactly 0, not below.
     expect(feeBreakdown('VB Turnier KWI', null, { isGuest: true }))
-      .toEqual({ category: 'VB Turnier KWI', base: 110, surcharge: 0, discount: 0, guest_discount: 110, amount: 0 })
+      .toEqual({ category: 'vb_tournament_kwi', base: 110, surcharge: 0, discount: 0, guest_discount: 110, amount: 0 })
     // 'Gratis' is 0: reporting a 110 discount off nothing would be a lie.
     expect(feeBreakdown('Gratis', null, { isGuest: true }))
-      .toEqual({ category: 'Gratis', base: 0, surcharge: 0, discount: 0, guest_discount: 0, amount: 0 })
+      .toEqual({ category: 'free', base: 0, surcharge: 0, discount: 0, guest_discount: 0, amount: 0 })
   })
 
   it('baseOverride replaces the base but keeps the surcharge rules', () => {
     // What a season rate change looks like: schedule says 460, duty still owed.
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { baseOverride: 460 }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 460, surcharge: 100, discount: 0, guest_discount: 0, amount: 560 })
+      .toEqual({ category: 'vb_employed', base: 460, surcharge: 100, discount: 0, guest_discount: 0, amount: 560 })
   })
 
   // Migration 299. These four columns are the club's answer to "this person
@@ -1141,7 +1139,7 @@ describe('feeBreakdown', () => {
   describe('per-member overrides', () => {
     it('fee_base_override beats the category map', () => {
       expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_base_override: 300 }))
-        .toEqual({ category: 'VB Erwerbstätige', base: 300, surcharge: 0, discount: 0, guest_discount: 0, amount: 300 })
+        .toEqual({ category: 'vb_employed', base: 300, surcharge: 0, discount: 0, guest_discount: 0, amount: 300 })
     })
 
     it('fee_base_override also beats the season rate schedule', () => {
@@ -1154,7 +1152,7 @@ describe('feeBreakdown', () => {
     it('fee_surcharge_override false waives the CHF 100 the rule would add', () => {
       // The exact case the club used to handle as a post-hoc write-off.
       expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: false, fee_surcharge_override: false }))
-        .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
+        .toEqual({ category: 'vb_employed', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
     })
 
     it('fee_surcharge_override true also ADDS one the rule would not', () => {
@@ -1173,7 +1171,7 @@ describe('feeBreakdown', () => {
 
     it('fee_discount applies when the caller passes no per-run discount', () => {
       expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_discount: 40 }))
-        .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 40, guest_discount: 0, amount: 400 })
+        .toEqual({ category: 'vb_employed', base: 440, surcharge: 0, discount: 40, guest_discount: 0, amount: 400 })
     })
 
     it('a per-run discount wins over the standing one', () => {
@@ -1190,7 +1188,7 @@ describe('feeBreakdown', () => {
       // 440 + 100 = 540 owed; 10% of that is 54, not 44 (a percentage of the
       // base alone would quietly under-discount every surcharged member).
       expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: false, fee_discount_pct: 10 }))
-        .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 100, discount: 54, guest_discount: 0, amount: 486 })
+        .toEqual({ category: 'vb_employed', base: 440, surcharge: 100, discount: 54, guest_discount: 0, amount: 486 })
     })
 
     it('a percentage rounds to rappen and 100% bills exactly zero', () => {
@@ -1207,7 +1205,7 @@ describe('feeBreakdown', () => {
 
     it('caps the standing discount at what is owed — never a negative bill', () => {
       expect(feeBreakdown('Passivmitglied', { fee_discount: 500 }))
-        .toEqual({ category: 'Passivmitglied', base: 40, surcharge: 0, discount: 40, guest_discount: 0, amount: 0 })
+        .toEqual({ category: 'passive', base: 40, surcharge: 0, discount: 40, guest_discount: 0, amount: 0 })
     })
 
     it('reads Postgres numerics, which arrive as strings', () => {
@@ -1231,7 +1229,7 @@ describe('feeBreakdown', () => {
       // Guests are never surcharged by the rule; an explicit override is a human
       // decision about this person and outranks it.
       expect(feeBreakdown('VB Erwerbstätige', { fee_base_override: 300 }, { isGuest: true }))
-        .toEqual({ category: 'VB Erwerbstätige', base: 300, surcharge: 0, discount: 0, guest_discount: 110, amount: 190 })
+        .toEqual({ category: 'vb_employed', base: 300, surcharge: 0, discount: 0, guest_discount: 110, amount: 190 })
       expect(deriveMitgliederbeitrag('VB Erwerbstätige', { fee_base_override: 300 }, { isGuest: true })).toBe('190')
     })
 
@@ -1252,10 +1250,10 @@ describe('feeBreakdown', () => {
   })
 
   it('bills an override for a category outside the map, unsurcharged', () => {
-    // e.g. 'VB Schüler*in Meisterschaft mit Abzug' — the treasurer sets a rate,
+    // e.g. 'VB Schüler*in Meisterschaft mit Abzug' (vb_pupil_league_discounted, 417) — a rate
     // and we do not invent a surcharge for a name the rules do not know.
     expect(feeBreakdown('VB Schüler*in Meisterschaft mit Abzug', adultNoLic, { baseOverride: 200 }))
-      .toEqual({ category: 'VB Schüler*in Meisterschaft mit Abzug', base: 200, surcharge: 0, discount: 0, guest_discount: 0, amount: 200 })
+      .toEqual({ category: 'vb_pupil_league_discounted', base: 200, surcharge: 0, discount: 0, guest_discount: 0, amount: 200 })
   })
 
   it('returns null when there is no base — never a guessed amount', () => {
@@ -1415,7 +1413,7 @@ describe('registration fee preview (GET /registration/:id/fee) — same engine a
   // (a brand-new registrant cannot already be a roster guest), no baseOverride
   // (the push never consults finance_dues_rates either).
   it('derives the base + surcharge from category and licence flags, no discount', () => {
-    const reg = { fee_category: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: false }
+    const reg = { fee_category: 'vb_employed', birthdate: '1990-01-01', scorer_vb: false }
     const derived = feeBreakdown(reg.fee_category, { ...reg, fee_discount: null, fee_discount_pct: null }, { isGuest: false })
     expect(derived.base).toBe(440)
     expect(derived.surcharge).toBe(100) // adult category, no scorer licence → owed
@@ -1423,14 +1421,14 @@ describe('registration fee preview (GET /registration/:id/fee) — same engine a
   })
 
   it('a scorer licence on the registration waives the surcharge', () => {
-    const reg = { fee_category: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: true }
+    const reg = { fee_category: 'vb_employed', birthdate: '1990-01-01', scorer_vb: true }
     const derived = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(derived.surcharge).toBe(0)
     expect(derived.amount).toBe(440)
   })
 
   it('applies the registration-level CHF discount, capped at what is owed', () => {
-    const reg = { fee_category: 'Passivmitglied', fee_discount: 9999, fee_discount_pct: null }
+    const reg = { fee_category: 'passive', fee_discount: 9999, fee_discount_pct: null }
     const effective = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(effective.base).toBe(40)
     expect(effective.discount).toBe(40) // never below zero
@@ -1438,7 +1436,7 @@ describe('registration fee preview (GET /registration/:id/fee) — same engine a
   })
 
   it('applies the registration-level percentage discount', () => {
-    const reg = { fee_category: 'VB Turnier KWI', fee_discount: null, fee_discount_pct: 50 }
+    const reg = { fee_category: 'vb_tournament_kwi', fee_discount: null, fee_discount_pct: 50 }
     const effective = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(effective.base).toBe(110)
     expect(effective.discount).toBe(55)

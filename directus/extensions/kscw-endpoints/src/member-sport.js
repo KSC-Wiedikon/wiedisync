@@ -1,3 +1,4 @@
+import { feeCategorySport } from './member-values.js'
 // directus/extensions/kscw-endpoints/src/member-sport.js
 //
 // "Which section does this member belong to" — the ONE server-side answer.
@@ -70,9 +71,10 @@ export function sportFromPartsDetailed({ teamSports = [], club_section = null, f
   if (sek === 'basketball') return { sport: 'basketball', source: 'sektion' }
   // 'kscw' and everything else falls through.
 
-  const kat = String(fee_category || '').trim().toLowerCase()
-  if (kat.startsWith('vb ')) return { sport: 'volleyball', source: 'fee' }
-  if (kat.startsWith('bb ')) return { sport: 'basketball', source: 'fee' }
+  // Fee-category slugs since migration 417 (vb_… / bb_…); any ClubDesk
+  // spelling still resolves. Twin of kscw_member_sport_section() in SQL.
+  const katSport = feeCategorySport(fee_category)
+  if (katSport) return { sport: katSport, source: 'fee' }
 
   return { sport: 'both', source: 'unknown' }
 }

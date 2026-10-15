@@ -26,3 +26,9 @@ export function normalizeRegisterStatus(v: unknown): RegisterStatus | null
 export function registerStatusToClubdesk(v: unknown): string
 export function registerStatusLabel(v: unknown): string
 export function isDepartedRegisterStatus(v: unknown): boolean
+
+export const FEE_CATEGORY_LABELS: Record<string, string>
+export const FEE_CATEGORY_VALUES: string[]
+export function normalizeFeeCategory(v: unknown): string | null
+export function feeCategoryLabel(v: unknown): string
+export function feeCategorySport(v: unknown): 'volleyball' | 'basketball' | null

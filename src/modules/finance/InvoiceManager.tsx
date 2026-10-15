@@ -19,6 +19,7 @@ import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
 import { memberDisplayName } from '../../utils/relations'
 import PaymentLedgerModal from './PaymentLedgerModal'
+import { normalizeFeeCategory } from '@member-values'
 
 /** Searchable single-member picker (mirrors MemberMultiSelect's dropdown). */
 function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m: Member | null) => void }) {
@@ -126,7 +127,8 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         amount: amt,
         subject: subject.trim(),
         due_date: dueDate || null,
-        fee_category: category.trim() || null,
+        // Stored as the slug when it is a known category (migration 417).
+        fee_category: category.trim() ? (normalizeFeeCategory(category) ?? category.trim()) : null,
         ...(disc > 0 ? { discount_amount: disc, discount_reason: discountReason.trim() || undefined } : {}),
       })
       reset(); onDone(); onClose()

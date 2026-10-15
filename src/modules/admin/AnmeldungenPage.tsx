@@ -27,7 +27,7 @@ import {
   ROLE_VALUES, OFFICIAL_VALUES, officialsList, normalizeOfficials,
   officialsToClubdesk, roleToClubdesk, sexToClubdesk, salutationFromSex,
 } from '@registration-values'
-import { cantonalSchoolToLegacy } from '@member-values'
+import { cantonalSchoolToLegacy, feeCategoryLabel } from '@member-values'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import DatePicker from '../../components/ui/DatePicker'
@@ -169,9 +169,9 @@ const regNatCode = (reg: Registration): string =>
 // list the Data Explorer already maintains as a mirror of CD_BEITRAG_MAP —
 // rather than a second copy that could drift from it.
 const SPORT_CATEGORY_PREFIX: Partial<Record<Registration['membership_type'], string>> = {
-  volleyball: 'VB ', basketball: 'BB ',
+  volleyball: 'vb_', basketball: 'bb_',
 }
-const SPORT_AGNOSTIC_CATEGORIES = new Set(['Passivmitglied', 'Gratis', 'Kein Beitrag'])
+const SPORT_AGNOSTIC_CATEGORIES = new Set(['passive', 'free', 'none'])
 function categoryChoicesForSport(membershipType: Registration['membership_type']): string[] {
   const prefix = SPORT_CATEGORY_PREFIX[membershipType]
   return MEMBER_SELECT_FIELDS.fee_category.options
@@ -268,7 +268,7 @@ function buildClubDeskCSV(items: Registration[]): string {
       item.remarks || '',
       '', 'E-Mail', 'Nein', '', '', '',
       '', '', '',
-      item.fee_category || '',
+      feeCategoryLabel(item.fee_category),
       '', '',
       cantonalSchoolToLegacy(item.cantonal_school),
       officialsToClubdesk(item.officials_requested, item.membership_type),
@@ -1401,7 +1401,7 @@ function ExpandedDetails({
         {selectField('sex', t('anmeldungenGender'), ['m', 'f'], { m: t('dhSetMale'), f: t('dhSetFemale') })}
         {selectField('role', t('anmeldungenFunction'), [...ROLE_VALUES], roleLabels)}
         {field('team', t('anmeldungenTeam'))}
-        {selectField('fee_category', t('anmeldungenFeeCategory'), categoryChoicesForSport(reg.membership_type))}
+        {selectField('fee_category', t('anmeldungenFeeCategory'), categoryChoicesForSport(reg.membership_type), Object.fromEntries(categoryChoicesForSport(reg.membership_type).map((c) => [c, feeCategoryLabel(c)])))}
         {officialsField()}
         {field('referee_level', t('anmeldungenRefLevel'))}
         {field('cantonal_school', t('anmeldungenSchool'))}

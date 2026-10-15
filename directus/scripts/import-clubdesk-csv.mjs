@@ -544,7 +544,9 @@ const psqlInput =
   "         left(NULLIF(btrim(ort),''),100) AS cd_ort,\n" +
   "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS cd_phone,\n" +
   "         left(NULLIF(btrim(js_id),''),32) AS cd_js_id,\n" +
-  "         left(NULLIF(btrim(beitragskategorie),''),100) AS cd_categ,\n" +
+  // Fee category is a slug in wiedisync since migration 417; a label the
+  // translation table does not know stages nothing (the CHECK would refuse it).
+  "         cd_to_app('fee_category', NULLIF(btrim(beitragskategorie),'')) AS cd_categ,\n" +
   // Club section and register status are slugs in wiedisync since migration 416.
   "         cd_to_app('section', NULLIF(btrim(sektion),'')) AS cd_sektion,\n" +
   "         CASE WHEN btrim(status) IN ('Kein Mitglied','Aktivmitglied','Passivmitglied',\n" +

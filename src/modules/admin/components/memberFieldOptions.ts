@@ -16,7 +16,7 @@
 // headers, "Yes"/"No", the field labels next door). Sentence case per CLAUDE.md.
 
 import { KANTONSSCHULEN, KANTONSSCHULE_NONE, kantonsschuleLabel } from '../../../utils/kantonsschulen'
-import { registerStatusLabel } from '@member-values'
+import { registerStatusLabel, feeCategoryLabel } from '@member-values'
 
 export interface FieldOption {
   value: string
@@ -123,23 +123,12 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
    */
   fee_category: {
     nullable: true,
+    // Slugs since migration 417; labels are the ClubDesk wording (feeCategoryLabel).
     options: [
-      { value: 'VB Erwerbstätige', label: 'VB Erwerbstätige' },
-      { value: 'VB Student*in Meisterschaft', label: 'VB Student*in Meisterschaft' },
-      { value: 'VB Schüler*in Meisterschaft', label: 'VB Schüler*in Meisterschaft' },
-      { value: 'VB Schüler*in Turnier', label: 'VB Schüler*in Turnier' },
-      { value: 'VB Schüler*in 1. Jahr', label: 'VB Schüler*in 1. Jahr' },
-      { value: 'VB Turnier KWI', label: 'VB Turnier KWI' },
-      { value: 'BB Erwerbstätige', label: 'BB Erwerbstätige' },
-      { value: 'BB Erwerbstätige 1. Liga', label: 'BB Erwerbstätige 1. Liga' },
-      { value: 'BB Lernende/Studierende', label: 'BB Lernende/Studierende' },
-      { value: 'BB Lernende/Studierende 1. Liga', label: 'BB Lernende/Studierende 1. Liga' },
-      { value: 'BB Jugend Meisterschaft', label: 'BB Jugend Meisterschaft' },
-      { value: 'BB Minis Turnier', label: 'BB Minis Turnier' },
-      { value: 'Passivmitglied', label: 'Passivmitglied' },
-      { value: 'Gratis', label: 'Gratis' },
-      { value: 'Kein Beitrag', label: 'Kein Beitrag' },
-    ],
+      'vb_employed', 'vb_student_league', 'vb_pupil_league', 'vb_pupil_tournament', 'vb_pupil_first_year', 'vb_tournament_kwi',
+      'bb_employed', 'bb_employed_first_league', 'bb_student', 'bb_student_first_league', 'bb_youth_league', 'bb_minis_tournament',
+      'passive', 'free', 'none',
+    ].map((v) => ({ value: v, label: feeCategoryLabel(v) })),
   },
   /**
    * Nullable boolean (migration 300). Three states, and the third is the point:

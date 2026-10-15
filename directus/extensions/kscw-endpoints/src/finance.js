@@ -53,6 +53,7 @@ import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, remove
 import { feeBreakdown, guestMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 // What a FREE member's membership would have cost — printed, never billed.
 import { pickRate, isExemptCategory, referenceBase } from './finance-dues-reference.js'
+import { normalizeFeeCategory, feeCategoryLabel } from './member-values.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -494,7 +495,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         member_id: mem.id,
         fee_category: feeCategory,
         // Categories that price at CHF 0 — the club never invoices these people.
-        no_fee: ['gratis', 'kein beitrag'].includes((feeCategory || '').toLowerCase()),
+        no_fee: ['free', 'none'].includes(normalizeFeeCategory(feeCategory)),
         referee_expenses: referee,
       })
     } catch (e) { return err(res, req, 'my-invoices', e) }
@@ -1426,7 +1427,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
           const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
           const number = `N-${invoiceDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
           const subject = (x.subject_template || `Mitgliederbeitrag ${fyLabel}`)
-            .replace(/\{fy\}/g, fyLabel).replace(/\{category\}/g, x.category || '')
+            .replace(/\{fy\}/g, fyLabel).replace(/\{category\}/g, x.category ? feeCategoryLabel(x.category) : '')
           const ins = await trx('finance_invoices').insert({
             clubdesk_id: null, number, invoice_date: invoiceDate, subject,
             amount: x.amount,
@@ -1453,7 +1454,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
               // first position is the club's own fee and the federation licence
               // stands beside it. The two always sum back to base_amount — this
               // is an itemisation, never a surcharge.
-              { label: `${subject}${x.category && !x.exempt ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount - (x.licence || 0)) },
+              { label: `${subject}${x.category && !x.exempt ? ` · ${feeCategoryLabel(x.category)}` : ''}`, amount: round2(x.base_amount - (x.licence || 0)) },
               ...(x.licence > 0 ? [{ label: licenceLabel(x.sektion), amount: round2(x.licence) }] : []),
               ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
               ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),

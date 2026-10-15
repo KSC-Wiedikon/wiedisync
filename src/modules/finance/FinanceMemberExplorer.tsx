@@ -28,6 +28,7 @@ import { logActivity } from '../../utils/logActivity'
 import { isValidIban, normalizeIban } from '../../utils/iban'
 import MemberPayoutQrBill from './MemberPayoutQrBill'
 import type { FinanceInvoice } from './types'
+import { feeCategoryLabel } from '@member-values'
 
 const MAX_DOC_MB = 15
 
@@ -244,7 +245,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{member.club_section}</span>
         )}
         {member.fee_category && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{member.fee_category}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{feeCategoryLabel(member.fee_category)}</span>
         )}
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${member.kscw_membership_active ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-muted text-muted-foreground'}`}>
           {member.kscw_membership_active ? t('membershipActive') : t('membershipInactive')}
@@ -268,7 +269,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
           </div>
           <div>
             <InfoRow always icon={<CreditCard className="h-3.5 w-3.5" />} label={t('fieldIban')} value={member.iban} />
-            <InfoRow always label={t('colCategory')} value={member.fee_category} />
+            <InfoRow always label={t('colCategory')} value={member.fee_category ? feeCategoryLabel(member.fee_category) : member.fee_category} />
             <InfoRow label={t('fieldAhv')} value={member.ahv_number} />
             <InfoRow label={t('fieldBirthdate')} value={member.birthdate ? formatDateCompactZurich(member.birthdate) : null} />
           </div>
@@ -462,7 +463,7 @@ export default function FinanceMemberExplorer() {
       return (
         fullName(m).toLowerCase().includes(q) ||
         (m.email ?? '').toLowerCase().includes(q) ||
-        (m.fee_category ?? '').toLowerCase().includes(q) ||
+        (m.fee_category ?? '').toLowerCase().includes(q) || feeCategoryLabel(m.fee_category).toLowerCase().includes(q) ||
         String(m.number ?? '').includes(q)
       )
     })
@@ -553,10 +554,10 @@ export default function FinanceMemberExplorer() {
                       <TableCell className="min-h-[44px] whitespace-normal break-words">
                         <span className="font-medium text-foreground">{fullName(m)}</span>
                         {m.billing_different && <span className="ml-1.5 align-middle text-xs text-muted-foreground/80" title={t('billingSeparate')}>·  {t('billingSeparate')}</span>}
-                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{[m.club_section, m.fee_category].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{[m.club_section, m.fee_category ? feeCategoryLabel(m.fee_category) : null].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{m.club_section || '—'}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.fee_category || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.fee_category ? feeCategoryLabel(m.fee_category) : '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {open > 0.005 ? <span className="font-semibold text-amber-700 dark:text-amber-400">{formatChf(open)}</span> : <span className="text-muted-foreground/80">—</span>}
                       </TableCell>

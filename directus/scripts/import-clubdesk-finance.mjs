@@ -333,7 +333,8 @@ INSERT INTO finance_invoices
 SELECT v.clubdesk_id, v.number, v.invoice_date::date, v.subject, v.amount::numeric(12,2), v.status,
    v.dunning_status, v.due_date::date, v.amount_paid::numeric(12,2), v.open_amount::numeric(12,2),
    v.overpaid::numeric(12,2), v.written_off::numeric(12,2), v.payment_method, v.reference,
-   v.fee_category, v.closed_on::date,
+   -- Slug since migration 417 when the label is known; an unknown label is kept.
+   COALESCE(cd_to_app('fee_category', v.fee_category), v.fee_category), v.closed_on::date,
    (v.cd_created::timestamp AT TIME ZONE 'Europe/Zurich'),
    (v.cd_changed::timestamp AT TIME ZONE 'Europe/Zurich'),
    v.recipient_name, v.recipient_email, v.cd_benutzer_id, v.cd_contact_id,

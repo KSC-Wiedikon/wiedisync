@@ -1,3 +1,4 @@
+import { normalizeFeeCategory, normalizeClubSection } from './member-values.js'
 /**
  * The entitlement figure printed on a FREE member's CHF 0 dues invoice.
  *
@@ -36,19 +37,22 @@
 /** Pick the CHF dues rate for a member: a sektion-specific row wins over the
  *  category default (sektion NULL). Returns the matching rate row or null. */
 export function pickRate(rates, category, sektion) {
-  const cat = (category || '').toLowerCase()
-  const inCat = (rates || []).filter((r) => r.active && (r.category || '').toLowerCase() === cat)
-  return inCat.find((r) => r.sektion && sektion && r.sektion.toLowerCase() === String(sektion).toLowerCase())
+  // Both sides are slugs since migration 417; a ClubDesk spelling still matches.
+  const catKey = (v) => normalizeFeeCategory(v) ?? String(v || '').toLowerCase()
+  const secKey = (v) => normalizeClubSection(v) ?? String(v || '').toLowerCase()
+  const cat = catKey(category)
+  const inCat = (rates || []).filter((r) => r.active && catKey(r.category) === cat)
+  return inCat.find((r) => r.sektion && sektion && secKey(r.sektion) === secKey(sektion))
       || inCat.find((r) => !r.sektion)
       || null
 }
 
 /** Fee categories that ARE the exemption — the member is a member, and the club
  *  decided the membership is free (coaches, staff, granted cases). */
-export const EXEMPT_CATEGORIES = new Set(['gratis'])
+export const EXEMPT_CATEGORIES = new Set(['free']) // fee-category slug (migration 417)
 
 export function isExemptCategory(category) {
-  return EXEMPT_CATEGORIES.has(String(category ?? '').trim().toLowerCase())
+  return EXEMPT_CATEGORIES.has(normalizeFeeCategory(category) ?? String(category ?? '').trim().toLowerCase())
 }
 
 /**
@@ -92,14 +96,14 @@ export function feeAgeBand(member, refYear = new Date().getFullYear()) {
  */
 const REFERENCE_CATEGORY = {
   volleyball: {
-    youth: 'VB Schüler*in Meisterschaft',
-    junior: 'VB Student*in Meisterschaft',
-    adult: 'VB Erwerbstätige',
+    youth: 'vb_pupil_league',
+    junior: 'vb_student_league',
+    adult: 'vb_employed',
   },
   basketball: {
-    youth: 'BB Jugend Meisterschaft',
-    junior: 'BB Lernende/Studierende',
-    adult: 'BB Erwerbstätige',
+    youth: 'bb_youth_league',
+    junior: 'bb_student',
+    adult: 'bb_employed',
   },
 }
 
@@ -123,7 +127,7 @@ export function referenceBase(rates, member, refYear = new Date().getFullYear())
   // The treasurer's own figure, if they set one: a 'Gratis' rate row with a
   // non-zero amount is read as "this is what a free membership is worth",
   // because for an exempt category the row can never be a bill.
-  const own = split(pickRate(rates, 'Gratis', member?.club_section))
+  const own = split(pickRate(rates, 'free', member?.club_section))
   if (own.base > 0) return own
 
   const sport = String(member?.club_section ?? '').trim().toLowerCase()
