@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "referee_expenses",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -119,7 +121,7 @@
     {
       "collection": "referee_expenses",
       "field": "amount",
-      "type": "float",
+      "type": "decimal",
       "meta": {
         "collection": "referee_expenses",
         "conditions": null,
@@ -144,11 +146,11 @@
       "schema": {
         "name": "amount",
         "table": "referee_expenses",
-        "data_type": "real",
+        "data_type": "numeric",
         "default_value": null,
         "max_length": null,
-        "numeric_precision": 24,
-        "numeric_scale": null,
+        "numeric_precision": 10,
+        "numeric_scale": 2,
         "is_nullable": true,
         "is_unique": false,
         "is_indexed": false,
@@ -248,8 +250,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "games",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -296,8 +298,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -344,8 +346,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -392,8 +394,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -487,6 +489,96 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "referee_expenses",
+      "field": "currency",
+      "type": "string",
+      "meta": {
+        "collection": "referee_expenses",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "currency",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 11,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "currency",
+        "table": "referee_expenses",
+        "data_type": "character varying",
+        "default_value": "CHF",
+        "max_length": 3,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "referee_expenses",
+      "field": "payout",
+      "type": "integer",
+      "meta": {
+        "collection": "referee_expenses",
+        "conditions": null,
+        "display": "related-values",
+        "display_options": null,
+        "field": "payout",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Season-end reimbursement (finance_payouts). Set by the payout run; NULL = not yet reimbursed.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 20,
+        "special": [
+          "m2o"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "payout",
+        "table": "referee_expenses",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "finance_payouts",
+        "foreign_key_column": "id"
+      }
     }
   ],
   "relations": [
@@ -504,6 +596,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_game_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -520,6 +621,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_team_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -536,6 +646,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "paid_by_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_paid_by_member_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
       }
     },
     {
@@ -552,6 +671,40 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "recorded_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_recorded_by_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "referee_expenses",
+      "field": "payout",
+      "related_collection": "finance_payouts",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "referee_expenses",
+        "many_field": "payout",
+        "one_allowed_collections": null,
+        "one_collection": "finance_payouts",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "payout",
+        "foreign_key_table": "finance_payouts",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_payout_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     }
   ]

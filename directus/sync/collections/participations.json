@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "participations",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -810,9 +812,198 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "participations",
+      "field": "auto_declined_by_game",
+      "type": "integer",
+      "meta": {
+        "collection": "participations",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_declined_by_game",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "games.id of the member's other team's same-day game that auto-declined this training RSVP (sweep-managed, migration 261).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "auto_declined_by_game",
+        "table": "participations",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "participations",
+      "field": "event",
+      "type": "integer",
+      "meta": {
+        "collection": "participations",
+        "conditions": null,
+        "display": "related-values",
+        "display_options": null,
+        "field": "event",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Derived from activity_id by trigger — do not edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 90,
+        "special": [
+          "m2o"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "event",
+        "table": "participations",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "events",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "participations",
+      "field": "visible_to",
+      "type": "alias",
+      "meta": {
+        "collection": "participations",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "visible_to",
+        "group": null,
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": "Derived from game_guests by trigger — do not edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 91,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "participations",
+      "field": "auto_declined_deadline",
+      "type": "boolean",
+      "meta": {
+        "collection": "participations",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_declined_deadline",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "System-set: the member never answered before respond_by and the daily sweep declined them. Cleared automatically when anyone edits the status.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "auto_declined_deadline",
+        "table": "participations",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     }
   ],
   "relations": [
+    {
+      "collection": "participation_visibility",
+      "field": "participation",
+      "related_collection": "participations",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "participation_visibility",
+        "many_field": "participation",
+        "one_allowed_collections": null,
+        "one_collection": "participations",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": "visible_to",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "participation_visibility",
+        "column": "participation",
+        "foreign_key_table": "participations",
+        "foreign_key_column": "id",
+        "constraint_name": "participation_visibility_participation_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
     {
       "collection": "participations",
       "field": "member",
@@ -834,6 +1025,31 @@
         "foreign_key_table": "members",
         "foreign_key_column": "id",
         "constraint_name": "participations_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "participations",
+      "field": "event",
+      "related_collection": "events",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "participations",
+        "many_field": "event",
+        "one_allowed_collections": null,
+        "one_collection": "events",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "participations",
+        "column": "event",
+        "foreign_key_table": "events",
+        "foreign_key_column": "id",
+        "constraint_name": "participations_event_foreign",
         "on_update": "NO ACTION",
         "on_delete": "CASCADE"
       }

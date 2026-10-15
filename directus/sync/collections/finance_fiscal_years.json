@@ -1,0 +1,656 @@
+{
+  "collection": {
+    "collection": "finance_fiscal_years",
+    "meta": {
+      "accountability": "all",
+      "archive_app_filter": true,
+      "archive_field": null,
+      "archive_value": null,
+      "autosave_revision_interval": null,
+      "collapse": "open",
+      "collection": "finance_fiscal_years",
+      "color": "#059669",
+      "display_template": null,
+      "group": null,
+      "hidden": false,
+      "icon": "calendar_month",
+      "item_duplication_fields": null,
+      "note": null,
+      "preview_url": null,
+      "singleton": false,
+      "sort": null,
+      "sort_field": null,
+      "status": "active",
+      "translations": null,
+      "unarchive_value": null,
+      "versioning": false
+    },
+    "schema": {
+      "name": "finance_fiscal_years"
+    }
+  },
+  "fields": [
+    {
+      "collection": "finance_fiscal_years",
+      "field": "label",
+      "type": "string",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "label",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "e.g. 2025/26.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "label",
+        "table": "finance_fiscal_years",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": true,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "starts_on",
+      "type": "date",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "starts_on",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "starts_on",
+        "table": "finance_fiscal_years",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "ends_on",
+      "type": "date",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "ends_on",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "ends_on",
+        "table": "finance_fiscal_years",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "status",
+      "type": "string",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "status",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": null,
+        "options": {
+          "choices": [
+            {
+              "text": "Open",
+              "value": "open"
+            },
+            {
+              "text": "Closed",
+              "value": "closed"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "status",
+        "table": "finance_fiscal_years",
+        "data_type": "character varying",
+        "default_value": "open",
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "source",
+      "type": "string",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "source",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "clubdesk = mirrored from ClubDesk; native = created in wiedisync (Scope C).",
+        "options": {
+          "choices": [
+            {
+              "text": "ClubDesk",
+              "value": "clubdesk"
+            },
+            {
+              "text": "Native",
+              "value": "native"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "source",
+        "table": "finance_fiscal_years",
+        "data_type": "character varying",
+        "default_value": "clubdesk",
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "date_created",
+      "type": "timestamp",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "date_created",
+        "group": null,
+        "hidden": true,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 90,
+        "special": [
+          "date-created"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "date_created",
+        "table": "finance_fiscal_years",
+        "data_type": "timestamp with time zone",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "date_updated",
+      "type": "timestamp",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "date_updated",
+        "group": null,
+        "hidden": true,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 91,
+        "special": [
+          "date-updated"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "date_updated",
+        "table": "finance_fiscal_years",
+        "data_type": "timestamp with time zone",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "user_created",
+      "type": "uuid",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "user_created",
+        "group": null,
+        "hidden": true,
+        "interface": "select-dropdown-m2o",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 92,
+        "special": [
+          "user-created"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "user_created",
+        "table": "finance_fiscal_years",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "user_updated",
+      "type": "uuid",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "user_updated",
+        "group": null,
+        "hidden": true,
+        "interface": "select-dropdown-m2o",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 93,
+        "special": [
+          "user-updated"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "user_updated",
+        "table": "finance_fiscal_years",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_fiscal_years",
+      "field": "closed_on",
+      "type": "date",
+      "meta": {
+        "collection": "finance_fiscal_years",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "closed_on",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "closed_on",
+        "table": "finance_fiscal_years",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    }
+  ],
+  "relations": [
+    {
+      "collection": "finance_budget_lines",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_budget_lines",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_budget_lines",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_budget_lines_fiscal_year_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "finance_dues_rates",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_dues_rates",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_dues_rates",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_dues_rates_fiscal_year_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "finance_dues_runs",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_dues_runs",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_dues_runs",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_dues_runs_fiscal_year_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "finance_invoices",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoices",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoices",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoices_fiscal_year_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "finance_team_entries",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_team_entries",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_team_entries",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_team_entries_fiscal_year_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_transactions",
+      "field": "fiscal_year",
+      "related_collection": "finance_fiscal_years",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_transactions",
+        "many_field": "fiscal_year",
+        "one_allowed_collections": null,
+        "one_collection": "finance_fiscal_years",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_transactions",
+        "column": "fiscal_year",
+        "foreign_key_table": "finance_fiscal_years",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_transactions_fiscal_year_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    }
+  ]
+}

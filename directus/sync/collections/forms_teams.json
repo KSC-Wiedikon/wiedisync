@@ -1,13 +1,14 @@
 {
   "collection": {
-    "collection": "hall_events_halls",
+    "collection": "forms_teams",
     "meta": {
       "accountability": "all",
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
-      "collection": "hall_events_halls",
+      "collection": "forms_teams",
       "color": null,
       "display_template": null,
       "group": null,
@@ -19,21 +20,22 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
     },
     "schema": {
-      "name": "hall_events_halls"
+      "name": "forms_teams"
     }
   },
   "fields": [
     {
-      "collection": "hall_events_halls",
+      "collection": "forms_teams",
       "field": "id",
       "type": "integer",
       "meta": {
-        "collection": "hall_events_halls",
+        "collection": "forms_teams",
         "conditions": null,
         "display": null,
         "display_options": null,
@@ -55,9 +57,9 @@
       },
       "schema": {
         "name": "id",
-        "table": "hall_events_halls",
+        "table": "forms_teams",
         "data_type": "integer",
-        "default_value": "nextval('hall_events_halls_id_seq'::regclass)",
+        "default_value": "nextval('forms_teams_id_seq'::regclass)",
         "max_length": null,
         "numeric_precision": 32,
         "numeric_scale": 0,
@@ -73,59 +75,15 @@
       }
     },
     {
-      "collection": "hall_events_halls",
-      "field": "halls_id",
+      "collection": "forms_teams",
+      "field": "forms_id",
       "type": "integer",
       "meta": {
-        "collection": "hall_events_halls",
+        "collection": "forms_teams",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "halls_id",
-        "group": null,
-        "hidden": true,
-        "interface": null,
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 3,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "halls_id",
-        "table": "hall_events_halls",
-        "data_type": "integer",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": "halls",
-        "foreign_key_column": "id"
-      }
-    },
-    {
-      "collection": "hall_events_halls",
-      "field": "hall_events_id",
-      "type": "integer",
-      "meta": {
-        "collection": "hall_events_halls",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "hall_events_id",
+        "field": "forms_id",
         "group": null,
         "hidden": true,
         "interface": null,
@@ -142,74 +100,118 @@
         "width": "full"
       },
       "schema": {
-        "name": "hall_events_id",
-        "table": "hall_events_halls",
+        "name": "forms_id",
+        "table": "forms_teams",
         "data_type": "integer",
         "default_value": null,
         "max_length": null,
         "numeric_precision": 32,
         "numeric_scale": 0,
-        "is_nullable": true,
+        "is_nullable": false,
         "is_unique": false,
-        "is_indexed": false,
+        "is_indexed": true,
         "is_primary_key": false,
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": "hall_events",
+        "foreign_key_table": "forms",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "forms_teams",
+      "field": "teams_id",
+      "type": "integer",
+      "meta": {
+        "collection": "forms_teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "teams_id",
+        "group": null,
+        "hidden": true,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "teams_id",
+        "table": "forms_teams",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "teams",
         "foreign_key_column": "id"
       }
     }
   ],
   "relations": [
     {
-      "collection": "hall_events_halls",
-      "field": "halls_id",
-      "related_collection": "halls",
+      "collection": "forms_teams",
+      "field": "forms_id",
+      "related_collection": "forms",
       "meta": {
-        "junction_field": "hall_events_id",
-        "many_collection": "hall_events_halls",
-        "many_field": "halls_id",
+        "junction_field": "teams_id",
+        "many_collection": "forms_teams",
+        "many_field": "forms_id",
         "one_allowed_collections": null,
-        "one_collection": "halls",
+        "one_collection": "forms",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
+        "one_field": "teams",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "forms_teams",
+        "column": "forms_id",
+        "foreign_key_table": "forms",
+        "foreign_key_column": "id",
+        "constraint_name": "forms_teams_forms_id_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "forms_teams",
+      "field": "teams_id",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": "forms_id",
+        "many_collection": "forms_teams",
+        "many_field": "teams_id",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
         "one_field": null,
         "sort_field": null
       },
       "schema": {
-        "table": "hall_events_halls",
-        "column": "halls_id",
-        "foreign_key_table": "halls",
+        "table": "forms_teams",
+        "column": "teams_id",
+        "foreign_key_table": "teams",
         "foreign_key_column": "id",
-        "constraint_name": "hall_events_halls_1_halls_id_foreign",
+        "constraint_name": "forms_teams_teams_id_fkey",
         "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
-      }
-    },
-    {
-      "collection": "hall_events_halls",
-      "field": "hall_events_id",
-      "related_collection": "hall_events",
-      "meta": {
-        "junction_field": "halls_id",
-        "many_collection": "hall_events_halls",
-        "many_field": "hall_events_id",
-        "one_allowed_collections": null,
-        "one_collection": "hall_events",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": "hall",
-        "sort_field": null
-      },
-      "schema": {
-        "table": "hall_events_halls",
-        "column": "hall_events_id",
-        "foreign_key_table": "hall_events",
-        "foreign_key_column": "id",
-        "constraint_name": "hall_events_halls_1_hall_events_id_foreign",
-        "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
+        "on_delete": "CASCADE"
       }
     }
   ]

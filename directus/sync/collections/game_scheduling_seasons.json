@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "game_scheduling_seasons",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -181,14 +183,14 @@
     },
     {
       "collection": "game_scheduling_seasons",
-      "field": "spielsamstage",
+      "field": "game_saturdays",
       "type": "json",
       "meta": {
         "collection": "game_scheduling_seasons",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "spielsamstage",
+        "field": "game_saturdays",
         "group": null,
         "hidden": false,
         "interface": "input-code",
@@ -209,7 +211,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "spielsamstage",
+        "name": "game_saturdays",
         "table": "game_scheduling_seasons",
         "data_type": "json",
         "default_value": null,
@@ -454,9 +456,464 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "gap_config",
+      "type": "json",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "gap_config",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Per-season game-spacing gaps {home, proposal, proposal3} in days.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 50,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "gap_config",
+        "table": "game_scheduling_seasons",
+        "data_type": "jsonb",
+        "default_value": {
+          "home": 4,
+          "proposal": 4,
+          "proposal3": 2
+        },
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "season_opens",
+      "type": "date",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": "datetime",
+        "display_options": null,
+        "field": "season_opens",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "First date the tool offers slots/away dates (NULL → Sep 1 of the season's first year).",
+        "options": {
+          "includeSeconds": false
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 51,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "season_opens",
+        "table": "game_scheduling_seasons",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "season_closes",
+      "type": "date",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": "datetime",
+        "display_options": null,
+        "field": "season_closes",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Last date the tool offers slots/away dates (NULL → Mar 31 of the season's second year).",
+        "options": {
+          "includeSeconds": false
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 52,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "season_closes",
+        "table": "game_scheduling_seasons",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "vm_authority_date",
+      "type": "date",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": "datetime",
+        "display_options": null,
+        "field": "vm_authority_date",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Date the SV feed takes over date/time/venue for tool-scheduled games (NULL → protect until the game is completed).",
+        "options": {
+          "includeSeconds": false
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 53,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "vm_authority_date",
+        "table": "game_scheduling_seasons",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "use_club_portals",
+      "type": "boolean",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "use_club_portals",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "When true, opponents get ONE link per club (/terminplanung/club/:token) instead of one per team. Set on 2027/28 onward; 2026/27 stays per-team.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 30,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "use_club_portals",
+        "table": "game_scheduling_seasons",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "game_scheduling_seasons",
+      "field": "bb_slot_config",
+      "type": "json",
+      "meta": {
+        "collection": "game_scheduling_seasons",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_slot_config",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Basketball: timeslot to category matrix + Spielsamstag list. Read by the basketball slot generator.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 30,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_slot_config",
+        "table": "game_scheduling_seasons",
+        "data_type": "jsonb",
+        "default_value": {},
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     }
   ],
   "relations": [
+    {
+      "collection": "basketball_hall_availability",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_hall_availability",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_hall_availability",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_hall_availability_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "basketball_slot_plan",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_slot_plan",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_slot_plan",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_slot_plan_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "basketball_slots",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_slots",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_slots",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_slots_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "basketball_team_rules",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_team_rules",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_team_rules",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_rules_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_scheduling_bookings",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_bookings",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_bookings",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_bookings_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "game_scheduling_club_portals",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_club_portals",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_club_portals",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_club_portals_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_scheduling_derbies",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_derbies",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_derbies",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_derbies_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
     {
       "collection": "game_scheduling_opponents",
       "field": "season",
@@ -480,6 +937,56 @@
         "constraint_name": "game_scheduling_opponents_season_foreign",
         "on_update": "NO ACTION",
         "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "game_scheduling_slots",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_slots",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_slots",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_slots_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "team_links",
+      "field": "season",
+      "related_collection": "game_scheduling_seasons",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "team_links",
+        "many_field": "season",
+        "one_allowed_collections": null,
+        "one_collection": "game_scheduling_seasons",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "team_links",
+        "column": "season",
+        "foreign_key_table": "game_scheduling_seasons",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_links_season_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     }
   ]

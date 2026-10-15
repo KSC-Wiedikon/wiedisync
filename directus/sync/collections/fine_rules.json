@@ -1,104 +1,112 @@
 {
   "collection": {
-    "collection": "tasks",
+    "collection": "fine_rules",
     "meta": {
       "accountability": "all",
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
-      "collection": "tasks",
-      "color": null,
+      "collection": "fine_rules",
+      "color": "#B45309",
       "display_template": null,
       "group": null,
       "hidden": false,
-      "icon": "task_alt",
+      "icon": "rule",
       "item_duplication_fields": null,
       "note": null,
       "preview_url": null,
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
     },
     "schema": {
-      "name": "tasks"
+      "name": "fine_rules"
     }
   },
   "fields": [
     {
-      "collection": "tasks",
-      "field": "id",
+      "collection": "fine_rules",
+      "field": "team",
       "type": "integer",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
-        "display": null,
+        "display": "related-values",
         "display_options": null,
-        "field": "id",
+        "field": "team",
         "group": null,
-        "hidden": true,
-        "interface": "numeric",
-        "note": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Team this rule applies to.",
         "options": null,
-        "readonly": true,
+        "readonly": false,
         "required": false,
         "searchable": true,
         "sort": 1,
-        "special": null,
+        "special": [
+          "m2o"
+        ],
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "id",
-        "table": "tasks",
+        "name": "team",
+        "table": "fine_rules",
         "data_type": "integer",
-        "default_value": "nextval('tasks_id_seq'::regclass)",
+        "default_value": null,
         "max_length": null,
         "numeric_precision": 32,
         "numeric_scale": 0,
         "is_nullable": false,
-        "is_unique": true,
-        "is_indexed": false,
-        "is_primary_key": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
         "is_generated": false,
         "generation_expression": null,
-        "has_auto_increment": true,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "has_auto_increment": false,
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
-      "collection": "tasks",
-      "field": "activity_type",
+      "collection": "fine_rules",
+      "field": "category",
       "type": "string",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "activity_type",
+        "field": "category",
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": null,
+        "note": "Which fine category these tiers apply to.",
         "options": {
           "choices": [
             {
-              "text": "game",
-              "value": "game"
+              "text": "Late sign-in",
+              "value": "late_signin"
             },
             {
-              "text": "training",
-              "value": "training"
+              "text": "No-show",
+              "value": "no_show"
             },
             {
-              "text": "event",
-              "value": "event"
+              "text": "Late payment",
+              "value": "late_payment"
+            },
+            {
+              "text": "Custom",
+              "value": "custom"
             }
           ]
         },
@@ -110,172 +118,17 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "activity_type",
-        "table": "tasks",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "activity_id",
-      "type": "string",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "activity_id",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 3,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "activity_id",
-        "table": "tasks",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "label",
-      "type": "string",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "label",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 4,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "label",
-        "table": "tasks",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "category",
-      "type": "string",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "category",
-        "group": null,
-        "hidden": false,
-        "interface": "select-dropdown",
-        "note": null,
-        "options": {
-          "choices": [
-            {
-              "text": "setup",
-              "value": "setup"
-            },
-            {
-              "text": "equipment",
-              "value": "equipment"
-            },
-            {
-              "text": "food",
-              "value": "food"
-            },
-            {
-              "text": "firstAid",
-              "value": "firstAid"
-            },
-            {
-              "text": "other",
-              "value": "other"
-            }
-          ]
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 5,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
         "name": "category",
-        "table": "tasks",
+        "table": "fine_rules",
         "data_type": "character varying",
         "default_value": null,
-        "max_length": 255,
+        "max_length": 32,
         "numeric_precision": null,
         "numeric_scale": null,
-        "is_nullable": true,
+        "is_nullable": false,
         "is_unique": false,
         "is_indexed": false,
         "is_primary_key": false,
@@ -287,15 +140,15 @@
       }
     },
     {
-      "collection": "tasks",
-      "field": "completed",
+      "collection": "fine_rules",
+      "field": "enabled",
       "type": "boolean",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "completed",
+        "field": "enabled",
         "group": null,
         "hidden": false,
         "interface": "boolean",
@@ -304,18 +157,20 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 6,
-        "special": null,
+        "sort": 3,
+        "special": [
+          "cast-boolean"
+        ],
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "completed",
-        "table": "tasks",
+        "name": "enabled",
+        "table": "fine_rules",
         "data_type": "boolean",
-        "default_value": false,
+        "default_value": true,
         "max_length": null,
         "numeric_precision": null,
         "numeric_scale": null,
@@ -331,18 +186,175 @@
       }
     },
     {
-      "collection": "tasks",
-      "field": "completed_at",
-      "type": "timestamp",
+      "collection": "fine_rules",
+      "field": "reset_window",
+      "type": "string",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "completed_at",
+        "field": "reset_window",
         "group": null,
         "hidden": false,
-        "interface": "datetime",
+        "interface": "select-dropdown",
+        "note": "When the offense counter resets for this team×category.",
+        "options": {
+          "choices": [
+            {
+              "text": "Calendar month",
+              "value": "calendar_month"
+            },
+            {
+              "text": "Rolling 30 days",
+              "value": "rolling_30d"
+            },
+            {
+              "text": "Rolling 90 days",
+              "value": "rolling_90d"
+            },
+            {
+              "text": "Season (Sep–Aug)",
+              "value": "season"
+            },
+            {
+              "text": "Never (lifetime)",
+              "value": "never"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "reset_window",
+        "table": "fine_rules",
+        "data_type": "character varying",
+        "default_value": "calendar_month",
+        "max_length": 32,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "tiers",
+      "type": "json",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "tiers",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Escalation tiers as JSON. e.g. [{\"offense\":1,\"amount\":1.00},{\"offense\":2,\"amount\":2.00},{\"offense_min\":3,\"amount\":5.00}] — entries match in order, last \"offense_min\" catches Nth and beyond.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "tiers",
+        "table": "fine_rules",
+        "data_type": "jsonb",
+        "default_value": [],
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "currency",
+      "type": "string",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "currency",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "currency",
+        "table": "fine_rules",
+        "data_type": "character varying",
+        "default_value": "CHF",
+        "max_length": 3,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "notes",
+      "type": "text",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "notes",
+        "group": null,
+        "hidden": false,
+        "interface": "input-multiline",
         "note": null,
         "options": null,
         "readonly": false,
@@ -356,9 +368,9 @@
         "width": "full"
       },
       "schema": {
-        "name": "completed_at",
-        "table": "tasks",
-        "data_type": "timestamp with time zone",
+        "name": "notes",
+        "table": "fine_rules",
+        "data_type": "text",
         "default_value": null,
         "max_length": null,
         "numeric_precision": null,
@@ -375,199 +387,11 @@
       }
     },
     {
-      "collection": "tasks",
-      "field": "sort_order",
-      "type": "integer",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "sort_order",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 8,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "sort_order",
-        "table": "tasks",
-        "data_type": "integer",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "assigned_to",
-      "type": "integer",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": "related-values",
-        "display_options": {
-          "template": "{{first_name}} {{last_name}}"
-        },
-        "field": "assigned_to",
-        "group": null,
-        "hidden": false,
-        "interface": "select-dropdown-m2o",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 9,
-        "special": [
-          "m2o"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "assigned_to",
-        "table": "tasks",
-        "data_type": "integer",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": true,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "claimed_by",
-      "type": "integer",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": "related-values",
-        "display_options": {
-          "template": "{{first_name}} {{last_name}}"
-        },
-        "field": "claimed_by",
-        "group": null,
-        "hidden": false,
-        "interface": "select-dropdown-m2o",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 10,
-        "special": [
-          "m2o"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "claimed_by",
-        "table": "tasks",
-        "data_type": "integer",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": true,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "created_by",
-      "type": "integer",
-      "meta": {
-        "collection": "tasks",
-        "conditions": null,
-        "display": "related-values",
-        "display_options": {
-          "template": "{{first_name}} {{last_name}}"
-        },
-        "field": "created_by",
-        "group": null,
-        "hidden": false,
-        "interface": "select-dropdown-m2o",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 11,
-        "special": [
-          "m2o"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "created_by",
-        "table": "tasks",
-        "data_type": "integer",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": true,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "tasks",
+      "collection": "fine_rules",
       "field": "date_created",
       "type": "timestamp",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
         "display": null,
         "display_options": null,
@@ -580,20 +404,112 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 12,
+        "sort": 90,
         "special": [
           "date-created"
         ],
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "half"
+        "width": "full"
       },
       "schema": {
         "name": "date_created",
-        "table": "tasks",
+        "table": "fine_rules",
         "data_type": "timestamp with time zone",
-        "default_value": "CURRENT_TIMESTAMP",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "date_updated",
+      "type": "timestamp",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "date_updated",
+        "group": null,
+        "hidden": true,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 91,
+        "special": [
+          "date-updated"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "date_updated",
+        "table": "fine_rules",
+        "data_type": "timestamp with time zone",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "user_created",
+      "type": "uuid",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "user_created",
+        "group": null,
+        "hidden": true,
+        "interface": "select-dropdown-m2o",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 92,
+        "special": [
+          "user-created"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "user_created",
+        "table": "fine_rules",
+        "data_type": "uuid",
+        "default_value": null,
         "max_length": null,
         "numeric_precision": null,
         "numeric_scale": null,
@@ -609,38 +525,98 @@
       }
     },
     {
-      "collection": "tasks",
-      "field": "date_updated",
-      "type": "timestamp",
+      "collection": "fine_rules",
+      "field": "user_updated",
+      "type": "uuid",
       "meta": {
-        "collection": "tasks",
+        "collection": "fine_rules",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "date_updated",
+        "field": "user_updated",
         "group": null,
         "hidden": true,
-        "interface": "datetime",
+        "interface": "select-dropdown-m2o",
         "note": null,
         "options": null,
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 13,
+        "sort": 93,
         "special": [
-          "date-updated"
+          "user-updated"
         ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "user_updated",
+        "table": "fine_rules",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "activity_type",
+      "type": "string",
+      "meta": {
+        "collection": "fine_rules",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "activity_type",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "Leave empty for the category's general rule. Set to make this row an override for that activity type only.",
+        "options": {
+          "allowNone": true,
+          "choices": [
+            {
+              "text": "Training",
+              "value": "training"
+            },
+            {
+              "text": "Game",
+              "value": "game"
+            },
+            {
+              "text": "Event",
+              "value": "event"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
         "translations": null,
         "validation": null,
         "validation_message": null,
         "width": "half"
       },
       "schema": {
-        "name": "date_updated",
-        "table": "tasks",
-        "data_type": "timestamp with time zone",
+        "name": "activity_type",
+        "table": "fine_rules",
+        "data_type": "character varying",
         "default_value": null,
-        "max_length": null,
+        "max_length": 16,
         "numeric_precision": null,
         "numeric_scale": null,
         "is_nullable": true,
@@ -657,51 +633,53 @@
   ],
   "relations": [
     {
-      "collection": "tasks",
-      "field": "assigned_to",
-      "related_collection": "members",
+      "collection": "fine_rules",
+      "field": "team",
+      "related_collection": "teams",
       "meta": {
         "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "assigned_to",
+        "many_collection": "fine_rules",
+        "many_field": "team",
         "one_allowed_collections": null,
-        "one_collection": "members",
+        "one_collection": "teams",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "fine_rules",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "fine_rules_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
-      "collection": "tasks",
-      "field": "claimed_by",
+      "collection": "fine_rules",
+      "field": "updated_by",
       "related_collection": "members",
       "meta": {
         "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "claimed_by",
+        "many_collection": "fine_rules",
+        "many_field": "updated_by",
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "created_by",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "created_by",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
+      },
+      "schema": {
+        "table": "fine_rules",
+        "column": "updated_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fine_rules_updated_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     }
   ]

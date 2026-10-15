@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "events",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -177,31 +179,31 @@
         "options": {
           "choices": [
             {
-              "text": "verein",
-              "value": "verein"
+              "text": "Club",
+              "value": "club"
             },
             {
-              "text": "social",
+              "text": "Social",
               "value": "social"
             },
             {
-              "text": "meeting",
+              "text": "Meeting",
               "value": "meeting"
             },
             {
-              "text": "tournament",
+              "text": "Tournament",
               "value": "tournament"
             },
             {
-              "text": "trainingsweekend",
-              "value": "trainingsweekend"
+              "text": "Training weekend",
+              "value": "training_weekend"
             },
             {
-              "text": "friendly",
+              "text": "Friendly",
               "value": "friendly"
             },
             {
-              "text": "other",
+              "text": "Other",
               "value": "other"
             }
           ]
@@ -1073,6 +1075,519 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "events",
+      "field": "signup_url",
+      "type": "string",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "signup_url",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Public signup form URL (e.g. Formbricks). When set, an Anmelden button appears on the event.",
+        "options": {
+          "placeholder": "https://forms.kscw.ch/s/..."
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 30,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "signup_url",
+        "table": "events",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 500,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "js_relevant",
+      "type": "boolean",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "js_relevant",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Include this event in the J+S export (Jugend+Sport).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 40,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "js_relevant",
+        "table": "events",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "js_activity_type",
+      "type": "string",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "js_activity_type",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "J+S activity type used when this event is in scope.",
+        "options": {
+          "choices": [
+            {
+              "text": "Training",
+              "value": "Training"
+            },
+            {
+              "text": "Wettkampf",
+              "value": "Wettkampf"
+            },
+            {
+              "text": "Trainingstag",
+              "value": "Trainingstag"
+            },
+            {
+              "text": "Lagertag",
+              "value": "Lagertag"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 41,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "js_activity_type",
+        "table": "events",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 32,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "invite_guests",
+      "type": "boolean",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "invite_guests",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Are the invited teams' guest players (G1–G3) invited? On = yes (default). Off = core roster only.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 25,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "invite_guests",
+        "table": "events",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "open_roster",
+      "type": "boolean",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": "boolean",
+        "display_options": null,
+        "field": "open_roster",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Derived: audience spans more than one team → full RSVP roster is visible to everyone who can see the event. Do not edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 95,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "open_roster",
+        "table": "events",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "meeting_time",
+      "type": "time",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "meeting_time",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Besammlung: the clock time the group meets on the start date. Empty = none. Absolute, because an all-day event has no start time to count back from.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "meeting_time",
+        "table": "events",
+        "data_type": "time without time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "carpool_enabled",
+      "type": "boolean",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "carpool_enabled",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Car pooling: show the offer / request rides board on this activity. Default off.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 61,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "carpool_enabled",
+        "table": "events",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "carpool_teams",
+      "type": "json",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "carpool_teams",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Car pooling: team ids the rides board is open to. Empty = everyone who can see this activity.",
+        "options": {
+          "language": "json"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 62,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "carpool_teams",
+        "table": "events",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "signup_form_slug",
+      "type": "text",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "signup_form_slug",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Endpoint-owned: the OpnForm form bound by \"Create signup form\". Never edit — writes are ignored.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "signup_form_slug",
+        "table": "events",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "permissions_section",
+      "type": "text",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "permissions_section",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Derived (migration 406): the sport of the event's teams, or both. Kept by triggers; writes are ignored.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "permissions_section",
+        "table": "events",
+        "data_type": "text",
+        "default_value": "both",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "events",
+      "field": "additional_halls",
+      "type": "json",
+      "meta": {
+        "collection": "events",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "additional_halls",
+        "group": null,
+        "hidden": false,
+        "interface": "tags",
+        "note": "Further hall ids this event books besides `hall` (e.g. KWI A+B). Trainings there are trimmed or cancelled (migration 409). Null or empty = one hall.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "additional_halls",
+        "table": "events",
+        "data_type": "json",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     }
   ],
   "relations": [
@@ -1144,7 +1659,7 @@
         "one_allowed_collections": null,
         "one_collection": "events",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": "invited_members",
         "sort_field": null
       },
@@ -1155,7 +1670,7 @@
         "foreign_key_column": "id",
         "constraint_name": "events_members_events_id_foreign",
         "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1169,7 +1684,7 @@
         "one_allowed_collections": null,
         "one_collection": "events",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": "teams",
         "sort_field": null
       },
@@ -1178,9 +1693,34 @@
         "column": "events_id",
         "foreign_key_table": "events",
         "foreign_key_column": "id",
-        "constraint_name": "events_teams_1_events_id_foreign",
+        "constraint_name": "events_teams_events_id_foreign",
         "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "participations",
+      "field": "event",
+      "related_collection": "events",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "participations",
+        "many_field": "event",
+        "one_allowed_collections": null,
+        "one_collection": "events",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "participations",
+        "column": "event",
+        "foreign_key_table": "events",
+        "foreign_key_column": "id",
+        "constraint_name": "participations_event_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     }
   ]

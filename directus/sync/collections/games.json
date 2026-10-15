@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "games",
       "color": "#FFC832",
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -259,14 +261,18 @@
       "meta": {
         "collection": "games",
         "conditions": null,
-        "display": null,
-        "display_options": null,
+        "display": "datetime",
+        "display_options": {
+          "format": "YYYY-MM-DD"
+        },
         "field": "date",
         "group": null,
         "hidden": false,
         "interface": "datetime",
         "note": null,
-        "options": null,
+        "options": {
+          "format": "short"
+        },
         "readonly": false,
         "required": false,
         "searchable": true,
@@ -303,8 +309,10 @@
       "meta": {
         "collection": "games",
         "conditions": null,
-        "display": null,
-        "display_options": null,
+        "display": "datetime",
+        "display_options": {
+          "use24": true
+        },
         "field": "time",
         "group": null,
         "hidden": false,
@@ -1013,8 +1021,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1061,8 +1069,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "halls",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1109,8 +1117,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1157,8 +1165,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1205,8 +1213,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1253,8 +1261,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1301,8 +1309,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1349,8 +1357,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1397,8 +1405,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1445,8 +1453,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1493,8 +1501,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1541,8 +1549,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1589,8 +1597,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1637,8 +1645,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1685,8 +1693,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1870,16 +1878,1937 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "games",
+      "field": "auto_confirm_rsvp",
+      "type": "boolean",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_confirm_rsvp",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "NULL = inherit team default (features_enabled.game_auto_confirm). true/false = override.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 110,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "auto_confirm_rsvp",
+        "table": "games",
+        "data_type": "boolean",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scorer_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scorer_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 130,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scorer_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scorer_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scorer_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 131,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scorer_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scoreboard_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scoreboard_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 132,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scoreboard_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scoreboard_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scoreboard_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 133,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scoreboard_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scorer_scoreboard_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scorer_scoreboard_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 134,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scorer_scoreboard_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "scorer_scoreboard_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scorer_scoreboard_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 135,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scorer_scoreboard_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_scorer_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_scorer_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 136,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_scorer_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_scorer_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_scorer_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 137,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_scorer_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_timekeeper_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_timekeeper_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 138,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_timekeeper_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_timekeeper_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_timekeeper_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 139,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_timekeeper_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_24s_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_24s_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 140,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_24s_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_24s_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_24s_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation actor/time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 141,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_24s_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_duty_team",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": "related-values",
+        "display_options": null,
+        "field": "referee_duty_team",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "HU20 referee duty team (migration 182).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 34,
+        "special": [
+          "m2o"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_duty_team",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_member",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": "related-values",
+        "display_options": null,
+        "field": "referee_member",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "HU20 referee, the person (migration 182).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 35,
+        "special": [
+          "m2o"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_member",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_confirmed_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "referee_confirmed_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Per-duty confirmation actor (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 142,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_confirmed_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_confirmed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "referee_confirmed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Per-duty confirmation time (system-set by hook; shown to admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 143,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_confirmed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "duty_late_json",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "duty_late_json",
+        "group": null,
+        "hidden": true,
+        "interface": "input-code",
+        "note": "Per-role late-arrival reports { role: { at, by_name } }. Written by the duty-late endpoint.",
+        "options": {
+          "language": "json"
+        },
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 200,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "duty_late_json",
+        "table": "games",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "duty_leader_alert_json",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "duty_leader_alert_json",
+        "group": null,
+        "hidden": true,
+        "interface": "input-code",
+        "note": "Emergency \"contact team leaders\" reports { memberId: { at, by_name } }. Written by the duty-leader-contact endpoint.",
+        "options": {
+          "language": "json"
+        },
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 201,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "duty_leader_alert_json",
+        "table": "games",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "auto_nomination_list",
+      "type": "boolean",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_nomination_list",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "Auto-file the Volleymanager Einsatzliste from confirmed RSVPs ~60 min before kickoff. Empty = use the team default.",
+        "options": {
+          "choices": [
+            {
+              "text": "Use team default",
+              "value": null
+            },
+            {
+              "text": "On",
+              "value": true
+            },
+            {
+              "text": "Off",
+              "value": false
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 90,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "auto_nomination_list",
+        "table": "games",
+        "data_type": "boolean",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_nomination_count",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_nomination_count",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Players filed on the last push (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 93,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_nomination_count",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_nomination_pushed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_nomination_pushed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Last successful Einsatzliste push (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 94,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_nomination_pushed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_nomination_status",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_nomination_status",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Volleymanager Einsatzliste push status (read-only, written by the cron).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 91,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_nomination_status",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_nomination_list_id",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_nomination_list_id",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Volleymanager nominationList uuid (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 92,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_nomination_list_id",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 64,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_nomination_error",
+      "type": "text",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_nomination_error",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Last Einsatzliste push failure (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 95,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_nomination_error",
+        "table": "games",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "guests",
+      "type": "alias",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "guests",
+        "group": null,
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "meeting_offset_minutes",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "meeting_offset_minutes",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Besammlung: minutes before kickoff that the team meets. Empty = no meeting time. An offset, so it survives a reschedule.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "meeting_offset_minutes",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": 60,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "bb_extra_duty_teams",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "bb_extra_duty_teams",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Basketball: further teams sharing this game's table duty besides bb_duty_team, as a team-id array. Null = single team. See migration 371.",
+        "options": {
+          "language": "json"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "bb_extra_duty_teams",
+        "table": "games",
+        "data_type": "json",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "carpool_enabled",
+      "type": "boolean",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "carpool_enabled",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Car pooling: show the offer / request rides board on this activity. Default off.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 61,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "carpool_enabled",
+        "table": "games",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "carpool_teams",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "carpool_teams",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Car pooling: team ids the rides board is open to. Empty = everyone who can see this activity.",
+        "options": {
+          "language": "json"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 62,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "carpool_teams",
+        "table": "games",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_sets_json",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_sets_json",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Provisional set scores, shown until the official result arrives (read-only).",
+        "options": {
+          "language": "json"
+        },
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 210,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "provisional_sets_json",
+        "table": "games",
+        "data_type": "json",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_opponent_report",
+      "type": "json",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_opponent_report",
+        "group": null,
+        "hidden": false,
+        "interface": "input-code",
+        "note": "Opponent's Volleymanager result report as last read (read-only).",
+        "options": {
+          "language": "json"
+        },
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 221,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "vm_opponent_report",
+        "table": "games",
+        "data_type": "json",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_status",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_status",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Volleymanager result push status (read-only, written by the endpoint + worker).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 216,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_status",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_claimed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_claimed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Result push row lease (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 219,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_claimed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_by_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Who entered the provisional result (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 214,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "provisional_by_name",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_checked_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_checked_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Last Volleymanager read of the result reports (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 222,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_checked_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_report_id",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_report_id",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Our Volleymanager gameResultReport uuid (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 220,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_report_id",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 64,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "When the provisional result was stored (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 215,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "provisional_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_error",
+      "type": "text",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_error",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Last result push failure or skip reason (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 217,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_error",
+        "table": "games",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "vm_result_pushed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vm_result_pushed_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Last successful result report to Volleymanager (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 218,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vm_result_pushed_at",
+        "table": "games",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_source",
+      "type": "string",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_source",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "own / opponent / confirmed / vm_official (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 213,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "provisional_source",
+        "table": "games",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_home_score",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_home_score",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Provisional sets won by the home team (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 211,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "provisional_home_score",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "games",
+      "field": "provisional_away_score",
+      "type": "integer",
+      "meta": {
+        "collection": "games",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "provisional_away_score",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Provisional sets won by the away team (read-only).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 212,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "provisional_away_score",
+        "table": "games",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     }
   ],
   "relations": [
     {
-      "collection": "carpools",
+      "collection": "game_guest_teams",
       "field": "game",
       "related_collection": "games",
       "meta": {
         "junction_field": null,
-        "many_collection": "carpools",
+        "many_collection": "game_guest_teams",
         "many_field": "game",
         "one_allowed_collections": null,
         "one_collection": "games",
@@ -1887,15 +3816,49 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "game_guest_teams",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "game_guest_teams_game_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
-      "collection": "game_scheduling_bookings",
+      "collection": "game_guests",
       "field": "game",
       "related_collection": "games",
       "meta": {
         "junction_field": null,
-        "many_collection": "game_scheduling_bookings",
+        "many_collection": "game_guests",
+        "many_field": "game",
+        "one_allowed_collections": null,
+        "one_collection": "games",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": "guests",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_guests",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "game_guests_game_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_roster_officials",
+      "field": "game",
+      "related_collection": "games",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_roster_officials",
         "many_field": "game",
         "one_allowed_collections": null,
         "one_collection": "games",
@@ -1903,6 +3866,40 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "game_roster_officials",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "game_roster_officials_game_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_rosters",
+      "field": "game",
+      "related_collection": "games",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_rosters",
+        "many_field": "game",
+        "one_allowed_collections": null,
+        "one_collection": "games",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_rosters",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "game_rosters_game_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1938,22 +3935,6 @@
       }
     },
     {
-      "collection": "game_scheduling_slots",
-      "field": "game",
-      "related_collection": "games",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "game_scheduling_slots",
-        "many_field": "game",
-        "one_allowed_collections": null,
-        "one_collection": "games",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
       "collection": "games",
       "field": "kscw_team",
       "related_collection": "teams",
@@ -1965,8 +3946,17 @@
         "one_collection": "teams",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
-        "one_field": null,
+        "one_field": "games",
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "kscw_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_kscw_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1983,6 +3973,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "hall",
+        "foreign_key_table": "halls",
+        "foreign_key_column": "id",
+        "constraint_name": "games_hall_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1999,6 +3998,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2015,6 +4023,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scoreboard_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scoreboard_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2031,6 +4048,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_scoreboard_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_scoreboard_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2047,6 +4073,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2063,6 +4098,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scoreboard_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scoreboard_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2079,6 +4123,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_scoreboard_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_scoreboard_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2095,6 +4148,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_scorer_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_scorer_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2111,6 +4173,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_timekeeper_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_timekeeper_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2127,6 +4198,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_24s_official",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_24s_official_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2143,6 +4223,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2159,6 +4248,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_scorer_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_scorer_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2175,6 +4273,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_timekeeper_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_timekeeper_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2191,6 +4298,90 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_24s_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_24s_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_duty_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "games",
+        "many_field": "referee_duty_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "referee_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_referee_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "games",
+        "many_field": "referee_member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "referee_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_referee_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "live_match_logs",
+      "field": "game_id",
+      "related_collection": "games",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "live_match_logs",
+        "many_field": "game_id",
+        "one_allowed_collections": null,
+        "one_collection": "games",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "live_match_logs",
+        "column": "game_id",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "live_match_logs_game_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2207,6 +4398,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "game",
+        "foreign_key_table": "games",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_game_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {

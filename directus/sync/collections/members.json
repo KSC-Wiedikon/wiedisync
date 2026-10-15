@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "members",
       "color": "#4A55A2",
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -38,7 +40,7 @@
         "display": null,
         "display_options": null,
         "field": "id",
-        "group": null,
+        "group": "grp_account",
         "hidden": true,
         "interface": "numeric",
         "note": null,
@@ -46,7 +48,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 1,
+        "sort": 5,
         "special": null,
         "translations": null,
         "validation": null,
@@ -82,7 +84,7 @@
         "display": null,
         "display_options": null,
         "field": "email",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -90,7 +92,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 2,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -126,7 +128,7 @@
         "display": null,
         "display_options": null,
         "field": "first_name",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -134,7 +136,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 3,
+        "sort": 2,
         "special": null,
         "translations": null,
         "validation": null,
@@ -170,7 +172,7 @@
         "display": null,
         "display_options": null,
         "field": "last_name",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -178,7 +180,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 4,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -214,7 +216,7 @@
         "display": null,
         "display_options": null,
         "field": "phone",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -258,15 +260,15 @@
         "display": null,
         "display_options": null,
         "field": "license_nr",
-        "group": null,
+        "group": "grp_sport",
         "hidden": false,
         "interface": "input",
-        "note": null,
+        "note": "Licence number — imported from the sport association (Swiss Volley or Basketplan)",
         "options": null,
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 6,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -302,7 +304,7 @@
         "display": null,
         "display_options": null,
         "field": "number",
-        "group": null,
+        "group": "grp_sport",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -310,7 +312,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 7,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -346,7 +348,7 @@
         "display": null,
         "display_options": null,
         "field": "position",
-        "group": null,
+        "group": "grp_sport",
         "hidden": false,
         "interface": "select-multiple-dropdown",
         "note": null,
@@ -405,7 +407,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 8,
+        "sort": 2,
         "special": [
           "cast-json"
         ],
@@ -417,7 +419,7 @@
       "schema": {
         "name": "position",
         "table": "members",
-        "data_type": "json",
+        "data_type": "jsonb",
         "default_value": null,
         "max_length": null,
         "numeric_precision": null,
@@ -443,7 +445,7 @@
         "display": null,
         "display_options": null,
         "field": "photo",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "file",
         "note": null,
@@ -451,7 +453,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 9,
+        "sort": 6,
         "special": [
           "file"
         ],
@@ -475,8 +477,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "directus_files",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -489,7 +491,7 @@
         "display": null,
         "display_options": null,
         "field": "role",
-        "group": null,
+        "group": "grp_account",
         "hidden": false,
         "interface": "select-multiple-dropdown",
         "note": null,
@@ -502,6 +504,10 @@
             {
               "text": "vorstand",
               "value": "vorstand"
+            },
+            {
+              "text": "finance",
+              "value": "finance"
             },
             {
               "text": "admin",
@@ -518,17 +524,13 @@
             {
               "text": "superuser",
               "value": "superuser"
-            },
-            {
-              "text": "finance",
-              "value": "finance"
             }
           ]
         },
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 10,
+        "sort": 4,
         "special": [
           "cast-json"
         ],
@@ -540,7 +542,7 @@
       "schema": {
         "name": "role",
         "table": "members",
-        "data_type": "json",
+        "data_type": "jsonb",
         "default_value": null,
         "max_length": null,
         "numeric_precision": null,
@@ -566,7 +568,7 @@
         "display": null,
         "display_options": null,
         "field": "kscw_membership_active",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -574,7 +576,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 11,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -610,7 +612,7 @@
         "display": null,
         "display_options": null,
         "field": "birthdate",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "datetime",
         "note": null,
@@ -618,7 +620,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 12,
+        "sort": 7,
         "special": null,
         "translations": null,
         "validation": null,
@@ -646,79 +648,6 @@
     },
     {
       "collection": "members",
-      "field": "licences",
-      "type": "json",
-      "meta": {
-        "collection": "members",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "licences",
-        "group": null,
-        "hidden": false,
-        "interface": "select-multiple-dropdown",
-        "note": null,
-        "options": {
-          "choices": [
-            {
-              "text": "scorer_vb",
-              "value": "scorer_vb"
-            },
-            {
-              "text": "referee_vb",
-              "value": "referee_vb"
-            },
-            {
-              "text": "otr1_bb",
-              "value": "otr1_bb"
-            },
-            {
-              "text": "otr2_bb",
-              "value": "otr2_bb"
-            },
-            {
-              "text": "otn_bb",
-              "value": "otn_bb"
-            },
-            {
-              "text": "referee_bb",
-              "value": "referee_bb"
-            }
-          ]
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 14,
-        "special": [
-          "cast-json"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "licences",
-        "table": "members",
-        "data_type": "json",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "members",
       "field": "coach_approved_team",
       "type": "boolean",
       "meta": {
@@ -727,7 +656,7 @@
         "display": null,
         "display_options": null,
         "field": "coach_approved_team",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -735,7 +664,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 15,
+        "sort": 7,
         "special": null,
         "translations": null,
         "validation": null,
@@ -771,7 +700,7 @@
         "display": null,
         "display_options": null,
         "field": "language",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "select-dropdown",
         "note": null,
@@ -802,7 +731,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 16,
+        "sort": 9,
         "special": null,
         "translations": null,
         "validation": null,
@@ -838,7 +767,7 @@
         "display": null,
         "display_options": null,
         "field": "hide_phone",
-        "group": null,
+        "group": "grp_privacy",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -846,7 +775,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 17,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -882,7 +811,7 @@
         "display": null,
         "display_options": null,
         "field": "birthdate_visibility",
-        "group": null,
+        "group": "grp_privacy",
         "hidden": false,
         "interface": "select-dropdown",
         "note": null,
@@ -905,7 +834,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 18,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -916,7 +845,7 @@
         "name": "birthdate_visibility",
         "table": "members",
         "data_type": "character varying",
-        "default_value": "full",
+        "default_value": "hidden",
         "max_length": 255,
         "numeric_precision": null,
         "numeric_scale": null,
@@ -941,7 +870,7 @@
         "display": null,
         "display_options": null,
         "field": "website_visible",
-        "group": null,
+        "group": "grp_privacy",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -949,7 +878,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 19,
+        "sort": 4,
         "special": null,
         "translations": null,
         "validation": null,
@@ -985,7 +914,7 @@
         "display": null,
         "display_options": null,
         "field": "wiedisync_active",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -993,7 +922,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 20,
+        "sort": 2,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1029,7 +958,7 @@
         "display": null,
         "display_options": null,
         "field": "shell",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -1037,7 +966,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 21,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1073,7 +1002,7 @@
         "display": null,
         "display_options": null,
         "field": "shell_expires",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "datetime",
         "note": null,
@@ -1081,7 +1010,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 22,
+        "sort": 4,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1117,7 +1046,7 @@
         "display": null,
         "display_options": null,
         "field": "shell_reminder_sent",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -1125,7 +1054,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 23,
+        "sort": 5,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1163,7 +1092,7 @@
           "template": "{{name}}"
         },
         "field": "requested_team",
-        "group": null,
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "select-dropdown-m2o",
         "note": null,
@@ -1171,7 +1100,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 24,
+        "sort": 6,
         "special": [
           "m2o"
         ],
@@ -1195,8 +1124,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1211,7 +1140,7 @@
           "template": "{{first_name}} {{last_name}}"
         },
         "field": "user",
-        "group": null,
+        "group": "grp_account",
         "hidden": false,
         "interface": "select-dropdown-m2o",
         "note": null,
@@ -1219,7 +1148,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 25,
+        "sort": 1,
         "special": [
           "m2o"
         ],
@@ -1243,8 +1172,8 @@
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "directus_users",
+        "foreign_key_column": "id"
       }
     },
     {
@@ -1257,7 +1186,7 @@
         "display": null,
         "display_options": null,
         "field": "date_created",
-        "group": null,
+        "group": "grp_account",
         "hidden": true,
         "interface": "datetime",
         "note": null,
@@ -1265,7 +1194,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 26,
+        "sort": 6,
         "special": [
           "date-created"
         ],
@@ -1303,7 +1232,7 @@
         "display": null,
         "display_options": null,
         "field": "date_updated",
-        "group": null,
+        "group": "grp_account",
         "hidden": true,
         "interface": "datetime",
         "note": null,
@@ -1311,7 +1240,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 27,
+        "sort": 7,
         "special": [
           "date-updated"
         ],
@@ -1341,7 +1270,7 @@
     },
     {
       "collection": "members",
-      "field": "is_spielplaner",
+      "field": "is_scheduler",
       "type": "boolean",
       "meta": {
         "collection": "members",
@@ -1351,8 +1280,8 @@
           "colorOff": "#676673",
           "colorOn": "#4270F1"
         },
-        "field": "is_spielplaner",
-        "group": null,
+        "field": "is_scheduler",
+        "group": "grp_club_status",
         "hidden": false,
         "interface": "boolean",
         "note": null,
@@ -1360,7 +1289,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 28,
+        "sort": 10,
         "special": [
           "cast-boolean"
         ],
@@ -1370,7 +1299,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "is_spielplaner",
+        "name": "is_scheduler",
         "table": "members",
         "data_type": "boolean",
         "default_value": false,
@@ -1398,15 +1327,15 @@
         "display": null,
         "display_options": null,
         "field": "licence_category",
-        "group": null,
+        "group": "grp_licences_vb",
         "hidden": false,
         "interface": "input",
-        "note": "SV licence category — synced from Volleymanager",
+        "note": "Licence category — imported from the sport association (Swiss Volley or Basketplan)",
         "options": null,
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 29,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1442,7 +1371,7 @@
         "display": null,
         "display_options": null,
         "field": "licence_activated",
-        "group": null,
+        "group": "grp_licences_vb",
         "hidden": false,
         "interface": "boolean",
         "note": "SV licence activated — synced from Volleymanager",
@@ -1450,7 +1379,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 30,
+        "sort": 2,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1486,7 +1415,7 @@
         "display": null,
         "display_options": null,
         "field": "licence_validated",
-        "group": null,
+        "group": "grp_licences_vb",
         "hidden": false,
         "interface": "boolean",
         "note": "SV licence validated — synced from Volleymanager",
@@ -1494,7 +1423,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 31,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1530,7 +1459,7 @@
         "display": null,
         "display_options": null,
         "field": "vm_email",
-        "group": null,
+        "group": "grp_licences_vb",
         "hidden": false,
         "interface": "input",
         "note": "Email from Volleymanager (synced monthly)",
@@ -1538,7 +1467,7 @@
         "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 32,
+        "sort": 4,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1574,7 +1503,7 @@
         "display": "labels",
         "display_options": null,
         "field": "sex",
-        "group": null,
+        "group": "grp_identity",
         "hidden": false,
         "interface": "select-dropdown",
         "note": null,
@@ -1593,7 +1522,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 33,
+        "sort": 8,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1621,15 +1550,15 @@
     },
     {
       "collection": "members",
-      "field": "adresse",
+      "field": "address",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "adresse",
-        "group": null,
+        "field": "address",
+        "group": "grp_address",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -1637,7 +1566,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 1,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1645,7 +1574,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "adresse",
+        "name": "address",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1665,15 +1594,15 @@
     },
     {
       "collection": "members",
-      "field": "plz",
+      "field": "postal_code",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "plz",
-        "group": null,
+        "field": "postal_code",
+        "group": "grp_address",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -1681,7 +1610,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 2,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1689,7 +1618,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "plz",
+        "name": "postal_code",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1709,15 +1638,15 @@
     },
     {
       "collection": "members",
-      "field": "ort",
+      "field": "city",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "ort",
-        "group": null,
+        "field": "city",
+        "group": "grp_address",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -1725,7 +1654,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1733,7 +1662,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "ort",
+        "name": "city",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1753,23 +1682,35 @@
     },
     {
       "collection": "members",
-      "field": "nationalitaet",
+      "field": "salutation",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "nationalitaet",
-        "group": null,
+        "field": "salutation",
+        "group": "grp_address",
         "hidden": false,
-        "interface": "input",
+        "interface": "select-dropdown",
         "note": null,
-        "options": null,
+        "options": {
+          "allowNone": true,
+          "choices": [
+            {
+              "text": "Mr",
+              "value": "mr"
+            },
+            {
+              "text": "Ms",
+              "value": "ms"
+            }
+          ]
+        },
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 4,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1777,51 +1718,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "nationalitaet",
-        "table": "members",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 100,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "members",
-      "field": "anrede",
-      "type": "string",
-      "meta": {
-        "collection": "members",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "anrede",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": null,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "anrede",
+        "name": "salutation",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1841,15 +1738,15 @@
     },
     {
       "collection": "members",
-      "field": "ahv_nummer",
+      "field": "ahv_number",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "ahv_nummer",
-        "group": null,
+        "field": "ahv_number",
+        "group": "grp_address",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -1857,7 +1754,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 5,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1865,7 +1762,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "ahv_nummer",
+        "name": "ahv_number",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1885,15 +1782,15 @@
     },
     {
       "collection": "members",
-      "field": "beitragskategorie",
+      "field": "fee_category",
       "type": "string",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "beitragskategorie",
-        "group": null,
+        "field": "fee_category",
+        "group": "grp_address",
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -1901,7 +1798,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": null,
+        "sort": 8,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1909,7 +1806,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "beitragskategorie",
+        "name": "fee_category",
         "table": "members",
         "data_type": "character varying",
         "default_value": null,
@@ -1937,7 +1834,7 @@
         "display": null,
         "display_options": null,
         "field": "last_online_at",
-        "group": null,
+        "group": "grp_account",
         "hidden": false,
         "interface": "datetime",
         "note": null,
@@ -1945,7 +1842,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 38,
+        "sort": 4,
         "special": null,
         "translations": null,
         "validation": null,
@@ -1973,14 +1870,2908 @@
     },
     {
       "collection": "members",
-      "field": "spielplaner_assignments",
+      "field": "scheduler_assignments",
       "type": "alias",
       "meta": {
         "collection": "members",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "spielplaner_assignments",
+        "field": "scheduler_assignments",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": null,
+        "options": {
+          "template": "{{kscw_team.name}} · {{date_created}}"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 11,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "member_teams",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "member_teams",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 12,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "hide_email",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "hide_email",
+        "group": "grp_privacy",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Hide email from other members (mirrors hide_phone). Enforced server-side.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "hide_email",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "scorer_vb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "scorer_vb",
+        "group": "grp_licences_vb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Has the volleyball Schreiber licence (auto-managed by SVRZ sync).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "scorer_vb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "referee_vb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "referee_vb",
+        "group": "grp_licences_vb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Has the volleyball referee licence.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_vb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "otr1_bb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "otr1_bb",
+        "group": "grp_licences_bb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Basketball OTR1 table official.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "otr1_bb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "otr2_bb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "otr2_bb",
+        "group": "grp_licences_bb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Basketball OTR2 table official.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "otr2_bb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "referee_bb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "referee_bb",
+        "group": "grp_licences_bb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Basketball referee licence.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "referee_bb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "auto_confirm_trainings",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_confirm_trainings",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Auto-confirm this member on new trainings (member opt-in, OR-ed with the team setting).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "auto_confirm_trainings",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "auto_confirm_games",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_confirm_games",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Auto-confirm this member on new games (member opt-in, OR-ed with the team setting).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "auto_confirm_games",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "auto_confirm_events",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "auto_confirm_events",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Auto-confirm this member on new events they are eligible for (member opt-in).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "auto_confirm_events",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "website_name_private",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "website_name_private",
+        "group": "grp_privacy",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Show only first name (+ surname initial) and hide year of birth on the public website. Enforced server-side.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "website_name_private",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "iban",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "iban",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Member bank account IBAN for reimbursements. Sensitive — own-member + admin only.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "iban",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 34,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "ical_token",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "ical_token",
+        "group": "grp_account",
+        "hidden": true,
+        "interface": "input",
+        "note": "Personal iCal subscription token (system-set). Scopes the duties feed; rotate via POST /kscw/me/ical-token/rotate.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "ical_token",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 64,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_different",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_different",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Pay expense reimbursements to an alternate contact (guardian / company). Not consulted by invoices or dues — those bill the member directly.",
+        "options": {
+          "label": "Bill a different contact (guardian / company)"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "billing_different",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_name",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_name",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Billing contact name (e.g. parent/guardian).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_name",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_email",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_email",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": {
+          "iconLeft": "mail"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_email",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_address",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_address",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "billing_address",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_postal_code",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_postal_code",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 7,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_postal_code",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 10,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_city",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_city",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 8,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_city",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 100,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_phone",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_phone",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": {
+          "iconLeft": "phone"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 9,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_phone",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "club_section",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "club_section",
+        "group": "grp_address",
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "ClubDesk section / sport division (synced, read-only).",
+        "options": {
+          "allowNone": true,
+          "choices": [
+            {
+              "text": "Volleyball",
+              "value": "volleyball"
+            },
+            {
+              "text": "Basketball",
+              "value": "basketball"
+            },
+            {
+              "text": "KSCW (club)",
+              "value": "club"
+            }
+          ]
+        },
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 9,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "club_section",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 32,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "billing_iban",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "billing_iban",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "IBAN of the billing contact (guardian/company) — pay-outs go here when \"bill a different contact\" is on.",
+        "options": {
+          "iconLeft": "account_balance"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 10,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "billing_iban",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 34,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "iban_confirmed",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "iban_confirmed",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Set when the member verifies their own IBAN on the My-finances card.",
+        "options": {
+          "label": "Member has confirmed their reimbursement IBAN"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "iban_confirmed",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "email_notify_registrations",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_notify_registrations",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Email me about new registrations (admins/sport-admins).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_notify_registrations",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "email_notify_join_requests",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_notify_join_requests",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Email me about team join requests (coaches/TRs).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_notify_join_requests",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "email_notify_form_submissions",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_notify_form_submissions",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Notify me about form submissions (push — forms send no email).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_notify_form_submissions",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "email_notify_announcements",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_notify_announcements",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Email me club news / announcement broadcasts.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 7,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_notify_announcements",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "email_notify_events",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_notify_events",
+        "group": "grp_prefs",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Email me event invitations.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 8,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_notify_events",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": true,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "uuid",
+      "type": "uuid",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "uuid",
+        "group": "grp_account",
+        "hidden": false,
+        "interface": "input",
+        "note": "Stable global member key; pushed to ClubDesk as \"Wiedisync ID\" (migration 184). System-set — never edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": [
+          "uuid"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "uuid",
+        "table": "members",
+        "data_type": "uuid",
+        "default_value": "gen_random_uuid()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "clubdesk_sync_exclude",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_sync_exclude",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Muted from the ClubDesk sync-up — never offered or pushed (migration 190).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "clubdesk_sync_exclude",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "js_id",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "js_id",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": "input",
+        "note": "J+S Personennummer (SALTO). Filled from ClubDesk; hand-editable for members ClubDesk does not cover.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "js_id",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 32,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "e2ee_public_key",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "e2ee_public_key",
+        "group": "grp_e2ee",
+        "hidden": true,
+        "interface": "input",
+        "note": "ECDH public key. Public by design.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "e2ee_public_key",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "e2ee_private_key",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "e2ee_private_key",
+        "group": "grp_e2ee",
+        "hidden": true,
+        "interface": "input",
+        "note": "Private key, encrypted under the member's password. NOT readable by anyone here.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "e2ee_private_key",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "e2ee_key_created",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "e2ee_key_created",
+        "group": "grp_e2ee",
+        "hidden": true,
+        "interface": "input",
+        "note": "When the current keypair was created.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "e2ee_key_created",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "e2ee_kdf_salt",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "e2ee_kdf_salt",
+        "group": "grp_e2ee",
+        "hidden": true,
+        "interface": "input",
+        "note": "PBKDF2 salt. Not a secret.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "e2ee_kdf_salt",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "nickname",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "nickname",
+        "group": "grp_identity",
+        "hidden": false,
+        "interface": "input",
+        "note": "Preferred display name shown instead of the first name across the app (e.g. \"Honza\"). Leave empty to use the legal first name. Official documents always use the legal name.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "nickname",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "nationality_codes",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "nationality_codes",
+        "group": "grp_address",
+        "hidden": false,
+        "interface": "input",
+        "note": "Nationality as ordered ISO 3166-1 alpha-2 codes (\"CH,IT\"). First code is primary. members.nationalitaet mirrors it automatically.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 7,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "nationality_codes",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 200,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "federation_of_origin",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "federation_of_origin",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "input",
+        "note": "Federation that FIRST licensed the member (federation of origin, not the most recent): ISO 3166-1 alpha-2 code, or empty (not answered). A first-ever licence issued here is CH.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "federation_of_origin",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 8,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "otn1_bb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "otn1_bb",
+        "group": "grp_licences_bb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Basketball OTN 1 (national table official, level 1) — from Basketplan.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "otn1_bb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "otn2_bb",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "otn2_bb",
+        "group": "grp_licences_bb",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Basketball OTN 2 (national table official, level 2) — from Basketplan.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "otn2_bb",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "transfer_status",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "transfer_status",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "International-transfer state. Empty = not reviewed, and the answer is derived from federation of origin instead. Set it on /admin/transfers, which also records who decided and when.",
+        "options": {
+          "choices": [
+            {
+              "text": "Pending",
+              "value": "pending"
+            },
+            {
+              "text": "Done",
+              "value": "done"
+            },
+            {
+              "text": "Not needed",
+              "value": "not_needed"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "transfer_status",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 16,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "transfer_done_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "transfer_done_at",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Set automatically when the transfer is marked done.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "transfer_done_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "transfer_done_by_name",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "transfer_done_by_name",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "input",
+        "note": "Who marked the transfer done.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "transfer_done_by_name",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "transfer_note",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "transfer_note",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "input-multiline",
+        "note": "Free-text note on the transfer (reference numbers, who was contacted, blockers).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "transfer_note",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "in_vis",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "in_vis",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Present in the VIS player index of their federation of origin. Set by vis-player-check.mjs; empty = not checked.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 6,
+        "special": [
+          "cast-boolean"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "in_vis",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "in_vis_checked_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "in_vis_checked_at",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "datetime",
+        "note": "When the VIS presence check last ran for this member.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 7,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "in_vis_checked_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "vis_player_no",
+      "type": "integer",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vis_player_no",
+        "group": "grp_vis",
+        "hidden": false,
+        "interface": "input",
+        "note": "FIVB VIS player number (deep-link key).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 8,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vis_player_no",
+        "table": "members",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_identity",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_identity",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "open"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 10,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Identity & contact"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_address",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_address",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 20,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Address & personal data (ClubDesk)"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_club_status",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_club_status",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 30,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Club status & lifecycle"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_sport",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_sport",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 40,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Sport identity"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_licences_vb",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_licences_vb",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 50,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "VB licences & VM sync"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_licences_bb",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_licences_bb",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "BB licences"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_prefs",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_prefs",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 70,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Notifications & auto-confirm"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_privacy",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_privacy",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 90,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Privacy & visibility"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_billing",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_billing",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 100,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Billing & finance"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_clubdesk",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_clubdesk",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 110,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "ClubDesk sync bookkeeping"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_e2ee",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_e2ee",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 120,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "E2EE key material"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_vis",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_vis",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 130,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "VIS & transfers"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "grp_account",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "grp_account",
+        "group": null,
+        "hidden": false,
+        "interface": "group-detail",
+        "note": null,
+        "options": {
+          "start": "closed"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 140,
+        "special": [
+          "alias",
+          "no-data",
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "en-US",
+            "translation": "Account & system"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "clubdesk_id",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_id",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "clubdesk_id",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 64,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "clubdesk_push_pending",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_push_pending",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "clubdesk_push_pending",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "clubdesk_push_changes",
+      "type": "json",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_push_changes",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "clubdesk_push_changes",
+        "table": "members",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "clubdesk_pushed_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_pushed_at",
+        "group": "grp_clubdesk",
+        "hidden": false,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "clubdesk_pushed_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "never_dun",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "never_dun",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": null,
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 11,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "never_dun",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "profile_verified_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "profile_verified_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Last time the member confirmed their profile is correct (annual pre-licence data check). Read-only here — it is stamped by the member's own confirmation, not by staff.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 210,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "profile_verified_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "game_guests",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "game_guests",
         "group": null,
         "hidden": false,
         "interface": "list-o2m",
@@ -1989,7 +4780,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 41,
+        "sort": null,
         "special": [
           "o2m"
         ],
@@ -1997,6 +4788,1198 @@
         "validation": null,
         "validation_message": null,
         "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "trainer_licences",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "trainer_licences",
+        "group": "grp_sport",
+        "hidden": false,
+        "interface": "input",
+        "note": "Coaching education (Trainerausbildung): comma-separated subset of JS, C, B, A (e.g. \"JS,B\"). J+S is a separate track from the C/B/A ladder, so several are allowed. Case/order/spacing are normalized on save; anything outside the four codes is rejected.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 45,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "trainer_licences",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 20,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "fee_surcharge_override",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "fee_surcharge_override",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Does this member owe the CHF 100 no-Schreiberlizenz surcharge? Leave EMPTY to follow the rule (charged when they owe table duty and hold no licence) — that is the normal case and keeps tracking their licence. Yes charges it regardless, No waives it.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 61,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "fee_surcharge_override",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "fee_base_override",
+      "type": "decimal",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "fee_base_override",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Mitgliederbeitrag base in CHF for this member only. Leave EMPTY to use the season rate for their fee category — that is the normal case. A value here overrides both the rate schedule and the category map.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "fee_base_override",
+        "table": "members",
+        "data_type": "numeric",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 10,
+        "numeric_scale": 2,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "fee_discount",
+      "type": "decimal",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "fee_discount",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Standing reduction in CHF taken off this member's dues. Capped at what is owed — it can reach 0, never below.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 62,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "fee_discount",
+        "table": "members",
+        "data_type": "numeric",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 10,
+        "numeric_scale": 2,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "fee_discount_reason",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "fee_discount_reason",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Credit-line label printed on the invoice for the discount above. Empty = \"Rabatt\".",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 63,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "fee_discount_reason",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 120,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "fee_discount_pct",
+      "type": "decimal",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "fee_discount_pct",
+        "group": "grp_billing",
+        "hidden": false,
+        "interface": "input",
+        "note": "Standing reduction as a percentage of what this member owes. Use this OR the CHF discount, never both — the database rejects a row with both.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 63,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "fee_discount_pct",
+        "table": "members",
+        "data_type": "numeric",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 5,
+        "numeric_scale": 2,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "licence_status_updated_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "licence_status_updated_at",
+        "group": "grp_sport",
+        "hidden": true,
+        "interface": "datetime",
+        "note": "When the licence status last changed.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 48,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "licence_status_updated_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "licence_status",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "licence_status",
+        "group": "grp_sport",
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "Licence-ordering workflow for the current season. \"Licenced\" is set by the Swiss Volley / Basketplan sync and means the federation confirmed it — set it by hand only to correct the machine.",
+        "options": {
+          "choices": [
+            {
+              "text": "No licence",
+              "value": "none"
+            },
+            {
+              "text": "To be ordered",
+              "value": "to_be_ordered"
+            },
+            {
+              "text": "Ordered",
+              "value": "ordered"
+            },
+            {
+              "text": "Finalized",
+              "value": "finalized"
+            },
+            {
+              "text": "Licenced",
+              "value": "licenced"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 46,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "licence_status",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": "none",
+        "max_length": 20,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "licence_status_by_name",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "licence_status_by_name",
+        "group": "grp_sport",
+        "hidden": true,
+        "interface": "input",
+        "note": "Who last changed the licence status — a person, or the sync that confirmed it.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 49,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "licence_status_by_name",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 120,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "licence_status_season",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "licence_status_season",
+        "group": "grp_sport",
+        "hidden": false,
+        "interface": "input",
+        "note": "The season the status above describes (\"2026/27\"). Reset automatically at the 1 June rollover.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 47,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "licence_status_season",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 9,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "register_status",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "register_status",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "The club register's membership status. Two-way with ClubDesk: an edit here rides the next approved sync-up into the register.",
+        "options": {
+          "allowNone": true,
+          "choices": [
+            {
+              "text": "Aktivmitglied",
+              "value": "active"
+            },
+            {
+              "text": "Passivmitglied",
+              "value": "passive"
+            },
+            {
+              "text": "Ehrenmitglied",
+              "value": "honorary"
+            },
+            {
+              "text": "Zwischenjahr",
+              "value": "gap_year"
+            },
+            {
+              "text": "Ehemaliges Mitglied",
+              "value": "former"
+            },
+            {
+              "text": "Kein Mitglied",
+              "value": "non_member"
+            },
+            {
+              "text": "Verstorben",
+              "value": "deceased"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "register_status",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 24,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "joined_on",
+      "type": "date",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "joined_on",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Club entry date (ClubDesk \"Eintritt\").",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "joined_on",
+        "table": "members",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "left_on",
+      "type": "date",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "left_on",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Club exit date (ClubDesk \"Austritt\"). Only settable alongside a departed status.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 5,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "left_on",
+        "table": "members",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "vis_player_no_manual",
+      "type": "integer",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vis_player_no_manual",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Hand-set VIS player number. Overrides name matching once the check confirms it exists in the federation index.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 209,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vis_player_no_manual",
+        "table": "members",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "vis_manual_vis_name",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "vis_manual_vis_name",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "How VIS spells the manually linked player. Empty after a check means the number was not found.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 210,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "vis_manual_vis_name",
+        "table": "members",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "cantonal_school",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "cantonal_school",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "Which Zurich Kantonsschule this member attends. \"Nein\" = asked and not at one; empty = never asked. Not a ClubDesk field — wiedisync owns it.",
+        "options": {
+          "allowNone": true,
+          "allowOther": true,
+          "choices": [
+            {
+              "text": "None",
+              "value": "none"
+            },
+            {
+              "text": "KS Wiedikon",
+              "value": "KS Wiedikon"
+            },
+            {
+              "text": "KS Birch",
+              "value": "KS Birch"
+            },
+            {
+              "text": "KS Büelrain",
+              "value": "KS Büelrain"
+            },
+            {
+              "text": "KS Bülach",
+              "value": "KS Bülach"
+            },
+            {
+              "text": "KS Dübendorf",
+              "value": "KS Dübendorf"
+            },
+            {
+              "text": "KS Enge",
+              "value": "KS Enge"
+            },
+            {
+              "text": "KS Freudenberg",
+              "value": "KS Freudenberg"
+            },
+            {
+              "text": "KS Hohe Promenade",
+              "value": "KS Hohe Promenade"
+            },
+            {
+              "text": "KS Hottingen",
+              "value": "KS Hottingen"
+            },
+            {
+              "text": "KS Im Lee",
+              "value": "KS Im Lee"
+            },
+            {
+              "text": "KS Küsnacht",
+              "value": "KS Küsnacht"
+            },
+            {
+              "text": "KS Limmattal",
+              "value": "KS Limmattal"
+            },
+            {
+              "text": "KS Oerlikon",
+              "value": "KS Oerlikon"
+            },
+            {
+              "text": "KS Rämibühl (Literargymnasium)",
+              "value": "KS Rämibühl (Literargymnasium)"
+            },
+            {
+              "text": "KS Rämibühl (MN-Gymnasium)",
+              "value": "KS Rämibühl (MN-Gymnasium)"
+            },
+            {
+              "text": "KS Rämibühl (Realgymnasium)",
+              "value": "KS Rämibühl (Realgymnasium)"
+            },
+            {
+              "text": "KS Riesbach",
+              "value": "KS Riesbach"
+            },
+            {
+              "text": "KS Rychenberg",
+              "value": "KS Rychenberg"
+            },
+            {
+              "text": "KS Stadelhofen",
+              "value": "KS Stadelhofen"
+            },
+            {
+              "text": "KS Uetikon am See",
+              "value": "KS Uetikon am See"
+            },
+            {
+              "text": "KS Uster",
+              "value": "KS Uster"
+            },
+            {
+              "text": "KS Wetzikon",
+              "value": "KS Wetzikon"
+            },
+            {
+              "text": "KS Zimmerberg",
+              "value": "KS Zimmerberg"
+            },
+            {
+              "text": "KS Zürich Nord",
+              "value": "KS Zürich Nord"
+            },
+            {
+              "text": "Liceo Artistico",
+              "value": "Liceo Artistico"
+            },
+            {
+              "text": "Other",
+              "value": "other"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 20,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "cantonal_school",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 64,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "coach_of",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "coach_of",
+        "group": "grp_club_status",
+        "hidden": true,
+        "interface": "list-o2m",
+        "note": "Reverse of teams.coach — the teams this member coaches. Alias (no column); exists so a permission filter can walk member → staff team.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 13,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "team_responsible_of",
+      "type": "alias",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "team_responsible_of",
+        "group": "grp_club_status",
+        "hidden": true,
+        "interface": "list-o2m",
+        "note": "Reverse of teams.team_responsible — the teams this member is responsible for. Alias (no column); exists so a permission filter can walk member → staff team.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 14,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "deactivated_at",
+      "type": "timestamp",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "deactivated_at",
+        "group": "grp_club_status",
+        "hidden": false,
+        "interface": "datetime",
+        "note": "When the club membership was last switched off. Set and cleared by trigger — the start of any retention period for an ex-member.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 15,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "deactivated_at",
+        "table": "members",
+        "data_type": "timestamp with time zone",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "dues_paid",
+      "type": "boolean",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "dues_paid",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Derived: a paid membership-dues invoice for the current season is linked to this member. Recomputed from finance_invoices — never edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 230,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "dues_paid",
+        "table": "members",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "dues_paid_season",
+      "type": "string",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "dues_paid_season",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Derived: the season the paid dues invoice bills (e.g. 2026/27).",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 231,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "dues_paid_season",
+        "table": "members",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 9,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "dues_paid_at",
+      "type": "date",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "dues_paid_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Derived: when the dues invoice was settled.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 232,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "dues_paid_at",
+        "table": "members",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "licence_ordered_at",
+      "type": "date",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "licence_ordered_at",
+        "group": null,
+        "hidden": false,
+        "interface": "datetime",
+        "note": "Day the licence was set to ordered — ClubDesk \"Lizenz bestellt\" (basketball)",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "licence_ordered_at",
+        "table": "members",
+        "data_type": "date",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "members",
+      "field": "permissions_section",
+      "type": "text",
+      "meta": {
+        "collection": "members",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "permissions_section",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Derived (migration 406): volleyball | basketball | both. Kept by triggers; writes are ignored.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "permissions_section",
+        "table": "members",
+        "data_type": "text",
+        "default_value": "both",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
       }
     }
   ],
@@ -2027,6 +6010,31 @@
       }
     },
     {
+      "collection": "announcement_recipients",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "announcement_recipients",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "announcement_recipients",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "announcement_recipients_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
       "collection": "announcements",
       "field": "created_by",
       "related_collection": "members",
@@ -2052,13 +6060,13 @@
       }
     },
     {
-      "collection": "carpool_passengers",
-      "field": "passenger",
+      "collection": "basketball_hall_availability",
+      "field": "created_by",
       "related_collection": "members",
       "meta": {
         "junction_field": null,
-        "many_collection": "carpool_passengers",
-        "many_field": "passenger",
+        "many_collection": "basketball_hall_availability",
+        "many_field": "created_by",
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
@@ -2067,23 +6075,23 @@
         "sort_field": null
       },
       "schema": {
-        "table": "carpool_passengers",
-        "column": "passenger",
+        "table": "basketball_hall_availability",
+        "column": "created_by",
         "foreign_key_table": "members",
         "foreign_key_column": "id",
-        "constraint_name": "carpool_passengers_passenger_foreign",
+        "constraint_name": "basketball_hall_availability_created_by_fkey",
         "on_update": "NO ACTION",
-        "on_delete": "CASCADE"
+        "on_delete": "SET NULL"
       }
     },
     {
-      "collection": "carpools",
-      "field": "driver",
+      "collection": "basketball_slot_plan",
+      "field": "created_by",
       "related_collection": "members",
       "meta": {
         "junction_field": null,
-        "many_collection": "carpools",
-        "many_field": "driver",
+        "many_collection": "basketball_slot_plan",
+        "many_field": "created_by",
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
@@ -2092,13 +6100,63 @@
         "sort_field": null
       },
       "schema": {
-        "table": "carpools",
-        "column": "driver",
+        "table": "basketball_slot_plan",
+        "column": "created_by",
         "foreign_key_table": "members",
         "foreign_key_column": "id",
-        "constraint_name": "carpools_driver_foreign",
+        "constraint_name": "basketball_slot_plan_created_by_fkey",
         "on_update": "NO ACTION",
-        "on_delete": "CASCADE"
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "basketball_slots",
+      "field": "created_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_slots",
+        "many_field": "created_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_slots",
+        "column": "created_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_slots_created_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "basketball_team_rules",
+      "field": "created_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_team_rules",
+        "many_field": "created_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_team_rules",
+        "column": "created_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_rules_created_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2128,7 +6186,7 @@
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": null,
         "sort_field": null
       },
@@ -2138,6 +6196,406 @@
         "foreign_key_table": "members",
         "foreign_key_column": "id",
         "constraint_name": "events_members_members_id_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "finance_expenses",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_expenses",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_expenses",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_expenses_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "finance_invoice_member_overrides",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoice_member_overrides",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoice_member_overrides",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoice_member_overrides_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "finance_invoice_self_reports",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoice_self_reports",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoice_self_reports",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoice_self_reports_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "finance_invoices",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoices",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoices",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoices_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_invoices",
+      "field": "reported_paid_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoices",
+        "many_field": "reported_paid_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoices",
+        "column": "reported_paid_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoices_reported_paid_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_payouts",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_payouts",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_payouts",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_payouts_member_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "updated_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fine_rules",
+        "many_field": "updated_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fine_rules",
+        "column": "updated_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fine_rules_updated_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "fines",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fines",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fines",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fines_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "fines",
+      "field": "issued_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fines",
+        "many_field": "issued_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fines",
+        "column": "issued_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fines_issued_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "fines",
+      "field": "waived_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fines",
+        "many_field": "waived_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fines",
+        "column": "waived_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fines_waived_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "fines",
+      "field": "paid_received_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fines",
+        "many_field": "paid_received_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fines",
+        "column": "paid_received_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "fines_paid_received_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "form_submissions",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "form_submissions",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "form_submissions",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "form_submissions_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "forms",
+      "field": "created_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "forms",
+        "many_field": "created_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "forms",
+        "column": "created_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "forms_created_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "game_guests",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_guests",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": "game_guests",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_guests",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "game_guests_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_roster_officials",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_roster_officials",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_roster_officials",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "game_roster_officials_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "game_rosters",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_rosters",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_rosters",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "game_rosters_member_fkey",
         "on_update": "NO ACTION",
         "on_delete": "SET NULL"
       }
@@ -2156,6 +6614,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2172,6 +6639,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scoreboard_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scoreboard_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2188,6 +6664,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_scoreboard_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_scoreboard_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2204,6 +6689,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_scorer_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_scorer_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2220,6 +6714,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_timekeeper_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_timekeeper_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2236,6 +6739,90 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_24s_official",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_24s_official_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "games",
+        "many_field": "referee_member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "referee_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "games_referee_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "identity_document_keys",
+      "field": "recipient",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "identity_document_keys",
+        "many_field": "recipient",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "identity_document_keys",
+        "column": "recipient",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "identity_document_keys_recipient_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "identity_documents",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "identity_documents",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "identity_documents",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "identity_documents_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -2249,8 +6836,8 @@
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
+        "one_deselect_action": "delete",
+        "one_field": "member_teams",
         "sort_field": null
       },
       "schema": {
@@ -2277,6 +6864,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "members",
+        "column": "requested_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "members_requested_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2293,6 +6889,40 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "members",
+        "column": "user",
+        "foreign_key_table": "directus_users",
+        "foreign_key_column": "id",
+        "constraint_name": "members_user_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "members",
+      "field": "photo",
+      "related_collection": "directus_files",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "members",
+        "many_field": "photo",
+        "one_allowed_collections": null,
+        "one_collection": "directus_files",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "members",
+        "column": "photo",
+        "foreign_key_table": "directus_files",
+        "foreign_key_column": "id",
+        "constraint_name": "members_photo_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2425,6 +7055,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "paid_by_member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_paid_by_member_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
       }
     },
     {
@@ -2441,6 +7080,115 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "recorded_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_recorded_by_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "registrations",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "registrations",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "registrations",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "registrations_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "scheduler_assignments",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduler_assignments",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": "scheduler_assignments",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduler_assignments",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduler_assignments_member_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "scheduling_blocks",
+      "field": "created_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduling_blocks",
+        "many_field": "created_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduling_blocks",
+        "column": "created_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduling_blocks_created_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "scheduling_email_reads",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduling_email_reads",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduling_email_reads",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduling_email_reads_member_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -2519,95 +7267,6 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
-      "field": "member",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "spielplaner_assignments",
-        "many_field": "member",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": "spielplaner_assignments",
-        "sort_field": null
-      },
-      "schema": {
-        "table": "spielplaner_assignments",
-        "column": "member",
-        "foreign_key_table": "members",
-        "foreign_key_column": "id",
-        "constraint_name": "spielplaner_assignments_member_fkey",
-        "on_update": "NO ACTION",
-        "on_delete": "CASCADE"
-      }
-    },
-    {
-      "collection": "task_templates",
-      "field": "created_by",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "task_templates",
-        "many_field": "created_by",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "assigned_to",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "assigned_to",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "claimed_by",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "claimed_by",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
-      "collection": "tasks",
-      "field": "created_by",
-      "related_collection": "members",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "tasks",
-        "many_field": "created_by",
-        "one_allowed_collections": null,
-        "one_collection": "members",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
       "collection": "team_invites",
       "field": "invited_by",
       "related_collection": "members",
@@ -2637,6 +7296,31 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      }
+    },
+    {
+      "collection": "team_links",
+      "field": "created_by",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "team_links",
+        "many_field": "created_by",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "team_links",
+        "column": "created_by",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_links_created_by_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -2676,7 +7360,7 @@
         "one_collection": "members",
         "one_collection_field": null,
         "one_deselect_action": "delete",
-        "one_field": null,
+        "one_field": "coach_of",
         "sort_field": null
       },
       "schema": {
@@ -2701,7 +7385,7 @@
         "one_collection": "members",
         "one_collection_field": null,
         "one_deselect_action": "delete",
-        "one_field": null,
+        "one_field": "team_responsible_of",
         "sort_field": null
       },
       "schema": {
@@ -2735,6 +7419,31 @@
         "foreign_key_table": "members",
         "foreign_key_column": "id",
         "constraint_name": "user_logs_user_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "vb_referee_duty",
+      "field": "referee",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "vb_referee_duty",
+        "many_field": "referee",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "vb_referee_duty",
+        "column": "referee",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "vb_referee_duty_referee_fkey",
         "on_update": "NO ACTION",
         "on_delete": "CASCADE"
       }

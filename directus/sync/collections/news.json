@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": "is_published",
       "archive_value": "false",
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "news",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": "true",
       "versioning": false

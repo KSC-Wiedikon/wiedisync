@@ -1,0 +1,34 @@
+{
+  "collection": {
+    "collection": "finance_income_account_map",
+    "meta": {
+      "accountability": "all",
+      "archive_app_filter": true,
+      "archive_field": null,
+      "archive_value": null,
+      "autosave_revision_interval": null,
+      "collapse": "open",
+      "collection": "finance_income_account_map",
+      "color": null,
+      "display_template": null,
+      "group": null,
+      "hidden": false,
+      "icon": "category",
+      "item_duplication_fields": null,
+      "note": "Dues category → income account map for auto-posting",
+      "preview_url": null,
+      "singleton": false,
+      "sort": 61,
+      "sort_field": null,
+      "status": "active",
+      "translations": null,
+      "unarchive_value": null,
+      "versioning": false
+    },
+    "schema": {
+      "name": "finance_income_account_map"
+    }
+  },
+  "fields": [],
+  "relations": []
+}

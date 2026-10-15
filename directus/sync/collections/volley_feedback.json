@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "volley_feedback",
       "color": null,
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -482,14 +484,14 @@
     },
     {
       "collection": "volley_feedback",
-      "field": "rating_verein",
+      "field": "rating_club",
       "type": "integer",
       "meta": {
         "collection": "volley_feedback",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "rating_verein",
+        "field": "rating_club",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -506,7 +508,7 @@
         "width": "half"
       },
       "schema": {
-        "name": "rating_verein",
+        "name": "rating_club",
         "table": "volley_feedback",
         "data_type": "integer",
         "default_value": null,
@@ -526,14 +528,14 @@
     },
     {
       "collection": "volley_feedback",
-      "field": "rating_vorstand",
+      "field": "rating_board",
       "type": "integer",
       "meta": {
         "collection": "volley_feedback",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "rating_vorstand",
+        "field": "rating_board",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -550,7 +552,7 @@
         "width": "half"
       },
       "schema": {
-        "name": "rating_vorstand",
+        "name": "rating_board",
         "table": "volley_feedback",
         "data_type": "integer",
         "default_value": null,
@@ -570,14 +572,14 @@
     },
     {
       "collection": "volley_feedback",
-      "field": "rating_tk_leitung",
+      "field": "rating_technical_committee",
       "type": "integer",
       "meta": {
         "collection": "volley_feedback",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "rating_tk_leitung",
+        "field": "rating_technical_committee",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -594,7 +596,7 @@
         "width": "half"
       },
       "schema": {
-        "name": "rating_tk_leitung",
+        "name": "rating_technical_committee",
         "table": "volley_feedback",
         "data_type": "integer",
         "default_value": null,
@@ -658,14 +660,14 @@
     },
     {
       "collection": "volley_feedback",
-      "field": "rating_kommunikation",
+      "field": "rating_communication",
       "type": "integer",
       "meta": {
         "collection": "volley_feedback",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "rating_kommunikation",
+        "field": "rating_communication",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -682,7 +684,7 @@
         "width": "half"
       },
       "schema": {
-        "name": "rating_kommunikation",
+        "name": "rating_communication",
         "table": "volley_feedback",
         "data_type": "integer",
         "default_value": null,

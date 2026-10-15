@@ -1,13 +1,14 @@
 {
   "collection": {
-    "collection": "spielplaner_assignments",
+    "collection": "scheduler_assignments",
     "meta": {
       "accountability": "all",
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "color": null,
       "display_template": "{{member.first_name}} {{member.last_name}} → {{kscw_team.name}}",
       "group": null,
@@ -19,21 +20,22 @@
       "singleton": false,
       "sort": null,
       "sort_field": "date_created",
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
     },
     "schema": {
-      "name": "spielplaner_assignments"
+      "name": "scheduler_assignments"
     }
   },
   "fields": [
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "date_created",
       "type": "timestamp",
       "meta": {
-        "collection": "spielplaner_assignments",
+        "collection": "scheduler_assignments",
         "conditions": null,
         "display": "datetime",
         "display_options": {
@@ -41,7 +43,7 @@
         },
         "field": "date_created",
         "group": null,
-        "hidden": true,
+        "hidden": false,
         "interface": "datetime",
         "note": null,
         "options": null,
@@ -59,9 +61,9 @@
       },
       "schema": {
         "name": "date_created",
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "data_type": "timestamp with time zone",
-        "default_value": "now()",
+        "default_value": "CURRENT_TIMESTAMP",
         "max_length": null,
         "numeric_precision": null,
         "numeric_scale": null,
@@ -77,11 +79,11 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "id",
       "type": "uuid",
       "meta": {
-        "collection": "spielplaner_assignments",
+        "collection": "scheduler_assignments",
         "conditions": null,
         "display": null,
         "display_options": null,
@@ -105,7 +107,7 @@
       },
       "schema": {
         "name": "id",
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "data_type": "uuid",
         "default_value": "gen_random_uuid()",
         "max_length": null,
@@ -123,11 +125,11 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "user_created",
       "type": "uuid",
       "meta": {
-        "collection": "spielplaner_assignments",
+        "collection": "scheduler_assignments",
         "conditions": null,
         "display": "user",
         "display_options": {
@@ -135,7 +137,7 @@
         },
         "field": "user_created",
         "group": null,
-        "hidden": true,
+        "hidden": false,
         "interface": "select-dropdown-m2o",
         "note": null,
         "options": null,
@@ -153,7 +155,7 @@
       },
       "schema": {
         "name": "user_created",
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "data_type": "uuid",
         "default_value": null,
         "max_length": null,
@@ -171,11 +173,11 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "member",
       "type": "integer",
       "meta": {
-        "collection": "spielplaner_assignments",
+        "collection": "scheduler_assignments",
         "conditions": null,
         "display": null,
         "display_options": null,
@@ -201,7 +203,7 @@
       },
       "schema": {
         "name": "member",
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "data_type": "integer",
         "default_value": null,
         "max_length": null,
@@ -209,7 +211,7 @@
         "numeric_scale": 0,
         "is_nullable": false,
         "is_unique": false,
-        "is_indexed": true,
+        "is_indexed": false,
         "is_primary_key": false,
         "is_generated": false,
         "generation_expression": null,
@@ -219,11 +221,11 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "kscw_team",
       "type": "integer",
       "meta": {
-        "collection": "spielplaner_assignments",
+        "collection": "scheduler_assignments",
         "conditions": null,
         "display": null,
         "display_options": null,
@@ -258,7 +260,7 @@
       },
       "schema": {
         "name": "kscw_team",
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "data_type": "integer",
         "default_value": null,
         "max_length": null,
@@ -278,53 +280,78 @@
   ],
   "relations": [
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "member",
       "related_collection": "members",
       "meta": {
         "junction_field": null,
-        "many_collection": "spielplaner_assignments",
+        "many_collection": "scheduler_assignments",
         "many_field": "member",
         "one_allowed_collections": null,
         "one_collection": "members",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
-        "one_field": "spielplaner_assignments",
+        "one_field": "scheduler_assignments",
         "sort_field": null
       },
       "schema": {
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "column": "member",
         "foreign_key_table": "members",
         "foreign_key_column": "id",
-        "constraint_name": "spielplaner_assignments_member_fkey",
+        "constraint_name": "scheduler_assignments_member_foreign",
         "on_update": "NO ACTION",
         "on_delete": "CASCADE"
       }
     },
     {
-      "collection": "spielplaner_assignments",
+      "collection": "scheduler_assignments",
       "field": "kscw_team",
       "related_collection": "teams",
       "meta": {
         "junction_field": null,
-        "many_collection": "spielplaner_assignments",
+        "many_collection": "scheduler_assignments",
         "many_field": "kscw_team",
         "one_allowed_collections": null,
         "one_collection": "teams",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
-        "one_field": "spielplaner_assignments",
+        "one_field": "scheduler_assignments",
         "sort_field": null
       },
       "schema": {
-        "table": "spielplaner_assignments",
+        "table": "scheduler_assignments",
         "column": "kscw_team",
         "foreign_key_table": "teams",
         "foreign_key_column": "id",
-        "constraint_name": "spielplaner_assignments_kscw_team_fkey",
+        "constraint_name": "scheduler_assignments_kscw_team_foreign",
         "on_update": "NO ACTION",
         "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "scheduler_assignments",
+      "field": "user_created",
+      "related_collection": "directus_users",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduler_assignments",
+        "many_field": "user_created",
+        "one_allowed_collections": null,
+        "one_collection": "directus_users",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduler_assignments",
+        "column": "user_created",
+        "foreign_key_table": "directus_users",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduler_assignments_user_created_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     }
   ]

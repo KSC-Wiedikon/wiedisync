@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "teams",
       "color": "#4A55A2",
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -321,10 +323,6 @@
           "allowOther": false,
           "choices": [
             {
-              "text": "2025/26",
-              "value": "2025/26"
-            },
-            {
               "text": "2026/27",
               "value": "2026/27"
             },
@@ -339,6 +337,10 @@
             {
               "text": "2029/30",
               "value": "2029/30"
+            },
+            {
+              "text": "2030/31",
+              "value": "2030/31"
             }
           ]
         },
@@ -1095,19 +1097,21 @@
     },
     {
       "collection": "teams",
-      "field": "spielplaner_assignments",
+      "field": "scheduler_assignments",
       "type": "alias",
       "meta": {
         "collection": "teams",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "spielplaner_assignments",
+        "field": "scheduler_assignments",
         "group": null,
         "hidden": false,
         "interface": "list-o2m",
         "note": null,
-        "options": null,
+        "options": {
+          "template": "{{member.first_name}} {{member.last_name}} · {{date_created}}"
+        },
         "readonly": false,
         "required": false,
         "searchable": true,
@@ -1120,9 +1124,542 @@
         "validation_message": null,
         "width": "full"
       }
+    },
+    {
+      "collection": "teams",
+      "field": "members",
+      "type": "alias",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "members",
+        "group": null,
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "recruiting_positions",
+      "type": "json",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "recruiting_positions",
+        "group": null,
+        "hidden": false,
+        "interface": "tags",
+        "note": "Positions the team is recruiting for. Empty = open to all positions. Shown on the public team page when open for new players.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": [
+          "cast-json"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "recruiting_positions",
+        "table": "teams",
+        "data_type": "jsonb",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "waitlist_url",
+      "type": "string",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "waitlist_url",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Link to follow if the team is full (e.g. waiting-list form). Filling this shows a waiting-list button on the public website and marks the team as full there.",
+        "options": {
+          "placeholder": "https://docs.google.com/forms/..."
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 50,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "waitlist_url",
+        "table": "teams",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 500,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "waitlist_label",
+      "type": "string",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "waitlist_label",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Button label for the waiting-list link (defaults to Warteliste if empty).",
+        "options": {
+          "placeholder": "Warteliste"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 51,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "waitlist_label",
+        "table": "teams",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 100,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "gender",
+      "type": "string",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "gender",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": null,
+        "options": {
+          "allowNone": true,
+          "choices": [
+            {
+              "text": "Male",
+              "value": "m"
+            },
+            {
+              "text": "Female",
+              "value": "f"
+            },
+            {
+              "text": "Mixed",
+              "value": "mixed"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "gender",
+        "table": "teams",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 8,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "duty_credit",
+      "type": "integer",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "duty_credit",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Scorer-duty credit: duties this team is excused from (higher = fewer duties). Stacks on the automatic referee credit.",
+        "options": {
+          "min": 0,
+          "step": 1
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "duty_credit",
+        "table": "teams",
+        "data_type": "integer",
+        "default_value": 0,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "clubdesk_group",
+      "type": "text",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "clubdesk_group",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "ClubDesk group token (e.g. \"VB D1\"). Empty = intentionally no ClubDesk group. Leave unset on a new team and the ClubDesk group check will flag it.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 60,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "clubdesk_group",
+        "table": "teams",
+        "data_type": "text",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "games",
+      "type": "alias",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "games",
+        "group": null,
+        "hidden": false,
+        "interface": "list-o2m",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": null,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "open_for_boys",
+      "type": "boolean",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "open_for_boys",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Mixed teams: open for new boys. Only used when \"Open for players\" is on.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 62,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "open_for_boys",
+        "table": "teams",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "teams",
+      "field": "open_for_girls",
+      "type": "boolean",
+      "meta": {
+        "collection": "teams",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "open_for_girls",
+        "group": null,
+        "hidden": false,
+        "interface": "boolean",
+        "note": "Mixed teams: open for new girls. Only used when \"Open for players\" is on.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 61,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "open_for_girls",
+        "table": "teams",
+        "data_type": "boolean",
+        "default_value": false,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     }
   ],
   "relations": [
+    {
+      "collection": "basketball_hall_availability",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_hall_availability",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_hall_availability",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_hall_availability_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "basketball_slot_plan",
+      "field": "kscw_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_slot_plan",
+        "many_field": "kscw_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_slot_plan",
+        "column": "kscw_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_slot_plan_kscw_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "basketball_slots",
+      "field": "kscw_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_slots",
+        "many_field": "kscw_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_slots",
+        "column": "kscw_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_slots_kscw_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "basketball_team_rules",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "basketball_team_rules",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "basketball_team_rules",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_rules_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
     {
       "collection": "events_teams",
       "field": "teams_id",
@@ -1134,7 +1671,7 @@
         "one_allowed_collections": null,
         "one_collection": "teams",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": null,
         "sort_field": null
       },
@@ -1143,9 +1680,234 @@
         "column": "teams_id",
         "foreign_key_table": "teams",
         "foreign_key_column": "id",
-        "constraint_name": "events_teams_1_teams_id_foreign",
+        "constraint_name": "events_teams_teams_id_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "finance_invoices",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_invoices",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_invoices",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_invoices_team_fkey",
         "on_update": "NO ACTION",
         "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_team_entries",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_team_entries",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_team_entries",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_team_entries_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "fine_rules",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fine_rules",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fine_rules",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "fine_rules_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "fines",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "fines",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "fines",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "fines_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "forms_teams",
+      "field": "teams_id",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": "forms_id",
+        "many_collection": "forms_teams",
+        "many_field": "teams_id",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "forms_teams",
+        "column": "teams_id",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "forms_teams_teams_id_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_guest_teams",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_guest_teams",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_guest_teams",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "game_guest_teams_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_guests",
+      "field": "via_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_guests",
+        "many_field": "via_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_guests",
+        "column": "via_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "game_guests_via_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_scheduling_derbies",
+      "field": "team_a",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_derbies",
+        "many_field": "team_a",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_derbies",
+        "column": "team_a",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_derbies_team_a_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "game_scheduling_derbies",
+      "field": "team_b",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "game_scheduling_derbies",
+        "many_field": "team_b",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "game_scheduling_derbies",
+        "column": "team_b",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "game_scheduling_derbies_team_b_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1192,8 +1954,17 @@
         "one_collection": "teams",
         "one_collection_field": null,
         "one_deselect_action": "nullify",
-        "one_field": null,
+        "one_field": "games",
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "kscw_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_kscw_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1210,6 +1981,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1226,6 +2006,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scoreboard_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scoreboard_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1242,6 +2031,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "scorer_scoreboard_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_scorer_scoreboard_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1258,6 +2056,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1274,6 +2081,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_scorer_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_scorer_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1290,6 +2106,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_timekeeper_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_timekeeper_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1306,6 +2131,40 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "bb_24s_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_bb_24s_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "games",
+      "field": "referee_duty_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "games",
+        "many_field": "referee_duty_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "games",
+        "column": "referee_duty_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "games_referee_duty_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1319,7 +2178,7 @@
         "one_allowed_collections": null,
         "one_collection": "teams",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": null,
         "sort_field": null
       },
@@ -1330,7 +2189,7 @@
         "foreign_key_column": "id",
         "constraint_name": "hall_slots_teams_teams_id_foreign",
         "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1344,9 +2203,18 @@
         "one_allowed_collections": null,
         "one_collection": "teams",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
+        "one_deselect_action": "delete",
+        "one_field": "members",
         "sort_field": null
+      },
+      "schema": {
+        "table": "member_teams",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "member_teams_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1363,6 +2231,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "members",
+        "column": "requested_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "members_requested_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1411,6 +2288,15 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "rankings",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "rankings_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
       }
     },
     {
@@ -1427,6 +2313,65 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_team_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "scheduler_assignments",
+      "field": "kscw_team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduler_assignments",
+        "many_field": "kscw_team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": "scheduler_assignments",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduler_assignments",
+        "column": "kscw_team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduler_assignments_kscw_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "scheduling_blocks",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "scheduling_blocks",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "scheduling_blocks",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "scheduling_blocks_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1478,47 +2423,6 @@
       }
     },
     {
-      "collection": "spielplaner_assignments",
-      "field": "kscw_team",
-      "related_collection": "teams",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "spielplaner_assignments",
-        "many_field": "kscw_team",
-        "one_allowed_collections": null,
-        "one_collection": "teams",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": "spielplaner_assignments",
-        "sort_field": null
-      },
-      "schema": {
-        "table": "spielplaner_assignments",
-        "column": "kscw_team",
-        "foreign_key_table": "teams",
-        "foreign_key_column": "id",
-        "constraint_name": "spielplaner_assignments_kscw_team_fkey",
-        "on_update": "NO ACTION",
-        "on_delete": "CASCADE"
-      }
-    },
-    {
-      "collection": "task_templates",
-      "field": "team",
-      "related_collection": "teams",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "task_templates",
-        "many_field": "team",
-        "one_allowed_collections": null,
-        "one_collection": "teams",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      }
-    },
-    {
       "collection": "team_invites",
       "field": "team",
       "related_collection": "teams",
@@ -1532,6 +2436,56 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      }
+    },
+    {
+      "collection": "team_links",
+      "field": "team_a",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "team_links",
+        "many_field": "team_a",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "team_links",
+        "column": "team_a",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_links_team_a_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "team_links",
+      "field": "team_b",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "team_links",
+        "many_field": "team_b",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "team_links",
+        "column": "team_b",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "basketball_team_links_team_b_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1620,7 +2574,7 @@
         "one_allowed_collections": null,
         "one_collection": "teams",
         "one_collection_field": null,
-        "one_deselect_action": "nullify",
+        "one_deselect_action": "delete",
         "one_field": "sponsors",
         "sort_field": null
       },
@@ -1629,9 +2583,9 @@
         "column": "teams_id",
         "foreign_key_table": "teams",
         "foreign_key_column": "id",
-        "constraint_name": "teams_sponsors_1_teams_id_foreign",
+        "constraint_name": "teams_sponsors_teams_id_foreign",
         "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
+        "on_delete": "CASCADE"
       }
     },
     {
@@ -1648,6 +2602,40 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
+      },
+      "schema": {
+        "table": "trainings",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "trainings_team_foreign",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "vb_referee_duty",
+      "field": "team",
+      "related_collection": "teams",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "vb_referee_duty",
+        "many_field": "team",
+        "one_allowed_collections": null,
+        "one_collection": "teams",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "vb_referee_duty",
+        "column": "team",
+        "foreign_key_table": "teams",
+        "foreign_key_column": "id",
+        "constraint_name": "vb_referee_duty_team_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
       }
     }
   ]

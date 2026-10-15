@@ -1,157 +1,115 @@
 {
   "collection": {
-    "collection": "svrz_spielplaner_contacts",
+    "collection": "finance_payouts",
     "meta": {
       "accountability": "all",
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
-      "collection": "svrz_spielplaner_contacts",
-      "color": null,
+      "collection": "finance_payouts",
+      "color": "#059669",
       "display_template": null,
       "group": null,
       "hidden": false,
-      "icon": "contacts",
+      "icon": "payments",
       "item_duplication_fields": null,
-      "note": "Club-level Spielplaner contacts from SVRZ (synced daily). Used to pre-fill opponent-invite emails.",
+      "note": null,
       "preview_url": null,
       "singleton": false,
       "sort": null,
       "sort_field": null,
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
     },
     "schema": {
-      "name": "svrz_spielplaner_contacts"
+      "name": "finance_payouts"
     }
   },
   "fields": [
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "id",
-      "type": "uuid",
+      "collection": "finance_payouts",
+      "field": "member",
+      "type": "integer",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
-        "display": null,
+        "display": "related-values",
         "display_options": null,
-        "field": "id",
+        "field": "member",
         "group": null,
-        "hidden": true,
-        "interface": "input",
-        "note": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Member being reimbursed.",
         "options": null,
-        "readonly": true,
+        "readonly": false,
         "required": false,
         "searchable": true,
         "sort": 1,
         "special": [
-          "uuid"
+          "m2o"
         ],
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "id",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "uuid",
+        "name": "member",
+        "table": "finance_payouts",
+        "data_type": "integer",
         "default_value": null,
         "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
         "is_nullable": false,
-        "is_unique": true,
-        "is_indexed": false,
-        "is_primary_key": true,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
         "is_generated": false,
         "generation_expression": null,
         "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
+        "foreign_key_table": "members",
+        "foreign_key_column": "id"
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "svrz_persistence_id",
-      "type": "string",
+      "collection": "finance_payouts",
+      "field": "amount",
+      "type": "decimal",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "svrz_persistence_id",
+        "field": "amount",
         "group": null,
         "hidden": false,
         "interface": "input",
         "note": null,
         "options": null,
         "readonly": false,
-        "required": true,
+        "required": false,
         "searchable": true,
         "sort": 2,
         "special": null,
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "svrz_persistence_id",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "character varying",
+        "name": "amount",
+        "table": "finance_payouts",
+        "data_type": "numeric",
         "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": false,
-        "is_unique": true,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "season_uuid",
-      "type": "string",
-      "meta": {
-        "collection": "svrz_spielplaner_contacts",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "season_uuid",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": true,
-        "searchable": true,
-        "sort": 3,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "season_uuid",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": false,
+        "max_length": null,
+        "numeric_precision": 12,
+        "numeric_scale": 2,
+        "is_nullable": true,
         "is_unique": false,
         "is_indexed": false,
         "is_primary_key": false,
@@ -163,15 +121,15 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "season_name",
+      "collection": "finance_payouts",
+      "field": "message",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "season_name",
+        "field": "message",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -180,7 +138,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 4,
+        "sort": 3,
         "special": null,
         "translations": null,
         "validation": null,
@@ -188,11 +146,11 @@
         "width": "full"
       },
       "schema": {
-        "name": "season_name",
-        "table": "svrz_spielplaner_contacts",
+        "name": "message",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
-        "max_length": 255,
+        "max_length": 140,
         "numeric_precision": null,
         "numeric_scale": null,
         "is_nullable": true,
@@ -207,15 +165,59 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "club_id",
+      "collection": "finance_payouts",
+      "field": "iban",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "club_id",
+        "field": "iban",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Payee IBAN (snapshot at save time).",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 4,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "iban",
+        "table": "finance_payouts",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 34,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_payouts",
+      "field": "payee_name",
+      "type": "string",
+      "meta": {
+        "collection": "finance_payouts",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "payee_name",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -229,11 +231,11 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "club_id",
-        "table": "svrz_spielplaner_contacts",
+        "name": "payee_name",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
         "max_length": 255,
@@ -251,15 +253,15 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "club_name",
+      "collection": "finance_payouts",
+      "field": "payee_address",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "club_name",
+        "field": "payee_address",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -273,11 +275,11 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "club_name",
-        "table": "svrz_spielplaner_contacts",
+        "name": "payee_address",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
         "max_length": 255,
@@ -295,15 +297,15 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "person_first_name",
+      "collection": "finance_payouts",
+      "field": "payee_postal_code",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "person_first_name",
+        "field": "payee_postal_code",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -317,14 +319,14 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "person_first_name",
-        "table": "svrz_spielplaner_contacts",
+        "name": "payee_postal_code",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
-        "max_length": 255,
+        "max_length": 10,
         "numeric_precision": null,
         "numeric_scale": null,
         "is_nullable": true,
@@ -339,15 +341,15 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "person_last_name",
+      "collection": "finance_payouts",
+      "field": "payee_city",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "person_last_name",
+        "field": "payee_city",
         "group": null,
         "hidden": false,
         "interface": "input",
@@ -361,14 +363,14 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "person_last_name",
-        "table": "svrz_spielplaner_contacts",
+        "name": "payee_city",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
-        "max_length": 255,
+        "max_length": 100,
         "numeric_precision": null,
         "numeric_scale": null,
         "is_nullable": true,
@@ -383,20 +385,35 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "contact_name",
+      "collection": "finance_payouts",
+      "field": "status",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "contact_name",
+        "field": "status",
         "group": null,
         "hidden": false,
-        "interface": "input",
+        "interface": "select-dropdown",
         "note": null,
-        "options": null,
+        "options": {
+          "choices": [
+            {
+              "text": "Open",
+              "value": "open"
+            },
+            {
+              "text": "Paid",
+              "value": "paid"
+            },
+            {
+              "text": "Cancelled",
+              "value": "cancelled"
+            }
+          ]
+        },
         "readonly": false,
         "required": false,
         "searchable": true,
@@ -405,17 +422,17 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "contact_name",
-        "table": "svrz_spielplaner_contacts",
+        "name": "status",
+        "table": "finance_payouts",
         "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
+        "default_value": "open",
+        "max_length": 16,
         "numeric_precision": null,
         "numeric_scale": null,
-        "is_nullable": true,
+        "is_nullable": false,
         "is_unique": false,
         "is_indexed": false,
         "is_primary_key": false,
@@ -427,21 +444,21 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "contact_email",
+      "collection": "finance_payouts",
+      "field": "created_by_name",
       "type": "string",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "contact_email",
+        "field": "created_by_name",
         "group": null,
         "hidden": false,
         "interface": "input",
         "note": null,
         "options": null,
-        "readonly": false,
+        "readonly": true,
         "required": false,
         "searchable": true,
         "sort": 10,
@@ -449,11 +466,11 @@
         "translations": null,
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
       "schema": {
-        "name": "contact_email",
-        "table": "svrz_spielplaner_contacts",
+        "name": "created_by_name",
+        "table": "finance_payouts",
         "data_type": "character varying",
         "default_value": null,
         "max_length": 255,
@@ -471,222 +488,82 @@
       }
     },
     {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "contact_phone",
-      "type": "string",
-      "meta": {
-        "collection": "svrz_spielplaner_contacts",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "contact_phone",
-        "group": null,
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 11,
-        "special": null,
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "contact_phone",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "club_league_categories",
-      "type": "json",
-      "meta": {
-        "collection": "svrz_spielplaner_contacts",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "club_league_categories",
-        "group": null,
-        "hidden": false,
-        "interface": "input-code",
-        "note": null,
-        "options": {
-          "language": "json"
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 12,
-        "special": [
-          "cast-json"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "club_league_categories",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "json",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "club_team_genders",
-      "type": "json",
-      "meta": {
-        "collection": "svrz_spielplaner_contacts",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "club_team_genders",
-        "group": null,
-        "hidden": false,
-        "interface": "input-code",
-        "note": null,
-        "options": {
-          "language": "json"
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 13,
-        "special": [
-          "cast-json"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "club_team_genders",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "json",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "raw",
-      "type": "json",
-      "meta": {
-        "collection": "svrz_spielplaner_contacts",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "raw",
-        "group": null,
-        "hidden": false,
-        "interface": "input-code",
-        "note": null,
-        "options": {
-          "language": "json"
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 14,
-        "special": [
-          "cast-json"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "raw",
-        "table": "svrz_spielplaner_contacts",
-        "data_type": "json",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "svrz_spielplaner_contacts",
-      "field": "last_synced_at",
+      "collection": "finance_payouts",
+      "field": "date_created",
       "type": "timestamp",
       "meta": {
-        "collection": "svrz_spielplaner_contacts",
+        "collection": "finance_payouts",
         "conditions": null,
         "display": null,
         "display_options": null,
-        "field": "last_synced_at",
+        "field": "date_created",
         "group": null,
-        "hidden": false,
+        "hidden": true,
         "interface": "datetime",
         "note": null,
         "options": null,
-        "readonly": false,
+        "readonly": true,
         "required": false,
         "searchable": true,
-        "sort": 15,
-        "special": null,
+        "sort": 90,
+        "special": [
+          "date-created"
+        ],
         "translations": null,
         "validation": null,
         "validation_message": null,
         "width": "full"
       },
       "schema": {
-        "name": "last_synced_at",
-        "table": "svrz_spielplaner_contacts",
+        "name": "date_created",
+        "table": "finance_payouts",
         "data_type": "timestamp with time zone",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_payouts",
+      "field": "user_created",
+      "type": "uuid",
+      "meta": {
+        "collection": "finance_payouts",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "user_created",
+        "group": null,
+        "hidden": true,
+        "interface": "select-dropdown-m2o",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 91,
+        "special": [
+          "user-created"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "user_created",
+        "table": "finance_payouts",
+        "data_type": "uuid",
         "default_value": null,
         "max_length": null,
         "numeric_precision": null,
@@ -703,5 +580,106 @@
       }
     }
   ],
-  "relations": []
+  "relations": [
+    {
+      "collection": "finance_expenses",
+      "field": "payout",
+      "related_collection": "finance_payouts",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_expenses",
+        "many_field": "payout",
+        "one_allowed_collections": null,
+        "one_collection": "finance_payouts",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_expenses",
+        "column": "payout",
+        "foreign_key_table": "finance_payouts",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_expenses_payout_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_payments",
+      "field": "payout",
+      "related_collection": "finance_payouts",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_payments",
+        "many_field": "payout",
+        "one_allowed_collections": null,
+        "one_collection": "finance_payouts",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_payments",
+        "column": "payout",
+        "foreign_key_table": "finance_payouts",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_payments_payout_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    },
+    {
+      "collection": "finance_payouts",
+      "field": "member",
+      "related_collection": "members",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_payouts",
+        "many_field": "member",
+        "one_allowed_collections": null,
+        "one_collection": "members",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_payouts",
+        "column": "member",
+        "foreign_key_table": "members",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_payouts_member_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    },
+    {
+      "collection": "referee_expenses",
+      "field": "payout",
+      "related_collection": "finance_payouts",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "referee_expenses",
+        "many_field": "payout",
+        "one_allowed_collections": null,
+        "one_collection": "finance_payouts",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "referee_expenses",
+        "column": "payout",
+        "foreign_key_table": "finance_payouts",
+        "foreign_key_column": "id",
+        "constraint_name": "referee_expenses_payout_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "SET NULL"
+      }
+    }
+  ]
 }

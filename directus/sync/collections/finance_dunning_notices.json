@@ -1,0 +1,241 @@
+{
+  "collection": {
+    "collection": "finance_dunning_notices",
+    "meta": {
+      "accountability": "all",
+      "archive_app_filter": true,
+      "archive_field": null,
+      "archive_value": null,
+      "autosave_revision_interval": null,
+      "collapse": "open",
+      "collection": "finance_dunning_notices",
+      "color": "#d97706",
+      "display_template": null,
+      "group": null,
+      "hidden": false,
+      "icon": "notifications_active",
+      "item_duplication_fields": null,
+      "note": null,
+      "preview_url": null,
+      "singleton": false,
+      "sort": null,
+      "sort_field": null,
+      "status": "active",
+      "translations": null,
+      "unarchive_value": null,
+      "versioning": false
+    },
+    "schema": {
+      "name": "finance_dunning_notices"
+    }
+  },
+  "fields": [
+    {
+      "collection": "finance_dunning_notices",
+      "field": "invoice",
+      "type": "integer",
+      "meta": {
+        "collection": "finance_dunning_notices",
+        "conditions": null,
+        "display": "related-values",
+        "display_options": null,
+        "field": "invoice",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Invoice reminded.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": [
+          "m2o"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "invoice",
+        "table": "finance_dunning_notices",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "finance_invoices",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "finance_dunning_notices",
+      "field": "level",
+      "type": "integer",
+      "meta": {
+        "collection": "finance_dunning_notices",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "level",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "level",
+        "table": "finance_dunning_notices",
+        "data_type": "smallint",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 16,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_dunning_notices",
+      "field": "reminder_fee",
+      "type": "decimal",
+      "meta": {
+        "collection": "finance_dunning_notices",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "reminder_fee",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 3,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "reminder_fee",
+        "table": "finance_dunning_notices",
+        "data_type": "numeric",
+        "default_value": 0,
+        "max_length": null,
+        "numeric_precision": 12,
+        "numeric_scale": 2,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "finance_dunning_notices",
+      "field": "date_created",
+      "type": "timestamp",
+      "meta": {
+        "collection": "finance_dunning_notices",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "date_created",
+        "group": null,
+        "hidden": true,
+        "interface": "datetime",
+        "note": null,
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 90,
+        "special": [
+          "date-created"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "date_created",
+        "table": "finance_dunning_notices",
+        "data_type": "timestamp with time zone",
+        "default_value": "now()",
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    }
+  ],
+  "relations": [
+    {
+      "collection": "finance_dunning_notices",
+      "field": "invoice",
+      "related_collection": "finance_invoices",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "finance_dunning_notices",
+        "many_field": "invoice",
+        "one_allowed_collections": null,
+        "one_collection": "finance_invoices",
+        "one_collection_field": null,
+        "one_deselect_action": "nullify",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "finance_dunning_notices",
+        "column": "invoice",
+        "foreign_key_table": "finance_invoices",
+        "foreign_key_column": "id",
+        "constraint_name": "finance_dunning_notices_invoice_fk",
+        "on_update": "NO ACTION",
+        "on_delete": "RESTRICT"
+      }
+    }
+  ]
+}

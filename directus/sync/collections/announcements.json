@@ -6,6 +6,7 @@
       "archive_app_filter": true,
       "archive_field": null,
       "archive_value": null,
+      "autosave_revision_interval": null,
       "collapse": "open",
       "collection": "announcements",
       "color": "#FFC832",
@@ -19,6 +20,7 @@
       "singleton": false,
       "sort": null,
       "sort_field": "pinned",
+      "status": "active",
       "translations": null,
       "unarchive_value": null,
       "versioning": false
@@ -435,16 +437,35 @@
       "type": "json",
       "meta": {
         "collection": "announcements",
-        "conditions": null,
+        "conditions": [
+          {
+            "hidden": true,
+            "name": "Hide unless teams",
+            "rule": {
+              "audience_type": {
+                "_neq": "teams"
+              }
+            }
+          },
+          {
+            "hidden": false,
+            "name": "Show for teams",
+            "rule": {
+              "audience_type": {
+                "_eq": "teams"
+              }
+            }
+          }
+        ],
         "display": null,
         "display_options": null,
         "field": "audience_teams",
         "group": null,
-        "hidden": true,
-        "interface": "input-code",
-        "note": "team IDs (future use, hidden in v1 admin UI)",
+        "hidden": false,
+        "interface": "select-multiple-dropdown-m2o",
+        "note": "Team IDs to target. Used when audience_type = teams.",
         "options": {
-          "language": "json"
+          "template": "{{name}}"
         },
         "readonly": false,
         "required": false,
@@ -483,14 +504,33 @@
       "type": "json",
       "meta": {
         "collection": "announcements",
-        "conditions": null,
+        "conditions": [
+          {
+            "hidden": true,
+            "name": "Hide unless roles",
+            "rule": {
+              "audience_type": {
+                "_neq": "roles"
+              }
+            }
+          },
+          {
+            "hidden": false,
+            "name": "Show for roles",
+            "rule": {
+              "audience_type": {
+                "_eq": "roles"
+              }
+            }
+          }
+        ],
         "display": null,
         "display_options": null,
         "field": "audience_roles",
         "group": null,
-        "hidden": true,
-        "interface": "input-code",
-        "note": "role names (future use, hidden in v1 admin UI)",
+        "hidden": false,
+        "interface": "tags",
+        "note": "Prefixed role tokens to target (role:* / fn:* / qual:*). Used when audience_type = roles.",
         "options": {
           "language": "json"
         },
@@ -846,9 +886,161 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
+    },
+    {
+      "collection": "announcements",
+      "field": "email_layout",
+      "type": "string",
+      "meta": {
+        "collection": "announcements",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "email_layout",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown",
+        "note": "Email template for the fanout (standard card vs newsletter masthead).",
+        "options": {
+          "choices": [
+            {
+              "text": "Standard",
+              "value": "standard"
+            },
+            {
+              "text": "Newsletter",
+              "value": "newsletter"
+            }
+          ]
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 30,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "email_layout",
+        "table": "announcements",
+        "data_type": "character varying",
+        "default_value": "standard",
+        "max_length": 20,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "announcements",
+      "field": "reply_to",
+      "type": "string",
+      "meta": {
+        "collection": "announcements",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "reply_to",
+        "group": null,
+        "hidden": false,
+        "interface": "input",
+        "note": "Optional Reply-To for announcement emails; empty = no-reply.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 31,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "reply_to",
+        "table": "announcements",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "announcements",
+      "field": "recipients",
+      "type": "alias",
+      "meta": {
+        "collection": "announcements",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "recipients",
+        "group": null,
+        "hidden": true,
+        "interface": "list-o2m",
+        "note": "Resolved recipients + per-recipient delivery log (migration 219). Hidden in the app UI; walked by the Member read policy.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 40,
+        "special": [
+          "o2m"
+        ],
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      }
     }
   ],
   "relations": [
+    {
+      "collection": "announcement_recipients",
+      "field": "announcement",
+      "related_collection": "announcements",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "announcement_recipients",
+        "many_field": "announcement",
+        "one_allowed_collections": null,
+        "one_collection": "announcements",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": "recipients",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "announcement_recipients",
+        "column": "announcement",
+        "foreign_key_table": "announcements",
+        "foreign_key_column": "id",
+        "constraint_name": "announcement_recipients_announcement_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
     {
       "collection": "announcements",
       "field": "image",

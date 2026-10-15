@@ -1,0 +1,218 @@
+{
+  "collection": {
+    "collection": "participation_visibility",
+    "meta": {
+      "accountability": "all",
+      "archive_app_filter": true,
+      "archive_field": null,
+      "archive_value": null,
+      "autosave_revision_interval": null,
+      "collapse": "open",
+      "collection": "participation_visibility",
+      "color": null,
+      "display_template": null,
+      "group": null,
+      "hidden": true,
+      "icon": "visibility",
+      "item_duplication_fields": null,
+      "note": "Derived from game_guests by trigger — do not edit. Verify with verify_participation_visibility().",
+      "preview_url": null,
+      "singleton": false,
+      "sort": null,
+      "sort_field": null,
+      "status": "active",
+      "translations": null,
+      "unarchive_value": null,
+      "versioning": false
+    },
+    "schema": {
+      "name": "participation_visibility"
+    }
+  },
+  "fields": [
+    {
+      "collection": "participation_visibility",
+      "field": "participation",
+      "type": "integer",
+      "meta": {
+        "collection": "participation_visibility",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "participation",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Derived — do not edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 1,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "participation",
+        "table": "participation_visibility",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "participations",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "participation_visibility",
+      "field": "viewer_user",
+      "type": "uuid",
+      "meta": {
+        "collection": "participation_visibility",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "viewer_user",
+        "group": null,
+        "hidden": false,
+        "interface": "select-dropdown-m2o",
+        "note": "Derived — do not edit.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 2,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "viewer_user",
+        "table": "participation_visibility",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": false,
+        "is_unique": false,
+        "is_indexed": true,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": "directus_users",
+        "foreign_key_column": "id"
+      }
+    },
+    {
+      "collection": "participation_visibility",
+      "field": "id",
+      "type": "integer",
+      "meta": {
+        "collection": "participation_visibility",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "id",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Surrogate key. Directus cannot model the real key (participation, viewer_user) — it is a UNIQUE constraint instead. See migration 343.",
+        "options": null,
+        "readonly": true,
+        "required": false,
+        "searchable": true,
+        "sort": 0,
+        "special": null,
+        "translations": null,
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "id",
+        "table": "participation_visibility",
+        "data_type": "integer",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "is_nullable": false,
+        "is_unique": true,
+        "is_indexed": false,
+        "is_primary_key": true,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": true,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    }
+  ],
+  "relations": [
+    {
+      "collection": "participation_visibility",
+      "field": "participation",
+      "related_collection": "participations",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "participation_visibility",
+        "many_field": "participation",
+        "one_allowed_collections": null,
+        "one_collection": "participations",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": "visible_to",
+        "sort_field": null
+      },
+      "schema": {
+        "table": "participation_visibility",
+        "column": "participation",
+        "foreign_key_table": "participations",
+        "foreign_key_column": "id",
+        "constraint_name": "participation_visibility_participation_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    },
+    {
+      "collection": "participation_visibility",
+      "field": "viewer_user",
+      "related_collection": "directus_users",
+      "meta": {
+        "junction_field": null,
+        "many_collection": "participation_visibility",
+        "many_field": "viewer_user",
+        "one_allowed_collections": null,
+        "one_collection": "directus_users",
+        "one_collection_field": null,
+        "one_deselect_action": "delete",
+        "one_field": null,
+        "sort_field": null
+      },
+      "schema": {
+        "table": "participation_visibility",
+        "column": "viewer_user",
+        "foreign_key_table": "directus_users",
+        "foreign_key_column": "id",
+        "constraint_name": "participation_visibility_viewer_user_fkey",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE"
+      }
+    }
+  ]
+}

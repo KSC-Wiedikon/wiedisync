@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T21:48:54.391Z
+-- Generated:   2026-10-15T22:33:57.840Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict apanox2Xilhvmux5riXH6WqPjT8PvK05M75TySagWZvdogAmeosqYgIu9vplIs8
+\restrict suPtVIaVTfg7hB3zOvb2AMgupf4Kkq2v0Fx09pwmjtWWDtUffclkiPqjGqu760r
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -4747,7 +4747,7 @@ ALTER SEQUENCE public.carpools_id_seq OWNED BY public.carpools.id;
 --
 
 CREATE TABLE public.city_hall_availability (
-    einrichtung_id integer NOT NULL,
+    facility_id integer NOT NULL,
     weekday smallint NOT NULL,
     season_start date NOT NULL,
     season_end date NOT NULL,
@@ -4768,18 +4768,25 @@ COMMENT ON TABLE public.city_hall_availability IS 'Per (hall, weekday) cached fr
 
 
 --
+-- Name: COLUMN city_hall_availability.facility_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_hall_availability.facility_id IS 'city_halls.facility_id. Column einrichtung_id before migration 421.';
+
+
+--
 -- Name: city_halls; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.city_halls (
-    einrichtung_id integer NOT NULL,
+    facility_id integer NOT NULL,
     name text NOT NULL,
     hall_type text,
     address text,
-    plz text,
-    stadtkreis text,
-    stadtquartier text,
-    schulkreis text,
+    postal_code text,
+    city_district text,
+    city_quarter text,
+    school_district text,
     first_seen timestamp with time zone DEFAULT now() NOT NULL,
     last_seen timestamp with time zone DEFAULT now() NOT NULL,
     hall_type_label text,
@@ -4791,7 +4798,8 @@ CREATE TABLE public.city_halls (
     photo_url text,
     photo_thumb_url text,
     contact_email text,
-    details_scraped_at timestamp with time zone
+    details_scraped_at timestamp with time zone,
+    CONSTRAINT city_halls_hall_type_values CHECK (((hall_type IS NULL) OR (hall_type = ANY (ARRAY['sports_hall'::text, 'gym_room'::text, 'triple_hall'::text, 'double_hall'::text]))))
 );
 
 
@@ -4800,6 +4808,48 @@ CREATE TABLE public.city_halls (
 --
 
 COMMENT ON TABLE public.city_halls IS 'Roster of City of Zürich sport halls seen in the Hallenfinder scrape. Private — read via /kscw/hallenfinder/search only.';
+
+
+--
+-- Name: COLUMN city_halls.facility_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.facility_id IS 'Stable hall id from the City of Zürich tool (its `einrichtung` query parameter). Column einrichtung_id before migration 421.';
+
+
+--
+-- Name: COLUMN city_halls.hall_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.hall_type IS 'sports_hall | gym_room | triple_hall | double_hall — derived from the hall NAME by hallenfinder-scrape.mjs; the UI type filter matches on it. Were sporthalle / gymnastikraum / dreifachhalle / doppelhalle before migration 421. hall_type_label keeps the city''s own Hallentyp text.';
+
+
+--
+-- Name: COLUMN city_halls.postal_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.postal_code IS 'Postal code parsed from the address, e.g. "8052". Column plz before migration 421.';
+
+
+--
+-- Name: COLUMN city_halls.city_district; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.city_district IS 'Stadtkreis number as the city prints it, e.g. "11". Column stadtkreis before migration 421.';
+
+
+--
+-- Name: COLUMN city_halls.city_quarter; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.city_quarter IS 'Stadtquartier name as the city prints it, e.g. "Seebach". Column stadtquartier before migration 421.';
+
+
+--
+-- Name: COLUMN city_halls.school_district; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.school_district IS 'Schulkreis name as the city prints it, e.g. "Glattal". Column schulkreis before migration 421.';
 
 
 --
@@ -12473,41 +12523,6 @@ COMMENT ON COLUMN public.vis_transfers.from_federation_code IS 'FIVB 3-letter fe
 
 
 --
--- Name: vm_vb_spielplan_contact; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.vm_vb_spielplan_contact (
-    id integer NOT NULL,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    "FirstName" text,
-    "LastName" character varying(255),
-    "Email" character varying(255),
-    "Language" character varying(255)
-);
-
-
---
--- Name: vm_vb_spielplan_contact_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.vm_vb_spielplan_contact_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: vm_vb_spielplan_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.vm_vb_spielplan_contact_id_seq OWNED BY public.vm_vb_spielplan_contact.id;
-
-
---
 -- Name: volley_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12522,15 +12537,43 @@ CREATE TABLE public.volley_feedback (
     teams json,
     other_function character varying(255),
     other_team character varying(255),
-    rating_verein integer,
-    rating_vorstand integer,
-    rating_tk_leitung integer,
+    rating_club integer,
+    rating_board integer,
+    rating_technical_committee integer,
     rating_training integer,
-    rating_kommunikation integer,
+    rating_communication integer,
     feedback_text text,
     ideas_text text,
     other_text text
 );
+
+
+--
+-- Name: COLUMN volley_feedback.rating_club; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.volley_feedback.rating_club IS '1–5 rating of the club. Column rating_verein before migration 421.';
+
+
+--
+-- Name: COLUMN volley_feedback.rating_board; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.volley_feedback.rating_board IS '1–5 rating of the board (Vorstand). Column rating_vorstand before migration 421.';
+
+
+--
+-- Name: COLUMN volley_feedback.rating_technical_committee; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.volley_feedback.rating_technical_committee IS '1–5 rating of the technical committee lead (TK-Leitung). Column rating_tk_leitung before migration 421.';
+
+
+--
+-- Name: COLUMN volley_feedback.rating_communication; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.volley_feedback.rating_communication IS '1–5 rating of club communication. Column rating_kommunikation before migration 421.';
 
 
 --
@@ -13442,13 +13485,6 @@ ALTER TABLE ONLY public.vb_referee_duty ALTER COLUMN id SET DEFAULT nextval('pub
 
 
 --
--- Name: vm_vb_spielplan_contact id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vm_vb_spielplan_contact ALTER COLUMN id SET DEFAULT nextval('public.vm_vb_spielplan_contact_id_seq'::regclass);
-
-
---
 -- Name: website_admin_access id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -13764,7 +13800,7 @@ ALTER TABLE ONLY public.carpools
 --
 
 ALTER TABLE ONLY public.city_hall_availability
-    ADD CONSTRAINT city_hall_availability_pkey PRIMARY KEY (einrichtung_id, weekday, season_start, season_end);
+    ADD CONSTRAINT city_hall_availability_pkey PRIMARY KEY (facility_id, weekday, season_start, season_end);
 
 
 --
@@ -13772,7 +13808,7 @@ ALTER TABLE ONLY public.city_hall_availability
 --
 
 ALTER TABLE ONLY public.city_halls
-    ADD CONSTRAINT city_halls_pkey PRIMARY KEY (einrichtung_id);
+    ADD CONSTRAINT city_halls_pkey PRIMARY KEY (facility_id);
 
 
 --
@@ -15040,14 +15076,6 @@ ALTER TABLE ONLY public.vis_transfers
 
 
 --
--- Name: vm_vb_spielplan_contact vm_vb_spielplan_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vm_vb_spielplan_contact
-    ADD CONSTRAINT vm_vb_spielplan_contact_pkey PRIMARY KEY (id);
-
-
---
 -- Name: volley_feedback volley_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15313,7 +15341,7 @@ CREATE INDEX city_hall_availability_weekday_idx ON public.city_hall_availability
 -- Name: city_halls_photo_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX city_halls_photo_idx ON public.city_halls USING btree (einrichtung_id) WHERE (photo_url IS NOT NULL);
+CREATE INDEX city_halls_photo_idx ON public.city_halls USING btree (facility_id) WHERE (photo_url IS NOT NULL);
 
 
 --
@@ -18180,11 +18208,11 @@ ALTER TABLE ONLY public.carpools
 
 
 --
--- Name: city_hall_availability city_hall_availability_einrichtung_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: city_hall_availability city_hall_availability_facility_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.city_hall_availability
-    ADD CONSTRAINT city_hall_availability_einrichtung_id_fkey FOREIGN KEY (einrichtung_id) REFERENCES public.city_halls(einrichtung_id) ON DELETE CASCADE;
+    ADD CONSTRAINT city_hall_availability_facility_id_fkey FOREIGN KEY (facility_id) REFERENCES public.city_halls(facility_id) ON DELETE CASCADE;
 
 
 --
@@ -19996,12 +20024,6 @@ ALTER TABLE public.trainings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_logs ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: vm_vb_spielplan_contact; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.vm_vb_spielplan_contact ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: volley_feedback; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20011,7 +20033,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict apanox2Xilhvmux5riXH6WqPjT8PvK05M75TySagWZvdogAmeosqYgIu9vplIs8
+\unrestrict suPtVIaVTfg7hB3zOvb2AMgupf4Kkq2v0Fx09pwmjtWWDtUffclkiPqjGqu760r
 
 
 
@@ -20027,7 +20049,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 424 migration(s) already in the schema above.
+-- Migration tracker seed — 425 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20464,6 +20486,7 @@ FROM (VALUES
   ('417-fee-category-english.sql'),
   ('418-nationality-clubdesk-export.sql'),
   ('419-finance-english.sql'),
-  ('420-scheduling-events-basketball-english.sql')
+  ('420-scheduling-events-basketball-english.sql'),
+  ('421-halls-feedback-english.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
