@@ -10,15 +10,16 @@
 # versioning and a credential that can delete. The weekly uploads backup keeps 8 weeks.
 #
 # So each new archive is copied, GPG-encrypted to backup@kscw.ch (same key and escrow
-# as the database dumps — the private half is not on this box), to the same three
-# places as the backups, but under its own folders that NO prune pattern touches:
+# as the database dumps — the private half is not on this box), to the same places as
+# the backups, but under its own folders that NO prune pattern touches:
 #   gdrive:Archive/kscw-finance     r2kscw:kscw-db-backups/finance-archive/
-#   NAS /volume1/backups/directus-kscw/finance-archive/
+# The encrypted file also stays in $WORK, where Luca's lenovoserver pulls it to his NAS
+# (since 16.10.2026 the VPS holds no key to the NAS; kscw-backup-pull.timer there).
 # The prune globs of backup-postgres.sh ('*.sql.gz.gpg') and backup-uploads.sh
 # ('kscw_uploads_*.tar.gz.gpg') cannot match 'kscw_finanzarchiv_*.zip.gpg'.
 #
 # Daily, idempotent: only archives with offsite_at IS NULL are handled; the result per
-# target lands in finance_archives.offsite, offsite_at only once all three succeed.
+# target lands in finance_archives.offsite, offsite_at once Drive and R2 both succeed.
 # The plaintext copy is checked against the recorded SHA-256 before encrypting.
 # Deploy: npm run backup:deploy-scripts (installs to /usr/local/bin). Cron (root):
 #   45 3 * * * /usr/local/bin/finance-archive-offsite.sh
@@ -31,10 +32,6 @@ BUCKET=${BUCKET:-r2kscw:kscw-uploads}  # dev: r2kscw:kscw-uploads-dev
 WORK=/data/backups/finance-archive
 GDRIVE_DIR=${GDRIVE_DIR:-gdrive:Archive/kscw-finance}
 R2_DIR=${R2_DIR:-r2kscw:kscw-db-backups/finance-archive}
-NAS_USER=lucanepa
-NAS_HOST=100.64.212.125
-NAS_PATH=${NAS_PATH:-/volume1/backups/directus-kscw/finance-archive}
-SSH_KEY=/root/.ssh/id_ed25519
 GPG_RECIPIENT=backup@kscw.ch
 LOG=/data/backups/backup.log
 
@@ -77,16 +74,15 @@ while IFS='|' read -r ID DISK SHA FY STORE; do
   fi
   rm -f "$PLAIN"
   ENC_SHA=$(sha256sum "$ENC" | cut -d' ' -f1)
-  G=failed; R=failed; N=failed
+  G=failed; R=failed
   rclone copy "$ENC" "$GDRIVE_DIR" </dev/null 2>>"$LOG" && G=ok
   rclone copy "$ENC" "$R2_DIR" </dev/null 2>>"$LOG" && R=ok
-  ssh -n -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" "mkdir -p '${NAS_PATH}'" 2>>"$LOG" \
-    && scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$ENC" "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/" </dev/null 2>>"$LOG" && N=ok
   DONE=""
-  if [ "$G$R$N" = "okokok" ]; then DONE=", offsite_at = now()"; rm -f "$ENC"; fi
+  # $ENC is kept in $WORK (yearly, small): it is what the NAS pull picks up.
+  if [ "$G$R" = "okok" ]; then DONE=", offsite_at = now()"; fi
   psqlq -c "UPDATE finance_archives SET offsite = jsonb_build_object(
-      'gdrive', '$G', 'r2', '$R', 'nas', '$N', 'file', '$NAME.zip.gpg',
+      'gdrive', '$G', 'r2', '$R', 'file', '$NAME.zip.gpg',
       'encrypted_sha256', '$ENC_SHA', 'checked_at', now())$DONE WHERE id = $ID" >/dev/null \
     || log "archive $ID: could not record the result"
-  log "archive $ID ($FY): GDrive $G, R2 $R, NAS $N"
+  log "archive $ID ($FY): GDrive $G, R2 $R"
 done <<< "$ROWS"

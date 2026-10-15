@@ -34,10 +34,6 @@ DATE=$(date +%Y-%m-%d)
 BUCKET=r2kscw:kscw-uploads          # existing rclone remote (admin creds, root-only)
 GDRIVE_DIR=gdrive:Backups/directus-kscw
 R2_DIR=r2kscw:kscw-db-backups
-NAS_USER=lucanepa
-NAS_HOST=100.64.212.125
-NAS_PATH=/volume1/backups/directus-kscw
-SSH_KEY=/root/.ssh/id_ed25519
 GPG_RECIPIENT=backup@kscw.ch
 
 ARCHIVE="$BACKUP_DIR/kscw_uploads_${DATE}.tar.gz.gpg"
@@ -71,7 +67,7 @@ if ! tar -czf - -C "$MIRROR" . \
 fi
 SIZE=$(du -h "$ARCHIVE" | cut -f1)
 
-# ── 3. offsite: same three destinations as the DB dumps ─────────────────────────────
+# ── 3. offsite: same destinations as the DB dumps ───────────────────────────────────
 # Each leg is checked — the closing line used to say "GDrive + R2 + NAS" regardless,
 # and Drive's rate limit on rclone's shared OAuth client cost the 20.09 and 27.09
 # archives their Drive copy without a word. The cloud legs copy EVERY local archive the
@@ -80,15 +76,14 @@ OFFSITE=()
 leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+=("$name FAILED"); fi; }
 leg GDrive rclone copy "$BACKUP_DIR" "$GDRIVE_DIR" --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
 leg R2     rclone copy "$BACKUP_DIR" "$R2_DIR"     --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
-leg NAS    scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$ARCHIVE" \
-    "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/" 2>&1
+# NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
+# the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
+# PULLS the encrypted files instead (kscw-backup-pull.timer there, 40 min after each run).
 
 # ── 4. retention: 8 weeks everywhere ────────────────────────────────────────────────
 find "$BACKUP_DIR" -name 'kscw_uploads_*.tar.gz.gpg' -mtime +56 -delete
 rclone delete "$GDRIVE_DIR" --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 2>&1
 rclone delete "$R2_DIR"     --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 2>&1
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
-  "find '${NAS_PATH}' -name 'kscw_uploads_*.tar.gz.gpg' -mtime +56 -delete" 2>&1
 
 SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
 case "$SUMMARY" in *FAILED*) RESULT=INCOMPLETE ;; *) RESULT=complete ;; esac

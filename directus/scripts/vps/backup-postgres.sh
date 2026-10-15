@@ -4,10 +4,6 @@ DATE=$(date +%Y-%m-%d_%H%M)
 CONTAINER=kscw-postgres
 GDRIVE_DIR=gdrive:Backups/directus-kscw
 R2_DIR=r2kscw:kscw-db-backups
-NAS_USER=lucanepa
-NAS_HOST=100.64.212.125
-NAS_PATH=/volume1/backups/directus-kscw
-SSH_KEY=/root/.ssh/id_ed25519
 GPG_RECIPIENT=backup@kscw.ch
 
 # Dump postgres database (KSCW data) — plaintext local
@@ -55,34 +51,9 @@ rclone delete "$GDRIVE_DIR" --min-age 60d --include '*.sql.gz.gpg' 2>&1 || PRUNE
 leg R2 rclone copy "$BACKUP_DIR" "$R2_DIR" --include '*.sql.gz.gpg' 2>&1
 rclone delete "$R2_DIR" --min-age 60d --include '*.sql.gz.gpg' 2>&1 || PRUNE_FAILED+=(R2)
 
-# Sync ENCRYPTED files to NAS via Tailscale.
-# The dumps carry AHV numbers and IBANs; a Synology is a ransomware target like any
-# other box, so it gets the .gpg — never the plaintext. Restoring from the NAS needs
-# the backup@kscw.ch private key, same as GDrive/R2 (see CONTINGENCY.md).
-#
-# Copy only what the NAS is missing. The old loop re-sent every dump in the 7-day
-# window on every run (~30 files x 313 MB, 4x/day) — pure waste over Tailscale.
-#
-# NOT rsync: DSM refuses rsync-over-ssh for this user ("Permission denied" on
-# `rsync --server`, even though plain ssh + scp with the same key work fine).
-# So: fetch the remote name+size list once, then scp only the files that are absent
-# or size-mismatched (a half-transferred .gpg re-sends rather than being trusted).
-# An unreachable NAS (DSM upgrade, Tailscale down) fails the listing and every scp —
-# both now mark the NAS leg FAILED instead of vanishing into the old fixed log line.
-NAS_OK=1
-REMOTE_LIST=$(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
-  "find '${NAS_PATH}' -maxdepth 1 -name '*.sql.gz.gpg' -printf '%f %s\n' 2>/dev/null" 2>/dev/null) || NAS_OK=0
-for f in "$BACKUP_DIR"/*.sql.gz.gpg; do
-  [ -e "$f" ] || continue
-  base=$(basename "$f"); size=$(stat -c%s "$f")
-  if printf '%s\n' "$REMOTE_LIST" | grep -qx "$base $size"; then
-    continue   # already on the NAS at the correct size
-  fi
-  scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$f" "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/" 2>&1 || NAS_OK=0
-done
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
-  "find '${NAS_PATH}' -name '*.sql.gz.gpg' -mtime +7 -delete" 2>&1 || PRUNE_FAILED+=(NAS)
-if [ "$NAS_OK" -eq 1 ]; then OFFSITE+=("NAS OK"); else OFFSITE+=("NAS FAILED"); fi
+# NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
+# the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
+# PULLS the encrypted files instead (kscw-backup-pull.timer there, 40 min after each run).
 
 SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
 [ ${#PRUNE_FAILED[@]} -gt 0 ] && SUMMARY="$SUMMARY; retention prune FAILED on ${PRUNE_FAILED[*]}"
