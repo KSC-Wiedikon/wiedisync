@@ -44,7 +44,7 @@ export const NO_TRANSFER_VB_TEAM_NAMES: ReadonlySet<string> = new Set(['DU20', '
  *  `sv_vm_check`); asking for it here would 400 the query. */
 export const MEMBER_FIELDS: string[] = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'birthdate',
-  'license_nr', 'licence_category', 'nationalitaet_codes', 'federation_of_origin',
+  'license_nr', 'licence_category', 'nationality_codes', 'federation_of_origin',
   'kscw_membership_active', 'licence_validated',
   'transfer_status', 'transfer_done_at', 'transfer_done_by_name', 'transfer_note',
   // VIS presence (migration 240). Same deploy-order caveat as the transfer_*

@@ -14,8 +14,8 @@
 -- Match rule (same as clubdesk-diff-queries.sql): a Directus member matches a
 -- ClubDesk row if ANY of:
 --   1. lower(members.email)      = lower(clubdesk.email)
---   2. lower(members.email)      = lower(clubdesk.email_alternativ)
---   3. members.license_nr        = clubdesk.lizenznummer   (both non-empty)
+--   2. lower(members.email)      = lower(clubdesk.email_alternative)
+--   3. members.license_nr        = clubdesk.licence_no   (both non-empty)
 --
 -- Only shape-valid IBANs are written (ISO 13616 skeleton: 2 letters, 2 check
 -- digits, 11–30 alphanumerics, stored without spaces). ClubDesk holds the bank's
@@ -31,8 +31,8 @@ BEGIN;
 WITH cd AS (
   SELECT
     LOWER(NULLIF(email, ''))             AS email,
-    LOWER(NULLIF(email_alternativ, ''))  AS email_alt,
-    NULLIF(lizenznummer, '')             AS lic,
+    LOWER(NULLIF(email_alternative, ''))  AS email_alt,
+    NULLIF(licence_no, '')             AS lic,
     UPPER(REGEXP_REPLACE(iban, '\s', '', 'g')) AS iban_norm
   FROM clubdesk_export
   WHERE NULLIF(iban, '') IS NOT NULL

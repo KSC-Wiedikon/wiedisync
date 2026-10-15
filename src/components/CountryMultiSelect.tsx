@@ -15,7 +15,7 @@ interface CountryMultiSelectProps {
 }
 
 /**
- * Country picker for `members.nationalitaet_codes` — multi-select, searchable,
+ * Country picker for `members.nationality_codes` — multi-select, searchable,
  * order-preserving. Selection order is meaningful: the first code is the primary
  * nationality and is the one pushed to ClubDesk, whose field holds a single
  * value. Chips therefore render in selection order, not alphabetically.

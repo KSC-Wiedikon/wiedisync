@@ -1,7 +1,7 @@
 // src/utils/trainerLicences.ts
 //
 // Coaching education (Trainerausbildung) — `members.trainer_licences`,
-// migration 274. Stored exactly like `nationalitaet_codes`: an ordered,
+// migration 274. Stored exactly like `nationality_codes`: an ordered,
 // comma-separated code list in a single varchar, parsed on read and
 // serialized on write. See src/utils/countries.ts for the same pattern.
 //

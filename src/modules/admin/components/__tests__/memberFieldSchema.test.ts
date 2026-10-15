@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 111 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(111)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(111)
+  it('has 110 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(110)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(110)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -100,7 +100,7 @@ describe('memberFieldSchema — completeness', () => {
 
   it('matches the group sizes the taxonomy was designed around', () => {
     const count = (id: MemberFieldGroupId) => MEMBER_FIELDS.filter((f) => f.group === id).length
-    expect(count('identity')).toBe(11)
+    expect(count('identity')).toBe(10)
     expect(count('contact')).toBe(7)
     expect(count('membership')).toBe(16) // 13 columns + the 3 team links
     expect(count('playing')).toBe(3)
@@ -254,7 +254,7 @@ describe('isFieldReadOnly', () => {
   const asSportAdmin = { isGlobalAdmin: false }
 
   it('locks read-only, sensitive and danger-zone fields for everybody', () => {
-    for (const key of ['id', 'nationalitaet', 'ical_token', 'kscw_membership_active']) {
+    for (const key of ['id', 'clubdesk_pushed_at', 'ical_token', 'kscw_membership_active']) {
       expect(isFieldReadOnly(MEMBER_FIELD_BY_KEY[key], asAdmin), key).toBe(true)
       expect(isFieldReadOnly(MEMBER_FIELD_BY_KEY[key], asSportAdmin), key).toBe(true)
     }
@@ -289,7 +289,7 @@ describe('isBulkEditable', () => {
    *  shared value across several different people can be correct. */
   const BULK_EDITABLE_FOR_ADMIN = [
     // identity
-    'salutation', 'sex', 'birthdate_visibility', 'nationalitaet_codes', 'language',
+    'salutation', 'sex', 'birthdate_visibility', 'nationality_codes', 'language',
     // contact
     'hide_email', 'hide_phone', 'address', 'postal_code', 'city',
     // membership
@@ -622,9 +622,9 @@ describe('buildMemberFieldSections', () => {
       showTechnical: false,
     })
     const keys = keysOf(sections)
-    expect(keys).not.toContain('nationalitaet')
+    expect(keys).not.toContain('licence_status_updated_at')
     expect(keys).not.toContain('clubdesk_pushed_at')
-    expect(keys).toContain('nationalitaet_codes')
+    expect(keys).toContain('nationality_codes')
     expect(keys).toContain('clubdesk_id')
     expect(sections.map((s) => s.group.id)).not.toContain('system')
   })
@@ -670,21 +670,21 @@ describe('buildMemberFieldSections', () => {
 
   it('never filters an `alwaysShow` key — an unsaved edit cannot be swallowed', () => {
     const sections = buildMemberFieldSections({
-      presentKeys: ['first_name', 'phone', 'nationalitaet'],
+      presentKeys: ['first_name', 'phone', 'clubdesk_pushed_at'],
       sport: 'both',
       revealedSports: none,
       hideEmpty: true,
       isEmpty: () => true,
       showTechnical: false,
-      alwaysShow: new Set(['phone', 'nationalitaet']),
+      alwaysShow: new Set(['phone', 'clubdesk_pushed_at']),
     })
-    expect(keysOf(sections).sort()).toEqual(['nationalitaet', 'phone'])
+    expect(keysOf(sections).sort()).toEqual(['clubdesk_pushed_at', 'phone'])
   })
 
   // The counts on the two buttons and the fields the render plan drops come from
   // this one predicate, which is what keeps "Show technical (21)" honest.
   describe('fieldFilterReason', () => {
-    const technical = MEMBER_FIELD_BY_KEY.nationalitaet
+    const technical = MEMBER_FIELD_BY_KEY.clubdesk_pushed_at
     // ⚠ `phone` no longer works as the "ordinary" field — it is governed by
     // `hide_phone` and is therefore exempt from the empty filter.
     const ordinary = MEMBER_FIELD_BY_KEY.city
@@ -712,7 +712,7 @@ describe('buildMemberFieldSections', () => {
     it('lets alwaysShow beat both flags', () => {
       expect(fieldFilterReason(technical, {
         showTechnical: false, hideEmpty: true, isEmpty: () => true,
-        alwaysShow: new Set(['nationalitaet']),
+        alwaysShow: new Set(['clubdesk_pushed_at']),
       })).toBeNull()
     })
   })
@@ -722,7 +722,7 @@ describe('buildMemberFieldSections', () => {
       .find((s) => s.group.id === 'identity')!
     expect(identity.entries[0].fields.map((f) => f.key)).toEqual([
       'first_name', 'last_name', 'nickname', 'salutation', 'photo', 'sex',
-      'birthdate', 'birthdate_visibility', 'nationalitaet_codes', 'nationalitaet', 'language',
+      'birthdate', 'birthdate_visibility', 'nationality_codes', 'language',
     ])
   })
 })

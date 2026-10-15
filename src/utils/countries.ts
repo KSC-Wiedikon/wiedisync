@@ -130,7 +130,7 @@ export function countryOptions(): CountryOption[] {
 }
 
 /**
- * Parse the stored comma-separated code list (`members.nationalitaet_codes`)
+ * Parse the stored comma-separated code list (`members.nationality_codes`)
  * into an ordered, de-duplicated array. The FIRST code is the primary one —
  * it is what gets pushed to ClubDesk, whose field holds a single value.
  */

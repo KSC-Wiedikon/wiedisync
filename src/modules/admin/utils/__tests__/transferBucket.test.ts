@@ -14,7 +14,7 @@ import { bucketOf, federationBucketOf, type TransferBucketInput } from '../trans
 const member = (over: Partial<TransferBucketInput> = {}): TransferBucketInput => ({
   federation_of_origin: null,
   kscw_membership_active: true,
-  nationalitaet_codes: null,
+  nationality_codes: null,
   transfer_status: null,
   ...over,
 })
@@ -40,10 +40,10 @@ describe('federationBucketOf — the federation column alone', () => {
   })
 
   it('asks only active members who hold a nationality we know is not Swiss', () => {
-    expect(federationBucketOf(member({ nationalitaet_codes: 'IT' }))).toBe('clarify')
-    expect(federationBucketOf(member({ nationalitaet_codes: 'IT,CH' }))).toBe('ignore')
-    expect(federationBucketOf(member({ nationalitaet_codes: null }))).toBe('ignore')
-    expect(federationBucketOf(member({ nationalitaet_codes: 'IT', kscw_membership_active: false })))
+    expect(federationBucketOf(member({ nationality_codes: 'IT' }))).toBe('clarify')
+    expect(federationBucketOf(member({ nationality_codes: 'IT,CH' }))).toBe('ignore')
+    expect(federationBucketOf(member({ nationality_codes: null }))).toBe('ignore')
+    expect(federationBucketOf(member({ nationality_codes: 'IT', kscw_membership_active: false })))
       .toBe('ignore')
   })
 })
@@ -62,10 +62,10 @@ describe('bucketOf — the overrides', () => {
   })
 
   it('clears an unanswered member out of the questions list too', () => {
-    const m = member({ nationalitaet_codes: 'IT' })
+    const m = member({ nationality_codes: 'IT' })
     expect(bucketOf(m, false)).toBe('clarify')
     expect(bucketOf(m, true)).toBe('settled')
-    expect(bucketOf(member({ nationalitaet_codes: 'IT', transfer_status: 'not_needed' })))
+    expect(bucketOf(member({ nationality_codes: 'IT', transfer_status: 'not_needed' })))
       .toBe('settled')
   })
 
@@ -109,12 +109,12 @@ describe('bucketOf — the overrides', () => {
     const nats = [null, 'CH', 'IT', 'IT,CH']
     const statuses = [null, 'pending', 'done', 'not_needed'] as const
     for (const federation_of_origin of feds) {
-      for (const nationalitaet_codes of nats) {
+      for (const nationality_codes of nats) {
         for (const transfer_status of statuses) {
           for (const active of [true, false]) {
             for (const vmSaysSwiss of [true, false]) {
               const m = member({
-                federation_of_origin, nationalitaet_codes, transfer_status,
+                federation_of_origin, nationality_codes, transfer_status,
                 kscw_membership_active: active,
               })
               const base = federationBucketOf(m)

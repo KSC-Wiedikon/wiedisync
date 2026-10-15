@@ -12,7 +12,7 @@
  *                   that renders them (migration 338). EVERYTHING downstream reads that table — the
  *                   sync-up preview computes drift against it and its stale-link
  *                   guard checks membership in it; the group checks read
- *                   `gruppen_bracketed` from it. Run anything on a stale export
+ *                   `groups_bracketed` from it. Run anything on a stale export
  *                   and it acts on yesterday's register.
  *   2. Decide       accept/refuse. A refusal flags the member for push, so it has
  *                   to happen BEFORE the up or the refusal misses that push.
@@ -205,7 +205,7 @@ export default function ClubdeskSyncPath({
    * A group-fix COMMIT has landed in this session.
    *
    * ⚠⚠ Step 5 cannot be gated on its findings going away, because they cannot: the
-   * group checks read `clubdesk_export.gruppen_bracketed`, which is written by the
+   * group checks read `clubdesk_export.groups_bracketed`, which is written by the
    * sync DOWN, and the commit writes to ClubDesk. Our copy of the register is one
    * sync behind until the next down — so a run that did exactly what was asked
    * (08.09.2026: 7 assigned, 2 removed, no skips) left the path reading

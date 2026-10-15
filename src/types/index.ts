@@ -219,13 +219,11 @@ export interface Member extends BaseRecord {
   address: string
   postal_code: string
   city: string
-  // Nationality is CODED since migration 223/224. `nationalitaet_codes` is the
-  // ordered, comma-separated ISO 3166-1 alpha-2 list ("CH,IT") and the FIRST
-  // code is the primary one. `nationalitaet` is DERIVED from it by a DB trigger
-  // (the German display name the ClubDesk push/drift path needs) — treat it as
-  // READ-ONLY everywhere in the UI and never write it.
-  nationalitaet: string
-  nationalitaet_codes: string | null
+  // Nationality is CODED since migration 223/224: the ordered, comma-separated
+  // ISO 3166-1 alpha-2 list ("CH,IT"); the FIRST code is the primary one and
+  // the one ClubDesk receives (its German name, computed at push time — the
+  // derived `nationalitaet` column was dropped by migration 418).
+  nationality_codes: string | null
   // Federation the member was FIRST licensed with (their federation of origin):
   // an ISO alpha-2 code, or null (not answered). A first-ever licence is issued
   // by Swiss Volley / Swiss Basketball, so that case is 'CH' — there is no

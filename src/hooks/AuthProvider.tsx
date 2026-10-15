@@ -710,13 +710,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // with the non-dismissable onboarding modal until every one of these is
   // filled (2026-07-28) — coaches/staff never pass the membership registration
   // form, so this gate is the only place their address ever gets collected.
-  // Nationality checks the coded column; the legacy `nationalitaet` text is a
-  // trigger-derived mirror of it and needs no fallback here.
+  // Nationality = the coded column (the only one since migration 418).
   const filled = (v: unknown) => String(v ?? '').trim() !== ''
   const isProfileComplete = !!user?.language && filled(user?.first_name)
     && filled(user?.last_name) && filled(user?.phone) && filled(user?.birthdate)
     && filled(user?.address) && filled(user?.postal_code) && filled(user?.city)
-    && filled(user?.nationalitaet_codes)
+    && filled(user?.nationality_codes)
   const isVorstand = roles.includes('vorstand') || isGlobalAdmin
   // 'finance' is an orthogonal role (treasurer / finance team). Global admins
   // implicitly have it; the finance dashboard opens for board OR finance.

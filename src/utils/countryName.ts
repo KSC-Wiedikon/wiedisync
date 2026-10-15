@@ -4,7 +4,7 @@ import { COUNTRY_NAME_TO_CODE } from './countryCodes'
 /**
  * Localize an ISO 3166-1 alpha-2 country code (e.g. "PL") to the country name in
  * the viewer's language ("Poland" / "Polen" / "Pologne"). The registration form
- * stores `nationalitaet` as the country name in the SUBMITTER's language, so it
+ * stored the nationality as the country name in the SUBMITTER's language, so it
  * can't be re-translated — we store the canonical ISO code alongside it and
  * resolve the display name here via Intl.DisplayNames.
  *
@@ -23,7 +23,7 @@ export function localizeCountry(code: string | null | undefined, fallback = ''):
 
 /**
  * Localize a stored country *name* (no ISO code available) — e.g. members whose
- * `nationalitaet` came from ClubDesk in German ("Polen") or was typed by the
+ * nationality came from ClubDesk in German ("Polen") or was typed by the
  * member in their own language. Resolves the name to an ISO code via a curated
  * de+en lookup, then to the viewer's language. A 2-letter input is treated as a
  * code directly. Unknown values are returned unchanged (no worse than today).

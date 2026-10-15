@@ -623,8 +623,8 @@ export const CHECKS = [
     sql: `WITH j AS (
     SELECT m.id, m.first_name, m.last_name, m.license_nr, m.scorer_vb, m.referee_vb,
            vm.id AS vm_id, COALESCE(vm.is_writer, false) AS vm_writer, COALESCE(vm.is_referee, false) AS vm_referee,
-           upper(btrim(COALESCE(c.offiziellen_lizenz, ''))) AS cd_lizenz,
-           (COALESCE(c.gruppen_bracketed, '') ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)') AS cd_referee_group
+           upper(btrim(COALESCE(c.official_licence, ''))) AS cd_lizenz,
+           (COALESCE(c.groups_bracketed, '') ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)') AS cd_referee_group
     FROM members m
     ${VM_JOIN}
     LEFT JOIN clubdesk_export c ON btrim(c.clubdesk_id) = NULLIF(btrim(m.clubdesk_id), '')

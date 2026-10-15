@@ -375,8 +375,8 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
     // to lag, against the qual columns' automatic-but-over-broad VM/Basketplan
     // sync. A new scorer who is never added to the group will not be mailed.
     //
-    // ⚠ Groups live ONLY on clubdesk_export.gruppen_bracketed —
-    // clubdesk_people.gruppen is empty for all 1151 rows — so this joins a
+    // ⚠ Groups live ONLY on clubdesk_export.groups_bracketed —
+    // clubdesk_people.groups is empty for all 1151 rows — so this joins a
     // different table than the register-status audiences above.
     case 'clubdesk_group': {
       if (!spec.audience_group) {
@@ -390,7 +390,7 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         // would make one group silently absorb another the day someone adds
         // "BB Offiziellen 2".
         .whereRaw(
-          'EXISTS (SELECT 1 FROM unnest(string_to_array(ce.gruppen_bracketed, \',\')) g WHERE btrim(g) = ?)',
+          'EXISTS (SELECT 1 FROM unnest(string_to_array(ce.groups_bracketed, \',\')) g WHERE btrim(g) = ?)',
           [spec.audience_group],
         )
         .distinct('m.id')
@@ -545,12 +545,12 @@ export async function resolveRegisterEmails(database, emails) {
     .whereNot('status', 'Verstorben')
     .whereNotNull('email')
     .whereIn(database.raw('LOWER(BTRIM(email))'), wanted)
-    .select('clubdesk_id', 'email', 'vorname', 'nachname')
+    .select('clubdesk_id', 'email', 'first_name', 'last_name')
   return rows.map(r => ({
     id: `cd:${r.clubdesk_id}`,
     email: String(r.email).trim(),
-    first_name: r.vorname || '',
-    last_name: r.nachname || '',
+    first_name: r.first_name || '',
+    last_name: r.last_name || '',
   }))
 }
 
@@ -560,11 +560,11 @@ export async function resolveClubdeskRecipients(database, status) {
     .whereNot('status', 'Verstorben')
     .whereNotNull('email')
     .whereRaw("BTRIM(email) <> ''")
-    .select('clubdesk_id', 'email', 'vorname', 'nachname')
+    .select('clubdesk_id', 'email', 'first_name', 'last_name')
   return rows.map(r => ({
     id: `cd:${r.clubdesk_id}`,
     email: String(r.email).trim(),
-    first_name: r.vorname || '',
-    last_name: r.nachname || '',
+    first_name: r.first_name || '',
+    last_name: r.last_name || '',
   }))
 }

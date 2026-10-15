@@ -248,12 +248,12 @@ SELECT DISTINCT ON (mem.id)
 
 -- ── Nationality: fill only where wiedisync has none ─────────────────────────
 -- nation_1 is primary; nation_2 is appended when it resolves too, giving the
--- ordered "CH,IT" the trigger turns into ClubDesk's single German name.
+-- ordered "CH,IT" (the ClubDesk push sends the first code's German name).
 -- An unresolvable (ambiguous) option contributes NOTHING rather than a guess —
 -- so a member whose ONLY value is ambiguous stays empty and shows up in the
 -- residue report below.
 UPDATE members m
-   SET nationalitaet_codes = codes
+   SET nationality_codes = codes
   FROM (
     SELECT b.member_id,
            concat_ws(',', n1.iso, nullif(n2.iso, n1.iso)) AS codes
@@ -263,7 +263,7 @@ UPDATE members m
      WHERE n1.iso IS NOT NULL
   ) x
  WHERE m.id = x.member_id
-   AND m.nationalitaet_codes IS NULL
+   AND m.nationality_codes IS NULL
    AND x.codes ~ '^[A-Z]{2}(,[A-Z]{2})*$';
 
 -- ── Licence number: STRICT fill-only ────────────────────────────────────────
@@ -316,8 +316,8 @@ UPDATE members m SET referee_bb = true FROM bp_match b
 
 COMMIT;
 
-SELECT 'members_with_nationality' AS metric, count(*) AS value FROM members WHERE nationalitaet_codes IS NOT NULL
-UNION ALL SELECT 'members_still_without', count(*) FROM members WHERE nationalitaet_codes IS NULL
+SELECT 'members_with_nationality' AS metric, count(*) AS value FROM members WHERE nationality_codes IS NOT NULL
+UNION ALL SELECT 'members_still_without', count(*) FROM members WHERE nationality_codes IS NULL
 UNION ALL SELECT 'members_with_license_nr', count(*) FROM members WHERE nullif(btrim(license_nr::text),'') IS NOT NULL
 UNION ALL SELECT 'members_with_licence_category', count(*) FROM members WHERE nullif(btrim(licence_category),'') IS NOT NULL
 UNION ALL SELECT 'otn1_bb', count(*) FROM members WHERE otn1_bb

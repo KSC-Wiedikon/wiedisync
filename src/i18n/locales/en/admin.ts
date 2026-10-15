@@ -833,7 +833,7 @@ export default {
   cdFieldSex: 'Gender',
   cdFieldIban: 'IBAN',
   cdFieldAnrede: 'Salutation',
-  cdFieldNationalitaet: 'Nationality',
+  cdFieldNationality: 'Nationality',
   cdFieldFederation: 'Federation of origin',
   cdFieldAhv: 'AHV number',
   cdFieldRegisterStatus: 'Register status',

@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_LAND_DEFAULT, kantonsschuleCell, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
+import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_LAND_DEFAULT, kantonsschuleCell, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, nationalityPushCell, prependNationalityCode, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -69,11 +69,12 @@ describe('buildPushCsv (update set)', () => {
   })
 
   it('carries the echo-protected fields + the Wiedisync ID (uuid, id fallback) after IBAN', () => {
-    const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', salutation: 'Herr', nationalitaet: 'Schweiz', ahv_number: '756.1.2.3' }])
+    const countryNames = new Map([['CH', 'Schweiz'], ['IT', 'Italien']])
+    const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', salutation: 'Herr', nationality_codes: 'CH,IT', ahv_number: '756.1.2.3' }], { countryNames })
       .trim().split('\n')[1].split(';')
     expect(row[8]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
     expect(row[9]).toBe('Herr')      // Anrede
-    expect(row[10]).toBe('Schweiz')  // Nationalität
+    expect(row[10]).toBe('Schweiz')  // Nationalität — the FIRST code only (single-valued field)
     expect(row[13]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
     expect(row[14]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
     // members.uuid (migration 184) wins over the numeric id
@@ -83,6 +84,25 @@ describe('buildPushCsv (update set)', () => {
     const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
     expect([empty[9], empty[10], empty[11], empty[12], empty[13]]).toEqual(['', '', '', '', '']) // /up echo-fills these
     expect(empty[14]).toBe('') // no uuid/id on the fixture → empty
+  })
+
+  it('sends Nationalität as the ClubDesk name of the FIRST code, echoes when there is none (migration 418)', () => {
+    // Byte-for-byte what the dropped members.nationalitaet column held: the
+    // trigger mirrored name_de_clubdesk of the first code.
+    const countryNames = new Map([['IT', 'Italien'], ['CH', 'Schweiz'], ['US', 'Vereinigte Staaten']])
+    const cell = (m) => buildPushCsv([{ ...kacper, ...m }], { countryNames }).trim().split('\n')[1].split(';')[10]
+    expect(cell({ nationality_codes: 'IT,CH' })).toBe('Italien')
+    expect(cell({ nationality_codes: 'CH,IT' })).toBe('Schweiz')
+    expect(cell({ nationality_codes: 'US' })).toBe('Vereinigte Staaten')
+    // No code → /up's stash of ClubDesk's own cell, never an empty cell.
+    expect(cell({ nationality_codes: null, nationality_cd: 'Deutschland' })).toBe('Deutschland')
+    expect(cell({ nationality_codes: null })).toBe('')
+    // An unknown code is not guessed at.
+    expect(cell({ nationality_codes: 'ZZ', nationality_cd: 'Italien' })).toBe('Italien')
+    // CREATE rows sit 1 column further right ([Id] → Vorname + Nachname).
+    const create = buildPushCsv([{ ...kacper, nationality_codes: 'IT,CH' }], { create: true, countryNames })
+    const [h, r] = create.trim().split('\n')
+    expect(r.split(';')[h.split(';').indexOf('Nationalität')]).toBe('Italien')
   })
 
   it('maps Federation of Origin to ClubDesk German, echoes when unanswered', () => {
@@ -423,6 +443,14 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     expect(coerceProposalValue('federation_of_origin', 'Keiner', { countryCodes }).ok).toBe(false)
     expect(coerceProposalValue('federation_of_origin', 'Schweiz').ok).toBe(false)
 
+    // nationality_codes (migration 418): the SQL rules stage a code, the
+    // conflict rule ClubDesk's German name — ONE code out either way (the accept
+    // path prepends it to the member's list).
+    expect(coerceProposalValue('nationality_codes', 'Schweiz', { countryCodes })).toEqual({ ok: true, value: 'CH' })
+    expect(coerceProposalValue('nationality_codes', 'de', { countryCodes })).toEqual({ ok: true, value: 'DE' })
+    expect(coerceProposalValue('nationality_codes', 'Atlantis', { countryCodes }).ok).toBe(false)
+    expect(coerceProposalValue('nationalitaet', 'Schweiz', { countryCodes }).ok).toBe(false) // pre-418 name: not a column any more
+
     // sex: members.sex has NO CHECK constraint, so 'männlich' would not fail —
     // it would quietly corrupt the column the gender pipeline reads.
     expect(coerceProposalValue('sex', 'männlich')).toEqual({ ok: true, value: 'm' })
@@ -493,7 +521,7 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // the bottom, which for `email` would mean any register free-text landing in
     // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation', 'club_section', 'register_status', 'fee_category'],
+      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation', 'club_section', 'register_status', 'fee_category', 'nationality'],
         `${field} has type ${type}`).toContain(type)
     }
   })
@@ -909,6 +937,23 @@ describe('federationCell / nationalityCell (the PUSH shape of the coded fields)'
     // An unknown code yields '' so the echo-back fills ClubDesk's own value
     // rather than a guessed spelling the import would reject.
     expect(federationCell('ZZ', CD_NAMES)).toBe('')
+  })
+
+  it('nationalityPushCell: the single-valued ClubDesk cell is the FIRST code', () => {
+    expect(nationalityPushCell('DE,CH', CD_NAMES)).toBe('Deutschland')
+    expect(nationalityPushCell('CH,DE', CD_NAMES)).toBe('Schweiz')
+    expect(nationalityPushCell('', CD_NAMES)).toBe('')
+    expect(nationalityPushCell(null, CD_NAMES)).toBe('')
+    expect(nationalityPushCell('ZZ', CD_NAMES)).toBe('')
+  })
+
+  it('prependNationalityCode: an accepted ClubDesk nationality goes first, the list stays', () => {
+    // The pre-418 trigger REPLACED 'IT,CH' with the one code — the data-loss bug.
+    expect(prependNationalityCode('IT,CH', 'DE')).toBe('DE,IT,CH')
+    expect(prependNationalityCode('IT,CH', 'CH')).toBe('CH,IT')
+    expect(prependNationalityCode('IT,CH', 'IT')).toBe('IT,CH')
+    expect(prependNationalityCode(null, 'DE')).toBe('DE')
+    expect(prependNationalityCode('', 'de')).toBe('DE')
   })
 
   it('maps the nationality code list to ClubDesk German', () => {

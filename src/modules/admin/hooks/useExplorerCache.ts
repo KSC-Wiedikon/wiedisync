@@ -120,11 +120,9 @@ export function useExplorerCache(scope: ExplorerScope) {
             // In the same read lists as beitragskategorie above, so batching
             // them here cannot 403 an audience that already gets that column.
             'register_status', 'joined_on', 'left_on',
-            // Coded nationality + federation of origin (migrations 223/224).
-            // `nationalitaet` is the trigger-derived German name kept for the
-            // ClubDesk push — read-only, but still fetched as the display
-            // fallback for rows whose codes were never resolved.
-            'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
+            // Coded nationality + federation of origin (migrations 223/224;
+            // one nationality column since 418).
+            'nationality_codes', 'federation_of_origin',
             // Which Kantonsschule (migration 315). Same read audience as
             // sektion above — admin / sport admin fields='*'.
             'cantonal_school', 'club_section',
@@ -181,9 +179,9 @@ export function useExplorerCache(scope: ExplorerScope) {
         // Narrow ClubDesk register info (groups → passive/honorary/former flags,
         // officials licence). Policy-gated — caught so viewers without
         // clubdesk_export read (until the perms run lands) just get no flags.
-        fetchAllItems<{ clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }>('clubdesk_export', {
-          fields: ['clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz'],
-        }).catch(() => [] as { clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }[]),
+        fetchAllItems<{ clubdesk_id: string | null; groups_bracketed: string | null; official_licence: string | null }>('clubdesk_export', {
+          fields: ['clubdesk_id', 'groups_bracketed', 'official_licence'],
+        }).catch(() => [] as { clubdesk_id: string | null; groups_bracketed: string | null; official_licence: string | null }[]),
         // Retained registration documents (post-approval), keyed by member.
         // Policy-gated (board/admin read registrations) — caught so sport-admin
         // viewers just get no reg-files column data.
@@ -221,8 +219,8 @@ export function useExplorerCache(scope: ExplorerScope) {
       for (const r of clubdeskRows) {
         if (!r.clubdesk_id) continue
         clubdeskInfo.set(String(r.clubdesk_id), {
-          gruppen: r.gruppen_bracketed ?? '',
-          offiziellenLizenz: r.offiziellen_lizenz ?? '',
+          gruppen: r.groups_bracketed ?? '',
+          offiziellenLizenz: r.official_licence ?? '',
         })
       }
 

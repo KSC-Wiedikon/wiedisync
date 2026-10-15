@@ -39,7 +39,7 @@ export interface TransferMember {
   birthdate?: string | null
   license_nr?: string | null
   licence_category?: string | null
-  nationalitaet_codes?: string | null
+  nationality_codes?: string | null
   federation_of_origin?: string | null
   kscw_membership_active?: boolean
   /** Mirrored onto `members` by vm-sync-check.mjs; `sv_vm_check` stays the source

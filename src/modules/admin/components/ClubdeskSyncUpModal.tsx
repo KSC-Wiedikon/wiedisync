@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { kscwApi } from '../../../lib/api'
 import type { GateCounts } from '../utils/syncPathSteps'
 import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
+import { formatCountryCodes } from '../../../utils/countries'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 
 interface FieldChange { field: string; old_value?: string | null; new_value?: string | null }
@@ -56,13 +57,18 @@ const RECEIPT_DWELL_MS = 6000
  * showing through ("federation_of_origin", until 2026-07-26).
  */
 function ChangeChip({ change }: { change: FieldChange }) {
+  // Nationality travels as a code list ('IT,CH', migration 418) — shown as
+  // country names. Anything that is not a code list (an older entry holding
+  // ClubDesk's German name) is shown as it is.
+  const show = (v: string | null | undefined) =>
+    (change.field === 'nationality_codes' ? formatCountryCodes(v) || v : v) || '—'
   return (
     <span className="rounded bg-amber-50 px-1.5 py-1 text-[11px] leading-snug text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
       <span className="font-medium">{MEMBER_FIELD_LABELS[change.field] || change.field}</span>
       <span className="block break-all">
-        <span className="line-through opacity-70">{change.old_value || '—'}</span>
+        <span className="line-through opacity-70">{show(change.old_value)}</span>
         {' → '}
-        {change.new_value || '—'}
+        {show(change.new_value)}
       </span>
     </span>
   )

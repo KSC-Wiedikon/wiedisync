@@ -730,14 +730,12 @@ const MEMBER_EDITABLE_FIELDS = [
   'trainer_licences',
   'requested_team',
   // ClubDesk personal data fields.
-  // 2026-07-25 migrations 223/224: nationality became CODED. `nationalitaet_codes`
-  // (ordered ISO alpha-2 list, first code primary) and `federation_of_origin`
-  // (alpha-2 | 'NONE' | null) are the member-writable columns; the legacy
-  // free-text `nationalitaet` is now DERIVED by a DB trigger for the ClubDesk
-  // picklist, so it is deliberately NOT here — a member write would be silently
-  // overwritten and drift the two apart in the meantime. It stays own-readable
-  // via MEMBER_DERIVED_READ_FIELDS below.
-  'salutation', 'address', 'postal_code', 'city', 'nationalitaet_codes', 'federation_of_origin',
+  // 2026-07-25 migrations 223/224: nationality became CODED. `nationality_codes`
+  // (ordered ISO alpha-2 list, first code primary — the ClubDesk push sends its
+  // German name; one column since migration 418, the trigger-derived
+  // `nationalitaet` is gone) and `federation_of_origin` (alpha-2 | null) are the
+  // member-writable columns.
+  'salutation', 'address', 'postal_code', 'city', 'nationality_codes', 'federation_of_origin',
   'sex', 'ahv_number',
   // 2026-08-13 migration 315: which Zurich Kantonsschule the member attends.
   // Self-asserted BY DESIGN and self-service on purpose — ~681 of ~711 members
@@ -775,20 +773,15 @@ const MEMBER_EDITABLE_FIELDS = [
 ]
 
 /**
- * Trigger-derived member columns: READABLE on the same rows as the editable
- * set, but never WRITABLE. Kept as its own list so removing a column from
- * MEMBER_EDITABLE_FIELDS (because the DB now owns it) does not silently drop it
- * from own-read / leader-read as well.
+ * Member columns READABLE on the same rows as the editable set, but never
+ * WRITABLE by the member. Kept as its own list so removing a column from
+ * MEMBER_EDITABLE_FIELDS (because something else owns it) does not silently
+ * drop it from own-read / leader-read as well.
  *
- * `nationalitaet` (migration 223) — the German ClubDesk display name mirrored
- * from the first entry of `nationalitaet_codes`. Deliberately NOT added to
- * MEMBER_VISIBLE_FIELDS: that list is what EVERY member reads about EVERY other
- * member, and nationality sits in the same PII tier as `adresse` / `birthdate`,
- * which are excluded from it by design (migration 024). It was never club-wide
- * readable and must not become so as a side effect of losing its write grant.
+ * (`nationalitaet`, the trigger-derived ClubDesk name, was the first entry; it
+ * was dropped by migration 418 — the push computes it from nationality_codes.)
  */
 const MEMBER_DERIVED_READ_FIELDS = [
-  'nationalitaet',
   // Own-READ only. Migration 030 once hand-patched this onto the Member row; a
   // later clearPolicyPermissions wiped it and the declarative script never
   // re-added it, so 209 of 211 active members with a login have a fee category
@@ -1134,10 +1127,10 @@ const MEMBER_INVOICE_FIELDS = [
  */
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
-  'salutation', 'address', 'postal_code', 'city', 'nationalitaet', 'sex', 'birthdate',
-  // Coded nationality + federation of origin (migrations 223/224) — kept in
-  // parity with the derived `nationalitaet` finance already reads.
-  'nationalitaet_codes', 'federation_of_origin',
+  'salutation', 'address', 'postal_code', 'city', 'sex', 'birthdate',
+  // Coded nationality + federation of origin (migrations 223/224; one
+  // nationality column since 418).
+  'nationality_codes', 'federation_of_origin',
   'iban', 'ahv_number', 'fee_category', 'club_section', 'kscw_membership_active', 'wiedisync_active',
   // Club register status + entry/exit dates (migration 302). Read-only for
   // finance: whether somebody is a member, and for how much of the season, is
@@ -3393,7 +3386,7 @@ async function main() {
   // Narrow ClubDesk register read — same field-scoped grant as Sport Admin, so
   // the board's read-only explorer grid shows the passive/honorary/former and
   // officials-licence columns.
-  await setPermRead(VORSTAND_POLICY, 'clubdesk_export', null, ['id', 'clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz'])
+  await setPermRead(VORSTAND_POLICY, 'clubdesk_export', null, ['id', 'clubdesk_id', 'groups_bracketed', 'official_licence'])
 
   // Forms (migrations 086/087) — Vorstand has FULL management (decision
   // 2026-06-05): create/edit/delete any form club-wide + read all submissions,
@@ -3619,10 +3612,10 @@ async function main() {
   // out of scope for that flow.
 
   // Narrow ClubDesk register read for the explorer grid's derived member
-  // columns (passive/honorary/former from gruppen_bracketed + the ClubDesk
+  // columns (passive/honorary/former from groups_bracketed + the ClubDesk
   // officials licence). Field-scoped on purpose — IBAN / AHV / Bemerkungen and
   // the rest of the register stay full-admin-only.
-  const CLUBDESK_GRID_FIELDS = ['id', 'clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz']
+  const CLUBDESK_GRID_FIELDS = ['id', 'clubdesk_id', 'groups_bracketed', 'official_licence']
   await setPermRead(SPORT_ADMIN_POLICY, 'clubdesk_export', null, CLUBDESK_GRID_FIELDS)
 
   console.log(`  ✓ Sport Admin permissions set`)

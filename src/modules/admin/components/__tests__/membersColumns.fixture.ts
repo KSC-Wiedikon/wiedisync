@@ -7,7 +7,7 @@
 // hand-linked VIS columns from migration 312, which shipped unclassified and
 // were only given a schema entry on 2026-08-14, + migration 335's
 // `deactivated_at`, minus the seven messaging columns dropped with the feature
-// on 2026-09-15 (111 today):
+// on 2026-09-15 (111), minus `nationalitaet` dropped by migration 418 (110):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -52,7 +52,6 @@ export const MEMBERS_COLUMNS: string[] = [
   'address',
   'postal_code',
   'city',
-  'nationalitaet',
   'salutation',
   'ahv_number',
   'fee_category',
@@ -109,7 +108,7 @@ export const MEMBERS_COLUMNS: string[] = [
   'e2ee_kdf_salt',
   'e2ee_key_created',
   'nickname',
-  'nationalitaet_codes',
+  'nationality_codes',
   'federation_of_origin',
   'otn1_bb',
   'otn2_bb',

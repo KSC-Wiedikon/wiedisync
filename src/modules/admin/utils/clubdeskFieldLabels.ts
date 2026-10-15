@@ -23,7 +23,7 @@ export const CD_FIELD_LABEL: Record<string, string> = {
   sex: 'cdFieldSex',
   iban: 'cdFieldIban',
   salutation: 'cdFieldAnrede',
-  nationalitaet: 'cdFieldNationalitaet',
+  nationality_codes: 'cdFieldNationality',
   federation_of_origin: 'cdFieldFederation',
   ahv_number: 'cdFieldAhv',
   register_status: 'cdFieldRegisterStatus',

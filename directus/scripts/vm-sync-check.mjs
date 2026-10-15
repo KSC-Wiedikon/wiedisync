@@ -676,7 +676,7 @@ async function syncToMembers(rows) {
   {
     let cdPage = 1;
     while (true) {
-      const url = `${DIRECTUS_URL}/items/clubdesk_export?fields=clubdesk_id,offiziellen_lizenz,gruppen_bracketed&limit=250&page=${cdPage}`;
+      const url = `${DIRECTUS_URL}/items/clubdesk_export?fields=clubdesk_id,official_licence,groups_bracketed&limit=250&page=${cdPage}`;
       const res = await fetch(url, { headers });
       // Fail loud, don't degrade. An empty/failed read here would look exactly
       // like "nobody holds VB SC / nobody is in the referee group" and re-arm the
@@ -688,13 +688,13 @@ async function syncToMembers(rows) {
       for (const r of data) {
         const id = (r.clubdesk_id ?? '').toString().trim();
         if (!id) continue;
-        if ((r.offiziellen_lizenz ?? '').toString().trim().toUpperCase() === 'VB SC') {
+        if ((r.official_licence ?? '').toString().trim().toUpperCase() === 'VB SC') {
           cdScorerIds.add(id);
         }
-        // `gruppen_bracketed` is the comma-joined [Gruppen] list. Split rather
+        // `groups_bracketed` is the comma-joined [Gruppen] list. Split rather
         // than substring-match: a bare `includes` would also fire on a future
         // group whose name merely contains this one.
-        const groups = (r.gruppen_bracketed ?? '').toString()
+        const groups = (r.groups_bracketed ?? '').toString()
           .split(',').map((g) => g.trim().toLowerCase());
         if (groups.includes(CD_REFEREE_GROUP_VB.toLowerCase())) cdRefereeIds.add(id);
       }

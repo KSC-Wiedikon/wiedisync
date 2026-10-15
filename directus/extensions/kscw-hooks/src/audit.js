@@ -52,13 +52,11 @@ const MAX_DATA_BYTES = 4096
 const REDACTED_FIELDS = {
   members: new Set([
     'ahv_number', 'birthdate', 'email', 'phone', 'license_nr',
-    // NB: the real column is `adresse` (German). `address` kept only as a
-    // defensive alias in case a field is ever renamed.
-    'address', 'address', 'postal_code', 'city', 'salutation', 'sex',
-    // Nationality + federation of origin (migrations 223/224). `nationalitaet`
-    // is the trigger-derived ClubDesk name; the other two are the authoritative
-    // coded columns. All three are the same PII fact — redact all three.
-    'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
+    'address', 'postal_code', 'city', 'salutation', 'sex',
+    // Nationality + federation of origin (migrations 223/224; one coded
+    // nationality column since 418). The pre-418 names stay listed so a cached
+    // bundle's payload is redacted too — same PII fact.
+    'nationality_codes', 'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
     'photo', 'requested_team', 'vm_email',
     // Financial PII (migrations 117 / 133 / 136) — member IBAN + the alternate
     // billing contact. Editable via items API (self-edit / finance policy), so

@@ -50,19 +50,19 @@ export const DEV_IBAN = 'CH9300762011623852957'
  */
 export const CLUBDESK_EXPORT_SCRUB = Object.freeze({
   email: 'email',
-  email_alternativ: 'email',
-  ahv_nummer: 'null',
+  email_alternative: 'email',
+  ahv_number: 'null',
   iban: 'iban',
-  kontoinhaber: 'null',
-  adresse: 'street',
-  adress_zusatz: 'null',
-  telefon_geschaeft: 'null',
-  telefon_mobil: 'null',
-  telefon_privat: 'null',
+  account_holder: 'null',
+  address: 'street',
+  address_extra: 'null',
+  phone_business: 'null',
+  phone_mobile: 'null',
+  phone_private: 'null',
   fax: 'null',
   bic: 'null',
-  bemerkungen: 'null',
-  geburtsdatum: 'ddmmyyyy',
+  remarks: 'null',
+  birthdate: 'ddmmyyyy',
 })
 
 const md5 = (s) => createHash('md5').update(String(s), 'utf8').digest('hex')

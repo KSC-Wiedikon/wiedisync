@@ -124,7 +124,7 @@ export function useTransferData(): TransferData {
         {
           _and: [
             { federation_of_origin: { _null: true } },
-            { nationalitaet_codes: { _nnull: true } },
+            { nationality_codes: { _nnull: true } },
             { kscw_membership_active: { _eq: true } },
           ],
         },
@@ -435,7 +435,7 @@ export function useTransferData(): TransferData {
       cohorts.clarify,
       // The primary (first) nationality. None of these members holds CH — that is
       // what put them in this bucket — so the first code is the meaningful one.
-      (m) => parseCountryCodes(m.nationalitaet_codes)[0] ?? '',
+      (m) => parseCountryCodes(m.nationality_codes)[0] ?? '',
       (code) => {
         const flag = countryFlag(code)
         const label = countryLabel(code) || code

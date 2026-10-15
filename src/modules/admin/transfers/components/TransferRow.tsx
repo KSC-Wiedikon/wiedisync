@@ -67,9 +67,9 @@ export function TransferRow({ member, mode, columns, derivations, actions }: {
           it reads "flag of Italy, Italy", and on Windows the glyph is missing so
           the literal letters render instead. */}
       <span aria-hidden="true" className="mr-1">
-        {parseCountryCodes(member.nationalitaet_codes).map(countryFlag).join(' ')}
+        {parseCountryCodes(member.nationality_codes).map(countryFlag).join(' ')}
       </span>
-      {formatCountryCodes(member.nationalitaet_codes) || '—'}
+      {formatCountryCodes(member.nationality_codes) || '—'}
     </p>
   )
 

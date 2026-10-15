@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { writeFileSync, rmSync } from 'node:fs';
+import { writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,9 +34,9 @@ test('emit-sql exits 0 and produces the staging load', () => {
   // (+ wiedisync_id, added 2026-07-07 for the round-trip linker; + js_id, added
   // 2026-07-08 (migration 195) for the J+S Personennummer down-sync;
   // + federation_of_origin, added 2026-07-25 (migration 223) for the
-  // transfer-certificate federation down-sync; + gast, added 2026-07-27
+  // transfer-certificate federation down-sync; + guest, added 2026-07-27
   // (migration 244) so drift detection can see the register's copy of the
-  // guest flag wiedisync pushes; + trainer_lizenz, added 2026-08-03 (migration
+  // guest flag wiedisync pushes; + trainer_licence, added 2026-08-03 (migration
   // 275) for the two-way coaching-education sync).
   const copyLine = sql.split('\n').find((l) => l.startsWith('\\copy clubdesk_export('));
   assert.ok(copyLine, 'missing \\copy line');
@@ -44,8 +44,8 @@ test('emit-sql exits 0 and produces the staging load', () => {
   assert.ok(copyLine.includes('wiedisync_id'), 'wiedisync_id missing from staging load');
   assert.ok(copyLine.includes('js_id'), 'js_id missing from staging load');
   assert.ok(copyLine.includes('federation_of_origin'), 'federation_of_origin missing from staging load');
-  assert.ok(copyLine.includes('gast'), 'gast missing from staging load');
-  assert.ok(copyLine.includes('trainer_lizenz'), 'trainer_lizenz missing from staging load');
+  assert.ok(copyLine.includes('guest'), 'guest missing from staging load');
+  assert.ok(copyLine.includes('trainer_licence'), 'trainer_licence missing from staging load');
 });
 
 // The create pass STAGES a proposal now (migration 321) instead of inserting the
@@ -72,9 +72,9 @@ test('create-proposal pass carries all four same-person guards and the scope fil
   const at = sql.indexOf(CREATE_INSERT);
   const pass = sql.slice(sql.lastIndexOf('WITH cd AS (', at), at);
   assert.ok(pass.includes("btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')"), 'status scope');
-  assert.ok(pass.includes("NULLIF(btrim(austritt),'') IS NULL"), 'austritt scope');
+  assert.ok(pass.includes("NULLIF(btrim(left_on),'') IS NULL"), 'left_on (Austritt) scope');
   assert.ok(pass.includes('length(btrim(clubdesk_id)) <= 64'), 'cdid length cap');
-  assert.ok(pass.includes('email_alt_l'), 'G1/G3 must consider email_alternativ');
+  assert.ok(pass.includes('email_alt_l'), 'G1/G3 must consider email_alternative');
   assert.ok(pass.includes('FROM cd c2'), 'G4 within-batch dedup');
   assert.match(pass, /\(length\(c2\.cdid\), c2\.cdid\) < \(length\(cd\.cdid\), cd\.cdid\)/, 'numeric-safe twin ordering');
 });
@@ -122,4 +122,28 @@ test('emitted SQL is parenthesis-balanced (guards against pass-editing slips)', 
     assert.ok(depth >= 0, 'closing paren without opener');
   }
   assert.equal(depth, 0, `unbalanced parens: depth ${depth} at EOF`);
+});
+
+// Migration 418: the staging columns are the English names migration 412 wrote
+// into clubdesk_field_map.staging_column. Two lists for one fact — so pin them.
+test('the staging load uses exactly the clubdesk_field_map staging columns (418)', () => {
+  const seed = readFileSync(fileURLToPath(new URL('../412-clubdesk-maps.sql', import.meta.url)), 'utf-8');
+  const staging = [...seed.matchAll(/^\s+\('members',\s*'[^']+',\s*'([a-z0-9_]+)'/gm)].map((m) => m[1]);
+  assert.ok(staging.length > 50, 'field-map seed parse broke');
+  const copyLine = sql.split('\n').find((l) => l.startsWith('\\copy clubdesk_export('));
+  const cols = copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').map((c) => c.trim());
+  for (const c of staging) assert.ok(cols.includes(c), `field-map staging column ${c} missing from the load`);
+  // Everything else the load names is a duplicate-header variant (Gruppe_2 …).
+  assert.deepEqual(cols.filter((c) => !staging.includes(c)).sort(),
+    ['function_2', 'group_name_2', 'groups_2', 'role_2']);
+});
+
+// Migration 418: ClubDesk holds ONE nationality, members a list. A register
+// code anywhere in the list is agreement; only a different one is proposed, and
+// never as a write of the German name.
+test('nationality is proposed as a code, and only when it is not in the list (418)', () => {
+  assert.ok(!sql.includes("'nationalitaet'"), 'pre-418 field name still staged');
+  assert.match(sql, /'nationality_codes', NULL, cd_nat_code, 'fill'/);
+  assert.match(sql, /'nationality_codes', nationality_codes, cd_nat_code, 'overwrite'/);
+  assert.match(sql, /NOT \(cd_nat_code = ANY \(string_to_array\(replace\(nationality_codes,' ',''\), ','\)\)\)/);
 });

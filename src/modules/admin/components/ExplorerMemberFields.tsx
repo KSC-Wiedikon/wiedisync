@@ -1624,15 +1624,9 @@ function DisplayValue({
       return <span className="break-words text-foreground">{formatCountryCodes(String(value))}</span>
 
     case 'country':
-      // Two different shapes share this kind: `federation_of_origin` holds an
-      // ISO-2 code, while the derived `nationalitaet` holds ClubDesk's German
-      // country NAME.
-      //
-      // ⚠ `nationalitaet` is printed RAW. Running it through localizeCountryName
-      // reverse-maps "Schweiz" → CH → the viewer's locale, so the one field whose
-      // job is to show the exact string the sync-up writes into the register
-      // rendered "Switzerland" in an English session — hiding the only thing it
-      // exists to reveal. The German round-trip is why it read as correct.
+      // `federation_of_origin` holds an ISO-2 code. (The derived ClubDesk-name
+      // column `nationalitaet` that also used this kind was dropped by
+      // migration 418; anything else is printed raw.)
       return def.key === 'federation_of_origin'
         ? <FederationValue value={String(value)} />
         : <span className="break-words text-foreground">{String(value)}</span>
@@ -1867,7 +1861,7 @@ export function FieldEditor({
         <CountryMultiSelect
           selected={parseCountryCodes(typeof value === 'string' ? value : '')}
           onChange={(codes) => onChange(serializeCountryCodes(codes))}
-          helperText={t('auth:nationalitaetHint')}
+          helperText={t('auth:nationalityHint')}
         />
       )
 

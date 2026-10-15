@@ -261,7 +261,7 @@ export default {
   adresse: 'Address',
   plz: 'Postal code',
   ort: 'City',
-  nationalitaet: 'Nationality',
+  nationality: 'Nationality',
   kantonsschule: 'Kantonsschule',
   kantonsschuleHint: 'Which Zurich Kantonsschule you attend. The club is asked for these numbers.',
   kantonsschuleUnset: '— Not answered',
@@ -269,7 +269,7 @@ export default {
   kantonsschuleSearch: 'Search schools…',
   federationOfOrigin: 'Federation of origin',
   federationOfOriginHint: 'The national federation that first licensed you. If this is your first licence, choose Switzerland — Swiss Volley or Swiss Basketball then becomes your federation of origin.',
-  nationalitaetHint: 'Select all that apply.',
+  nationalityHint: 'Select all that apply.',
   // Coaching education (migration 274). "J+S" is the federal Jugend+Sport
   // programme and keeps its Swiss name in every locale — it is a brand, not a
   // description, and translating it would make it unrecognisable.

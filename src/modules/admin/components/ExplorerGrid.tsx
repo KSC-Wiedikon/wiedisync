@@ -40,7 +40,6 @@ import type { Member, Team } from '../../../types'
 import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
-import { localizeCountryName } from '../../../utils/countryName'
 import {
   countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
@@ -143,9 +142,7 @@ type FlatItem =
 type ColKey =
   | (string & {})
   | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
-  // `nationalitaet_codes` replaces the old free-text `nationalitaet` column:
-  // that one is now trigger-derived (migration 223) and must never be editable.
-  | 'address' | 'postal_code' | 'city' | 'nationalitaet_codes'
+  | 'address' | 'postal_code' | 'city' | 'nationality_codes'
   | 'federation_of_origin' | 'birthdate'
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
   | 'vm_email' | 'ahv_number' | 'fee_category' | 'role'
@@ -260,7 +257,7 @@ const COLUMNS: ColDef[] = [
   { key: 'address', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
   { key: 'postal_code', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20', groupable: true },
   { key: 'city', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
-  { key: 'nationalitaet_codes', labelKey: 'explorerGridColNationality', kind: 'countries', minW: 'min-w-40', groupable: true },
+  { key: 'nationality_codes', labelKey: 'explorerGridColNationality', kind: 'countries', minW: 'min-w-40', groupable: true },
   { key: 'federation_of_origin', labelKey: 'explorerGridColFederation', kind: 'federation', minW: 'min-w-40', groupable: true },
   { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28', groupable: true },
   { key: 'sex', labelKey: 'explorerGridColSex', kind: 'select', minW: 'min-w-20', groupable: true, options: SEX_OPTIONS },
@@ -363,6 +360,8 @@ const LEGACY_COL_KEYS: Record<string, string> = {
   adresse: 'address', plz: 'postal_code', ort: 'city', ahv_nummer: 'ahv_number',
   beitragskategorie: 'fee_category', eintritt: 'joined_on', austritt: 'left_on',
   kantonsschule: 'cantonal_school', anrede: 'salutation', sektion: 'club_section',
+  // Migration 418: one nationality column.
+  nationalitaet_codes: 'nationality_codes', nationalitaet: 'nationality_codes',
 }
 
 function loadVisible<K extends string>(lsKey: string, known: (k: string) => boolean, fallback: K[]): K[] {
@@ -371,9 +370,10 @@ function loadVisible<K extends string>(lsKey: string, known: (k: string) => bool
     if (!raw) return fallback
     const arr = JSON.parse(raw) as unknown
     if (!Array.isArray(arr)) return fallback
-    // Column keys saved before migration 414 carry the German member column names.
+    // Column keys saved before migrations 414/418 carry the German member column names.
     const renamed = (arr as string[]).map((k) => LEGACY_COL_KEYS[k] ?? k) as K[]
-    const valid = renamed.filter((k) => known(k))
+    // De-duplicated: both pre-418 nationality keys map onto one column.
+    const valid = [...new Set(renamed)].filter((k) => known(k))
     return valid.length > 0 ? valid : fallback
   } catch {
     return fallback
@@ -827,16 +827,10 @@ export default function ExplorerGrid({
           const n = cache.regFiles.get(memberId)?.docs.length ?? 0
           return n > 0 ? String(n) : ''
         }
-        case 'nationalitaet_codes': {
+        case 'nationality_codes':
           // Localized names, never raw codes — this feeds search, sort, group-by
           // AND the Excel/PDF export.
-          const coded = formatCountryCodes(rawField(m, 'nationalitaet_codes') as string | null)
-          if (coded) return coded
-          // Fallback for rows migration 223's backfill could not resolve: show
-          // the trigger-derived ClubDesk name rather than an empty cell.
-          const legacy = rawField(m, 'nationalitaet')
-          return legacy ? localizeCountryName(String(legacy)) : ''
-        }
+          return formatCountryCodes(rawField(m, 'nationality_codes') as string | null)
         case 'federation_of_origin':
           return federationLabel(rawField(m, 'federation_of_origin') as string | null)
         // The four columns whose stored value is a lowercase code. Without a
@@ -2708,20 +2702,20 @@ function EditableDateCell({
   )
 }
 
-// Inline nationality cell (members.nationalitaet_codes). Nationality is
+// Inline nationality cell (members.nationality_codes). Nationality is
 // multi-valued AND order-significant — the first code is the one pushed to
 // ClubDesk — so a text input or a single <select> cannot express it. Click
 // opens a popover holding the shared CountryMultiSelect; the edit commits when
 // the popover closes, and only if the serialized value actually changed.
 //
-// Note `members.nationalitaet` (the German ClubDesk name) is NOT written here:
-// a DB trigger derives it from the first code on every write.
+// The ClubDesk push sends the German name of the FIRST code (migration 418);
+// an edit that moves it queues a push (kscw-hooks).
 function EditableCountriesCell({
   value, text, canEdit, onSave,
 }: {
   /** Stored comma-separated code list, e.g. "CH,IT". */
   value: string | null
-  /** Localized display text (already falls back to the derived legacy name). */
+  /** Localized display text. */
   text: string
   canEdit: boolean
   onSave: (v: string | null) => Promise<void>
@@ -2790,7 +2784,7 @@ function EditableCountriesCell({
           label={t('admin:explorerGridColNationality')}
           selected={draft}
           onChange={setDraft}
-          helperText={t('auth:nationalitaetHint')}
+          helperText={t('auth:nationalityHint')}
         />
       </PopoverContent>
     </Popover>

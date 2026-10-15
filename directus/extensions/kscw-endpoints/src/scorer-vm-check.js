@@ -78,15 +78,15 @@ const MATCH_CASCADE_SQL = `
   ),
   j AS (
     SELECT m.*, v.is_writer AS vm_is_writer, v.association_id AS vm_assoc_id,
-           upper(btrim(coalesce(c.offiziellen_lizenz, ''))) AS cd_lizenz,
+           upper(btrim(coalesce(c.official_licence, ''))) AS cd_lizenz,
            -- Mirrors vm-sync-check.mjs's clubSaysScorer: ClubDesk VB SC, or an
            -- effective referee (VM's list OR the ClubDesk VB Schiedsrichter*innen
            -- group, which the sync now also honours). These are exactly the people
            -- the sync refuses to clear.
            (
-             upper(btrim(coalesce(c.offiziellen_lizenz, ''))) = 'VB SC'
+             upper(btrim(coalesce(c.official_licence, ''))) = 'VB SC'
              OR v.is_referee = true
-             OR coalesce(c.gruppen_bracketed, '') ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)'
+             OR coalesce(c.groups_bracketed, '') ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)'
            ) AS club_says_scorer
     FROM m
     LEFT JOIN sv_vm_check v ON v.id = m.vm_id

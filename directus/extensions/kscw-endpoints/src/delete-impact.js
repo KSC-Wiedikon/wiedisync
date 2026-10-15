@@ -374,9 +374,9 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
           try {
             const row = await database('clubdesk_export')
               .whereRaw('BTRIM(clubdesk_id) = ?', [cdId])
-              .first('vorname', 'nachname', 'status')
+              .first('first_name', 'last_name', 'status')
             if (row) {
-              contactName = [row.vorname, row.nachname].filter(Boolean).join(' ').trim() || null
+              contactName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || null
               contactStatus = row.status ? String(row.status).trim() : null
             }
           } catch (err) {

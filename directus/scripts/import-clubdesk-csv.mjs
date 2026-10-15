@@ -52,36 +52,38 @@ const env = ENVS[envName]
 // ── Header-name → table-column map ─────────────────────────────────
 // Keys are CSV header strings (with `_2` suffix appended by the
 // dedup step for repeated headers). Values are clubdesk_export column
-// names from migration 064 + 065.
+// names (migrations 064 + 065, English since 418).
 const HEADER_TO_COL = {
-  // Standard columns
-  'Gruppe': 'gruppe',                                   'Funktion': 'funktion',
-  'Nachname': 'nachname',                               'Vorname': 'vorname',
-  'Firma': 'firma',                                     'Rolle': 'rolle',
-  'Anrede': 'anrede',                                   'Titel': 'titel',
-  'Briefanrede': 'briefanrede',                         'Benutzer-Id': 'benutzer_id',
-  'Adresse': 'adresse',                                 'Adress-Zusatz': 'adress_zusatz',
-  'PLZ': 'plz',                                         'Ort': 'ort',
-  'Land': 'land',                                       'Nationalität': 'nationalitaet',
-  'Telefon Privat': 'telefon_privat',                   'Telefon Geschäft': 'telefon_geschaeft',
-  'Telefon Mobil': 'telefon_mobil',                     'Fax': 'fax',
-  'E-Mail': 'email',                                    'E-Mail Alternativ': 'email_alternativ',
-  'Gruppen': 'gruppen',                                 'Status': 'status',
-  'Eintritt': 'eintritt',                               'Mitgliedsjahre': 'mitgliedsjahre',
-  'Austritt': 'austritt',                               'Zivilstand': 'zivilstand',
-  'Geschlecht': 'geschlecht',                           'Geburtsdatum': 'geburtsdatum',
-  'Alter': 'alter_',                                    'Jahrgang': 'jahrgang',
-  'Bemerkungen': 'bemerkungen',                         'Firmen-Webseite': 'firmen_webseite',
-  'Rechnungsversand': 'rechnungsversand',               'Nie mahnen': 'nie_mahnen',
+  // Standard columns. English column names since migration 418 — the same
+  // names clubdesk_field_map.staging_column carries (412); a test keeps the two
+  // in step. VALUES stay raw ClubDesk strings.
+  'Gruppe': 'group_name',                               'Funktion': 'function',
+  'Nachname': 'last_name',                              'Vorname': 'first_name',
+  'Firma': 'company',                                   'Rolle': 'role',
+  'Anrede': 'salutation',                               'Titel': 'title',
+  'Briefanrede': 'letter_salutation',                   'Benutzer-Id': 'user_id',
+  'Adresse': 'address',                                 'Adress-Zusatz': 'address_extra',
+  'PLZ': 'postal_code',                                 'Ort': 'city',
+  'Land': 'country',                                    'Nationalität': 'nationality',
+  'Telefon Privat': 'phone_private',                    'Telefon Geschäft': 'phone_business',
+  'Telefon Mobil': 'phone_mobile',                      'Fax': 'fax',
+  'E-Mail': 'email',                                    'E-Mail Alternativ': 'email_alternative',
+  'Gruppen': 'groups',                                  'Status': 'status',
+  'Eintritt': 'joined_on',                              'Mitgliedsjahre': 'membership_years',
+  'Austritt': 'left_on',                                'Zivilstand': 'marital_status',
+  'Geschlecht': 'sex',                                  'Geburtsdatum': 'birthdate',
+  'Alter': 'age',                                       'Jahrgang': 'birth_year',
+  'Bemerkungen': 'remarks',                             'Firmen-Webseite': 'company_website',
+  'Rechnungsversand': 'invoice_delivery',               'Nie mahnen': 'never_dun',
   'IBAN': 'iban',                                       'BIC': 'bic',
-  'Kontoinhaber': 'kontoinhaber',                       'Lizenznummer': 'lizenznummer',
-  'Lizenzart': 'lizenzart',                             'Lizenz bestellt': 'lizenz_bestellt',
-  'Sektion': 'sektion',                                 'Beitragskategorie': 'beitragskategorie',
-  'Betrag Bezahlt': 'betrag_bezahlt',                   'Clubnummer': 'clubnummer',
-  'Mittelschule ZH': 'mittelschule_zh',                 'Offiziellen Lizenz': 'offiziellen_lizenz',
-  'Mitgliederbeitrag': 'mitgliederbeitrag',             'AHV Nummer': 'ahv_nummer',
-  'Passivmitglied': 'passivmitglied',                   'Offiziellen 100er': 'offiziellen_100er',
-  'Jg.': 'jg',                                          '[Id]': 'clubdesk_id',
+  'Kontoinhaber': 'account_holder',                     'Lizenznummer': 'licence_no',
+  'Lizenzart': 'licence_type',                          'Lizenz bestellt': 'licence_ordered',
+  'Sektion': 'section',                                 'Beitragskategorie': 'fee_category',
+  'Betrag Bezahlt': 'amount_paid',                      'Clubnummer': 'club_number',
+  'Mittelschule ZH': 'cantonal_school',                 'Offiziellen Lizenz': 'official_licence',
+  'Mitgliederbeitrag': 'membership_fee',                'AHV Nummer': 'ahv_number',
+  'Passivmitglied': 'passive_member',                   'Offiziellen 100er': 'officials_surcharge',
+  'Jg.': 'birth_year_short',                            '[Id]': 'clubdesk_id',
   'Wiedisync ID': 'wiedisync_id',                       // custom field: wiedisync's own member id (push round-trip key)
   // J+S Personennummer (SALTO). Down-sync only (fill-only into members.js_id).
   // Column header in ClubDesk is "JS ID" (created 2026-07-08).
@@ -100,8 +102,8 @@ const HEADER_TO_COL = {
   // Two-way: wiedisync owns it (members declare it in their profile) and pushes
   // ClubDesk's wording via trainerLicenceCell, while the pass below parses the
   // register's text back into codes and only ever FILLS a member who never
-  // answered — same rule as ahv_nummer / anrede.
-  'Trainer Lizenz': 'trainer_lizenz',
+  // answered — same rule as ahv_number / salutation.
+  'Trainer Lizenz': 'trainer_licence',
   // Gast — ClubDesk Ja/Nein checkbox created 2026-07-27, filled ONLY by
   // wiedisync's push (the roster in `member_teams.guest_level` is the sole
   // source; see CD_PUSH_CONTACT_HEADERS in clubdesk-update.js). Staged here
@@ -110,31 +112,31 @@ const HEADER_TO_COL = {
   // write-back pass into `members` below: wiedisync owns this field outright,
   // so letting ClubDesk's copy flow back would let a stale register overwrite
   // the live roster.
-  'Gast': 'gast',
-  '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
+  'Gast': 'guest',
+  '[Zuletzt geändert am]': 'last_changed_at',           '[Zuletzt geändert von]': 'last_changed_by',
   // Bracketed system variants (full-club export only — migration 065)
-  '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
+  '[Gruppen]': 'groups_bracketed',                      '[Rolle]': 'role_bracketed',
   // Duplicate headers (section-filtered export adds trailing detail cols)
-  'Gruppe_2': 'gruppe_2',                               'Funktion_2': 'funktion_2',
-  'Gruppen_2': 'gruppen_2',                             'Rolle_2': 'rolle_2',
+  'Gruppe_2': 'group_name_2',                           'Funktion_2': 'function_2',
+  'Gruppen_2': 'groups_2',                              'Rolle_2': 'role_2',
 }
 
 // Target column order (must match \copy column list below)
 const TARGET_COLS = [
-  'gruppe','funktion','nachname','vorname','firma',
-  'rolle','rolle_2','anrede','titel','briefanrede',
-  'benutzer_id','adresse','adress_zusatz','plz','ort',
-  'land','nationalitaet','telefon_privat','telefon_geschaeft','telefon_mobil',
-  'fax','email','email_alternativ','gruppen','status',
-  'eintritt','mitgliedsjahre','austritt','zivilstand','geschlecht',
-  'geburtsdatum','alter_','jahrgang','bemerkungen','firmen_webseite',
-  'rechnungsversand','nie_mahnen','iban','bic','kontoinhaber',
-  'lizenznummer','lizenzart','lizenz_bestellt','sektion','beitragskategorie',
-  'betrag_bezahlt','clubnummer','mittelschule_zh','offiziellen_lizenz','mitgliederbeitrag',
-  'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
-  'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
-  'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id','federation_of_origin',
-  'gast','trainer_lizenz',
+  'group_name','function','last_name','first_name','company',
+  'role','role_2','salutation','title','letter_salutation',
+  'user_id','address','address_extra','postal_code','city',
+  'country','nationality','phone_private','phone_business','phone_mobile',
+  'fax','email','email_alternative','groups','status',
+  'joined_on','membership_years','left_on','marital_status','sex',
+  'birthdate','age','birth_year','remarks','company_website',
+  'invoice_delivery','never_dun','iban','bic','account_holder',
+  'licence_no','licence_type','licence_ordered','section','fee_category',
+  'amount_paid','club_number','cantonal_school','official_licence','membership_fee',
+  'ahv_number','passive_member','officials_surcharge','group_name_2','function_2',
+  'groups_2','birth_year_short','clubdesk_id','last_changed_at','last_changed_by',
+  'groups_bracketed','role_bracketed','wiedisync_id','js_id','federation_of_origin',
+  'guest','trainer_licence',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
@@ -291,9 +293,9 @@ const psqlInput =
   '  WHERE m.id = wid_match.id AND m.clubdesk_id IS NULL\n' +
   '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = wid_match.cdid);\n' +
   'WITH cd AS (\n' +
-  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         lower(btrim(lizenznummer)) lic, lower(btrim(nachname)) nachname,\n" +
-  "         lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternative)) email_alt,\n' +
+  "         lower(btrim(licence_no)) lic, lower(btrim(last_name)) nachname,\n" +
+  "         lower(split_part(btrim(first_name),' ',1)) vn1\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
   'lic_match AS (\n' +
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
@@ -315,8 +317,8 @@ const psqlInput =
   // łódź→lodz), so the create round-trip (up → new [Id] → down-link) closes even
   // for accented names. email + first-name still constrain, so no family mislink.
   'WITH cd AS (\n' +
-  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         unaccent(lower(btrim(nachname))) nachname, unaccent(lower(split_part(btrim(vorname),' ',1))) vn1\n" +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternative)) email_alt,\n' +
+  "         unaccent(lower(btrim(last_name))) nachname, unaccent(lower(split_part(btrim(first_name),' ',1))) vn1\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
   'email_match AS (\n' +
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
@@ -384,16 +386,16 @@ const psqlInput =
   'BEGIN;\n' +
   'WITH cd AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  "         left(btrim(vorname),255) AS first_name, left(btrim(nachname),255) AS last_name,\n" +
+  "         left(btrim(first_name),255) AS first_name, left(btrim(last_name),255) AS last_name,\n" +
   // Stored lowercased — the canonical email shape (migration 186 backfilled the
   // stock; match keys below were always lowercased).
   "         lower(left(btrim(email),255)) AS email,\n" +
-  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternativ)) AS email_alt_l,\n" +
-  "         lower(btrim(nachname)) AS nachname_l,\n" +
-  "         lower(split_part(btrim(vorname),' ',1)) AS vn1\n" +
+  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternative)) AS email_alt_l,\n" +
+  "         lower(btrim(last_name)) AS nachname_l,\n" +
+  "         lower(split_part(btrim(first_name),' ',1)) AS vn1\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND length(btrim(clubdesk_id)) <= 64\n" +
-  "    AND NULLIF(btrim(austritt),'') IS NULL\n" +
+  "    AND NULLIF(btrim(left_on),'') IS NULL\n" +
   "    AND btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
   'fresh AS (\n' +
@@ -454,13 +456,13 @@ const psqlInput =
   // last name — add that one manually. Mirrors clubdesk_link_ambiguous below.
   'WITH cd AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  '         btrim(vorname) AS vorname, btrim(nachname) AS nachname,\n' +
-  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternativ)) AS email_alt_l,\n" +
-  "         lower(btrim(nachname)) AS nachname_l,\n" +
-  "         lower(split_part(btrim(vorname),' ',1)) AS vn1\n" +
+  '         btrim(first_name) AS vorname, btrim(last_name) AS nachname,\n' +
+  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternative)) AS email_alt_l,\n" +
+  "         lower(btrim(last_name)) AS nachname_l,\n" +
+  "         lower(split_part(btrim(first_name),' ',1)) AS vn1\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND length(btrim(clubdesk_id)) <= 64\n" +
-  "    AND NULLIF(btrim(austritt),'') IS NULL\n" +
+  "    AND NULLIF(btrim(left_on),'') IS NULL\n" +
   "    AND btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
   "SELECT 'clubdesk_contact_suspected_duplicate' AS metric, cd.cdid,\n" +
@@ -536,36 +538,40 @@ const psqlInput =
   'BEGIN;\n' +
   'WITH cd0 AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  "         CASE WHEN geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "                AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum\n" +
-  "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS cd_dob,\n" +
-  "         left(NULLIF(btrim(adresse),''),255) AS cd_adresse,\n" +
-  "         left(NULLIF(btrim(plz),''),10) AS cd_plz,\n" +
-  "         left(NULLIF(btrim(ort),''),100) AS cd_ort,\n" +
-  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS cd_phone,\n" +
+  "         CASE WHEN birthdate ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "                AND to_char(to_date(birthdate,'DD.MM.YYYY'),'DD.MM.YYYY') = birthdate\n" +
+  "              THEN to_date(birthdate,'DD.MM.YYYY') END AS cd_dob,\n" +
+  "         left(NULLIF(btrim(address),''),255) AS cd_adresse,\n" +
+  "         left(NULLIF(btrim(postal_code),''),10) AS cd_plz,\n" +
+  "         left(NULLIF(btrim(city),''),100) AS cd_ort,\n" +
+  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(phone_mobile),''), NULLIF(btrim(phone_private),'')),255)) AS cd_phone,\n" +
   "         left(NULLIF(btrim(js_id),''),32) AS cd_js_id,\n" +
   // Fee category is a slug in wiedisync since migration 417; a label the
   // translation table does not know stages nothing (the CHECK would refuse it).
-  "         cd_to_app('fee_category', NULLIF(btrim(beitragskategorie),'')) AS cd_categ,\n" +
+  "         cd_to_app('fee_category', NULLIF(btrim(fee_category),'')) AS cd_categ,\n" +
   // Club section and register status are slugs in wiedisync since migration 416.
-  "         cd_to_app('section', NULLIF(btrim(sektion),'')) AS cd_sektion,\n" +
+  "         cd_to_app('section', NULLIF(btrim(section),'')) AS cd_sektion,\n" +
   "         CASE WHEN btrim(status) IN ('Kein Mitglied','Aktivmitglied','Passivmitglied',\n" +
   "                                     'Ehrenmitglied','Ehemaliges Mitglied','Verstorben','Zwischenjahr')\n" +
   "              THEN cd_to_app('register_status', btrim(status)) END AS cd_reg_status,\n" +
-  "         CASE WHEN btrim(coalesce(eintritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "              THEN to_date(btrim(eintritt),'DD.MM.YYYY') END AS cd_eintritt,\n" +
-  "         CASE WHEN btrim(coalesce(austritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "              THEN to_date(btrim(austritt),'DD.MM.YYYY') END AS cd_austritt,\n" +
-  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS cd_sex,\n" +
+  "         CASE WHEN btrim(coalesce(joined_on,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "              THEN to_date(btrim(joined_on),'DD.MM.YYYY') END AS cd_eintritt,\n" +
+  "         CASE WHEN btrim(coalesce(left_on,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "              THEN to_date(btrim(left_on),'DD.MM.YYYY') END AS cd_austritt,\n" +
+  "         CASE lower(btrim(sex)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS cd_sex,\n" +
   // Salutation is a slug in wiedisync since migration 415 ('Herr' → 'mr').
-  "         cd_to_app('salutation', NULLIF(btrim(anrede),'')) AS cd_anrede,\n" +
-  "         left(NULLIF(btrim(nationalitaet),''),100) AS cd_nationalitaet,\n" +
-  "         regexp_replace(btrim(coalesce(ahv_nummer,'')), '[^0-9]', '', 'g') AS cd_ahv_digits,\n" +
+  "         cd_to_app('salutation', NULLIF(btrim(salutation),'')) AS cd_anrede,\n" +
+  // Nationality: ClubDesk's single German name → the ISO code (the alias table
+  // the retired members_sync_nationality trigger resolved through). A name it
+  // does not know stages nothing — the column holds codes only (migration 418).
+  "         (SELECT na.code FROM country_name_aliases na\n" +
+  "           WHERE na.alias = lower(btrim(coalesce(nationality,'')))) AS cd_nat_code,\n" +
+  "         regexp_replace(btrim(coalesce(ahv_number,'')), '[^0-9]', '', 'g') AS cd_ahv_digits,\n" +
   "         lower(btrim(coalesce(federation_of_origin,''))) AS cd_fed_name,\n" +
-  "         lower(btrim(coalesce(trainer_lizenz,''))) AS cd_trainer_raw,\n" +
-  "         coalesce(gruppen_bracketed,'') AS cd_gruppen,\n" +
-  "         upper(btrim(coalesce(offiziellen_lizenz,''))) AS cd_offliz,\n" +
-  "         upper(replace(btrim(coalesce(offiziellen_lizenz,'')), ' ', '')) AS cd_offliz_ns\n" +
+  "         lower(btrim(coalesce(trainer_licence,''))) AS cd_trainer_raw,\n" +
+  "         coalesce(groups_bracketed,'') AS cd_gruppen,\n" +
+  "         upper(btrim(coalesce(official_licence,''))) AS cd_offliz,\n" +
+  "         upper(replace(btrim(coalesce(official_licence,'')), ' ', '')) AS cd_offliz_ns\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
@@ -633,8 +639,15 @@ const psqlInput =
   "    FROM mem WHERE (sex IS NULL OR btrim(sex) = '') AND cd_sex IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'salutation', NULL, cd_anrede, 'fill'\n" +
   "    FROM mem WHERE NULLIF(btrim(salutation),'') IS NULL AND cd_anrede IS NOT NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'nationalitaet', NULL, cd_nationalitaet, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(nationalitaet),'') IS NULL AND cd_nationalitaet IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'nationality_codes', NULL, cd_nat_code, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(nationality_codes),'') IS NULL AND cd_nat_code IS NOT NULL\n" +
+  // ⚠ ClubDesk holds ONE nationality, we hold a list ('IT,CH'). A register code
+  // already ANYWHERE in our list is agreement — never a proposal. A different
+  // one is offered as `overwrite`, and the accept path PREPENDS it (the list
+  // is never replaced — that was the pre-418 trigger's data-loss bug).
+  "  UNION ALL SELECT id, cdid, 'nationality_codes', nationality_codes, cd_nat_code, 'overwrite'\n" +
+  "    FROM mem WHERE NULLIF(btrim(nationality_codes),'') IS NOT NULL AND cd_nat_code IS NOT NULL\n" +
+  "      AND NOT (cd_nat_code = ANY (string_to_array(replace(nationality_codes,' ',''), ',')))\n" +
   "  UNION ALL SELECT id, cdid, 'ahv_number', NULL, cd_ahv, 'fill'\n" +
   "    FROM mem WHERE NULLIF(btrim(ahv_number),'') IS NULL AND cd_ahv IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'federation_of_origin', NULL, cd_fed, 'fill'\n" +
@@ -732,13 +745,13 @@ const psqlInput =
   // can no longer represent. Resolve it in Basketplan, or set the level by hand.
   "SELECT 'members_otn_unresolved' AS metric, (SELECT count(*) FROM members m\n" +
   "  JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)\n" +
-  "  WHERE upper(btrim(c.offiziellen_lizenz)) = 'OTN'\n" +
+  "  WHERE upper(btrim(c.official_licence)) = 'OTN'\n" +
   "    AND m.otn1_bb IS DISTINCT FROM true AND m.otn2_bb IS DISTINCT FROM true) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
   // above) so a human can link them manually — "ambiguous, needs manual link".
   'WITH cd AS (\n' +
-  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternative)) email_alt,\n' +
+  "         lower(btrim(last_name)) nachname, lower(split_part(btrim(first_name),' ',1)) vn1\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
   'ambig AS (\n' +
   '  SELECT cd.cdid, mm.id AS member_id FROM members mm\n' +

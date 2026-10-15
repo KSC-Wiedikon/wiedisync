@@ -6,7 +6,7 @@
 # clubdesk-group-cleanup.sh (the unattended Sunday stray sweep).
 #
 # WHY THIS EXISTS. Every group finding on /admin/data-health is computed from
-# `clubdesk_export.gruppen_bracketed`, i.e. from the last sync DOWN — and a commit
+# `clubdesk_export.groups_bracketed`, i.e. from the last sync DOWN — and a commit
 # writes to ClubDesk, not to that table. So a run that did exactly what was asked
 # left the page listing the very rows it had just fixed, and the operator ran it
 # again, and again (08.09.2026: four BB strays verifiably removed at 14:37, still on
@@ -56,9 +56,9 @@ tgt AS (
    GROUP BY ce.row_id
 )
 UPDATE clubdesk_export ce
-   SET gruppen_bracketed = COALESCE((
+   SET groups_bracketed = COALESCE((
          SELECT string_agg(BTRIM(u.g), ', ' ORDER BY u.ord)
-           FROM unnest(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')) WITH ORDINALITY AS u(g, ord)
+           FROM unnest(string_to_array(COALESCE(ce.groups_bracketed, ''), ', ')) WITH ORDINALITY AS u(g, ord)
           WHERE BTRIM(u.g) <> '' AND BTRIM(u.g) <> ALL (tgt.grps)
        ), '')
   FROM tgt
@@ -86,18 +86,18 @@ tgt AS (
    GROUP BY ce.row_id
 )
 UPDATE clubdesk_export ce
-   SET gruppen_bracketed = (
+   SET groups_bracketed = (
          SELECT string_agg(s.g, ', ' ORDER BY s.ord)
            FROM (
              SELECT BTRIM(u.g) AS g, u.ord AS ord
-               FROM unnest(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')) WITH ORDINALITY AS u(g, ord)
+               FROM unnest(string_to_array(COALESCE(ce.groups_bracketed, ''), ', ')) WITH ORDINALITY AS u(g, ord)
               WHERE BTRIM(u.g) <> ''
              UNION ALL
              -- New tokens go last; a token already on the row is not duplicated.
              SELECT n.g, 1000000 + n.ord
                FROM unnest(tgt.grps) WITH ORDINALITY AS n(g, ord)
               WHERE NOT (n.g = ANY (SELECT BTRIM(u2.g)
-                                      FROM unnest(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')) AS u2(g)))
+                                      FROM unnest(string_to_array(COALESCE(ce.groups_bracketed, ''), ', ')) AS u2(g)))
            ) s
        )
   FROM tgt

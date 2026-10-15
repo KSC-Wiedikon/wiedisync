@@ -944,8 +944,8 @@ SELECT ${MEMBER_COLS},
     sql: `
 SELECT ${MEMBER_COLS},
        r.teams,
-       m.nationalitaet_codes AS nationalities,
-       CASE WHEN m.nationalitaet_codes IS NOT NULL AND NOT (string_to_array(m.nationalitaet_codes, ',') @> ARRAY['CH'])
+       m.nationality_codes AS nationalities,
+       CASE WHEN m.nationality_codes IS NOT NULL AND NOT (string_to_array(m.nationality_codes, ',') @> ARRAY['CH'])
             THEN 'clarify' ELSE 'ask' END AS bucket,
        vm.nationality_code AS vm_nationality,
        (m.profile_verified_at AT TIME ZONE 'Europe/Zurich')::date::text AS profile_verified,

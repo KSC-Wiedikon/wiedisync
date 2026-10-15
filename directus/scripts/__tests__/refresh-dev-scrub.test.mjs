@@ -80,8 +80,10 @@ test('the PII block covers the F14 columns', () => {
     'iban                  = pg_temp.kscw_iban(iban)',
     'adresse               = pg_temp.kscw_street(adresse)',
     'birthdate             = pg_temp.kscw_shift_date(birthdate)',
-    'telefon_mobil     = NULL', // clubdesk_export
-    'telefon_privat    = NULL',
+    'phone_mobile      = NULL', // clubdesk_export (English since migration 418)
+    'phone_private     = NULL',
+    'birthdate         = pg_temp.kscw_shift_ddmmyyyy(birthdate)',
+    'telefon_mobil     = NULL', // clubdesk_export on a pre-418 prod clone
     'geburtsdatum      = pg_temp.kscw_shift_ddmmyyyy(geburtsdatum)',
     'UPDATE directus_revisions',
     'UPDATE user_logs',
@@ -216,7 +218,7 @@ test('dev scrubber: street, IBAN, email and NULL columns match the refresh SQL',
   assert.equal(s.street(' BAHNHOFSTRASSE 1 '), s.street('bahnhofstrasse 1'), 'street hash must be trim + lower-case keyed')
   assert.equal(s.iban('CH56 0483 5012 3456 7800 9'), DEV_IBAN)
   assert.equal(s.email('petra@example.ch'), `scrub_${createHash('md5').update('petra@example.ch').digest('hex').slice(0, 16)}@devsink.invalid`)
-  const cols = ['nachname', 'ahv_nummer', 'telefon_mobil', 'iban', 'geburtsdatum', 'bemerkungen', 'plz']
+  const cols = ['last_name', 'ahv_number', 'phone_mobile', 'iban', 'birthdate', 'remarks', 'postal_code']
   const row = ['Müller', '756.1234.5678.97', '+41 79 123 45 67', 'CH5604835012345678009', '03.05.1975', 'Allergie', '8003']
   s.clubdeskExportRow(cols, row)
   assert.deepEqual([row[0], row[1], row[2], row[3], row[5], row[6]], ['Müller', '', '', DEV_IBAN, '', '8003'])

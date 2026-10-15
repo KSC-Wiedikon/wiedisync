@@ -1,6 +1,6 @@
 /**
  * Reader-facing rendering of `members.federation_of_origin`,
- * `members.nationalitaet_codes` and `members.sex` for the admin emails.
+ * `members.nationality_codes` and `members.sex` for the admin emails.
  *
  * Two shapes of the same fact live side by side and must never be swapped:
  *   • the PUSH value — German, in ClubDesk's exact picklist spelling
@@ -138,7 +138,7 @@ export function countryDisplay(code, locale = 'de', names = null) {
 }
 
 /**
- * `members.nationalitaet_codes` ("DE,CH") → ordered, de-duplicated codes.
+ * `members.nationality_codes` ("DE,CH") → ordered, de-duplicated codes.
  * Empty when the value is not a code list — a legacy free-text name, or a label
  * from a still-cached older frontend — which the callers pass through verbatim
  * rather than dropping.
@@ -150,7 +150,7 @@ export function parseCodeList(value) {
 }
 
 /**
- * `members.nationalitaet_codes` in the reader's language. The full list is shown
+ * `members.nationality_codes` in the reader's language. The full list is shown
  * even though ClubDesk's single-valued field only takes the FIRST code — the
  * member edited a list, so a list is what the admin has to check against.
  */

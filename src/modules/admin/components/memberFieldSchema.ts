@@ -299,14 +299,8 @@ const IDENTITY = block('identity', undefined, [
     help: "Who sees the birthdate on the member's profile.",
   },
   {
-    key: 'nationalitaet_codes', label: 'Nationality', kind: 'countryMulti',
+    key: 'nationality_codes', label: 'Nationality', kind: 'countryMulti',
     help: 'Several are allowed. The first one is the primary and is what gets pushed to ClubDesk.',
-  },
-  {
-    key: 'nationalitaet', label: 'Nationality (ClubDesk spelling, derived)', kind: 'country',
-    readOnly: true, technical: true,
-    provenance:
-      'Derived by the Postgres trigger members_sync_nationality_trg (migration 223) from the first entry of nationalitaet_codes. Edit the nationality field above instead — writing here silently rewrites the codes.',
   },
   {
     key: 'language', label: 'Preferred language', kind: 'select',

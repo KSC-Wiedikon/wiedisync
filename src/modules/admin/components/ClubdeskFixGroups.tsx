@@ -87,7 +87,7 @@ interface Props {
   /**
    * A commit finished. ⚠ The sync path needs this as its OWN signal that step 5 is
    * done, because the findings it would otherwise wait on CANNOT change: they are
-   * computed from `clubdesk_export.gruppen_bracketed`, i.e. from the last sync-DOWN,
+   * computed from `clubdesk_export.groups_bracketed`, i.e. from the last sync-DOWN,
    * and a commit writes to ClubDesk. Until the next sync down, wiedisync's copy of
    * the register still shows the old groups — so a step gated on "no findings left"
    * stays open forever after a run that did exactly what was asked (08.09.2026:

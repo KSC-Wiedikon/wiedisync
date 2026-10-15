@@ -820,7 +820,7 @@ export default {
   cdFieldSex: 'Geschlecht',
   cdFieldIban: 'IBAN',
   cdFieldAnrede: 'Anrede',
-  cdFieldNationalitaet: 'Nationalität',
+  cdFieldNationality: 'Nationalität',
   cdFieldFederation: 'Herkunftsverband',
   cdFieldAhv: 'AHV-Nummer',
   cdFieldRegisterStatus: 'Registerstatus',

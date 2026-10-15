@@ -1168,7 +1168,7 @@ function ExpandedDetails({
         <CountryMultiSelect
           selected={parseCountryCodes(value)}
           onChange={(codes) => setCoded('nationality_codes', serializeCountryCodes(codes) ?? '', stored)}
-          helperText={tAll('auth:nationalitaetHint')}
+          helperText={tAll('auth:nationalityHint')}
         />
       </div>
     )

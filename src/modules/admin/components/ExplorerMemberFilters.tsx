@@ -91,7 +91,7 @@ export default function ExplorerMemberFilters({ value, onChange, seasons }: Prop
       address: t('memberFilterHasAddress'),
       postal_code: t('memberFilterHasPlz'),
       city: t('memberFilterHasCity'),
-      nationalitaet_codes: t('memberFilterHasNationality'),
+      nationality_codes: t('memberFilterHasNationality'),
       federation_of_origin: t('memberFilterHasFederation'),
       vm_email: t('memberFilterHasVmEmail'),
       ahv_number: t('memberFilterHasAhv'),

@@ -110,8 +110,8 @@ EXCEPTION WHEN others THEN
   RETURN NULL;
 END $$;
 
--- Street line → 'Teststrasse N'. Deterministic under the salt so members.adresse
--- still equals clubdesk_export.adresse where it did before.
+-- Street line → 'Teststrasse N'. Deterministic under the salt so members.address
+-- still equals clubdesk_export.address where it did before.
 CREATE FUNCTION pg_temp.kscw_street(v text) RETURNS text LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN v IS NULL OR btrim(v) = '' THEN v
               ELSE 'Teststrasse ' || (pg_temp.kscw_h(lower(btrim(v))) % 200 + 1) END
@@ -127,10 +127,12 @@ $$;
 CREATE FUNCTION pg_temp.kscw_pii_keys() RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
   SELECT ARRAY[
     'ahv_nummer','ahv_number','iban','billing_iban','pay_to_iban',
-    'adresse','address','adress_zusatz','billing_address','recipient_address','payee_address','kontoinhaber',
+    'adresse','address','adress_zusatz','address_extra','billing_address','recipient_address','payee_address',
+    'kontoinhaber','account_holder',
     'phone','billing_phone','contact_phone','telefon_mobil','telefon_privat','telefon_geschaeft',
+    'phone_mobile','phone_private','phone_business',
     'birthdate','geburtsdatum','birthday',
-    'email','vm_email','billing_email','email_alternativ','recipient_email',
+    'email','vm_email','billing_email','email_alternativ','email_alternative','recipient_email',
     'password','token','tfa_secret','auth_data','ical_token'
   ]
 $$;
@@ -305,21 +307,47 @@ UPDATE directus_users
 
 -- ── ClubDesk register mirror ────────────────────────────────────────────────
 -- {basketball,people,volleyball} are VIEWS over clubdesk_export — scrub the base only.
-UPDATE clubdesk_export SET
-  email             = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
-  email_alternativ  = CASE WHEN email_alternativ IS NOT NULL AND email_alternativ<>'' THEN 'scrub_'||substr(md5(email_alternativ),1,16)||'@devsink.invalid' ELSE email_alternativ END,
-  ahv_nummer        = NULL,
-  iban              = pg_temp.kscw_iban(iban),
-  kontoinhaber      = NULL,
-  adresse           = pg_temp.kscw_street(adresse),
-  adress_zusatz     = NULL,
-  telefon_geschaeft = NULL,
-  telefon_mobil     = NULL,
-  telefon_privat    = NULL,
-  fax               = NULL,
-  bic               = NULL,
-  bemerkungen       = NULL,
-  geburtsdatum      = pg_temp.kscw_shift_ddmmyyyy(geburtsdatum);
+-- English column names since migration 418; the clone comes from prod, which may
+-- still carry the German ones while 418 is dev-only — scrub whichever the table
+-- has. ⚠ The FIRST block is the one import-clubdesk-dev-scrub.mjs mirrors (a
+-- test compares them).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'clubdesk_export' AND column_name = 'phone_mobile') THEN
+    UPDATE clubdesk_export SET
+      email             = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
+      email_alternative = CASE WHEN email_alternative IS NOT NULL AND email_alternative<>'' THEN 'scrub_'||substr(md5(email_alternative),1,16)||'@devsink.invalid' ELSE email_alternative END,
+      ahv_number        = NULL,
+      iban              = pg_temp.kscw_iban(iban),
+      account_holder    = NULL,
+      address           = pg_temp.kscw_street(address),
+      address_extra     = NULL,
+      phone_business    = NULL,
+      phone_mobile      = NULL,
+      phone_private     = NULL,
+      fax               = NULL,
+      bic               = NULL,
+      remarks           = NULL,
+      birthdate         = pg_temp.kscw_shift_ddmmyyyy(birthdate);
+  ELSE
+    UPDATE clubdesk_export SET
+      email             = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
+      email_alternativ  = CASE WHEN email_alternativ IS NOT NULL AND email_alternativ<>'' THEN 'scrub_'||substr(md5(email_alternativ),1,16)||'@devsink.invalid' ELSE email_alternativ END,
+      ahv_nummer        = NULL,
+      iban              = pg_temp.kscw_iban(iban),
+      kontoinhaber      = NULL,
+      adresse           = pg_temp.kscw_street(adresse),
+      adress_zusatz     = NULL,
+      telefon_geschaeft = NULL,
+      telefon_mobil     = NULL,
+      telefon_privat    = NULL,
+      fax               = NULL,
+      bic               = NULL,
+      bemerkungen       = NULL,
+      geburtsdatum      = pg_temp.kscw_shift_ddmmyyyy(geburtsdatum);
+  END IF;
+END $$;
 
 -- Push/pull state holds whole register rows as CSV text.
 UPDATE clubdesk_member_sync SET up_csv = NULL, up_csv_create = NULL

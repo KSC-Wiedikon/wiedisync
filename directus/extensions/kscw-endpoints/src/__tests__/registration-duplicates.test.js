@@ -298,7 +298,7 @@ describe('merge diff + patch', () => {
   const member = {
     id: 195, first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
     phone: '+41 76 824 60 21', address: null, postal_code: null, city: null, birthdate: '2009-02-01',
-    nationalitaet_codes: 'CH', federation_of_origin: null, sex: 'm', salutation: null,
+    nationality_codes: 'CH', federation_of_origin: null, sex: 'm', salutation: null,
     ahv_number: null, iban: null, fee_category: null, scorer_vb: false, referee_vb: false,
   }
   const reg = {

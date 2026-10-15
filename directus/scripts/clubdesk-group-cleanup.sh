@@ -101,7 +101,7 @@ fi
 CTE="
 WITH cd_groups AS (
   SELECT BTRIM(ce.clubdesk_id) AS clubdesk_id, BTRIM(g) AS grp
-  FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+  FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.groups_bracketed, ', ')) AS g
   WHERE g LIKE '%(Spieler*in)%'
 ),
 team_groups AS (
@@ -128,7 +128,7 @@ strays AS (
     AND ( EXISTS (SELECT 1 FROM clubdesk_export ce2
                    WHERE BTRIM(ce2.clubdesk_id) = m.clubdesk_id
                      AND ( ce2.status IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
-                           OR COALESCE(BTRIM(ce2.austritt), '') <> '' ))
+                           OR COALESCE(BTRIM(ce2.left_on), '') <> '' ))
           OR m.kscw_membership_active = false
           -- ⚠ Scoped to THIS group's teams: staffing HU20 is no licence to strip
           -- a stale D2 player token. Unscoped + per-group would hand every
@@ -150,11 +150,11 @@ stale AS (
     -- the WRONG Funktion is present …
     AND (t.clubdesk_group || CASE WHEN COALESCE(mt.guest_level,0) > 0
                                   THEN ' (Spieler*in)' ELSE ' (Guest)' END)
-        = ANY(string_to_array(COALESCE(ce.gruppen_bracketed,''), ', '))
+        = ANY(string_to_array(COALESCE(ce.groups_bracketed,''), ', '))
     -- … AND the right one already sits alongside it (never remove the last token)
     AND (t.clubdesk_group || CASE WHEN COALESCE(mt.guest_level,0) > 0
                                   THEN ' (Guest)' ELSE ' (Spieler*in)' END)
-        = ANY(string_to_array(COALESCE(ce.gruppen_bracketed,''), ', '))
+        = ANY(string_to_array(COALESCE(ce.groups_bracketed,''), ', '))
 ),
 removals AS (
   SELECT id, uuid, nm, grp FROM strays

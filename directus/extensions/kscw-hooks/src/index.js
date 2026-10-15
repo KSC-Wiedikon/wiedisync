@@ -958,6 +958,72 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // ── Nationality → ClubDesk push (migration 418) ──────────────────────────
+  // ClubDesk's Nationalität holds ONE value: the first of nationality_codes.
+  // An items-API edit (profile form, Data Explorer, AnmeldungenPage) that moves
+  // the FIRST code changes the cell the push writes, so the member is flagged
+  // exactly like the register fields in the loop further down. Adding a second
+  // nationality changes nothing ClubDesk can hold and queues nothing. Before
+  // 418 this edit never queued a push at all (the plan's latent bug).
+  // Filter + action like the licence-status pair above: only the filter sees
+  // the old value, only the action knows the write committed.
+  const pendingNationalityPush = new Map()
+  const firstNatCode = (v) => String(v ?? '').split(',').map((x) => x.trim().toUpperCase()).find(Boolean) || ''
+
+  filter('members.items.update', async (payload, meta, context) => {
+    // A cached pre-418 bundle names it nationalitaet_codes; the normaliser
+    // below renames it, but runs after this filter.
+    const sent = payload && ('nationality_codes' in payload ? payload.nationality_codes : payload.nationalitaet_codes)
+    if (sent === undefined) return payload
+    const keys = Array.isArray(meta?.keys) ? meta.keys : []
+    if (keys.length === 0) return payload
+    const next = firstNatCode(sent)
+    // Only a non-empty value flags — a cleared field cannot blank the register
+    // (the push echoes ClubDesk's own cell), same rule as the loop below.
+    if (!next) return payload
+    const db = context?.database ?? database
+    const rows = await db('members').whereIn('id', keys).select('id', 'nationality_codes', 'clubdesk_id')
+    for (const r of rows) {
+      if (!r.clubdesk_id) continue // unlinked: the value rides the CREATE push
+      if (firstNatCode(r.nationality_codes) === next) continue
+      pendingNationalityPush.set(String(r.id), {
+        old: String(r.nationality_codes ?? ''),
+        next: String(sent ?? '').trim(),
+      })
+    }
+    return payload
+  })
+
+  action('members.items.update', async ({ keys, payload }) => {
+    if (pendingNationalityPush.size === 0) return
+    for (const id of (Array.isArray(keys) ? keys : [])) {
+      const pending = pendingNationalityPush.get(String(id))
+      if (!pending) continue
+      pendingNationalityPush.delete(String(id))
+      // Filters run before the access check: only the write that committed
+      // this value may queue the push.
+      if (!payload || String(payload.nationality_codes ?? '').trim() !== pending.next) continue
+      try {
+        const m = await database('members').where('id', id).select('clubdesk_id', 'clubdesk_push_changes').first()
+        if (!m?.clubdesk_id) continue
+        let changes = []
+        try {
+          changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes
+            : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : [])
+        } catch { changes = [] }
+        changes = changes.filter((c) => c?.field !== 'nationality_codes')
+        changes.push({ field: 'nationality_codes', old_value: pending.old || null, new_value: pending.next })
+        await database('members').where('id', id).update({
+          clubdesk_push_pending: true,
+          clubdesk_push_changes: JSON.stringify(changes),
+        })
+      } catch (err) {
+        logWarning('clubdesk_contact_flag', err.message, { memberId: id, field: 'nationality_codes', stack: err.stack })
+      }
+    }
+    if (pendingNationalityPush.size > 500) pendingNationalityPush.clear()
+  })
+
   // Sync when members.role array changes
   action('members.items.update', async ({ keys, payload }) => {
     if (payload && 'role' in payload) {
@@ -6031,6 +6097,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // can still send 'Herr' / 'Nein' / 'Offizielle/r'; normalise instead of 400.
   const normalizeMemberValues = (payload) => {
     if (!payload || typeof payload !== 'object') return payload
+    // Migration 418: one nationality column. A cached pre-418 bundle still
+    // sends the codes as `nationalitaet_codes` (and may send the dropped
+    // derived `nationalitaet` name) — rename / drop instead of a 403 on an
+    // unknown field. Filters run before Directus's field-permission check.
+    if ('nationalitaet_codes' in payload) {
+      if (!('nationality_codes' in payload)) payload.nationality_codes = payload.nationalitaet_codes
+      delete payload.nationalitaet_codes
+    }
+    if ('nationalitaet' in payload) delete payload.nationalitaet
     if ('salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
     if ('cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
     if ('licence_category' in payload && payload.licence_category != null) payload.licence_category = normalizeLicenceCategory(payload.licence_category)
@@ -6234,10 +6309,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.postal_code && reg.postal_code) updates.postal_code = reg.postal_code
       if (!existingMember.city && reg.city) updates.city = reg.city
       if (!existingMember.birthdate && reg.birthdate) updates.birthdate = reg.birthdate
-      // Coded nationality — fill-only like the rest. The members trigger
-      // derives the German `nationalitaet` name from the codes.
+      // Coded nationality — fill-only like the rest. ClubDesk's name for the
+      // first code is computed at push time (migration 418).
       const existingNatCodes = registrationNatCodes(reg)
-      if (!existingMember.nationalitaet_codes && existingNatCodes) updates.nationalitaet_codes = existingNatCodes
+      if (!existingMember.nationality_codes && existingNatCodes) updates.nationality_codes = existingNatCodes
       const existingFederation = normalizeFederation(reg.federation_of_origin)
       if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
       const regSex = normalizeSex(reg.sex)
@@ -6333,8 +6408,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const shellExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       const licences = mapLicences(reg.officials_requested, reg.membership_type)
       const lang = reg.locale === 'en' ? 'english' : 'german'
-      // Nationality is CODED: write the codes and let the members trigger
-      // derive the German `nationalitaet` mirror (migration 223).
+      // Nationality is CODED: the codes are the only column (migration 418).
       const natCodes = registrationNatCodes(reg)
       const sex = normalizeSex(reg.sex)
       if (String(reg.fee_category || '').trim() && !approvedFeeCategory(reg.fee_category, reg.membership_type)) {
@@ -6350,7 +6424,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         postal_code: reg.postal_code || null,
         city: reg.city || null,
         birthdate: reg.birthdate || null,
-        nationalitaet_codes: natCodes,
+        nationality_codes: natCodes,
         federation_of_origin: normalizeFederation(reg.federation_of_origin),
         sex,
         // Salutation — see the fill-only branch above for why this derives

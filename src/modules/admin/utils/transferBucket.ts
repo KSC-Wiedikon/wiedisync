@@ -11,7 +11,7 @@ import { parseCountryCodes } from '../../../utils/countries'
 export interface TransferBucketInput {
   federation_of_origin?: string | null
   kscw_membership_active?: boolean
-  nationalitaet_codes?: string | null
+  nationality_codes?: string | null
   transfer_status?: 'pending' | 'done' | 'not_needed' | null
 }
 
@@ -82,7 +82,7 @@ export function federationBucketOf(m: TransferBucketInput): Bucket {
   // we know is not Swiss — a Swiss passport makes a Swiss first licence by far
   // the likeliest answer, so those are not worth a chase list.
   if (!m.kscw_membership_active) return 'ignore'
-  const codes = parseCountryCodes(m.nationalitaet_codes)
+  const codes = parseCountryCodes(m.nationality_codes)
   if (codes.length === 0 || codes.includes('CH')) return 'ignore'
   return 'clarify'
 }

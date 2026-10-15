@@ -92,7 +92,7 @@ const emailKey = (raw) => String(raw ?? '').trim().toLowerCase()
 /** Members columns the flag/diff/merge surfaces read. */
 export const MEMBER_MATCH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'birthdate',
-  'address', 'postal_code', 'city', 'nationalitaet', 'nationalitaet_codes',
+  'address', 'postal_code', 'city', 'nationality_codes',
   'federation_of_origin', 'sex', 'salutation', 'ahv_number', 'iban', 'iban_confirmed',
   'fee_category', 'kscw_membership_active', 'wiedisync_active', 'shell',
   'clubdesk_id', 'user', 'date_created',
@@ -266,9 +266,8 @@ export async function findBlockingMember(db, reg) {
 // field because staff explicitly asked for "the registration is the newer
 // truth". Both then converge on the same row, so change the two together.
 //
-// ⚠ `nationalitaet` (free text) is NOT here — it is TRIGGER-DERIVED from
-// nationalitaet_codes (migration 223). Writing it directly is how you get a
-// member whose country name and country code disagree.
+// Nationality is the code list `nationality_codes` (one column since migration
+// 418); the ClubDesk name is computed at push time, never stored.
 
 /** Registration `sex` → members `sex` (both 'm' | 'f'; old spellings accepted). */
 export { normalizeSex }
@@ -300,7 +299,7 @@ const LICENCE_LABELS = {
 
 /** The ISO code list a registration should hand a member ("CH,IT"), or null
  *  when it has none — a merge then leaves the column alone rather than
- *  tripping members_nationalitaet_codes_fmt. Migration 413 resolved the old
+ *  tripping members_nationality_codes_fmt. Migration 413 resolved the old
  *  free-text / singular-code rows into nationality_codes, so this is the only
  *  source now. Shared with kscw-hooks (approval). */
 export function registrationNatCodes(reg) {
@@ -343,7 +342,7 @@ export async function buildMergeDiff(db, reg, member) {
     ['postal_code', 'Postcode', reg.postal_code],
     ['city', 'City', reg.city],
     ['birthdate', 'Date of birth', reg.birthdate ? dateKey(reg.birthdate) : null],
-    ['nationalitaet_codes', 'Nationality', natCodes],
+    ['nationality_codes', 'Nationality', natCodes],
     ['federation_of_origin', 'Federation of origin', normFederation(reg.federation_of_origin)],
     ['sex', 'Sex', normalizeSex(reg.sex)],
     ['salutation', 'Salutation', normalizeSalutation(reg.salutation)],

@@ -54,10 +54,8 @@ export const PRESENCE_FIELDS = [
   'email', 'phone', 'license_nr', 'number', 'photo', 'birthdate',
   'user', 'requested_team',
   'address', 'postal_code', 'city',
-  // Coded nationality (migration 223) replaces the free-text `nationalitaet` as
-  // the presence probe — the latter is trigger-derived from it, so filtering on
-  // the codes is the same question asked of the authoritative column.
-  'nationalitaet_codes', 'federation_of_origin',
+  // Coded nationality (migration 223; the only nationality column since 418).
+  'nationality_codes', 'federation_of_origin',
   'vm_email', 'ahv_number',
   'licence_category', 'fee_category',
   'shell_expires',

@@ -20,7 +20,7 @@ import LanguageSelect from '@/components/LanguageSelect'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import CountryMultiSelect from '@/components/CountryMultiSelect'
 import {
-  codeFromCountryName, countryNameDe,
+  countryNameDe,
   parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
 import { federationOptions } from '../../utils/federations'
@@ -109,10 +109,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   const [adresse, setAdresse] = useState('')
   const [plz, setPlz] = useState('')
   const [ort, setOrt] = useState('')
-  // Nationality is stored as ordered ISO 3166-1 alpha-2 codes (migration 223);
-  // the first one is primary and is what ClubDesk receives. `members.nationalitaet`
-  // is a DB-derived German mirror and is never written from here.
-  const [nationalitaetCodes, setNationalitaetCodes] = useState<string[]>([])
+  // Nationality is stored as ordered ISO 3166-1 alpha-2 codes (migration 223,
+  // `members.nationality_codes`); the first one is primary and is what ClubDesk
+  // receives.
+  const [nationalityCodes, setNationalityCodes] = useState<string[]>([])
   const [federationOfOrigin, setFederationOfOrigin] = useState('')
   const [kantonsschule, setKantonsschule] = useState('')
   const [sex, setSex] = useState('')
@@ -157,7 +157,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       setAdresse(user.address ?? '')
       setPlz(user.postal_code ?? '')
       setOrt(user.city ?? '')
-      setNationalitaetCodes(storedNationalityCodes())
+      setNationalityCodes(storedNationalityCodes())
       setFederationOfOrigin(user.federation_of_origin ?? '')
       setKantonsschule(user.cantonal_school ?? '')
       setSex(user.sex ?? '')
@@ -222,14 +222,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   )
 
   /**
-   * The member's STORED nationality as codes, falling back to resolving the
-   * legacy free-text name for rows that predate `nationalitaet_codes` and
-   * haven't been touched since. Seeds the picker and anchors the ClubDesk diff,
-   * so an untouched field can never diff against itself.
+   * The member's STORED nationality as codes. Seeds the picker and anchors the
+   * ClubDesk diff, so an untouched field can never diff against itself.
    */
   function storedNationalityCodes(): string[] {
-    const codes = parseCountryCodes(user?.nationalitaet_codes)
-    return codes.length ? codes : [codeFromCountryName(user?.nationalitaet)].filter(Boolean)
+    return parseCountryCodes(user?.nationality_codes)
   }
 
   // Photo errors get a toast as well as `error`: the error line renders at the
@@ -355,7 +352,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       // Layout onboarding gate on the next load. Checked after the phone
       // normalization so a malformed phone gets its specific error first.
       if (!phoneCanonical || !birthdate || !adresse.trim() || !plz.trim()
-        || !ort.trim() || nationalitaetCodes.length === 0) {
+        || !ort.trim() || nationalityCodes.length === 0) {
         setClubdeskOpen(true) // the missing field may sit in the collapsed section
         setError(t('coreContactRequired'))
         setLoading(false)
@@ -427,10 +424,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       payload.address = adresse.trim()
       payload.postal_code = plz.trim()
       payload.city = ort.trim()
-      // Codes only — a DB trigger derives `members.nationalitaet` (the German
-      // string ClubDesk consumes) from the first code, so writing both here
-      // would just be two sources of truth for one fact.
-      payload.nationalitaet_codes = serializeCountryCodes(nationalitaetCodes)
+      // Codes only — the ClubDesk push sends the German name of the first
+      // code, computed server-side (migration 418).
+      payload.nationality_codes = serializeCountryCodes(nationalityCodes)
       payload.federation_of_origin = federationOfOrigin || null
       // ⚠ Written to `members` and NOWHERE else. Unlike everything around it in
       // this block, the Kantonsschule is NOT a ClubDesk column (the register has
@@ -479,9 +475,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         // compared apples to pears: the old side listed every nationality while
         // the server rebuilt the new side from the German primary-only mirror,
         // so an unchanged "DE,CH" reported as "Deutschland, Schweiz → Deutschland".
-        nationalitaet: {
+        nationality_codes: {
           old: serializeCountryCodes(storedNationalityCodes()) ?? '',
-          new: serializeCountryCodes(nationalitaetCodes) ?? '',
+          new: serializeCountryCodes(nationalityCodes) ?? '',
         },
         federation_of_origin: {
           old: user.federation_of_origin ?? '',
@@ -529,9 +525,8 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               salutation: anrede, first_name: fn, last_name: ln,
               email: em, phone, address: adresse, postal_code: plz, city: ort,
               birthdate, sex, ahv_number: ahvNummer,
-              // ClubDesk's picklists take the German name, so send the derived
-              // string rather than the codes we store.
-              nationalitaet: countryNameDe(nationalitaetCodes[0]),
+              // ClubDesk's picklists take the German name of the first code.
+              nationality: countryNameDe(nationalityCodes[0]),
               federation_of_origin: federationOfOrigin,
               cantonal_school: kantonsschule || null,
             },
@@ -846,10 +841,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             {/* Nationalität — multi-select; the first pick is the primary one
                 and is what ClubDesk (single-valued) receives. */}
             <CountryMultiSelect
-              label={`${t('nationalitaet')}${onboarding ? ' *' : ''}`}
-              selected={nationalitaetCodes}
-              onChange={setNationalitaetCodes}
-              helperText={t('nationalitaetHint')}
+              label={`${t('nationality')}${onboarding ? ' *' : ''}`}
+              selected={nationalityCodes}
+              onChange={setNationalityCodes}
+              helperText={t('nationalityHint')}
             />
 
             {/* Herkunftsverband */}
