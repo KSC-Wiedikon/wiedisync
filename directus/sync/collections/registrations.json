@@ -1294,14 +1294,14 @@
     },
     {
       "collection": "registrations",
-      "field": "bb_doc_lizenz",
+      "field": "bb_doc_licence",
       "type": "uuid",
       "meta": {
         "collection": "registrations",
         "conditions": null,
         "display": "file",
         "display_options": null,
-        "field": "bb_doc_lizenz",
+        "field": "bb_doc_licence",
         "group": null,
         "hidden": false,
         "interface": "file",
@@ -1320,7 +1320,7 @@
         "width": "full"
       },
       "schema": {
-        "name": "bb_doc_lizenz",
+        "name": "bb_doc_licence",
         "table": "registrations",
         "data_type": "uuid",
         "default_value": null,

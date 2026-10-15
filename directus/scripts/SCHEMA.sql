@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T22:33:57.840Z
+-- Generated:   2026-10-15T23:35:09.545Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict suPtVIaVTfg7hB3zOvb2AMgupf4Kkq2v0Fx09pwmjtWWDtUffclkiPqjGqu760r
+\restrict asrfmcd53r2gbo0I2YZSWTRni961PH1dw5i3dohhCOxMaJEJICVXkGPLKdcIF2t
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -264,28 +264,28 @@ $$;
 
 
 --
--- Name: clubdesk_offliz_to_dx(text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: clubdesk_official_licence_to_column(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.clubdesk_offliz_to_dx(offliz text) RETURNS text
+CREATE FUNCTION public.clubdesk_official_licence_to_column(official_licence text) RETURNS text
     LANGUAGE sql IMMUTABLE
     AS $$
   SELECT CASE
-    WHEN offliz LIKE '%Volleyball Lizenz%'            THEN 'scorer_vb'
-    WHEN upper(btrim(offliz)) = 'OTR1'                THEN 'otr1_bb'
-    WHEN upper(btrim(offliz)) = 'OTR2'                THEN 'otr2_bb'
-    WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN1' THEN 'otn1_bb'
-    WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN2' THEN 'otn2_bb'
+    WHEN official_licence LIKE '%Volleyball Lizenz%'            THEN 'scorer_vb'
+    WHEN upper(btrim(official_licence)) = 'OTR1'                THEN 'otr1_bb'
+    WHEN upper(btrim(official_licence)) = 'OTR2'                THEN 'otr2_bb'
+    WHEN upper(replace(btrim(official_licence), ' ', '')) = 'OTN1' THEN 'otn1_bb'
+    WHEN upper(replace(btrim(official_licence), ' ', '')) = 'OTN2' THEN 'otn2_bb'
     ELSE NULL
   END;
 $$;
 
 
 --
--- Name: FUNCTION clubdesk_offliz_to_dx(offliz text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION clubdesk_official_licence_to_column(official_licence text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.clubdesk_offliz_to_dx(offliz text) IS 'ClubDesk "Offiziellen Lizenz" string -> members column name. OTN1/OTN2 added 2026-07-25 (migration 229). A bare level-less "OTN" maps to NULL since migration 303 dropped the coarse otn_bb flag — Basketplan is what resolves a level. NULL = no column represents this value.';
+COMMENT ON FUNCTION public.clubdesk_official_licence_to_column(official_licence text) IS 'ClubDesk "Offiziellen Lizenz" string -> members column name. A bare level-less "OTN" maps to NULL (migration 303). NULL = no column represents this value. Was clubdesk_offliz_to_dx before migration 422.';
 
 
 --
@@ -1190,6 +1190,31 @@ $$;
 
 
 --
+-- Name: members_board_implies_admin(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.members_board_implies_admin() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.role IS NOT NULL
+    AND NEW.role @> '["board"]'::jsonb
+    AND NOT NEW.role ?| ARRAY['admin', 'vb_admin', 'bb_admin'] THEN
+    NEW.role := NEW.role || '["admin"]'::jsonb;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION members_board_implies_admin(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.members_board_implies_admin() IS 'A board member always holds an admin tier (migrations 402/403): role with ''board'' and none of admin / vb_admin / bb_admin gains ''admin''. Was members_vorstand_implies_admin before migration 422.';
+
+
+--
 -- Name: members_normalize_trainer_licences(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1274,24 +1299,6 @@ BEGIN
     NEW.deactivated_at := NULL;
   END IF;
 
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: members_vorstand_implies_admin(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.members_vorstand_implies_admin() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF NEW.role IS NOT NULL
-    AND NEW.role @> '["vorstand"]'::jsonb
-    AND NOT NEW.role ?| ARRAY['admin', 'vb_admin', 'bb_admin'] THEN
-    NEW.role := NEW.role || '["admin"]'::jsonb;
-  END IF;
   RETURN NEW;
 END;
 $$;
@@ -7820,7 +7827,7 @@ CREATE TABLE public.fines (
     CONSTRAINT fines_amount_nonneg CHECK ((amount >= (0)::numeric)),
     CONSTRAINT fines_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
     CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY (ARRAY[('cash'::character varying)::text, ('twint'::character varying)::text, ('transfer'::character varying)::text, ('other'::character varying)::text])))),
-    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY (ARRAY[('team_kasse'::character varying)::text, ('club_kasse'::character varying)::text])))),
+    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY ((ARRAY['team_fund'::character varying, 'club_fund'::character varying])::text[])))),
     CONSTRAINT fines_status_check CHECK (((status)::text = ANY (ARRAY[('open'::character varying)::text, ('paid'::character varying)::text, ('waived'::character varying)::text])))
 );
 
@@ -7837,6 +7844,13 @@ COMMENT ON TABLE public.fines IS 'Fine ledger — per member, or per team when `
 --
 
 COMMENT ON COLUMN public.fines.member IS 'Member being fined. NULL = a TEAM-level fine (forfait, missing scorer, …) owed by the team as a whole — no escalation tier, amount must be explicit, and it never appears on a member''s personal balance.';
+
+
+--
+-- Name: COLUMN fines.paid_to; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fines.paid_to IS 'team_fund | club_fund — whose cash the fine went to. Were team_kasse / club_kasse before migration 422.';
 
 
 --
@@ -9680,7 +9694,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'active'::character varying, 'passive'::character varying, 'honorary'::character varying, 'former'::character varying, 'deceased'::character varying, 'gap_year'::character varying])::text[])))),
-    CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "board", "website_admin", "finance"]'::jsonb)),
     CONSTRAINT members_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
@@ -10828,7 +10842,7 @@ CREATE TABLE public.registrations (
     reference_number character varying(255),
     officials_requested character varying(255),
     referee_level character varying(255),
-    bb_doc_lizenz uuid,
+    bb_doc_licence uuid,
     bb_doc_selfdecl uuid,
     bb_doc_natdecl uuid,
     locale character varying(5) DEFAULT 'de'::character varying,
@@ -10869,6 +10883,13 @@ CREATE TABLE public.registrations (
     CONSTRAINT registrations_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
     CONSTRAINT registrations_sex_values CHECK (((sex IS NULL) OR ((sex)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying])::text[]))))
 );
+
+
+--
+-- Name: COLUMN registrations.bb_doc_licence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.registrations.bb_doc_licence IS 'Signed Swiss Basketball licence application (directus_files id). Column bb_doc_lizenz before migration 422.';
 
 
 --
@@ -11686,12 +11707,12 @@ CREATE VIEW public.stats_club_overview WITH (security_invoker='true') AS
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND (m.role @> '"vorstand"'::jsonb))) AS vb_vorstand,
+          WHERE ((mt.guest_level = 0) AND (m.role @> '"board"'::jsonb))) AS vb_board,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'basketball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND (m.role @> '"vorstand"'::jsonb))) AS bb_vorstand,
+          WHERE ((mt.guest_level = 0) AND (m.role @> '"board"'::jsonb))) AS bb_board,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
@@ -11708,7 +11729,7 @@ CREATE VIEW public.stats_club_overview WITH (security_invoker='true') AS
     ( SELECT count(*) AS count
            FROM (public.games g
              JOIN public.teams t ON ((t.id = g.kscw_team)))
-          WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = 'scheduled'::text) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))) AS upcoming_home_games_no_schreiber;
+          WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = 'scheduled'::text) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))) AS upcoming_home_games_no_scorer;
 
 
 --
@@ -11754,10 +11775,10 @@ CREATE VIEW public.stats_game_results WITH (security_invoker='true') AS
 
 
 --
--- Name: stats_games_missing_schreiber; Type: VIEW; Schema: public; Owner: -
+-- Name: stats_games_missing_scorer; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') AS
+CREATE VIEW public.stats_games_missing_scorer WITH (security_invoker='true') AS
  SELECT g.id AS game_id,
     g.date AS game_date,
     g."time" AS game_time,
@@ -11817,7 +11838,7 @@ CREATE VIEW public.stats_members WITH (security_invoker='true') AS
     count(*) FILTER (WHERE (role @> '"admin"'::jsonb)) AS role_admin,
     count(*) FILTER (WHERE (role @> '"vb_admin"'::jsonb)) AS role_vb_admin,
     count(*) FILTER (WHERE (role @> '"bb_admin"'::jsonb)) AS role_bb_admin,
-    count(*) FILTER (WHERE (role @> '"vorstand"'::jsonb)) AS role_vorstand
+    count(*) FILTER (WHERE (role @> '"board"'::jsonb)) AS role_board
    FROM public.members;
 
 
@@ -11869,10 +11890,10 @@ CREATE VIEW public.stats_participation WITH (security_invoker='true') AS
 
 
 --
--- Name: stats_schreiber_coverage; Type: VIEW; Schema: public; Owner: -
+-- Name: stats_scorer_coverage; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_schreiber_coverage WITH (security_invoker='true') AS
+CREATE VIEW public.stats_scorer_coverage WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
@@ -17473,6 +17494,13 @@ CREATE TRIGGER trg_member_teams_sync_game_guests AFTER INSERT OR DELETE OR UPDAT
 
 
 --
+-- Name: members trg_members_board_implies_admin; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_board_implies_admin BEFORE INSERT OR UPDATE OF role ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_board_implies_admin();
+
+
+--
 -- Name: members trg_members_coach_approval_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17533,13 +17561,6 @@ CREATE TRIGGER trg_members_user_rebuild_guardians AFTER UPDATE OF "user" ON publ
 --
 
 CREATE TRIGGER trg_members_user_revoke_managed AFTER UPDATE OF "user" ON public.members FOR EACH ROW WHEN ((old."user" IS DISTINCT FROM new."user")) EXECUTE FUNCTION public.trg_members_user_revoke_managed();
-
-
---
--- Name: members trg_members_vorstand_implies_admin; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_members_vorstand_implies_admin BEFORE INSERT OR UPDATE OF role ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_vorstand_implies_admin();
 
 
 --
@@ -20033,7 +20054,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict suPtVIaVTfg7hB3zOvb2AMgupf4Kkq2v0Fx09pwmjtWWDtUffclkiPqjGqu760r
+\unrestrict asrfmcd53r2gbo0I2YZSWTRni961PH1dw5i3dohhCOxMaJEJICVXkGPLKdcIF2t
 
 
 
@@ -20049,7 +20070,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 425 migration(s) already in the schema above.
+-- Migration tracker seed — 426 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20487,6 +20508,7 @@ FROM (VALUES
   ('418-nationality-clubdesk-export.sql'),
   ('419-finance-english.sql'),
   ('420-scheduling-events-basketball-english.sql'),
-  ('421-halls-feedback-english.sql')
+  ('421-halls-feedback-english.sql'),
+  ('422-board-scorer-leftovers-english.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;

@@ -781,12 +781,12 @@
         "options": {
           "choices": [
             {
-              "text": "Team kasse",
-              "value": "team_kasse"
+              "text": "Team fund",
+              "value": "team_fund"
             },
             {
-              "text": "Club kasse",
-              "value": "club_kasse"
+              "text": "Club fund",
+              "value": "club_fund"
             }
           ]
         },
