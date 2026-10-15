@@ -14,6 +14,7 @@ Living doc for the security posture of the KSCW platform. Audited findings, fixe
 | `wiedisync.pages.dev` (React dev) | CF Pages, dev branch | Same | Talks to `directus-dev.kscw.ch`. |
 | `directus.kscw.ch` (Directus) | Hetzner VPS via CF Tunnel | Built-in Directus auth (cookies + bearer). Custom endpoints inherit `req.accountability`. | All custom routes under `/kscw/*`. |
 | `kscw-push.lucanepa.workers.dev` (CF Worker) | Cloudflare Workers | Shared bearer secret from Directus → worker (constant-time compared since 2026-05-06). | VAPID keys in worker secret store; Directus side reads `VAPID_PUBLIC_KEY` env. |
+| `nomal.kscw.ch` (Nomal, video analysis; repo `KSC-Wiedikon/nomal`) | Hetzner VPS via CF Tunnel (own container) | Its own host-only session, started from a 60 s single-use Ed25519 token minted by `/kscw/nomal/v1/authorize` from the `kscw_session` cookie. Server-to-server: `X-Nomal-Service-Token` (SHA-256 compared) on the internal network only. | No CORS change: login is a top-level redirect, never a credentialed fetch. Gets personal data only for the teams a Nomal admin enabled. |
 | `kscw.ch` (ClubDesk) | External | Out of our scope | Don't change DNS until explicitly confirmed. |
 | **`github.com/KSC-Wiedikon/wiedisync` (the repo itself)** | GitHub, **PUBLIC** since 2026-02-27 | None — world-readable | **Anything ever committed is permanently disclosed. Deletion is not remediation; rotation is.** A force-push does not remove the commit either: GitHub keeps unreachable commits addressable by SHA until Support runs GC on the repo. The same applies to `KSC-Wiedikon/kscw-website` and `Lucanepa/openvolley`. |
 
@@ -48,6 +49,14 @@ Tracked (must stay clean of secrets):
 Treat this as a deduplication shield: if a future audit finds something on this list, it's either a regression or a misunderstanding — verify before re-flagging.
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
+
+### 2026-10-15 — deliberate WIDENING (not a hardening): the Nomal bridge
+
+Nomal (the club's video-analysis app, `nomal.kscw.ch`, separate repo `KSC-Wiedikon/nomal`) logs people in through Wiedisync and mirrors the rosters it needs. `kscw-endpoints/src/nomal-bridge.js`; tests `__tests__/nomal-bridge.test.js`, `src/utils/nomalReturn.test.ts`.
+- **`GET /kscw/nomal/v1/authorize`** turns the caller's `kscw_session` into a **60-second, single-use (jti recorded by Nomal), Ed25519-signed** token (aud `nomal`, iss `wiedisync-prod|dev`) and redirects to an **exactly matched** return URL from `NOMAL_RETURN_URLS` (https, or localhost on dev). Claims are minimal: member id + uuid, name, `members.role`, sport-admin scopes, team relations for the current and previous season. No email, no birthdate. Issuance is logged (`user_logs` `nomal_login`). Not logged in → `/login?next=<this URL>`; the login page accepts that one absolute `next` (`safeNomalReturn`: our own API origin + exactly `/kscw/nomal/v1/authorize`), everything else still goes through `safeReturnPath`.
+- **Service routes** `/kscw/nomal/v1/teams` (metadata of every current/previous-season team), `/sync?teams=` (rosters, games, trainings of ≤ 20 requested teams), `/adult-check?team=&date=` (pass/fail per rostered person; birthdates stay here) need `X-Nomal-Service-Token` whose SHA-256 equals `NOMAL_SYNC_TOKEN_HASH` (timing-safe), and **answer 404 to anything carrying `CF-Connecting-IP`**: they are reachable only from the VPS's internal network.
+- The signing key lives only in the Directus env (`NOMAL_JWT_PRIVATE_KEY`, `NOMAL_JWT_KID`); Nomal holds the public key. Rotation: add a new kid on both sides, then retire the old one. Unset env → 503 `nomal_not_configured`.
+- Data minimisation is enforced on the Nomal side too: it requests personal data only for teams a full admin enabled, and purges members no enabled team references.
 
 ### 2026-10-11 — Deep audit (7 surfaces incl. the Android app) + remediation
 
