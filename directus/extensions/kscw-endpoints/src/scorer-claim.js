@@ -58,9 +58,6 @@ function seatDutyTeams(game, def) {
     .filter((x) => x != null).map(Number))]
 }
 
-/** Same convention as game-scheduling.js isJuniorTeam: "HU16", "DU18 Fire", "MU10". */
-export const isJuniorTeamName = (name) => /u\d/i.test(String(name || ''))
-
 /** Two duties whose games start less than this apart cannot both be served. */
 export const DUTY_CLASH_MS = 2 * 60 * 60 * 1000
 
@@ -168,20 +165,22 @@ export function registerScorerClaim(router, ctx) {
   })
 
   /**
-   * POST /kscw/games/:id/duty-assign  { role, member }  — BASKETBALL JUNIORS ONLY.
+   * POST /kscw/games/:id/duty-assign  { role, member }  — BASKETBALL ONLY.
    *
-   * The coach / team responsible of a JUNIOR basketball team that is on duty
-   * for this game puts one of the team's licensed players on an open table
-   * seat — at once, no acceptance step (HU16 request, 01.10.2026: the juniors
-   * do not answer delegations, the TR organises the table anyway). `member:
-   * null` clears a seat held by one of that team's players (wrong kid picked).
-   * Everything else keeps the self-claim / delegation-accept path.
+   * The coach / team responsible of a basketball team that is on duty for this
+   * game puts one of the team's licensed players on a table seat — at once, no
+   * acceptance step — swaps them, or clears the seat with `member: null`.
+   * Started with the juniors (HU16 request, 01.10.2026: they do not answer
+   * delegations, the TR organises the table anyway); opened to every BB team
+   * on 15.10.2026. Volleyball keeps the self-claim / delegation-accept path.
    *
    * Guards: BB seat only; caller is staff (teams_coaches / teams_responsibles)
-   * of an ACTIVE junior BB team in the seat's duty pool; target is an active
-   * core player (guest_level 0) of that same team with the seat's licence and no
-   * clashing duty; a seat held by anyone else is never touched. Actor captured
-   * in confirmed_by_* + user_logs.
+   * of an ACTIVE BB team in the seat's duty pool; target is an active core
+   * player (guest_level 0) of that same team with the seat's licence and no
+   * clashing duty; a seat held by anyone outside the caller's teams is never
+   * touched (a seat a player claimed themselves IS replaceable). Actor captured
+   * in confirmed_by_* + user_logs; the new holder and a removed holder are
+   * notified.
    */
   router.post('/games/:id/duty-assign', async (req, res) => {
     try {
@@ -205,18 +204,17 @@ export function registerScorerClaim(router, ctx) {
       const startMs = gameStartMs(game)
       if (startMs != null && startMs <= Date.now()) return res.status(409).json({ error: 'Game has already started' })
 
-      // The junior BB team(s) in this seat's pool that the caller coaches / is TR of.
+      // The BB team(s) in this seat's pool that the caller coaches / is TR of.
       const pool = seatDutyTeams(game, def)
-      const staffTeams = pool.length
+      const myTeams = pool.length
         ? await database('teams as t')
           .whereIn('t.id', pool).where('t.active', true).where('t.sport', 'basketball')
           .where((qb) => qb
             .whereExists(database('teams_coaches').whereRaw('teams_coaches.teams_id = t.id').where('members_id', actor.id))
             .orWhereExists(database('teams_responsibles').whereRaw('teams_responsibles.teams_id = t.id').where('members_id', actor.id)))
-          .select('t.id', 't.name')
+          .pluck('t.id').then((ids) => ids.map(Number))
         : []
-      const myTeams = staffTeams.filter((t) => isJuniorTeamName(t.name)).map((t) => Number(t.id))
-      if (!myTeams.length) return res.status(403).json({ error: 'Only the coach or team responsible of a junior team on duty', code: 'not_junior_staff' })
+      if (!myTeams.length) return res.status(403).json({ error: 'Only the coach or team responsible of a team on duty', code: 'not_duty_staff' })
 
       const corePlayerOf = async (memberId) => {
         const row = await database('member_teams').whereIn('team', myTeams).where('member', memberId)
@@ -226,8 +224,30 @@ export function registerScorerClaim(router, ctx) {
 
       // A seat held by someone who is not one of these players stays untouched.
       const current = game[def.member]
-      if (current != null && (await corePlayerOf(current)) == null) {
+      const currentTeam = current != null ? await corePlayerOf(current) : null
+      if (current != null && currentTeam == null) {
         return res.status(409).json({ error: 'Role already taken', code: 'seat_taken' })
+      }
+
+      const date = String(game.date instanceof Date ? game.date.toISOString() : game.date).slice(0, 10).split('-').reverse().join('.')
+      const matchup = `${game.home_team ?? ''} - ${game.away_team ?? ''}`.trim()
+      const by = actor.first_name || actor.last_name || ''
+      // In-app + push. Best-effort: the seat is already written.
+      const notify = async (memberId, team, type, pushKey) => {
+        try {
+          await database('notifications').insert({
+            member: memberId, type, title: type,
+            body: JSON.stringify({ by, game: matchup, date }),
+            activity_type: 'scorer_duty', activity_id: String(game.id), team, read: false,
+          })
+          sendLocalizedPush(
+            database, [memberId],
+            (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/scorer`, `${type}-${game.id}-${role}`, log),
+            `${pushKey}.title`, `${pushKey}.body`, { by, game: matchup, date },
+          ).catch(() => {})
+        } catch (err) {
+          log.warn({ msg: `${type} notify failed: ${err?.message}`, gameId: game.id })
+        }
       }
 
       if (targetId === null) {
@@ -239,6 +259,7 @@ export function registerScorerClaim(router, ctx) {
           accountability: req.accountability, action: 'duty-unassign',
           collection: 'games', recordId: game.id, data: { role, member: current, by: actor.id },
         })
+        await notify(current, currentTeam, 'duty_unassigned', 'dutyUnassigned')
         return res.json({ ok: true, member: null })
       }
 
@@ -271,23 +292,8 @@ export function registerScorerClaim(router, ctx) {
         collection: 'games', recordId: game.id, data: { role, member: target.id, replaced: current ?? null, team, by: actor.id },
       })
 
-      // Tell the junior (in-app + push). Best-effort: the seat is already set.
-      try {
-        const date = String(game.date instanceof Date ? game.date.toISOString() : game.date).slice(0, 10).split('-').reverse().join('.')
-        const matchup = `${game.home_team ?? ''} - ${game.away_team ?? ''}`.trim()
-        await database('notifications').insert({
-          member: target.id, type: 'duty_assigned', title: 'duty_assigned',
-          body: JSON.stringify({ by: actor.first_name || byName || '', game: matchup, date }),
-          activity_type: 'scorer_duty', activity_id: String(game.id), team, read: false,
-        })
-        sendLocalizedPush(
-          database, [target.id],
-          (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/scorer`, `duty-assign-${game.id}-${role}`, log),
-          'dutyAssigned.title', 'dutyAssigned.body', { by: actor.first_name || '', game: matchup, date },
-        ).catch(() => {})
-      } catch (err) {
-        log.warn({ msg: `duty-assign notify failed: ${err?.message}`, gameId: game.id })
-      }
+      await notify(target.id, team, 'duty_assigned', 'dutyAssigned')
+      if (current != null) await notify(current, currentTeam, 'duty_unassigned', 'dutyUnassigned')
 
       res.json({ ok: true, member: target.id, confirmed_by_name: byName, confirmed_at: now })
     } catch (err) {

@@ -173,30 +173,30 @@ export default function ScorerRow({
   // that one duty. Disabled once the game has started.
   const effectiveCanEdit = canEdit && !isGamePast
 
-  // ── Junior BB teams: the coach / TR puts a player on a seat directly ──
-  // (HU16 request, 01.10.2026; server: /games/:id/duty-assign). Only for a seat
-  // whose duty pool holds a junior BB team this user coaches or is TR of, and
-  // only while the seat is empty or held by one of that team's core players —
-  // anyone else's seat stays read-only.
+  // ── BB duty teams: the coach / TR puts a player on a seat directly ──
+  // (HU16 request 01.10.2026, every BB team since 15.10.2026; server:
+  // /games/:id/duty-assign). Only for a seat whose duty pool holds a BB team
+  // this user coaches or is TR of, and only while the seat is empty or held by
+  // one of that team's core players — anyone else's seat stays read-only.
   const { coachTeamIds, teamResponsibleIds } = useAuth()
   const staffTeamIds = useMemo(
     () => new Set([...coachTeamIds, ...teamResponsibleIds].map(String)),
     [coachTeamIds, teamResponsibleIds],
   )
-  function juniorStaffTeamFor(role: BbAssignRole): string | null {
+  function staffTeamFor(role: BbAssignRole): string | null {
     if (sport !== 'basketball' || effectiveCanEdit || isGamePast || !staffTeamIds.size) return null
     for (const tid of bbSeatDutyTeamIds(game, role)) {
       const tm = teams.find((x) => String(x.id) === tid)
-      if (tm && tm.sport === 'basketball' && tm.active !== false && /u\d/i.test(tm.name ?? '') && staffTeamIds.has(tid)) return tid
+      if (tm && tm.sport === 'basketball' && tm.active !== false && staffTeamIds.has(tid)) return tid
     }
     return null
   }
   const corePlayersOf = (teamId: string) => new Set(
     memberTeams.filter((mt) => String(mt.team) === teamId && !((mt.guest_level ?? 0) > 0)).map((mt) => String(mt.member)),
   )
-  /** Props that turn a BB seat into the junior-staff picker, or {} when it isn't one. */
-  function juniorStaffProps(role: BbAssignRole) {
-    const tid = juniorStaffTeamFor(role)
+  /** Props that turn a BB seat into the staff picker, or {} when it isn't one. */
+  function staffProps(role: BbAssignRole) {
+    const tid = staffTeamFor(role)
     if (!tid) return {}
     const players = corePlayersOf(tid)
     const holder = game[BB_SEAT_COL[role]]
@@ -559,7 +559,7 @@ export default function ScorerRow({
               confirmedByName={game.bb_scorer_confirmed_by_name}
               confirmedAt={game.bb_scorer_confirmed_at}
               showConfirmedBy={isAdmin}
-              {...juniorStaffProps('bb_scorer')}
+              {...staffProps('bb_scorer')}
             />
             <AssignmentEditor
               label={t('bbTimekeeper')}
@@ -587,7 +587,7 @@ export default function ScorerRow({
               confirmedByName={game.bb_timekeeper_confirmed_by_name}
               confirmedAt={game.bb_timekeeper_confirmed_at}
               showConfirmedBy={isAdmin}
-              {...juniorStaffProps('bb_timekeeper')}
+              {...staffProps('bb_timekeeper')}
             />
             {show24s ? (
               <AssignmentEditor
@@ -616,7 +616,7 @@ export default function ScorerRow({
                 confirmedByName={game.bb_24s_confirmed_by_name}
                 confirmedAt={game.bb_24s_confirmed_at}
                 showConfirmedBy={isAdmin}
-                {...juniorStaffProps('bb_24s_official')}
+                {...staffProps('bb_24s_official')}
                 onHide={!game.bb_24s_official && !requires24s ? () => setShow24s(false) : undefined}
               />
             ) : (

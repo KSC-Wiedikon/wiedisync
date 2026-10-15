@@ -174,6 +174,20 @@ const T = {
     fr: '{by} t\'a inscrit·e : {game} le {date}',
     it: '{by} ti ha assegnato: {game} il {date}',
   },
+  'dutyUnassigned.title': {
+    de: 'Einsatz am Kampfgericht gestrichen',
+    gsw: 'Iisatz am Kampfgricht gstriche',
+    en: 'Table duty removed',
+    fr: 'Tâche à la table de marque retirée',
+    it: 'Incarico al tavolo rimosso',
+  },
+  'dutyUnassigned.body': {
+    de: '{by} hat dich ausgetragen: {game} am {date}',
+    gsw: '{by} het dich usträit: {game} am {date}',
+    en: '{by} took you off: {game} on {date}',
+    fr: '{by} t\'a retiré·e : {game} le {date}',
+    it: '{by} ti ha tolto: {game} il {date}',
+  },
   'delegation.accepted.title': {
     de: 'Delegation angenommen',
     gsw: 'Delegation aagnoh',
