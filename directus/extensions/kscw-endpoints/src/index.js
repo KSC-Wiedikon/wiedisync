@@ -32,6 +32,7 @@ import { registerDutyLate } from './duty-late.js'
 import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerGameRecordings } from './game-recordings.js'
+import { registerNomalBridge } from './nomal-bridge.js'
 import { registerCarpools } from './carpools.js'
 import { registerBbTournamentPicks } from './bb-tournament-picks.js'
 import { registerLiveScoring } from './live-scoring.js'
@@ -2800,6 +2801,7 @@ export default {
     registerDutyLeaderContact(router, ctx)
     registerScorerRoster(router, ctx)
     registerGameRecordings(router, ctx)
+    registerNomalBridge(router, ctx)
     registerCarpools(router, ctx)
     registerBbTournamentPicks(router, ctx)
     registerLiveScoring(router, ctx)
