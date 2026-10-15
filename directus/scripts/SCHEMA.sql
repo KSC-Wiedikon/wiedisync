@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T17:57:08.229Z
+-- Generated:   2026-10-15T18:26:57.936Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ukEW0UjldfLhv3novkeuIP91G95od0PO6vaCx1imx80HXtcZv7xT4x5Brtua9US
+\restrict ex7aeqFFwgaJhp2e4A4ec7FzEcAct4cvIP9oc7P2lCPsLhsnpEqRhTa4f1kbC4C
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -981,8 +981,8 @@ CREATE FUNCTION public.kscw_member_sport_section(p_member integer, p_sektion tex
     WHEN n.c = 1 THEN n.only
     WHEN lower(btrim(coalesce(p_sektion, ''), E' \t\r\n')) = 'volleyball' THEN 'volleyball'
     WHEN lower(btrim(coalesce(p_sektion, ''), E' \t\r\n')) = 'basketball' THEN 'basketball'
-    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) = 'vb ' THEN 'volleyball'
-    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) = 'bb ' THEN 'basketball'
+    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) IN ('vb_', 'vb ') THEN 'volleyball'
+    WHEN left(lower(btrim(coalesce(p_fee, ''), E' \t\r\n')), 3) IN ('bb_', 'bb ') THEN 'basketball'
     ELSE 'both'
   END
   FROM n
@@ -1515,7 +1515,7 @@ BEGIN
   END IF;
 
   UPDATE members m SET
-    fee_category = 'Gratis',
+    fee_category = 'free',
     clubdesk_push_pending = CASE WHEN m.clubdesk_id IS NOT NULL
       THEN true ELSE m.clubdesk_push_pending END,
     clubdesk_push_changes = CASE WHEN m.clubdesk_id IS NOT NULL THEN
@@ -1523,7 +1523,7 @@ BEGIN
          FROM jsonb_array_elements(COALESCE(m.clubdesk_push_changes, '[]'::jsonb)) e
         WHERE e->>'field' NOT IN ('beitragskategorie', 'fee_category'))
       || jsonb_build_array(jsonb_build_object(
-           'field', 'fee_category', 'old_value', NULL, 'new_value', 'Gratis'))
+           'field', 'fee_category', 'old_value', NULL, 'new_value', 'free'))
       ELSE m.clubdesk_push_changes END
   WHERE m.id = NEW.members_id;
 
@@ -1539,7 +1539,7 @@ BEGIN
           jsonb_build_object(
             'source', 'staff_gratis_fill',
             'field', 'fee_category',
-            'value', 'Gratis',
+            'value', 'free',
             'team', NEW.teams_id,
             'junction', TG_TABLE_NAME,
             'junction_id', NEW.id,
@@ -1594,7 +1594,7 @@ BEGIN
       FROM members mm
      WHERE mm.id = v_member
        FOR UPDATE;
-    IF NOT FOUND OR m.fee_category IS DISTINCT FROM 'Gratis' THEN
+    IF NOT FOUND OR m.fee_category IS DISTINCT FROM 'free' THEN
       RETURN NULL;
     END IF;
     IF EXISTS (SELECT 1 FROM member_teams mt
@@ -1646,7 +1646,7 @@ BEGIN
     IF jsonb_typeof(m.clubdesk_push_changes) = 'array' AND EXISTS (
          SELECT 1 FROM jsonb_array_elements(m.clubdesk_push_changes) e
           WHERE e->>'field' IN ('beitragskategorie', 'fee_category')
-            AND e->>'new_value' = 'Gratis') THEN
+            AND e->>'new_value' IN ('free', 'Gratis')) THEN
       v_had_entry := true;
       SELECT COALESCE(jsonb_agg(t.e ORDER BY t.ord), '[]'::jsonb)
         INTO v_changes
@@ -1679,7 +1679,7 @@ BEGIN
             jsonb_build_object(
               'source', 'staff_gratis_revert',
               'field', 'fee_category',
-              'old_value', 'Gratis',
+              'old_value', 'free',
               'value', NULL,
               'team', OLD.teams_id,
               'junction', TG_TABLE_NAME,
@@ -9547,6 +9547,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
     CONSTRAINT members_club_section_values CHECK (((club_section IS NULL) OR ((club_section)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_fee_category_values CHECK (((fee_category IS NULL) OR ((fee_category)::text = ANY ('{vb_employed,vb_student_league,vb_pupil_league,vb_pupil_tournament,vb_pupil_first_year,vb_tournament_kwi,vb_student_discounted,vb_pupil_league_discounted,bb_employed,bb_employed_first_league,bb_student,bb_student_first_league,bb_youth_league,bb_minis_tournament,bb_2_trainings,bb_1_training,passive,free,none}'::text[])))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
@@ -9625,7 +9626,7 @@ COMMENT ON COLUMN public.members.salutation IS 'mr | ms (migration 415). ClubDes
 -- Name: COLUMN members.fee_category; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.fee_category IS 'ClubDesk fee category (German picklist value, ClubDesk-owned; synced down, never derived here).';
+COMMENT ON COLUMN public.members.fee_category IS 'Fee category slug (migration 417): vb_employed … passive / free / none. ClubDesk Beitragskategorie via member-values.js feeCategoryLabel / clubdesk_value_map.';
 
 
 --
@@ -10745,6 +10746,7 @@ CREATE TABLE public.registrations (
     CONSTRAINT registrations_bb_situation_values CHECK (((bb_situation IS NULL) OR ((bb_situation)::text = ANY ((ARRAY['new'::character varying, 'returning'::character varying, 'transfer_ch'::character varying, 'transfer_intl'::character varying])::text[])))),
     CONSTRAINT registrations_club_section_choice_values CHECK (((club_section_choice IS NULL) OR ((club_section_choice)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
     CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT registrations_fee_category_values CHECK (((fee_category IS NULL) OR ((fee_category)::text = ANY ('{vb_employed,vb_student_league,vb_pupil_league,vb_pupil_tournament,vb_pupil_first_year,vb_tournament_kwi,vb_student_discounted,vb_pupil_league_discounted,bb_employed,bb_employed_first_league,bb_student,bb_student_first_league,bb_youth_league,bb_minis_tournament,bb_2_trainings,bb_1_training,passive,free,none}'::text[])))),
     CONSTRAINT registrations_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT registrations_fee_discount_range CHECK ((((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
     CONSTRAINT registrations_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
@@ -19938,7 +19940,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ukEW0UjldfLhv3novkeuIP91G95od0PO6vaCx1imx80HXtcZv7xT4x5Brtua9US
+\unrestrict ex7aeqFFwgaJhp2e4A4ec7FzEcAct4cvIP9oc7P2lCPsLhsnpEqRhTa4f1kbC4C
 
 
 
@@ -19954,7 +19956,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 420 migration(s) already in the schema above.
+-- Migration tracker seed — 421 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20387,6 +20389,7 @@ FROM (VALUES
   ('413-registrations-english.sql'),
   ('414-members-english-names.sql'),
   ('415-member-values-salutation-school-official.sql'),
-  ('416-member-values-section-status.sql')
+  ('416-member-values-section-status.sql'),
+  ('417-fee-category-english.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
