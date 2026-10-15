@@ -96,7 +96,7 @@ export const BB_PDF_TEMPLATES = {
   bb_doc_lizenz: { file: 'lizenzantrag-swiss-basketball.pdf', filename: 'Lizenzantrag' },
   bb_doc_selfdecl: { file: 'player-self-declaration-fiba.pdf', filename: 'Player-Self-Declaration' },
   bb_doc_natdecl: { file: 'acknowledgment-national-team-restriction-fiba.pdf', filename: 'Acknowledgment-National-Team-Restriction' },
-  bb_doc_freibrief: { file: 'freibrief-swiss-basketball.pdf', filename: 'Freibrief' },
+  bb_doc_release_letter: { file: 'freibrief-swiss-basketball.pdf', filename: 'Freibrief' },
   bb_doc_u18parents: { file: 'u18-parents-authorisation-fiba.pdf', filename: 'U18-Parents-Authorisation' },
 }
 
@@ -150,37 +150,37 @@ const FILLERS = {
   // had the mapping shifted by one and wrote the email into the name box.
   bb_doc_lizenz(form, d, ctx) {
     setField(form, 'undefined', 'KSC Wiedikon', ctx)
-    setField(form, 'undefined_2', d.nachname, ctx)
-    setField(form, 'undefined_3', d.vorname, ctx)
-    setField(form, 'undefined_4', d.adresse, ctx)
-    setField(form, 'undefined_5', d.plz, ctx)
-    setField(form, 'undefined_6', d.ort, ctx)
+    setField(form, 'undefined_2', d.last_name, ctx)
+    setField(form, 'undefined_3', d.first_name, ctx)
+    setField(form, 'undefined_4', d.address, ctx)
+    setField(form, 'undefined_5', d.postal_code, ctx)
+    setField(form, 'undefined_6', d.city, ctx)
     setField(form, 'undefined_7', d.email, ctx)
 
-    const [dd, mm, yyyy] = dobParts(d.geburtsdatum)
+    const [dd, mm, yyyy] = dobParts(d.birthdate)
     if (yyyy) {
       setField(form, 'Tag', dd, ctx)
       setField(form, 'Monat', mm, ctx)
       setField(form, 'Jahr', yyyy, ctx)
     }
 
-    if (d.geschlecht === 'männlich') check(form, 'Mann')
-    else if (d.geschlecht === 'weiblich') check(form, 'Frau')
+    if (d.sex === 'm') check(form, 'Mann')
+    else if (d.sex === 'f') check(form, 'Frau')
 
     // Holding a Swiss passport alongside another still ticks "Schweiz" — the form
     // asks whether the player is Swiss, not which passport is listed first.
-    if ((d.nationalitaetCodes || []).includes('CH')) {
+    if ((d.nationality_codes || []).includes('CH')) {
       check(form, 'Schweiz')
-    } else if (d.nationalitaet) {
+    } else if (d.nationality_de) {
       check(form, 'Andere')
-      setField(form, 'KOPIE DES PASSES ODER DER ID BEILAGEN', d.nationalitaet, ctx)
+      setField(form, 'KOPIE DES PASSES ODER DER ID BEILAGEN', d.nationality_de, ctx)
     }
 
     check(form, {
-      neu: 'Neues Mitglied Swiss Basketball',
+      new: 'Neues Mitglied Swiss Basketball',
       transfer_ch: 'Klubtransfer',
       transfer_intl: 'Internationaler Transfer',
-      rueckkehr: 'Internationaler Transfer',
+      returning: 'Internationaler Transfer',
     }[d.situation] || 'Neues Mitglied Swiss Basketball')
 
     const today = todayDDMMYYYY(ctx.now)
@@ -191,18 +191,18 @@ const FILLERS = {
 
   // FIBA Player's Self Declaration.
   bb_doc_selfdecl(form, d, ctx) {
-    setField(form, 'Last Name', d.nachname, ctx)
-    setField(form, 'First Name', d.vorname, ctx)
-    setField(form, 'Nationality', d.nationalitaet, ctx)
+    setField(form, 'Last Name', d.last_name, ctx)
+    setField(form, 'First Name', d.first_name, ctx)
+    setField(form, 'Nationality', d.nationality_en, ctx)
     setField(form, 'Current Club', 'KSC Wiedikon', ctx)
     setField(form, 'Season', currentSeasonLabel(ctx.now), ctx)
-    const [dd, mm, yyyy] = dobParts(d.geburtsdatum)
+    const [dd, mm, yyyy] = dobParts(d.birthdate)
     if (yyyy) {
       setField(form, 'Text1.0.0', dd, ctx)
       setField(form, 'Text1.0.1', mm, ctx)
       setField(form, 'Text1.1.1', yyyy, ctx)
     }
-    setField(form, 'Text2', `${d.vorname} ${d.nachname}`.trim(), ctx)
+    setField(form, 'Text2', `${d.first_name} ${d.last_name}`.trim(), ctx)
     setField(form, 'Text3', todayDDMMYYYY(ctx.now), ctx)
   },
 
@@ -212,12 +212,12 @@ const FILLERS = {
   // The transfer-date box is deliberately left blank — Swiss Basketball / FIBA
   // set that date, not the club.
   bb_doc_natdecl(form, d, ctx) {
-    const fullName = `${d.vorname} ${d.nachname}`.trim()
+    const fullName = `${d.first_name} ${d.last_name}`.trim()
     setField(form, 'Player full name', fullName, ctx)
-    setField(form, 'Nationality  nationalities', d.nationalitaet, ctx)
+    setField(form, 'Nationality  nationalities', d.nationality_en, ctx)
     setField(form, 'National Member Federation of origin', d.federationOfOrigin, ctx)
     setField(form, 'National Member Federation of destination', 'Swiss Basketball', ctx)
-    const [dd, mm, yyyy] = dobParts(d.geburtsdatum)
+    const [dd, mm, yyyy] = dobParts(d.birthdate)
     if (yyyy) setField(form, 'Date of birth DDMMYYYY', `${dd}/${mm}/${yyyy}`, ctx)
     // Signature block: the player's half. The parent / legal representative
     // fills their own by hand.
@@ -228,8 +228,8 @@ const FILLERS = {
   // Swiss Basketball Freibrief / lettre de sortie. The release is signed by the
   // PREVIOUS club — only the player's identity is pre-filled, so they hand that
   // club a partly-completed form.
-  bb_doc_freibrief(form, d, ctx) {
-    setField(form, 'undefined', d.nachname, ctx)  // NOM / NAME
+  bb_doc_release_letter(form, d, ctx) {
+    setField(form, 'undefined', d.last_name, ctx)  // NOM / NAME
     // The first-name box carries an accented multi-language label, so it is looked
     // up by substring: a codepoint mismatch must not silently skip the field.
     // (Nationality is left blank on purpose — that box wants a 3-letter FIBA
@@ -237,17 +237,17 @@ const FILLERS = {
     try {
       for (const f of form.getFields()) {
         const name = f.getName()
-        if (/PR.NOM|VORNAME/i.test(name)) { setField(form, name, d.vorname, ctx); break }
+        if (/PR.NOM|VORNAME/i.test(name)) { setField(form, name, d.first_name, ctx); break }
       }
     } catch { /* getFields unavailable on a malformed form */ }
-    const [dd, mm, yyyy] = dobParts(d.geburtsdatum)
+    const [dd, mm, yyyy] = dobParts(d.birthdate)
     if (yyyy) setField(form, 'undefined_2', `${dd}.${mm}.${yyyy}`, ctx)  // DATE DE NAISSANCE
   },
 
   // FIBA U18 parental authorisation. Signed by the parent; the child's name and
   // the new club are pre-filled.
   bb_doc_u18parents(form, d, ctx) {
-    setField(form, 'Surname First Name', `${d.nachname} ${d.vorname}`.trim(), ctx)
+    setField(form, 'Surname First Name', `${d.last_name} ${d.first_name}`.trim(), ctx)
     setField(form, 'to new club', 'KSC Wiedikon', ctx)
   },
 }
@@ -258,9 +258,10 @@ const FILLERS = {
  * @param field    a `registrations` document column (key of BB_PDF_TEMPLATES)
  * @param pdfDoc   a loaded pdf-lib PDFDocument — supplied by the caller so this
  *                 module never imports pdf-lib (see the file header)
- * @param data     { vorname, nachname, email, adresse, plz, ort, geburtsdatum,
- *                   nationalitaet, nationalitaetCodes[], geschlecht, situation,
- *                   federationOfOrigin }
+ * @param data     { first_name, last_name, email, address, postal_code, city,
+ *                   birthdate, nationality_codes[], nationality_de (Swiss form),
+ *                   nationality_en (FIBA forms), sex ('m'|'f'),
+ *                   situation (bb_situation slug), federationOfOrigin }
  * @param ctx      { font, fontSize, now, onEncodeError }
  * @returns        true when a filler ran; false for a field with no template
  */

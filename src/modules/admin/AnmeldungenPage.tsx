@@ -14,7 +14,6 @@ import RegistrationDuplicatePanel, { type DupFlag } from './components/Registrat
 import { formatDate, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { currentSeasonShort } from '../../utils/season'
 import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
-import { localizeCountryName } from '../../utils/countryName'
 import { saveFile } from '../../utils/saveFile'
 import {
   countryNameDe, countryOptions,
@@ -24,6 +23,10 @@ import {
   bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode,
   type BbDocField,
 } from '@bb-docs'
+import {
+  ROLE_VALUES, OFFICIAL_VALUES, officialsList, normalizeOfficials,
+  officialsToClubdesk, roleToClubdesk, sexToClubdesk, salutationFromSex,
+} from '@registration-values'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import DatePicker from '../../components/ui/DatePicker'
@@ -47,32 +50,35 @@ import IconButton from '../../components/IconButton'
 interface Registration extends BaseRecord {
   status: 'pending' | 'approved' | 'rejected'
   membership_type: 'volleyball' | 'basketball' | 'passive'
-  vorname: string
-  nachname: string
+  first_name: string
+  last_name: string
   email: string
-  telefon_mobil: string | null
-  adresse: string | null
-  plz: string | null
-  ort: string | null
-  geburtsdatum: string | null
-  nationalitaet: string | null
-  // Legacy singular code (migration 161) — kept as the FIRST entry of
-  // nationalitaet_codes so single-code consumers keep working (migration 223).
-  nationalitaet_code: string | null
-  nationalitaet_codes: string | null
+  phone: string | null
+  address: string | null
+  postal_code: string | null
+  city: string | null
+  birthdate: string | null
+  /** ISO codes, comma-separated, first = primary (migration 413 folded the old
+   *  free-text + singular-code columns into this one). */
+  nationality_codes: string | null
   federation_of_origin: string | null
-  geschlecht: string | null
+  /** 'm' | 'f' */
+  sex: string | null
   team: string | null
-  beitragskategorie: string | null
-  bemerkungen: string | null
+  /** Still the ClubDesk label (e.g. 'VB Erwerbstätige') until phase 2b. */
+  fee_category: string | null
+  remarks: string | null
   reference_number: string
   submitted_at: string
-  rolle: string | null
-  lizenz: string | null
-  schiedsrichter_stufe: string | null
-  ahv_nummer: string | null
+  /** player | coach | guest | team_responsible | other */
+  role: string | null
+  /** Slug list, e.g. 'otr1,bb_referee' (registration-values.js). */
+  officials_requested: string | null
+  referee_level: string | null
+  ahv_number: string | null
   iban: string | null
-  kantonsschule: string | null
+  /** Still the form's value ('Nein', a school name, …) until phase 2b. */
+  cantonal_school: string | null
   locale: string | null
   rejection_reason: string | null
   /** members.id, written by the approval hook when it creates or links the
@@ -80,18 +86,19 @@ interface Registration extends BaseRecord {
   member: number | null
   bb_situation: string | null
   /** transfer_ch only: did the applicant hold a Swiss Basketball licence in the
-   *  last two seasons? 'ja' | 'nein' | null (unanswered). Only 'nein' waives the
-   *  Freibrief — see bbFreibriefWaived. */
-  bb_recent_licence: string | null
+   *  last two seasons? null = unanswered. Only false waives the Freibrief —
+   *  see bbFreibriefWaived. */
+  bb_recent_licence: boolean | null
   bb_doc_lizenz: string | null
-  bb_doc_freibrief: string | null
+  bb_doc_release_letter: string | null
   bb_doc_selfdecl: string | null
   bb_doc_natdecl: string | null
   bb_doc_u18parents: string | null
   bb_doc_schoolcert: string | null
   id_upload_front: string | null
   id_upload_back: string | null
-  sektion_choice: string | null
+  /** Passive only, ClubDesk value ('Volleyball' | 'Basketball' | 'KSCW') until phase 2b. */
+  club_section_choice: string | null
   /** Required documents an approver waived for THIS row (migration 358) —
    *  comma-separated column names, subtracted from the required set. The
    *  server keeps the same list, so the gate, the nachreichen page and the
@@ -123,7 +130,7 @@ const DOC_UPLOAD_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/p
 
 const DOC_FIELDS: (keyof Registration)[] = [
   'bb_doc_lizenz',
-  'bb_doc_freibrief',
+  'bb_doc_release_letter',
   'bb_doc_selfdecl',
   'bb_doc_natdecl',
   'bb_doc_u18parents',
@@ -138,7 +145,7 @@ const DOC_FIELDS: (keyof Registration)[] = [
 // renders, so the toast and the row read alike.
 const DOC_LABEL_KEYS: Record<string, string> = {
   bb_doc_lizenz: 'anmeldungenDocLizenz',
-  bb_doc_freibrief: 'anmeldungenDocFreibrief',
+  bb_doc_release_letter: 'anmeldungenDocFreibrief',
   bb_doc_selfdecl: 'anmeldungenDocSelfDecl',
   bb_doc_natdecl: 'anmeldungenDocNatDecl',
   bb_doc_u18parents: 'anmeldungenDocU18Parents',
@@ -150,11 +157,10 @@ const DOC_LABEL_KEYS: Record<string, string> = {
 // The single code the document gate judges a (possibly multi-) national by —
 // FIBA treats a dual national holding Swiss nationality as Swiss. Hands the raw
 // column straight to the shared rule, exactly as registration.js and the
-// approval hook do; the singular code is the fallback for rows that predate the
-// list (migration 223). Deliberately does NOT pre-parse with the UI's country
+// approval hook do. Deliberately does NOT pre-parse with the UI's country
 // helpers: two parsers over one column is how they disagree.
 const regNatCode = (reg: Registration): string =>
-  fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+  fibaNatCode(reg.nationality_codes)
 
 // Beitragskategorie choices for the review screen's select, filtered to the
 // registration's own sport plus the three sport-agnostic buckets. Reuses
@@ -188,7 +194,7 @@ const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]
 const missingRequiredDocs = (reg: Registration): BbDocField[] => {
   if (reg.membership_type !== 'basketball') return []
   return bbRequiredDocsAfterWaiver(
-    reg.bb_situation, regNatCode(reg), reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived,
+    reg.bb_situation, regNatCode(reg), reg.birthdate, reg.bb_recent_licence, reg.bb_docs_waived,
   ).filter((k) => !reg[k])
 }
 
@@ -227,8 +233,8 @@ function buildClubDeskCSV(items: Registration[]): string {
   const rows = items.map((item) => {
     let dob = ''
     let jahrgang = ''
-    if (item.geburtsdatum) {
-      const parts = String(item.geburtsdatum).substring(0, 10).split('-')
+    if (item.birthdate) {
+      const parts = String(item.birthdate).substring(0, 10).split('-')
       dob = parts[2] + '.' + parts[1] + '.' + parts[0]
       jahrgang = parts[0]
     }
@@ -241,34 +247,34 @@ function buildClubDeskCSV(items: Registration[]): string {
     // Passive membership travels on Status alone — ClubDesk's redundant
     // Passivmitglied Ja/Nein checkbox was deleted 2026-07-30.
     const status = item.membership_type === 'passive' ? 'Passivmitglied' : 'Aktivmitglied'
-    // Salutation, derived from Geschlecht — nothing on the signup form asks
-    // for it directly, so leaving it blank meant every registration exported
-    // this way needed a human to fill Anrede by hand in ClubDesk afterwards.
-    const g = (item.geschlecht || '').trim().toLowerCase()
-    const anrede = ['männlich', 'male', 'm', 'mann', 'man'].includes(g) ? 'Herr'
-      : ['weiblich', 'female', 'f', 'frau', 'woman'].includes(g) ? 'Frau' : ''
+    // Salutation, derived from sex — nothing on the signup form asks for it
+    // directly, so leaving it blank meant every registration exported this way
+    // needed a human to fill Anrede by hand in ClubDesk afterwards.
+    const anrede = salutationFromSex(item.sex)
+    // ClubDesk's single-value Nationalität picklist: the primary code's spelling.
+    const primaryNat = parseCountryCodes(item.nationality_codes ?? '')[0]
 
     return [
-      item.nachname || '', item.vorname || '', '',
-      item.adresse || '', item.plz || '', item.ort || '',
-      '', item.telefon_mobil || '',
+      item.last_name || '', item.first_name || '', '',
+      item.address || '', item.postal_code || '', item.city || '',
+      '', item.phone || '',
       item.team || '', sektion, '', '',
       anrede, '', '', '', '', 'Schweiz',
-      item.nationalitaet || '', '', '',
+      primaryNat ? countryNameDe(primaryNat) : '', '', '',
       item.email || '', '',
       status, '', todayStr, '', '', '',
-      item.geschlecht || '', dob, jahrgang, '',
-      item.bemerkungen || '',
+      sexToClubdesk(item.sex), dob, jahrgang, '',
+      item.remarks || '',
       '', 'E-Mail', 'Nein', '', '', '',
       '', '', '',
-      item.beitragskategorie || '',
+      item.fee_category || '',
       '', '',
-      item.kantonsschule || '',
-      item.lizenz || '',
+      item.cantonal_school || '',
+      officialsToClubdesk(item.officials_requested, item.membership_type),
       '',
-      item.ahv_nummer || '',
+      item.ahv_number || '',
       '',
-      item.rolle || '', '',
+      roleToClubdesk(item.role), '',
     ].map(csvEscape)
   })
 
@@ -616,7 +622,7 @@ export default function AnmeldungenPage() {
         await kscwApi(`/registration/${reg.id}/request-docs`, { method: 'POST' })
         sent++
       } catch {
-        failed.push(`${reg.vorname} ${reg.nachname}`)
+        failed.push(`${reg.first_name} ${reg.last_name}`)
       }
     }
     setBulkRequesting(false)
@@ -761,8 +767,8 @@ export default function AnmeldungenPage() {
                               </TableCell>
                               <TableCell className="whitespace-normal">
                                 <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                                  <span className="block sm:inline font-medium text-foreground">{reg.nachname}{reg.vorname ? ',' : ''}</span>
-                                  <span className="block sm:inline text-muted-foreground sm:text-foreground">{reg.vorname}</span>
+                                  <span className="block sm:inline font-medium text-foreground">{reg.last_name}{reg.first_name ? ',' : ''}</span>
+                                  <span className="block sm:inline text-muted-foreground sm:text-foreground">{reg.first_name}</span>
                                   <span className="sm:hidden">{statusBadge(reg.status)}</span>
                                   {dupBadge(reg)}
                                 </div>
@@ -861,7 +867,7 @@ export default function AnmeldungenPage() {
           <DialogHeader>
             <DialogTitle>{t('anmeldungenRejectTitle')}</DialogTitle>
             <DialogDescription>
-              {rejectTarget && `${rejectTarget.vorname} ${rejectTarget.nachname} — ${rejectTarget.membership_type}`}
+              {rejectTarget && `${rejectTarget.first_name} ${rejectTarget.last_name} — ${rejectTarget.membership_type}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -898,7 +904,7 @@ export default function AnmeldungenPage() {
           <DialogHeader>
             <DialogTitle>{t('anmeldungenDocsWaiveTitle')}</DialogTitle>
             <DialogDescription>
-              {waiveTarget && `${waiveTarget.vorname} ${waiveTarget.nachname} — ${waiveTarget.reference_number}`}
+              {waiveTarget && `${waiveTarget.first_name} ${waiveTarget.last_name} — ${waiveTarget.reference_number}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1071,15 +1077,9 @@ function ExpandedDetails({
   // strings that live in auth + common.
   const { t: tAll } = useTranslation(['admin', 'auth', 'common'])
 
-  // The form stores gender as the German canonical value (männlich/weiblich)
-  // regardless of the submitter's language — show it in the viewer's locale.
-  // Reuses the shared dhSetMale/dhSetFemale labels (same admin namespace).
-  const localizeGender = (v: string): string => {
-    const g = v.trim().toLowerCase()
-    if (['männlich', 'male', 'm', 'mann', 'man'].includes(g)) return t('dhSetMale')
-    if (['weiblich', 'female', 'f', 'frau', 'woman'].includes(g)) return t('dhSetFemale')
-    return v
-  }
+  // Labels for the coded columns (migration 413 stores slugs).
+  const roleLabels = Object.fromEntries(ROLE_VALUES.map((r) => [r, t(`anmeldungenRole_${r}`)]))
+  const officialLabel = (o: string) => t(`anmeldungenOfficial_${o}`)
 
   const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean; display?: (v: string) => string }) => {
     const raw = (reg[key] as string) ?? ''
@@ -1157,24 +1157,16 @@ function ExpandedDetails({
   // "Schwiiz" would write something the CHECK rejects. Same components the
   // member explorer uses, so both admin screens edit these the same way.
   //
-  // Nationality is a code LIST since migration 223 ("CH,IT", first = primary).
-  // Legacy rows carry only the singular code or the submitter-language free
-  // text, so both fallbacks stay for DISPLAY; editing always writes the list.
+  // Nationality is a code LIST ("CH,IT", first = primary).
   const nationalityField = () => {
-    const stored = reg.nationalitaet_codes
-      ?? (reg.nationalitaet_code ? reg.nationalitaet_code.trim().toUpperCase().slice(0, 2) : '')
-    const value = edits.nationalitaet_codes ?? stored
+    const stored = reg.nationality_codes ?? ''
+    const value = edits.nationality_codes ?? stored
     return (
       <div>
         {codedLabel(t('anmeldungenNationality'))}
-        {/* A legacy row with only free text has nothing to preselect — show what
-            it says so the editor knows what they are replacing. */}
-        {!value && reg.nationalitaet && (
-          <div className="mb-1 text-xs text-muted-foreground">{localizeCountryName(reg.nationalitaet)}</div>
-        )}
         <CountryMultiSelect
           selected={parseCountryCodes(value)}
-          onChange={(codes) => setCoded('nationalitaet_codes', serializeCountryCodes(codes) ?? '', stored)}
+          onChange={(codes) => setCoded('nationality_codes', serializeCountryCodes(codes) ?? '', stored)}
           helperText={tAll('auth:nationalitaetHint')}
         />
       </div>
@@ -1204,7 +1196,8 @@ function ExpandedDetails({
   // choice (Volleyball/Basketball/KSCW), which the approver picks and the
   // ClubDesk create-push then sends as the Sektion column.
   const selectField = (key: keyof Registration, label: string, choices: string[], labels?: Record<string, string>) => {
-    const original = (reg[key] as string) ?? ''
+    // String() so a boolean column (bb_recent_licence) compares as 'true'/'false'.
+    const original = reg[key] == null ? '' : String(reg[key])
     const value = edits[key] ?? original
     return (
       <div>
@@ -1227,6 +1220,30 @@ function ExpandedDetails({
     )
   }
 
+  // Officials the applicant asked for — a slug list, edited as checkboxes so
+  // nothing outside OFFICIAL_VALUES can be written.
+  const officialsField = () => {
+    const stored = reg.officials_requested ?? ''
+    const current = officialsList(edits.officials_requested ?? stored)
+    const toggle = (o: string) => {
+      const next = current.includes(o as never) ? current.filter((x) => x !== o) : [...current, o]
+      setCoded('officials_requested', next.join(','), stored)
+    }
+    return (
+      <div className="sm:col-span-2">
+        {codedLabel(t('anmeldungenLicence'))}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 py-1">
+          {OFFICIAL_VALUES.map((o) => (
+            <label key={o} className="flex min-h-[44px] items-center gap-2 text-sm text-foreground sm:min-h-0">
+              <input type="checkbox" checked={current.includes(o)} onChange={() => toggle(o)} />
+              {officialLabel(o)}
+            </label>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const handleSave = () => {
     if (!hasChanges) return
 
@@ -1241,27 +1258,16 @@ function ExpandedDetails({
       return
     }
 
-    const data: Record<string, string | null> = { ...edits }
+    const data: Record<string, string | boolean | null> = { ...edits }
 
     // The coded columns carry CHECK constraints that accept NULL but not '' —
     // a cleared picker must send null or the PATCH fails.
-    for (const key of ['nationalitaet_codes', 'federation_of_origin', 'bb_recent_licence', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason']) {
+    for (const key of ['nationality_codes', 'federation_of_origin', 'sex', 'role', 'officials_requested', 'bb_recent_licence', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason']) {
       if (data[key] === '') data[key] = null
     }
-
-    // `registrations` has no trigger mirroring the code list onto the two
-    // derived nationality columns (only `members` does, migration 223), so this
-    // does what that trigger would. It matters: the ClubDesk CSV export pushes
-    // the free-text `nationalitaet`, and the basketball document gate reads the
-    // singular `nationalitaet_code` — leaving either stale would file the
-    // member under their OLD nationality after an admin corrected it here.
-    if ('nationalitaet_codes' in data) {
-      const primary = parseCountryCodes(data.nationalitaet_codes ?? '')[0] ?? null
-      data.nationalitaet_code = primary
-      // ClubDesk's Nationalität is a single-value German picklist, so this must
-      // be the ClubDesk spelling of the PRIMARY code, not a localized display
-      // name (countryNameDe carries the picklist overrides).
-      data.nationalitaet = primary ? countryNameDe(primary) : null
+    if (typeof data.bb_recent_licence === 'string') data.bb_recent_licence = data.bb_recent_licence === 'true'
+    if (typeof data.officials_requested === 'string') {
+      data.officials_requested = normalizeOfficials(data.officials_requested, reg.membership_type)
     }
 
     onSave(data as Partial<Registration>)
@@ -1270,7 +1276,7 @@ function ExpandedDetails({
 
   const bbDocs: { key: keyof Registration; label: string }[] = [
     { key: 'bb_doc_lizenz', label: t('anmeldungenDocLizenz') },
-    { key: 'bb_doc_freibrief', label: t('anmeldungenDocFreibrief') },
+    { key: 'bb_doc_release_letter', label: t('anmeldungenDocFreibrief') },
     { key: 'bb_doc_selfdecl', label: t('anmeldungenDocSelfDecl') },
     { key: 'bb_doc_natdecl', label: t('anmeldungenDocNatDecl') },
     { key: 'bb_doc_u18parents', label: t('anmeldungenDocU18Parents') },
@@ -1381,40 +1387,40 @@ function ExpandedDetails({
         <RegistrationDuplicatePanel registrationId={String(reg.id)} onMerged={onMerged} />
       </div>
       <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
-        {field('vorname', t('anmeldungenFirstName'))}
-        {field('nachname', t('anmeldungenLastName'))}
+        {field('first_name', t('anmeldungenFirstName'))}
+        {field('last_name', t('anmeldungenLastName'))}
         {field('email', t('anmeldungenEmail'), { type: 'email' })}
-        {field('telefon_mobil', t('anmeldungenPhone'))}
-        {field('adresse', t('anmeldungenAddress'), { full: true })}
-        {field('plz', 'PLZ')}
-        {field('ort', t('anmeldungenCity'))}
-        {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
+        {field('phone', t('anmeldungenPhone'))}
+        {field('address', t('anmeldungenAddress'), { full: true })}
+        {field('postal_code', 'PLZ')}
+        {field('city', t('anmeldungenCity'))}
+        {field('birthdate', t('anmeldungenDob'), { type: 'date' })}
         {nationalityField()}
         {federationField()}
-        {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
-        {field('rolle', t('anmeldungenFunction'))}
+        {selectField('sex', t('anmeldungenGender'), ['m', 'f'], { m: t('dhSetMale'), f: t('dhSetFemale') })}
+        {selectField('role', t('anmeldungenFunction'), [...ROLE_VALUES], roleLabels)}
         {field('team', t('anmeldungenTeam'))}
-        {selectField('beitragskategorie', t('anmeldungenFeeCategory'), categoryChoicesForSport(reg.membership_type))}
-        {field('lizenz', t('anmeldungenLicence'))}
-        {field('schiedsrichter_stufe', t('anmeldungenRefLevel'))}
-        {field('kantonsschule', t('anmeldungenSchool'))}
-        {field('ahv_nummer', 'AHV')}
+        {selectField('fee_category', t('anmeldungenFeeCategory'), categoryChoicesForSport(reg.membership_type))}
+        {officialsField()}
+        {field('referee_level', t('anmeldungenRefLevel'))}
+        {field('cantonal_school', t('anmeldungenSchool'))}
+        {field('ahv_number', 'AHV')}
         {/* Payout IBAN (reimbursements only, migration 185) — pre-validated mod-97 at submission */}
         {field('iban', 'IBAN')}
         {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
-        {reg.membership_type === 'passive' && selectField('sektion_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
+        {reg.membership_type === 'passive' && selectField('club_section_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
         <RegistrationFeePanel reg={reg} edits={edits} onEdit={setDraftField} />
-        {field('bemerkungen', t('anmeldungenNotes'), { full: true })}
+        {field('remarks', t('anmeldungenNotes'), { full: true })}
         {reg.membership_type === 'basketball' && (
           <div>
             <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{t('anmeldungenSituation')}</label>
             <div className="px-2.5 py-1.5 text-sm text-foreground">
               {(
                 {
-                  neu: t('anmeldungenSituationNew'),
+                  new: t('anmeldungenSituationNew'),
                   transfer_ch: t('anmeldungenSituationTransferCH'),
                   transfer_intl: t('anmeldungenSituationTransferIntl'),
-                  rueckkehr: t('anmeldungenSituationReturner'),
+                  returning: t('anmeldungenSituationReturner'),
                 } as Record<string, string>
               )[reg.bb_situation || ''] || '—'}
             </div>
@@ -1426,9 +1432,9 @@ function ExpandedDetails({
             email. Recording it here is the honest fix; waiving the document
             would say the club decided to do without one it never owed. */}
         {reg.membership_type === 'basketball' && reg.bb_situation === 'transfer_ch' &&
-          selectField('bb_recent_licence', t('anmeldungenRecentLicence'), ['ja', 'nein'], {
-            ja: t('anmeldungenRecentLicenceYes'),
-            nein: t('anmeldungenRecentLicenceNo'),
+          selectField('bb_recent_licence', t('anmeldungenRecentLicence'), ['true', 'false'], {
+            true: t('anmeldungenRecentLicenceYes'),
+            false: t('anmeldungenRecentLicenceNo'),
           })}
         <div>
           <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{t('anmeldungenRef')}</label>

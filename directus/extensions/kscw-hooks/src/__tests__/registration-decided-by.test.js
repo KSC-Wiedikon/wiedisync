@@ -84,11 +84,11 @@ describe('registration decision stamp', () => {
     const out = await update({ status: 'approved', approved_by_name: 'Someone else', rejected_at: '2020-01-01' }, [1], 'u-staff')
     expect(out.approved_by_name).toBe('Anna Muster')
     expect('rejected_at' in out).toBe(false)
-    const plain = await update({ bemerkungen: 'x', approved_by_email: 'forged@example.ch' }, [2], 'u-staff')
+    const plain = await update({ remarks: 'x', approved_by_email: 'forged@example.ch' }, [2], 'u-staff')
     expect('approved_by_email' in plain).toBe(false)
   })
   it('keeps the original stamp when a save resends the same status', async () => {
-    const out = await update({ status: 'approved', bemerkungen: 'x' }, [2], 'u-staff')
+    const out = await update({ status: 'approved', remarks: 'x' }, [2], 'u-staff')
     expect('approved_by_name' in out).toBe(false)
     expect('approved_at' in out).toBe(false)
   })

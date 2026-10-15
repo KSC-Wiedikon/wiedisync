@@ -76,9 +76,9 @@ async function fire(payload, keys) {
 beforeEach(() => {
   TABLES = {
     registrations: [
-      { id: 61, status: 'approved', member: 755, team: 'DU18 Spark', rolle: 'Spieler*in', membership_type: 'basketball' },
-      { id: 62, status: 'pending', member: 756, team: 'DU18 Spark', rolle: 'Spieler*in', membership_type: 'basketball' },
-      { id: 63, status: 'approved', member: 757, team: 'DU18 Spark', rolle: 'Trainer*in', membership_type: 'basketball' },
+      { id: 61, status: 'approved', member: 755, team: 'DU18 Spark', role: 'player', membership_type: 'basketball' },
+      { id: 62, status: 'pending', member: 756, team: 'DU18 Spark', role: 'player', membership_type: 'basketball' },
+      { id: 63, status: 'approved', member: 757, team: 'DU18 Spark', role: 'coach', membership_type: 'basketball' },
     ],
     teams: [
       { id: 71, name: 'DU14', active: true, season: '2026/27', sport: 'basketball' },

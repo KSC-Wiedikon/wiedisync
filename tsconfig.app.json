@@ -10,7 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@bb-docs": ["./directus/extensions/kscw-endpoints/src/bb-docs"]
+      "@bb-docs": ["./directus/extensions/kscw-endpoints/src/bb-docs"],
+      "@registration-values": ["./directus/extensions/kscw-endpoints/src/registration-values"]
     },
 
     /* Bundler mode */

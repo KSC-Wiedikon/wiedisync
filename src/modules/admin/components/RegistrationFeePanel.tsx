@@ -8,8 +8,8 @@ import { chfOrNull, chf, liveFee, type FeePreview } from '../../../utils/feeCalc
  *  and is not exported. */
 interface RegistrationFeeSubject {
   id: string | number
-  beitragskategorie: string | null
-  lizenz: string | null
+  fee_category: string | null
+  officials_requested: string | null
   fee_discount: number | null
   fee_discount_pct: number | null
   fee_discount_reason: string | null
@@ -45,8 +45,8 @@ export default function RegistrationFeePanel({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
-  const category = edits.beitragskategorie ?? reg.beitragskategorie ?? ''
-  const lizenz = edits.lizenz ?? reg.lizenz ?? ''
+  const category = edits.fee_category ?? reg.fee_category ?? ''
+  const officials = edits.officials_requested ?? reg.officials_requested ?? ''
 
   // Only ever sets state inside the async callbacks (never synchronously at
   // the top of the effect body — that cascades renders and fails the lint
@@ -61,7 +61,7 @@ export default function RegistrationFeePanel({
       .catch(() => { if (!cancelled) setError(true) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [reg.id, category, lizenz])
+  }, [reg.id, category, officials])
 
   const discountChf = edits.fee_discount ?? String(reg.fee_discount ?? '')
   const discountPct = edits.fee_discount_pct ?? String(reg.fee_discount_pct ?? '')

@@ -25,6 +25,8 @@ import { buildEmailLayout, buildNewsletterEmail, buildInfoCard, buildAlertBox, b
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
+import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
+import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -408,7 +410,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // with this fixed UUID on every environment and moves the EXISTING files;
   // this hook covers FUTURE uploads. Best-effort (try/catch + log).
   const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
-  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert']
+  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert']
   async function quarantineRegistrationDocs(registrationId) {
     try {
       if (!registrationId) return
@@ -6005,64 +6007,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // and mis-stamped seasons for June–August writes.)
   const getCurrentSeason = currentSeasonShort
 
-  // ── Normalize registration geschlecht to member sex (m/f) ───
-  function normalizeSex(val) {
-    if (!val) return null
-    const v = val.toLowerCase()
-    if (v === 'm' || v === 'männlich' || v === 'male') return 'm'
-    if (v === 'f' || v === 'weiblich' || v === 'female') return 'f'
-    return null
-  }
-
-  // ── Map registration licence strings to member licence codes ───
-  function mapLicences(lizenzStr, membershipType) {
-    if (!lizenzStr) return []
-    const parts = lizenzStr.split(',').map(s => s.trim().toLowerCase())
-    const mapped = []
-    for (const p of parts) {
-      if (membershipType === 'volleyball') {
-        if (p.includes('schreiber') || p === 'scorer') mapped.push('scorer_vb')
-        if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_vb')
-      } else if (membershipType === 'basketball') {
-        if (p.includes('otr 1') || p === 'otr1') mapped.push('otr1_bb')
-        if (p.includes('otr 2') || p === 'otr2') mapped.push('otr2_bb')
-        // OTN is level-split since migration 228 (Basketplan issues OTN 1 and
-        // OTN 2 separately), and migration 303 dropped the coarse `otn_bb` flag
-        // that used to catch a level-less "OTN". A registration that names no
-        // level therefore sets NO column — deliberately: asserting OTN 1 for
-        // somebody who may hold OTN 2 is a licence claim the club cannot back,
-        // and the applicant's raw answer survives on `registrations.lizenz` for
-        // an admin (or the Basketplan import) to resolve into a real level.
-        if (p.includes('otn 1') || p.includes('otn1')) mapped.push('otn1_bb')
-        if (p.includes('otn 2') || p.includes('otn2')) mapped.push('otn2_bb')
-        if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_bb')
-      }
-    }
-    return [...new Set(mapped)]
-  }
-
-  // ── Coded nationality / federation for a member row (migration 223) ───
-  // The ISO code list a registration should hand the member, in order of trust:
-  //   1. the form's own code list        (nationalitaet_codes, multi-select)
-  //   2. the legacy singular code        (nationalitaet_code, migration 161)
-  //   3. the free-text country name resolved through country_name_aliases
-  //      (migration 224 — same table the members trigger parses with)
-  // Returns null when nothing resolves, so the member simply keeps no coded
-  // nationality instead of tripping members_nationalitaet_codes_fmt and
-  // aborting the whole approval.
-  async function registrationNatCodes(db, reg) {
-    const clean = (v) => [...new Set(
-      String(v || '').split(',').map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]{2}$/.test(s)),
-    )]
-    const codes = clean(reg.nationalitaet_codes)
-    if (codes.length) return codes.join(',')
-    const single = clean(reg.nationalitaet_code)
-    if (single.length) return single[0]
-    const name = String(reg.nationalitaet || '').trim().toLowerCase()
-    if (!name) return null
-    const alias = await db('country_name_aliases').where('alias', name).first('code')
-    return alias?.code || null
-  }
+  // normalizeSex / mapLicences / registrationNatCodes: shared with the merge
+  // path, imported from kscw-endpoints/src/registration-duplicates.js. A
+  // registration naming no OTN level sets no OTN column (migration 228 / 303):
+  // asserting OTN 1 for somebody who may hold OTN 2 is a licence claim the
+  // club cannot back.
 
   // 'NONE' ("never licensed with another federation") is a real answer and must
   // stay distinct from NULL ("didn't answer"). Shape-guarded because the column
@@ -6091,7 +6040,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // week later, then taken off DU14 → on no team at all). Returns the names of
   // the teams a row was added to.
   async function addRegistrationTeamsToRoster(db, reg, memberId, log) {
-    const rolle = (reg.rolle || '').toLowerCase()
+    // Slug since migration 413 (player / coach / guest / team_responsible / other).
+    const role = normalizeRole(reg.role)
     const added = []
     if (reg.team && reg.membership_type !== 'passive') {
       const teamNames = reg.team.split(',').map(t => t.trim()).filter(Boolean)
@@ -6104,9 +6054,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const season = getCurrentSeason()
 
       for (const team of teamRows) {
-        if (rolle.includes('trainer') || rolle.includes('coach') ||
-            rolle.includes('teamverantwortlich') || rolle.includes('team responsible')) {
-          // COACH / TR requested (2026-07-05 audit MED #6). `rolle` + `team` are
+        if (role === 'coach' || role === 'team_responsible') {
+          // COACH / TR requested (2026-07-05 audit MED #6). `role` + `team` are
           // applicant-controlled public-form fields, and coach/TR membership
           // materializes the LEADER policy (team leadership + member-PII access +
           // roster/game/fine write scope). Auto-granting that on a routine
@@ -6115,17 +6064,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // an explicit, deliberate staff action (roster editor / admin, which is
           // itself scope-guarded now). Surface a clear, admin-visible warning so
           // staff know to grant it manually.
-          log.warn({ msg: `Registration approval requested COACH/TR on "${team.name}" — NOT auto-granted (applicant-supplied rolle). Grant leadership manually if intended.`, memberId, team: team.name, rolle })
+          log.warn({ msg: `Registration approval requested COACH/TR on "${team.name}" — NOT auto-granted (applicant-supplied role). Grant leadership manually if intended.`, memberId, team: team.name, role })
           logWarning('registration_leader_not_autogranted',
-            `Member ${memberId} approved with rolle="${rolle}" on team "${team.name}" — coach/TR NOT auto-granted; assign manually if intended.`,
-            { memberId, team: team.name, rolle })
+            `Member ${memberId} approved with role="${role}" on team "${team.name}" — coach/TR NOT auto-granted; assign manually if intended.`,
+            { memberId, team: team.name, role })
         } else {
           // Everyone else (player / andere / other / unspecified) → roster player.
-          // A guest registration (funktion "Guest" → rolle) is rostered as a guest
+          // A guest registration (funktion "Guest" → role) is rostered as a guest
           // (guest_level 1): lower training priority, blocked from league games,
           // and expected in ClubDesk's '<group> (Guest)' subgroup by the sync check
           // (user 2026-07-15). Core players stay guest_level 0.
-          const isGuestRolle = rolle === 'guest' || rolle === 'gast'
+          const isGuestRolle = role === 'guest'
           // Probe by (member, team) — the UNIQUE key — not by season, and stamp
           // the TEAM's own season rather than the wall clock. Keyed on season the
           // probe missed an existing row whose stamp lagged and the insert then
@@ -6173,12 +6122,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // duplicate row was created for a person who already existed. This is why
     // members.email deliberately has no unique index.
     const emailRows = existingMember ? [] : await db('members').whereRaw('LOWER(email) = ?', [email])
-    if (!existingMember) existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+    if (!existingMember) existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.first_name)) || null
     if (!existingMember && emailRows.length) {
       // Same email, no name match → a DIFFERENT person shares the address
       // (parent/sibling). Create a separate row rather than graft onto them.
       log.warn({
-        msg: `Registration email matches ${emailRows.length} member(s) but none name-matches "${reg.vorname}" — creating a separate member (shared family email)`,
+        msg: `Registration email matches ${emailRows.length} member(s) but none name-matches "${reg.first_name}" — creating a separate member (shared family email)`,
         email,
       })
     }
@@ -6205,39 +6154,38 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.info({ msg: 'Member already exists, linking registration', memberId, email })
       // Update fields that might be missing
       const updates = {}
-      if (!existingMember.phone && reg.telefon_mobil) updates.phone = reg.telefon_mobil
-      if (!existingMember.adresse && reg.adresse) updates.adresse = reg.adresse
-      if (!existingMember.plz && reg.plz) updates.plz = reg.plz
-      if (!existingMember.ort && reg.ort) updates.ort = reg.ort
-      if (!existingMember.birthdate && reg.geburtsdatum) updates.birthdate = reg.geburtsdatum
-      if (!existingMember.nationalitaet && reg.nationalitaet) updates.nationalitaet = reg.nationalitaet
-      // Coded nationality (migration 223) — fill-only like the rest. When both
-      // land in one update the members trigger's codes→name branch wins, so the
-      // free-text fill above is only ever decisive for a registration whose
-      // country name resolves to no code at all.
-      const existingNatCodes = await registrationNatCodes(db, reg)
+      // Registration columns are English since migration 413; members' stay
+      // German until phase 2b — the left side of each line is the member.
+      if (!existingMember.phone && reg.phone) updates.phone = reg.phone
+      if (!existingMember.adresse && reg.address) updates.adresse = reg.address
+      if (!existingMember.plz && reg.postal_code) updates.plz = reg.postal_code
+      if (!existingMember.ort && reg.city) updates.ort = reg.city
+      if (!existingMember.birthdate && reg.birthdate) updates.birthdate = reg.birthdate
+      // Coded nationality — fill-only like the rest. The members trigger
+      // derives the German `nationalitaet` name from the codes.
+      const existingNatCodes = registrationNatCodes(reg)
       if (!existingMember.nationalitaet_codes && existingNatCodes) updates.nationalitaet_codes = existingNatCodes
       const existingFederation = normalizeFederation(reg.federation_of_origin)
       if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
-      const regSex = normalizeSex(reg.geschlecht)
+      const regSex = normalizeSex(reg.sex)
       if (!existingMember.sex && regSex) updates.sex = regSex
       // Salutation ('Herr'/'Frau') — the ClubDesk sync-up reads its Anrede
       // column off the member. The signup form never asks for it directly
       // (no Anrede field exists on the public registration flow, so
-      // reg.anrede is realistically always empty); Geschlecht IS asked and
+      // reg.salutation is realistically always empty); sex IS asked and
       // normalized, and a salutation follows deterministically from it, so
       // derive rather than leave it for a human to answer later. Falls back
       // to whichever sex is already known (existing member or this
-      // registration) when reg.anrede itself carries no usable value.
+      // registration) when reg.salutation itself carries no usable value.
       if (!existingMember.anrede) {
-        if (['Herr', 'Frau'].includes(reg.anrede)) updates.anrede = reg.anrede
+        if (['Herr', 'Frau'].includes(reg.salutation)) updates.anrede = reg.salutation
         else {
           const sexKnown = existingMember.sex || regSex
           if (sexKnown === 'm') updates.anrede = 'Herr'
           else if (sexKnown === 'f') updates.anrede = 'Frau'
         }
       }
-      if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
+      if (!existingMember.ahv_nummer && reg.ahv_number) updates.ahv_nummer = reg.ahv_number
       // Payout IBAN from the signup form (migration 185) — fill-only, and
       // confirmed: the member typed it themselves. Registration values arrive
       // already mod-97-validated + normalized (registration.js).
@@ -6246,7 +6194,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // 315 backfilled the members that existed on 2026-08-13 but nothing kept
       // copying the answer afterwards, so every later registration's school
       // stopped at the registrations row (Kappeler/Krasser/Dietrich, Sep 2026).
-      const regKantonsschule = String(reg.kantonsschule || '').trim() || null
+      const regKantonsschule = String(reg.cantonal_school || '').trim() || null
       if (!existingMember.kantonsschule && regKantonsschule) updates.kantonsschule = regKantonsschule
       // Register triple (migration 302) — fill-only, same as the rest of this
       // block. Before this, a linked-but-unset member's register_status/
@@ -6281,7 +6229,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Server-side allowlist (2026-09-28, audit F-32): the value came from a
       // public form and was never checked. A category the fee engine does not
       // know, or one of the other sport, is NOT copied — the admin sets it by hand.
-      const regKategorieRaw = String(reg.beitragskategorie || '').trim()
+      const regKategorieRaw = String(reg.fee_category || '').trim()
       const regKategorie = approvedFeeCategory(regKategorieRaw, reg.membership_type) || ''
       if (regKategorieRaw && !regKategorie) {
         log.warn({ msg: 'Registration fee category not in the allowlist for its sport — not copied onto the member', registrationId: reg.id, memberId, membershipType: reg.membership_type, beitragskategorie: regKategorieRaw })
@@ -6303,7 +6251,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
       // Licences are per-flag booleans (migration 067; legacy `licences` json
       // dropped in migration 119). Additive: only ever set a flag true here.
-      const newLicences = mapLicences(reg.lizenz, reg.membership_type)
+      const newLicences = mapLicences(reg.officials_requested, reg.membership_type)
       for (const lic of newLicences) {
         if (!existingMember[lic]) updates[lic] = true
       }
@@ -6314,48 +6262,41 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } else {
       // 2. Create new shell member
       const shellExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      const licences = mapLicences(reg.lizenz, reg.membership_type)
+      const licences = mapLicences(reg.officials_requested, reg.membership_type)
       const lang = reg.locale === 'en' ? 'english' : 'german'
-      // Nationality is CODED from here on (migration 223). Writing the codes and
-      // letting the members trigger derive the German `nationalitaet` mirror also
-      // closes a real gap: `registrations.nationalitaet_code` existed since
-      // migration 161 but was NEVER propagated, so approval silently threw the
-      // ISO code away and left the member with free text only.
-      const natCodes = await registrationNatCodes(db, reg)
-      const sex = normalizeSex(reg.geschlecht)
-      if (String(reg.beitragskategorie || '').trim() && !approvedFeeCategory(reg.beitragskategorie, reg.membership_type)) {
-        log.warn({ msg: 'Registration fee category not in the allowlist for its sport — new member created without it', registrationId: reg.id, membershipType: reg.membership_type, beitragskategorie: reg.beitragskategorie })
+      // Nationality is CODED: write the codes and let the members trigger
+      // derive the German `nationalitaet` mirror (migration 223).
+      const natCodes = registrationNatCodes(reg)
+      const sex = normalizeSex(reg.sex)
+      if (String(reg.fee_category || '').trim() && !approvedFeeCategory(reg.fee_category, reg.membership_type)) {
+        log.warn({ msg: 'Registration fee category not in the allowlist for its sport — new member created without it', registrationId: reg.id, membershipType: reg.membership_type, fee_category: reg.fee_category })
       }
 
       const [member] = await db('members').insert({
-        first_name: reg.vorname,
-        last_name: reg.nachname,
+        first_name: reg.first_name,
+        last_name: reg.last_name,
         email,
-        phone: reg.telefon_mobil || null,
-        adresse: reg.adresse || null,
-        plz: reg.plz || null,
-        ort: reg.ort || null,
-        birthdate: reg.geburtsdatum || null,
+        phone: reg.phone || null,
+        adresse: reg.address || null,
+        plz: reg.postal_code || null,
+        ort: reg.city || null,
+        birthdate: reg.birthdate || null,
         nationalitaet_codes: natCodes,
-        // The German name is DERIVED — set it only as the last-resort carrier
-        // for a country nothing could resolve to a code (an unknown spelling),
-        // so approval never silently drops what the applicant typed.
-        nationalitaet: natCodes ? null : (reg.nationalitaet || null),
         federation_of_origin: normalizeFederation(reg.federation_of_origin),
         sex,
         // Salutation — see the fill-only branch above for why this derives
         // from Geschlecht rather than waiting on a field the signup form
         // never asks.
-        anrede: ['Herr', 'Frau'].includes(reg.anrede) ? reg.anrede
+        anrede: ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation
           : sex === 'm' ? 'Herr' : sex === 'f' ? 'Frau' : null,
-        ahv_nummer: reg.ahv_nummer || null,
+        ahv_nummer: reg.ahv_number || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
         // (mod-97) + normalized by registration.js; confirmed since the member
         // typed it themselves.
         iban: reg.iban || null,
         iban_confirmed: !!reg.iban,
         // Allowlisted (audit F-32) — see the linked-member branch above.
-        beitragskategorie: approvedFeeCategory(reg.beitragskategorie, reg.membership_type),
+        beitragskategorie: approvedFeeCategory(reg.fee_category, reg.membership_type),
         // Discount granted at registration review (migration 367) — copied
         // onto the member ONLY here, on a brand-new shell. A re-registration
         // that links to an EXISTING member (the branch above) never touches
@@ -6367,7 +6308,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         fee_discount_reason: reg.fee_discount_reason ?? null,
         // Kantonsschule (migration 315) — verbatim, 'Nein' included: on the
         // member it means "asked, and not at one", distinct from NULL.
-        kantonsschule: String(reg.kantonsschule || '').trim() || null,
+        kantonsschule: String(reg.cantonal_school || '').trim() || null,
         // Register triple (migration 302) — seeded from the SAME registration
         // that clubdesk-update.js's create-push derives Status/Sektion/Eintritt
         // from (deriveStatus/deriveSektion, and the registration's own
@@ -6417,7 +6358,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.warn({ msg: `clubdesk push-flag (registration) failed: ${flagErr.message}`, memberId })
     }
 
-    // 3. Link to team(s) based on rolle
+    // 3. Link to team(s) based on role
     await addRegistrationTeamsToRoster(db, reg, memberId, log)
 
     return memberId
@@ -6438,9 +6379,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
     for (const key of keys) {
       const reg = await (context?.database ?? database)('registrations').where('id', key)
-        .first('id', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
+        .first('id', 'membership_type', 'nationality_codes', 'birthdate', 'bb_situation', 'bb_recent_licence', 'reference_number',
           'bb_docs_waived',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg || reg.membership_type !== 'basketball') continue
       // The same PATCH may edit situation/nationality/DOB *and* approve — evaluate
       // the required set against the post-update values (payload wins), so a
@@ -6451,10 +6392,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // makes the applicant Swiss for FIBA, so the gate must not read the primary
       // code alone — otherwise a CH/IT dual national who listed IT first is asked
       // for foreign-player documents the create route never demanded.
-      const natCodes = payload.nationalitaet_codes !== undefined ? payload.nationalitaet_codes : reg.nationalitaet_codes
-      const natSingle = payload.nationalitaet_code !== undefined ? payload.nationalitaet_code : reg.nationalitaet_code
-      const natCode = fibaNatCode(natCodes, natSingle)
-      const dob = payload.geburtsdatum !== undefined ? payload.geburtsdatum : reg.geburtsdatum
+      const natCodes = payload.nationality_codes !== undefined ? payload.nationality_codes : reg.nationality_codes
+      const natCode = fibaNatCode(natCodes)
+      const dob = payload.birthdate !== undefined ? payload.birthdate : reg.birthdate
       // Situation + nationality + age driven (mirrors registration.js bbRequiredDocs;
       // school certificate stays optional). Rows without a situation fall back to the
       // legacy natCode-only rule inside the helper.
@@ -6771,7 +6711,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           : reg.membership_type === 'basketball' ? 'basketball' : null
 
         const summaryCard = buildInfoCard([
-          { label: l.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
+          { label: l.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
           { label: l.sport, value: reg.membership_type.charAt(0).toUpperCase() + reg.membership_type.slice(1), halfWidth: true },
           { label: l.team, value: reg.team || '-', halfWidth: true },
           { label: l.ref, value: reg.reference_number, halfWidth: true },
@@ -6894,7 +6834,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               : ''
             const approvalHtml = buildEmailLayout(
               summaryCard + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px">${bodyCopy}${tokenNote}</div>`,
-              { title: l.approvedTitle, subtitle: l.approvedSubtitle, sport, greeting: l.approvedGreeting(reg.vorname), footerExtra: l.approvedFooter, ctaUrl, ctaLabel }
+              { title: l.approvedTitle, subtitle: l.approvedSubtitle, sport, greeting: l.approvedGreeting(reg.first_name), footerExtra: l.approvedFooter, ctaUrl, ctaLabel }
             )
             await mail.send({
               to: reg.email,
@@ -6940,13 +6880,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               name: 'Name', type: 'Typ', team: 'Team', email: 'E-Mail', ref: 'Referenz',
               intro: 'Die Anmeldung wurde bestätigt. Der ClubDesk-Kontakt wird von Wiedisync beim nächsten „Sync up“ angelegt — bitte nicht von Hand in ClubDesk erfassen.',
               title: 'Anmeldung bestätigt', cta: 'Im Admin öffnen',
-              subject: `[KSCW] Anmeldung bestätigt: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
+              subject: `[KSCW] Anmeldung bestätigt: ${reg.first_name} ${reg.last_name} (${sportLabel})`,
             },
             en: {
               name: 'Name', type: 'Type', team: 'Team', email: 'Email', ref: 'Reference',
               intro: 'The registration has been approved. The ClubDesk contact is created by Wiedisync at the next "Sync up" — please do not create it by hand in ClubDesk.',
               title: 'Registration approved', cta: 'Open in admin',
-              subject: `[KSCW] Registration approved: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
+              subject: `[KSCW] Registration approved: ${reg.first_name} ${reg.last_name} (${sportLabel})`,
             },
           }
           const ccLower = (recipients.cc || []).map(e => e.toLowerCase())
@@ -6966,7 +6906,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             }
             const c = adminCsvCopy[loc] || adminCsvCopy.de
             const adminCsvBody = buildInfoCard([
-              { label: c.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
+              { label: c.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
               { label: c.type, value: sportLabel, halfWidth: true },
               { label: c.team, value: reg.team || '-', halfWidth: true },
               { label: c.email, value: reg.email, halfWidth: true },
@@ -6974,7 +6914,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             ]) + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px;text-align:justify"><p>${c.intro}</p></div>`
             const adminCsvHtml = buildEmailLayout(adminCsvBody, {
               title: c.title,
-              subtitle: `${reg.vorname} ${reg.nachname} — ${sportLabel}`,
+              subtitle: `${reg.first_name} ${reg.last_name} — ${sportLabel}`,
               sport,
               ctaUrl: 'https://wiedisync.kscw.ch/admin/anmeldungen',
               ctaLabel: c.cta,
@@ -6999,7 +6939,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             : ''
           const rejectionHtml = buildEmailLayout(
             summaryCard + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px">${l.rejectedBody}</div>` + reasonBlock + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px">${l.rejectedContact}</div>`,
-            { title: l.rejectedTitle, subtitle: l.rejectedSubtitle, greeting: l.rejectedGreeting(reg.vorname), footerExtra: l.rejectedFooter }
+            { title: l.rejectedTitle, subtitle: l.rejectedSubtitle, greeting: l.rejectedGreeting(reg.first_name), footerExtra: l.rejectedFooter }
           )
           await mail.send({ to: reg.email, subject: l.rejectedSubject, html: rejectionHtml })
           log.info({ msg: 'Rejection email sent to user', id, email: reg.email })

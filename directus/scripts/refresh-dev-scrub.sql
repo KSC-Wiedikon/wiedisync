@@ -126,8 +126,8 @@ $$;
 -- Keys stripped from JSON history (revisions, user_logs, push diffs).
 CREATE FUNCTION pg_temp.kscw_pii_keys() RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
   SELECT ARRAY[
-    'ahv_nummer','iban','billing_iban','pay_to_iban',
-    'adresse','adress_zusatz','billing_address','recipient_address','payee_address','kontoinhaber',
+    'ahv_nummer','ahv_number','iban','billing_iban','pay_to_iban',
+    'adresse','address','adress_zusatz','billing_address','recipient_address','payee_address','kontoinhaber',
     'phone','billing_phone','contact_phone','telefon_mobil','telefon_privat','telefon_geschaeft',
     'birthdate','geburtsdatum','birthday',
     'email','vm_email','billing_email','email_alternativ','recipient_email',
@@ -306,14 +306,32 @@ UPDATE clubdesk_sync_proposals SET current_value = NULL, proposed_value = NULL
 UPDATE clubdesk_sync_proposals SET payload = pg_temp.kscw_strip(payload) WHERE payload IS NOT NULL;
 
 -- ── Registrations ───────────────────────────────────────────────────────────
-UPDATE registrations SET
-  email         = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
-  ahv_nummer    = NULL,
-  iban          = pg_temp.kscw_iban(iban),
-  adresse       = pg_temp.kscw_street(adresse),
-  telefon_mobil = NULL,
-  bemerkungen   = NULL,
-  geburtsdatum  = pg_temp.kscw_shift_date(geburtsdatum);
+-- English column names since migration 413. The clone comes from prod, which
+-- may still be on the German names while 413 is dev-only — scrub whichever set
+-- the table has, so neither state leaks PII onto dev nor fails the refresh.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'registrations' AND column_name = 'ahv_number') THEN
+    UPDATE registrations SET
+      email      = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
+      ahv_number = NULL,
+      iban       = pg_temp.kscw_iban(iban),
+      address    = pg_temp.kscw_street(address),
+      phone      = NULL,
+      remarks    = NULL,
+      birthdate  = pg_temp.kscw_shift_date(birthdate);
+  ELSE
+    UPDATE registrations SET
+      email         = CASE WHEN email IS NOT NULL AND email<>'' THEN 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid' ELSE email END,
+      ahv_nummer    = NULL,
+      iban          = pg_temp.kscw_iban(iban),
+      adresse       = pg_temp.kscw_street(adresse),
+      telefon_mobil = NULL,
+      bemerkungen   = NULL,
+      geburtsdatum  = pg_temp.kscw_shift_date(geburtsdatum);
+  END IF;
+END $$;
 
 -- ── Other copies of a date of birth (kept consistent with members) ──────────
 UPDATE sv_vm_check           SET birthday  = pg_temp.kscw_shift_date(birthday)  WHERE birthday  IS NOT NULL;

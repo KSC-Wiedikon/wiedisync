@@ -727,11 +727,11 @@ describe('deriveSchiedsrichter', () => {
 
 describe('deriveGruppen officials', () => {
   it('VB scorer → VB Schreiber*innen group; referees are NOT grouped', () => {
-    expect(deriveGruppen({ membership_type: 'volleyball', lizenz: 'Schreiber' })).toBe('VB Schreiber*innen')
-    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', rolle: 'Spieler*in', lizenz: 'Schreiber' }))
+    expect(deriveGruppen({ membership_type: 'volleyball', officials_requested: 'Schreiber' })).toBe('VB Schreiber*innen')
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', role: 'Spieler*in', officials_requested: 'Schreiber' }))
       .toBe('VB H1 (Spieler*in), VB Schreiber*innen')
-    expect(deriveGruppen({ membership_type: 'volleyball', lizenz: 'Schiedsrichter' })).toBe('')
-    expect(deriveGruppen({ membership_type: 'basketball', lizenz: 'Schiedsrichter' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'volleyball', officials_requested: 'Schiedsrichter' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'basketball', officials_requested: 'Schiedsrichter' })).toBe('')
   })
 })
 
@@ -739,7 +739,7 @@ describe('deriveSektion', () => {
   it('sektion from sport, passive uses approver choice (default KSCW)', () => {
     expect(deriveSektion({ membership_type: 'volleyball' })).toBe('Volleyball')
     expect(deriveSektion({ membership_type: 'basketball' })).toBe('Basketball')
-    expect(deriveSektion({ membership_type: 'passive', sektion_choice: 'Volleyball' })).toBe('Volleyball')
+    expect(deriveSektion({ membership_type: 'passive', club_section_choice: 'Volleyball' })).toBe('Volleyball')
     expect(deriveSektion({ membership_type: 'passive' })).toBe('KSCW')
     expect(deriveSektion(null)).toBe('')
   })
@@ -841,28 +841,28 @@ describe('deriveStatus', () => {
 
 describe('deriveGruppen', () => {
   it('derives sport-prefixed player groups from an approved registration', () => {
-    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', rolle: 'Spieler*in' }))
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', role: 'Spieler*in' }))
       .toBe('VB H1 (Spieler*in)')
-    expect(deriveGruppen({ membership_type: 'basketball', team: 'HU14', rolle: 'Trainer*in' }))
+    expect(deriveGruppen({ membership_type: 'basketball', team: 'HU14', role: 'Trainer*in' }))
       .toBe('BB HU14 (Trainer*in)')
   })
 
   it('derives a (Guest) group for a guest registration (VB and BB)', () => {
-    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H2', rolle: 'Guest' }))
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H2', role: 'Guest' }))
       .toBe('VB H2 (Guest)')
-    expect(deriveGruppen({ membership_type: 'basketball', team: 'HU16', rolle: 'Guest' }))
+    expect(deriveGruppen({ membership_type: 'basketball', team: 'HU16', role: 'Guest' }))
       .toBe('BB HU16 (Guest)')
   })
 
   it('joins multiple teams into one comma-separated cell', () => {
-    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1, H2', rolle: 'Spieler*in' }))
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1, H2', role: 'Spieler*in' }))
       .toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 
   it('returns empty for passive, unknown funktion or missing team', () => {
-    expect(deriveGruppen({ membership_type: 'passive', team: '', rolle: 'VB Schiedsrichter' })).toBe('')
-    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', rolle: 'Andere' })).toBe('')
-    expect(deriveGruppen({ membership_type: 'volleyball', team: '', rolle: 'Spieler*in' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'passive', team: '', role: 'VB Schiedsrichter' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', role: 'Andere' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'volleyball', team: '', role: 'Spieler*in' })).toBe('')
     expect(deriveGruppen(null)).toBe('')
   })
 })

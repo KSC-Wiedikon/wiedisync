@@ -8,7 +8,7 @@
  * (Sept 1), so ages are chosen far from the boundary to stay stable year-round.
  */
 import { describe, it, expect } from 'vitest'
-import { bbRequiredDocs, bbIsMinor, bbFreibriefWaived, BB_SITUATIONS } from '../bb-docs.js'
+import { bbRequiredDocs, bbIsMinor, bbFreibriefWaived, BB_SITUATIONS, parseWaivedDocs } from '../bb-docs.js'
 
 // A birthday ~10 years ago is always a minor; ~40 years ago always an adult,
 // regardless of which side of Sept 1 the test runs on.
@@ -50,29 +50,29 @@ describe('bbIsMinor', () => {
 
 describe('bbRequiredDocs — always requires the base three', () => {
   it('new Swiss adult → ID front/back + Lizenzantrag only', () => {
-    expect(set(bbRequiredDocs('neu', 'CH', adultDob)))
+    expect(set(bbRequiredDocs('new', 'CH', adultDob)))
       .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']))
   })
 })
 
 describe('bbRequiredDocs — new player', () => {
   it('foreign adult → + self declaration (no national team decl.)', () => {
-    expect(set(bbRequiredDocs('neu', 'IT', adultDob)))
+    expect(set(bbRequiredDocs('new', 'IT', adultDob)))
       .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl']))
   })
   it('foreign minor → + self declaration + national team declaration', () => {
-    expect(set(bbRequiredDocs('neu', 'IT', minorDob)))
+    expect(set(bbRequiredDocs('new', 'IT', minorDob)))
       .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
   })
   it('Swiss minor → still just the base three', () => {
-    expect(set(bbRequiredDocs('neu', 'CH', minorDob)))
+    expect(set(bbRequiredDocs('new', 'CH', minorDob)))
       .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']))
   })
 })
 
 describe('bbRequiredDocs — transfer from a Swiss club', () => {
   const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
-  const withFreibrief = set([...base, 'bb_doc_freibrief'])
+  const withFreibrief = set([...base, 'bb_doc_release_letter'])
 
   it('requires the Freibrief regardless of nationality', () => {
     expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob))).toEqual(withFreibrief)
@@ -82,12 +82,12 @@ describe('bbRequiredDocs — transfer from a Swiss club', () => {
   // Swiss Basketball waives the release letter when the former club has nothing
   // to release, or the player is U12 and below ("Verfahren Lizenz SWB" §3).
   it('waives it on an explicit "no licence in the last two seasons"', () => {
-    expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob, 'nein'))).toEqual(set(base))
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob, false))).toEqual(set(base))
   })
 
   it('waives it for U12 and below, whatever the answer', () => {
     expect(set(bbRequiredDocs('transfer_ch', 'CH', youngDob))).toEqual(set(base))
-    expect(set(bbRequiredDocs('transfer_ch', 'CH', youngDob, 'ja'))).toEqual(set(base))
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', youngDob, true))).toEqual(set(base))
   })
 
   // The dangerous direction is waiving when we should not: that produces an
@@ -117,6 +117,8 @@ describe('bbFreibriefWaived', () => {
     expect(bbFreibriefWaived(adultDob, 'nein')).toBe(true)
     expect(bbFreibriefWaived(adultDob, 'NEIN')).toBe(true)
     expect(bbFreibriefWaived(adultDob, 'ja')).toBe(false)
+    expect(bbFreibriefWaived(adultDob, false)).toBe(true)
+    expect(bbFreibriefWaived(adultDob, true)).toBe(false)
     expect(bbFreibriefWaived(adultDob, null)).toBe(false)
   })
   it('U12 and below waives on age alone', () => {
@@ -127,7 +129,7 @@ describe('bbFreibriefWaived', () => {
 })
 
 describe('bbRequiredDocs — international transfer / returner', () => {
-  for (const sit of ['transfer_intl', 'rueckkehr']) {
+  for (const sit of ['transfer_intl', 'returning']) {
     it(`${sit} adult → + self declaration`, () => {
       expect(set(bbRequiredDocs(sit, 'CH', adultDob)))
         .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl']))
@@ -157,6 +159,12 @@ describe('bbRequiredDocs — legacy fallback (no/unknown situation)', () => {
 
 describe('BB_SITUATIONS', () => {
   it('is the exact whitelist the form + backend accept', () => {
-    expect(BB_SITUATIONS).toEqual(['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr'])
+    expect(BB_SITUATIONS).toEqual(['new', 'transfer_ch', 'transfer_intl', 'returning'])
+  })
+
+  it('still reads the pre-413 values the website form posts', () => {
+    expect(bbRequiredDocs('neu', 'CH', adultDob)).toEqual(bbRequiredDocs('new', 'CH', adultDob))
+    expect(bbRequiredDocs('rueckkehr', 'IT', adultDob)).toEqual(bbRequiredDocs('returning', 'IT', adultDob))
+    expect(parseWaivedDocs('bb_doc_freibrief')).toEqual(['bb_doc_release_letter'])
   })
 })

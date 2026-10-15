@@ -5,6 +5,7 @@
  */
 
 import crypto from 'crypto'
+import { normalizeSex } from './registration-values.js'
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
 import fs from 'fs'
 import { currentSeasonShort, currentSeasonLong } from './season.js'
@@ -1973,10 +1974,8 @@ export default {
           const reg = await database('registrations')
             .whereRaw('LOWER(email) = ?', [email])
             .orderBy('id', 'desc')
-            .first('geschlecht')
-          const g = String(reg?.geschlecht || '').trim().toLowerCase()
-          if (['männlich', 'male', 'mann', 'man', 'm'].includes(g)) regSex = 'm'
-          else if (['weiblich', 'female', 'frau', 'woman', 'f'].includes(g)) regSex = 'f'
+            .first('sex')
+          regSex = normalizeSex(reg?.sex)
         } catch { /* registration lookup is best-effort — never block signup */ }
 
         // Claim: link existing VM-matched member to new Directus user

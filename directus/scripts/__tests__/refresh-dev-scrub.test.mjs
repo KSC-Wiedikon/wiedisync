@@ -277,7 +277,7 @@ test('import-clubdesk-finance: a dev target scrubs recipient_email; prod is unch
 // reads the schema instead of relying on memory: a column that NAMES sensitive
 // PII must be assigned in an UPDATE of its table inside the PII block. PII
 // inside JSON has no column name to find, so those tables are listed by hand.
-const SENSITIVE_COLUMN = /^(birthdate|birthday|geburtsdatum|date_of_birth|ahv_nummer|ahv|[a-z_]*iban)$/
+const SENSITIVE_COLUMN = /^(birthdate|birthday|geburtsdatum|date_of_birth|ahv_nummer|ahv_number|ahv|[a-z_]*iban)$/
 // table → the JSON column(s) carrying PII. Add a table here when its JSON holds
 // a date of birth, an ID number or contact data.
 const JSON_PII = {
@@ -322,7 +322,8 @@ const writesOf = (table) => [...piiBlock.matchAll(new RegExp(`(?:UPDATE|TRUNCATE
 test('every column naming a DoB / AHV / IBAN is scrubbed in the PII block', () => {
   const cols = sensitiveColumns()
   assert.ok(cols.get('members')?.has('birthdate'), 'schema scan broken: members.birthdate not found')
-  assert.ok(cols.get('registrations')?.has('ahv_nummer'), 'schema scan broken: registrations.ahv_nummer not found')
+  // ahv_nummer until SCHEMA.sql is rebaselined after migration 413, ahv_number after.
+  assert.ok(cols.get('registrations')?.has('ahv_nummer') || cols.get('registrations')?.has('ahv_number'), 'schema scan broken: registrations AHV column not found')
   const missing = []
   for (const [table, set] of cols) {
     if (EXEMPT[table]) continue

@@ -11,7 +11,7 @@ import { buildMemberTeamsMap, buildStaffMap } from '../components/explorerHelper
 // SELF_DOC_FIELDS / REGISTRATION_FILE_COLS). Drives the "Reg. files" column.
 const REG_DOC_FIELDS = [
   'id_upload_front', 'id_upload_back',
-  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl',
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ] as const
 

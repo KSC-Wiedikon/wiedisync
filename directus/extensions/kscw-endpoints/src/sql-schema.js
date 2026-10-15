@@ -115,7 +115,7 @@ async function loadKeys(database, log) {
  * for the unit test.
  */
 const SENSITIVE_TABLE = /^(directus_|identity_|household)|^email_accounts$|token|secret|password/i
-const SENSITIVE_COLUMN = /token|password|passwd|secret|hash|iban|ahv|email|phone|mobile|birth|address|adresse|strasse|street|plz|zip|key|salt|otp|totp|recovery|ciphertext|_enc$/i
+const SENSITIVE_COLUMN = /token|password|passwd|secret|hash|iban|ahv|email|phone|mobile|birth|address|adresse|strasse|street|plz|postal|zip|key|salt|otp|totp|recovery|ciphertext|_enc$/i
 
 export function isSensitiveForSampling(table, column) {
   return SENSITIVE_TABLE.test(String(table)) || SENSITIVE_COLUMN.test(String(column))

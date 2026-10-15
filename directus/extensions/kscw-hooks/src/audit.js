@@ -70,12 +70,13 @@ const REDACTED_FIELDS = {
     'ical_token',
   ]),
   // Registration rows carry the same PII as members (security audit
-  // 2026-09-28): AnmeldungenPage PATCHes ahv_nummer / iban / address, which
-  // otherwise landed verbatim in user_logs for 90 days.
+  // 2026-09-28): AnmeldungenPage PATCHes ahv_number / iban / address, which
+  // otherwise landed verbatim in user_logs for 90 days. English names since
+  // migration 413.
   registrations: new Set([
-    'email', 'telefon_mobil', 'adresse', 'plz', 'ort', 'geburtsdatum',
-    'nationalitaet', 'nationalitaet_code', 'nationalitaet_codes', 'federation_of_origin',
-    'geschlecht', 'anrede', 'ahv_nummer', 'iban', 'bemerkungen',
+    'email', 'phone', 'address', 'postal_code', 'city', 'birthdate',
+    'nationality_codes', 'federation_of_origin',
+    'sex', 'salutation', 'ahv_number', 'iban', 'remarks',
     'id_upload_front', 'id_upload_back',
   ]),
   directus_users: new Set([

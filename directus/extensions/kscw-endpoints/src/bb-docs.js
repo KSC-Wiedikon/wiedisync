@@ -17,7 +17,11 @@
 // ⚠ kscw-website's registration-form.js is a separate repo, vanilla JS, no
 // bundler — it remains a hand-kept mirror and must change alongside this file.
 
-export const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
+export const BB_SITUATIONS = ['new', 'transfer_ch', 'transfer_intl', 'returning']
+
+// Pre-413 values (and what kscw-website's form still posts) → the slugs above.
+const LEGACY_SITUATIONS = { neu: 'new', rueckkehr: 'returning' }
+const situationSlug = (s) => LEGACY_SITUATIONS[s] ?? s
 
 // Minor = under 18 at the start of the current season (Sept 1). Accepts either a
 // YYYY-MM-DD string (client / Directus REST) OR a JS Date — Postgres `date`
@@ -62,8 +66,8 @@ export function bbIsMinor(dob) {
 //     nothing to release
 //   - category U12 and below
 //
-// `recentLicence` is the applicant's own answer ('ja' | 'nein' | null). Only an
-// explicit 'nein' waives: null means unanswered (or a row created before the
+// `recentLicence` is the applicant's own answer (true | false | null; the pre-413
+// 'ja' | 'nein' strings are still accepted). Only an explicit false / 'nein' waives: null means unanswered (or a row created before the
 // question existed) and must keep the document required, because wrongly waiving
 // it produces an incomplete dossier that Swiss Basketball rejects later.
 //
@@ -75,7 +79,7 @@ export function bbIsMinor(dob) {
 // must change together, or the form and this gate disagree and the applicant is
 // either asked for a document they do not owe or blocked from registering.
 export function bbFreibriefWaived(dob, recentLicence) {
-  if (String(recentLicence || '').toLowerCase() === 'nein') return true
+  if (recentLicence === false || String(recentLicence ?? '').toLowerCase() === 'nein') return true
   const age = bbAgeAtSeasonStart(dob)
   return age !== null && age < 12
 }
@@ -85,8 +89,8 @@ export function bbFreibriefWaived(dob, recentLicence) {
 // Swiss, so a CH code ANYWHERE in the list clears the foreign-player documents
 // (self declaration / national team declaration) — ordering it first is a UI
 // convention, not a legal one. Without a CH code the primary (first) code
-// decides. `fallback` is the legacy singular `nationalitaet_code`, used for
-// rows that predate the code LIST (migration 223).
+// decides. `fallback` is an optional single code (the old `nationalitaet_code`
+// column, folded into `nationality_codes` by migration 413).
 //
 // Lives here so all three backend enforcement points (registration create,
 // doc-status, approval gate) apply one rule, and the wiedisync admin page
@@ -106,12 +110,14 @@ export function fibaNatCode(codes, fallback) {
 // a typo that silently waived something.
 export function parseWaivedDocs(waived) {
   const known = new Set([
-    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
     'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
   ])
   return String(waived || '')
     .split(',')
     .map((s) => s.trim())
+    // Column renamed by migration 413; an admin's pre-413 waiver still counts.
+    .map((s) => (s === 'bb_doc_freibrief' ? 'bb_doc_release_letter' : s))
     .filter((s) => known.has(s))
 }
 
@@ -132,7 +138,8 @@ export function bbRequiredDocsAfterWaiver(situation, natCode, dob, recentLicence
 // Required document COLUMNS (registrations table) for a basketball registration.
 // A falsy/unknown situation falls back to the legacy nationality-only rule so
 // rows created before the situation field existed keep a sane required set.
-export function bbRequiredDocs(situation, natCode, dob, recentLicence) {
+export function bbRequiredDocs(rawSituation, natCode, dob, recentLicence) {
+  const situation = situationSlug(rawSituation)
   const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
   const foreign = natCode && natCode !== 'CH'
   const minor = bbIsMinor(dob)
@@ -143,14 +150,14 @@ export function bbRequiredDocs(situation, natCode, dob, recentLicence) {
   }
   switch (situation) {
     case 'transfer_ch':
-      if (!bbFreibriefWaived(dob, recentLicence)) base.push('bb_doc_freibrief')
+      if (!bbFreibriefWaived(dob, recentLicence)) base.push('bb_doc_release_letter')
       break
     case 'transfer_intl':
-    case 'rueckkehr':
+    case 'returning':
       base.push('bb_doc_selfdecl')
       if (minor) base.push('bb_doc_natdecl', 'bb_doc_u18parents')
       break
-    case 'neu':
+    case 'new':
     default:
       if (foreign) base.push('bb_doc_selfdecl')
       if (foreign && minor) base.push('bb_doc_natdecl')

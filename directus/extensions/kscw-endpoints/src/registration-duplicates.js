@@ -29,6 +29,7 @@
  */
 
 import { normalizePhone } from './normalize.js'
+import { normalizeSex, normalizeOfficials, officialsList } from './registration-values.js'
 
 /** Symmetric first-name-prefix match — the same rule the ClubDesk linker and
  *  createMemberFromRegistration use: "Dani" ↔ "Daniel" is the same person,
@@ -113,12 +114,12 @@ export const MEMBER_MATCH_FIELDS = [
  */
 export async function findDuplicateCandidates(db, reg, opts = {}) {
   const email = emailKey(reg.email)
-  const dob = dateKey(reg.geburtsdatum)
+  const dob = dateKey(reg.birthdate)
   // ⚠ Only a phone that actually NORMALIZED may be probed. normalizePhone
   // returns the raw input verbatim on failure (`{ ok: false, value: s0 }`), so
   // ignoring `.ok` would both query members.phone for junk and let two members
   // holding the same unnormalised legacy string count as the same person.
-  const phoneNorm = normalizePhone(reg.telefon_mobil)
+  const phoneNorm = normalizePhone(reg.phone)
   const phone = phoneNorm.ok ? (phoneNorm.value || '') : ''
 
   const probes = []
@@ -126,7 +127,7 @@ export async function findDuplicateCandidates(db, reg, opts = {}) {
   // Surname probe is unfolded on purpose — it is a WIDENING probe, not the
   // decision. The folded comparison below is what actually classifies, and the
   // birthdate/phone/email probes cover the accent-drift rows this one misses.
-  if (reg.nachname) probes.push(db('members').whereRaw('LOWER(last_name) = ?', [String(reg.nachname).trim().toLowerCase()]).select(MEMBER_MATCH_FIELDS))
+  if (reg.last_name) probes.push(db('members').whereRaw('LOWER(last_name) = ?', [String(reg.last_name).trim().toLowerCase()]).select(MEMBER_MATCH_FIELDS))
   if (dob) probes.push(db('members').where('birthdate', dob).select(MEMBER_MATCH_FIELDS))
   if (phone) probes.push(db('members').where('phone', phone).select(MEMBER_MATCH_FIELDS))
   if (!probes.length) return { level: 'none', candidates: [] }
@@ -145,9 +146,9 @@ export async function findDuplicateCandidates(db, reg, opts = {}) {
  */
 export function classifyCandidates(reg, rows, opts = {}) {
   const email = emailKey(reg.email)
-  const last = nameKey(reg.nachname)
-  const dob = dateKey(reg.geburtsdatum)
-  const phoneNorm = normalizePhone(reg.telefon_mobil)
+  const last = nameKey(reg.last_name)
+  const dob = dateKey(reg.birthdate)
+  const phoneNorm = normalizePhone(reg.phone)
   const phone = phoneNorm.ok ? (phoneNorm.value || '') : ''
 
   const byId = new Map()
@@ -162,8 +163,8 @@ export function classifyCandidates(reg, rows, opts = {}) {
     const sameLast = !!last && mLast === last
     // Two strengths: equality decides a BLOCK, the prefix rule only decides
     // whether staff should look. See firstNamesEqual above.
-    const sameFirstExact = firstNamesEqual(m.first_name, reg.vorname)
-    const sameFirst = firstNamesMatch(m.first_name, reg.vorname, true)
+    const sameFirstExact = firstNamesEqual(m.first_name, reg.first_name)
+    const sameFirst = firstNamesMatch(m.first_name, reg.first_name, true)
     const sameDob = !!dob && dateKey(m.birthdate) === dob
     const samePhone = !!phone && String(m.phone || '') === phone
 
@@ -222,9 +223,9 @@ export async function findDuplicateCandidatesBatch(db, regs) {
   const phones = new Set()
   for (const r of regs) {
     const e = emailKey(r.email); if (e) emails.add(e)
-    const l = String(r.nachname || '').trim().toLowerCase(); if (l) surnames.add(l)
-    const d = dateKey(r.geburtsdatum); if (d) dobs.add(d)
-    const p = normalizePhone(r.telefon_mobil); if (p.ok && p.value) phones.add(p.value)
+    const l = String(r.last_name || '').trim().toLowerCase(); if (l) surnames.add(l)
+    const d = dateKey(r.birthdate); if (d) dobs.add(d)
+    const p = normalizePhone(r.phone); if (p.ok && p.value) phones.add(p.value)
   }
 
   const probes = []
@@ -268,34 +269,26 @@ export async function findBlockingMember(db, reg) {
 // nationalitaet_codes (migration 223). Writing it directly is how you get a
 // member whose country name and country code disagree.
 
-/** Registration `geschlecht` → members `sex`. Mirrors normalizeSex in kscw-hooks. */
-export function normalizeSex(val) {
-  const v = String(val || '').toLowerCase()
-  if (v === 'm' || v === 'männlich' || v === 'male') return 'm'
-  if (v === 'f' || v === 'weiblich' || v === 'female') return 'f'
-  return null
+/** Registration `sex` → members `sex` (both 'm' | 'f'; old spellings accepted). */
+export { normalizeSex }
+
+// officials_requested slug → members licence boolean column, per membership.
+// A passive registration asserts nothing (as before), and a bare 'otn' maps to
+// no column: members distinguish OTN 1 / OTN 2 and the form does not ask.
+const LICENCE_COLUMN = {
+  volleyball: { vb_scorer: 'scorer_vb', vb_referee: 'referee_vb' },
+  basketball: { otr1: 'otr1_bb', otr2: 'otr2_bb', bb_referee: 'referee_bb' },
 }
 
-/** Registration `lizenz` free text → members licence boolean columns.
- *  Mirrors mapLicences in kscw-hooks. ADDITIVE only — a licence is never
+/** Registration `officials_requested` → members licence boolean columns.
+ *  Shared with kscw-hooks (approval). ADDITIVE only — a licence is never
  *  withdrawn by a merge, because the form only ever asserts what someone
- *  holds, never what they lost. */
-export function mapLicences(lizenzStr, membershipType) {
-  if (!lizenzStr) return []
-  const mapped = []
-  for (const p of String(lizenzStr).split(',').map((s) => s.trim().toLowerCase())) {
-    if (membershipType === 'volleyball') {
-      if (p.includes('schreiber') || p === 'scorer') mapped.push('scorer_vb')
-      if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_vb')
-    } else if (membershipType === 'basketball') {
-      if (p.includes('otr 1') || p === 'otr1') mapped.push('otr1_bb')
-      if (p.includes('otr 2') || p === 'otr2') mapped.push('otr2_bb')
-      if (p.includes('otn 1') || p.includes('otn1')) mapped.push('otn1_bb')
-      if (p.includes('otn 2') || p.includes('otn2')) mapped.push('otn2_bb')
-      if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_bb')
-    }
-  }
-  return [...new Set(mapped)]
+ *  holds, never what they lost. Accepts the slug list or a pre-413 German list. */
+export function mapLicences(officials, membershipType) {
+  const cols = LICENCE_COLUMN[membershipType]
+  if (!cols) return []
+  const slugs = officialsList(normalizeOfficials(officials, membershipType))
+  return [...new Set(slugs.map((x) => cols[x]).filter(Boolean))]
 }
 
 const LICENCE_LABELS = {
@@ -304,23 +297,16 @@ const LICENCE_LABELS = {
   otn1_bb: 'OTN 1 (BB)', otn2_bb: 'OTN 2 (BB)', referee_bb: 'Referee (BB)',
 }
 
-/** The ISO code list a registration should hand a member, in order of trust —
- *  form code list → legacy singular code → free-text country resolved through
- *  `country_name_aliases`. Mirrors registrationNatCodes in kscw-hooks.
- *  Returns null when nothing resolves, so a merge simply leaves the column
- *  alone rather than tripping members_nationalitaet_codes_fmt. */
-export async function registrationNatCodes(db, reg) {
-  const clean = (v) => [...new Set(
-    String(v || '').split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2}$/.test(s)),
+/** The ISO code list a registration should hand a member ("CH,IT"), or null
+ *  when it has none — a merge then leaves the column alone rather than
+ *  tripping members_nationalitaet_codes_fmt. Migration 413 resolved the old
+ *  free-text / singular-code rows into nationality_codes, so this is the only
+ *  source now. Shared with kscw-hooks (approval). */
+export function registrationNatCodes(reg) {
+  const codes = [...new Set(
+    String(reg.nationality_codes || '').split(',').map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x)),
   )]
-  const codes = clean(reg.nationalitaet_codes)
-  if (codes.length) return codes.join(',')
-  const single = clean(reg.nationalitaet_code)
-  if (single.length) return single[0]
-  const name = String(reg.nationalitaet || '').trim().toLowerCase()
-  if (!name) return null
-  const alias = await db('country_name_aliases').where('alias', name).first('code')
-  return alias?.code || null
+  return codes.length ? codes.join(',') : null
 }
 
 // Mirrors normalizeFederation() in registration.js: the retired 'NONE'
@@ -345,23 +331,24 @@ const isEmpty = (v) => v === null || v === undefined || v === ''
  * @returns {Promise<Array<{key,label,kind,member_value,registration_value,differs,member_empty}>>}
  */
 export async function buildMergeDiff(db, reg, member) {
-  const natCodes = await registrationNatCodes(db, reg)
+  const natCodes = registrationNatCodes(reg)
   const scalar = [
-    ['first_name', 'First name', reg.vorname],
-    ['last_name', 'Last name', reg.nachname],
+    ['first_name', 'First name', reg.first_name],
+    ['last_name', 'Last name', reg.last_name],
     ['email', 'Email', reg.email],
-    ['phone', 'Phone', reg.telefon_mobil],
-    ['adresse', 'Address', reg.adresse],
-    ['plz', 'Postcode', reg.plz],
-    ['ort', 'City', reg.ort],
-    ['birthdate', 'Date of birth', reg.geburtsdatum ? dateKey(reg.geburtsdatum) : null],
+    ['phone', 'Phone', reg.phone],
+    // Left: members' (still German) column; right: the registration's (413).
+    ['adresse', 'Address', reg.address],
+    ['plz', 'Postcode', reg.postal_code],
+    ['ort', 'City', reg.city],
+    ['birthdate', 'Date of birth', reg.birthdate ? dateKey(reg.birthdate) : null],
     ['nationalitaet_codes', 'Nationality', natCodes],
     ['federation_of_origin', 'Federation of origin', normFederation(reg.federation_of_origin)],
-    ['sex', 'Sex', normalizeSex(reg.geschlecht)],
-    ['anrede', 'Salutation', ['Herr', 'Frau'].includes(reg.anrede) ? reg.anrede : null],
-    ['ahv_nummer', 'AHV number', reg.ahv_nummer],
+    ['sex', 'Sex', normalizeSex(reg.sex)],
+    ['anrede', 'Salutation', ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation : null],
+    ['ahv_nummer', 'AHV number', reg.ahv_number],
     ['iban', 'IBAN', reg.iban],
-    ['beitragskategorie', 'Fee category', reg.beitragskategorie],
+    ['beitragskategorie', 'Fee category', reg.fee_category],
   ]
 
   const out = []
@@ -380,7 +367,7 @@ export async function buildMergeDiff(db, reg, member) {
   }
 
   // Licences are additive booleans — only ever offered as false → true.
-  for (const lic of mapLicences(reg.lizenz, reg.membership_type)) {
+  for (const lic of mapLicences(reg.officials_requested, reg.membership_type)) {
     if (member[lic]) continue
     out.push({
       key: lic, label: LICENCE_LABELS[lic] || lic, kind: 'licence',

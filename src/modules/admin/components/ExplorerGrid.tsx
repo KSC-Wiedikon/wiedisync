@@ -231,7 +231,7 @@ const REG_DOC_LABEL_KEY: Record<string, string> = {
   id_upload_front: 'anmeldungenDocIdFront',
   id_upload_back: 'anmeldungenDocIdBack',
   bb_doc_lizenz: 'anmeldungenDocLizenz',
-  bb_doc_freibrief: 'anmeldungenDocFreibrief',
+  bb_doc_release_letter: 'anmeldungenDocFreibrief',
   bb_doc_selfdecl: 'anmeldungenDocSelfDecl',
   bb_doc_natdecl: 'anmeldungenDocNatDecl',
   bb_doc_u18parents: 'anmeldungenDocU18Parents',

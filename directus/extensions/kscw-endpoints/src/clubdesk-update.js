@@ -4,6 +4,7 @@
  */
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
+import { roleToClubdesk, normalizeOfficials, officialsList } from './registration-values.js'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
@@ -547,7 +548,9 @@ export function deriveGruppen(reg) {
   if (!reg) return ''
   const prefix = CD_GRUPPEN_SPORT_PREFIX[String(reg.membership_type || '').trim().toLowerCase()]
   const groups = []
-  const funktion = String(reg.rolle || '').trim()
+  // registrations.role is a slug since migration 413; ClubDesk's Funktion is
+  // the German label (roleToClubdesk).
+  const funktion = roleToClubdesk(reg.role)
   if (prefix && CD_GRUPPEN_FUNKTIONEN.includes(funktion)) {
     for (const t of String(reg.team || '').split(',').map((x) => x.trim()).filter(Boolean)) {
       groups.push(`${prefix} ${t} (${funktion})`)
@@ -556,8 +559,9 @@ export function deriveGruppen(reg) {
   // VB scorers go in the "VB Schreiber*innen" group (user 2026-07-07, exact
   // ClubDesk group name). Referees are NOT grouped here — they are marked by
   // the Schiedsrichter Ja/Nein field instead (deriveSchiedsrichter).
-  const lic = String(reg.lizenz || '').toLowerCase()
-  if (prefix === 'VB' && lic.includes('schreiber')) groups.push('VB Schreiber*innen')
+  if (prefix === 'VB' && officialsList(normalizeOfficials(reg.officials_requested, reg.membership_type)).includes('vb_scorer')) {
+    groups.push('VB Schreiber*innen')
+  }
   return groups.join(', ')
 }
 
@@ -827,7 +831,7 @@ export function deriveSchiedsrichter(m) {
 // Derive the ClubDesk Sektion for a NEW contact from the registration's sport:
 // volleyball → Volleyball, basketball → Basketball. Passive registrations have
 // no sport — the registration approver picks Volleyball/Basketball/KSCW in
-// wiedisync (registrations.sektion_choice), so use that; fall back to KSCW when
+// wiedisync (registrations.club_section_choice), so use that; fall back to KSCW when
 // unset (a passive member always belongs to the club).
 export function deriveSektion(reg) {
   if (!reg) return ''
@@ -835,7 +839,7 @@ export function deriveSektion(reg) {
   if (mt === 'volleyball') return 'Volleyball'
   if (mt === 'basketball') return 'Basketball'
   // passive (or unknown) → approver's choice, default KSCW
-  return String(reg.sektion_choice || '').trim() || 'KSCW'
+  return String(reg.club_section_choice || '').trim() || 'KSCW'
 }
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
@@ -2060,7 +2064,7 @@ export async function cdStatusForRegistration(database, reg) {
     if (!member) {
       const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
         .select(...MEMBER_COLS)
-      member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.first_name)) || null
     }
     if (!member) {
       // Divergent-email fallback (2026-07-08, Neo Paladino case): a child often
@@ -2071,12 +2075,12 @@ export async function cdStatusForRegistration(database, reg) {
       // symmetric first-name-prefix rule, and accept ONLY a unique candidate
       // (ambiguity keeps no_member — this result also feeds the one-click link
       // zone, so we never guess between two same-named people).
-      const nachname = String(reg.nachname || '').toLowerCase().trim()
-      if (nachname) {
+      const lastName = String(reg.last_name || '').toLowerCase().trim()
+      if (lastName) {
         const nameRows = await database('members')
-          .whereRaw('LOWER(BTRIM(last_name)) = ?', [nachname])
+          .whereRaw('LOWER(BTRIM(last_name)) = ?', [lastName])
           .select(...MEMBER_COLS)
-        const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.vorname))
+        const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.first_name))
         if (hits.length === 1) member = hits[0]
       }
     }
@@ -2450,12 +2454,12 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
     const regs = emails.length
       ? await database('registrations').where('status', 'approved')
         .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
-        .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
+        .select('email', 'first_name', 'submitted_at', 'membership_type', 'team', 'role', 'club_section_choice', 'officials_requested')
       : []
     for (const m of pushMembers) {
       const em = String(m.email || '').toLowerCase().trim()
       const reg = regs
-        .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
+        .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.first_name, m.first_name))
         .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
       // ⚠ NOT `m.eintritt` — that is the real column now (migration 302),
       // selected by PUSH_FIELDS. Overwriting it here would push the
@@ -2590,7 +2594,7 @@ export async function linkClubdeskContact(database, log, { memberId, clubdeskId,
 export async function autoSyncRegistrationToClubdesk(database, log, registrationId) {
   try {
     const reg = await database('registrations').where('id', registrationId)
-      .first('id', 'email', 'vorname', 'nachname', 'status', 'member')
+      .first('id', 'email', 'first_name', 'last_name', 'status', 'member')
     if (!reg || !reg.member) return
     const cdStatus = await cdStatusForRegistration(database, reg)
     if (cdStatus.status === 'linked' || cdStatus.status === 'pushed_pending' || cdStatus.status === 'no_member') return
@@ -3219,7 +3223,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const regId = Number(String(req.query.registration_id || '').trim())
       if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
       const reg = await database('registrations').where('id', regId)
-        .first('id', 'email', 'vorname', 'nachname', 'status', 'member')
+        .first('id', 'email', 'first_name', 'last_name', 'status', 'member')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
       return res.json(await cdStatusForRegistration(database, reg))
     } catch (err) {
@@ -3239,7 +3243,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         : []
       if (!ids.length) return res.status(400).json({ error: 'registration_ids required' })
       const regs = await database('registrations').whereIn('id', ids)
-        .select('id', 'email', 'vorname', 'nachname', 'status', 'member')
+        .select('id', 'email', 'first_name', 'last_name', 'status', 'member')
       const statuses = {}
       for (const reg of regs) {
         statuses[reg.id] = await cdStatusForRegistration(database, reg)

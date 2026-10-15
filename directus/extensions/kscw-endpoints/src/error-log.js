@@ -345,7 +345,7 @@ const PII_FRAGMENTS = [
 ]
 // Whole words only — as fragments they sit inside ordinary keys (`otp` in
 // "footprint", `pin` in "mapping", `ort` in "sort"/"report").
-const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'zip', 'dob'])
+const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'city', 'zip', 'dob'])
 
 /** Whether a logged key holds a secret or PII. Pure; exported for the unit test. */
 export function isSensitiveKey(key) {

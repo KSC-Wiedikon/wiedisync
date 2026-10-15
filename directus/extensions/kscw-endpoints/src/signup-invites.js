@@ -204,7 +204,7 @@ export function registerSignupInvites(router, { database, logger, services, getS
       if (member_id) {
         target = await database('members').where('id', member_id).first()
       } else if (registration_id) {
-        const reg = await database('registrations').where('id', registration_id).first('email', 'status', 'vorname', 'member')
+        const reg = await database('registrations').where('id', registration_id).first('email', 'status', 'first_name', 'member')
         if (!reg) return res.status(404).json({ error: 'Registration not found' })
         if (reg.status !== 'approved') {
           return res.status(400).json({ error: 'Registration is not approved', code: 'not_approved' })
@@ -226,7 +226,7 @@ export function registerSignupInvites(router, { database, logger, services, getS
         if (!target) {
           const emailRows = await database('members')
             .whereRaw('LOWER(email) = ?', [String(reg.email || '').toLowerCase().trim()])
-          target = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+          target = emailRows.find(r => firstNamesMatch(r.first_name, reg.first_name)) || null
         }
       } else {
         return res.status(400).json({ error: 'member_id or registration_id required' })

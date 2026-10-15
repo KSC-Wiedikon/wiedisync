@@ -621,7 +621,8 @@ const PII_FRAGMENTS = [
  * `otp` in "footprint", `pin` in "mapping"/"shipping", `ort` in "sort"/"report" —
  * and redacting those would blind the log for nothing.
  */
-const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'zip', 'dob'])
+// `city` is the English `ort` (registrations since migration 413).
+const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'city', 'zip', 'dob'])
 
 /**
  * Whether a payload key holds something that must not reach Sentry or the JSONL log.

@@ -29,7 +29,7 @@ describe('isPiiKey', () => {
 
   it('catches the personal data ProfileEditForm sends', () => {
     for (const k of ['ahv_nummer', 'ahvNummer', 'iban', 'qr_iban', 'adresse', 'address', 'ip_address', 'strasse',
-      'plz', 'ort', 'plz_ort', 'postcode', 'postal_code', 'zip', 'zip_code', 'birthdate', 'birth_date', 'dob',
+      'plz', 'ort', 'city', 'plz_ort', 'postcode', 'postal_code', 'zip', 'zip_code', 'birthdate', 'birth_date', 'dob',
       'phone', 'mobile_phone', 'email', 'proposer_email', 'first_name', 'last_name', 'firstName', 'contact_name']) {
       expect(isPiiKey(k), k).toBe(true)
     }

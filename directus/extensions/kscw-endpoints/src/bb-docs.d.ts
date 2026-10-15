@@ -22,7 +22,7 @@ export type BbDocField =
   | 'id_upload_front'
   | 'id_upload_back'
   | 'bb_doc_lizenz'
-  | 'bb_doc_freibrief'
+  | 'bb_doc_release_letter'
   | 'bb_doc_selfdecl'
   | 'bb_doc_natdecl'
   | 'bb_doc_u18parents'
@@ -38,7 +38,7 @@ export function bbIsMinor(dob: string | Date | null | undefined): boolean
 
 export function bbFreibriefWaived(
   dob: string | Date | null | undefined,
-  recentLicence: string | null | undefined,
+  recentLicence: boolean | string | null | undefined,
 ): boolean
 
 /** `codes` is the comma list; `fallback` the legacy singular code. */
@@ -51,7 +51,7 @@ export function bbRequiredDocs(
   situation: string | null | undefined,
   natCode: string,
   dob: string | Date | null | undefined,
-  recentLicence?: string | null | undefined,
+  recentLicence?: boolean | string | null | undefined,
 ): BbDocField[]
 
 export function parseWaivedDocs(waived: string | null | undefined): BbDocField[]
@@ -60,6 +60,6 @@ export function bbRequiredDocsAfterWaiver(
   situation: string | null | undefined,
   natCode: string,
   dob: string | Date | null | undefined,
-  recentLicence: string | null | undefined,
+  recentLicence: boolean | string | null | undefined,
   waived: string | null | undefined,
 ): BbDocField[]

@@ -39,16 +39,17 @@ function recorder(fieldNames = []) {
 }
 
 const APPLICANT = {
-  vorname: 'Caspar Liva',
-  nachname: 'Jung',
+  first_name: 'Caspar Liva',
+  last_name: 'Jung',
   email: 'lalainaj@web.de',
-  adresse: 'Aemtlerstr 102',
-  plz: '8003',
-  ort: 'Zürich',
-  geburtsdatum: '2013-10-31',
-  nationalitaet: 'Deutschland',
-  nationalitaetCodes: ['DE'],
-  geschlecht: 'männlich',
+  address: 'Aemtlerstr 102',
+  postal_code: '8003',
+  city: 'Zürich',
+  birthdate: '2013-10-31',
+  nationality_codes: ['DE'],
+  nationality_de: 'Deutschland',
+  nationality_en: 'Germany',
+  sex: 'm',
   situation: '',
   federationOfOrigin: '',
 }
@@ -101,7 +102,7 @@ describe('winAnsiSafe (licence-PDF text guard)', () => {
 describe('BB_PDF_TEMPLATES', () => {
   it('covers the five club-issued forms and neither ID scan', () => {
     expect(Object.keys(BB_PDF_TEMPLATES).sort()).toEqual([
-      'bb_doc_freibrief', 'bb_doc_lizenz', 'bb_doc_natdecl',
+      'bb_doc_lizenz', 'bb_doc_natdecl', 'bb_doc_release_letter',
       'bb_doc_selfdecl', 'bb_doc_u18parents',
     ])
     // A passport photo has nothing to pre-fill; offering a "template" for it
@@ -146,7 +147,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
     // String(date).slice(0,10) would be "Thu Jan 15"; a UTC conversion would shift
     // the day back in Europe/Zurich. Both were live bugs in sibling code.
     const { pdfDoc, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, geburtsdatum: new Date(2013, 9, 31) }, { now: NOW })
+    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, birthdate: new Date(2013, 9, 31) }, { now: NOW })
     expect(text.Tag).toBe('31')
     expect(text.Monat).toBe('10')
     expect(text.Jahr).toBe('2013')
@@ -165,7 +166,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
     // The form asks whether the player is Swiss, not which passport is listed
     // first — same "Swiss beats foreign" rule the document gate applies.
     const { pdfDoc, checked, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, nationalitaetCodes: ['IT', 'CH'] }, { now: NOW })
+    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, nationality_codes: ['IT', 'CH'] }, { now: NOW })
     expect(checked).toContain('Schweiz')
     expect(checked).not.toContain('Andere')
     expect(text['KOPIE DES PASSES ODER DER ID BEILAGEN']).toBeUndefined()
@@ -180,7 +181,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
 
   it('maps a returning player onto the international-transfer box', () => {
     const { pdfDoc, checked } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, situation: 'rueckkehr' }, { now: NOW })
+    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, situation: 'returning' }, { now: NOW })
     expect(checked).toContain('Internationaler Transfer')
   })
 })
@@ -224,7 +225,7 @@ describe('fillBbForm — the FIBA forms', () => {
     // The real form labels it "PRÉNOM / VORNAME"; matching by substring keeps a
     // codepoint mismatch from silently skipping the field.
     const { pdfDoc, text } = recorder(['undefined', 'PRÉNOM / VORNAME', 'undefined_2'])
-    fillBbForm('bb_doc_freibrief', pdfDoc, APPLICANT, { now: NOW })
+    fillBbForm('bb_doc_release_letter', pdfDoc, APPLICANT, { now: NOW })
     expect(text.undefined).toBe('Jung')
     expect(text['PRÉNOM / VORNAME']).toBe('Caspar Liva')
     expect(text.undefined_2).toBe('31.10.2013')

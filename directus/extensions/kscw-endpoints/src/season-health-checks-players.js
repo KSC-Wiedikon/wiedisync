@@ -1025,13 +1025,13 @@ SELECT ${MEMBER_COLS},
     description: 'A new-player registration nobody approved or declined in two weeks — the person is on no roster, has no shell account and is not being billed. Approve or reject it on the registrations page.',
     sql: `
 SELECT r.id AS registration_id,
-       btrim(concat_ws(' ', r.vorname, r.nachname)) AS applicant,
+       btrim(concat_ws(' ', r.first_name, r.last_name)) AS applicant,
        r.email,
        r.membership_type,
        r.team AS requested_team,
        (r.submitted_at AT TIME ZONE 'Europe/Zurich')::date::text AS submitted,
        ({{today}} - (r.submitted_at AT TIME ZONE 'Europe/Zurich')::date) AS days_waiting,
-       r.geburtsdatum::text AS birthdate
+       r.birthdate::text AS birthdate
   FROM registrations r
  WHERE r.status = 'pending'
    AND r.submitted_at < ({{now}} AT TIME ZONE 'Europe/Zurich') - INTERVAL '14 days'

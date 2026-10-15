@@ -114,7 +114,7 @@ describe('firstNamesEqual (the blocking rule)', () => {
 describe('findDuplicateCandidates — blocking', () => {
   it('blocks an ACTIVE member re-registering as themselves', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com', geburtsdatum: '2009-02-01',
+      first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com', birthdate: '2009-02-01',
     })
     expect(r.level).toBe('blocked')
     expect(r.candidates[0]).toMatchObject({ id: 195, match: 'exact' })
@@ -122,16 +122,16 @@ describe('findDuplicateCandidates — blocking', () => {
 
   it('is case- and accent-insensitive about the name', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'oskar', nachname: 'FASSBIND', email: 'Oskar.Fassbind2@GMAIL.com',
+      first_name: 'oskar', last_name: 'FASSBIND', email: 'Oskar.Fassbind2@GMAIL.com',
     })
     expect(r.level).toBe('blocked')
   })
 
   it('findBlockingMember returns the member only for the blocked level', async () => {
-    expect(await findBlockingMember(db, { vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com' }))
+    expect(await findBlockingMember(db, { first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com' }))
       .toMatchObject({ id: 195 })
     // Same person, former member → let through and flagged, never blocked.
-    expect(await findBlockingMember(db, { vorname: 'Anaïs', nachname: 'Ramp', email: 'anflura@gmx.ch' }))
+    expect(await findBlockingMember(db, { first_name: 'Anaïs', last_name: 'Ramp', email: 'anflura@gmx.ch' }))
       .toBeNull()
   })
 })
@@ -140,14 +140,14 @@ describe('findDuplicateCandidates — must NOT block', () => {
   // The whole reason members.email carries no unique index.
   it('lets a sibling register on the shared family mailbox', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Eleni', nachname: 'Chatzichrisafis', email: 'nikos.chatzichrisafis@gmail.com', geburtsdatum: '2014-07-07',
+      first_name: 'Eleni', last_name: 'Chatzichrisafis', email: 'nikos.chatzichrisafis@gmail.com', birthdate: '2014-07-07',
     })
     expect(r.level).toBe('none')
   })
 
   it("lets a child register on a parent's mailbox", async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Marie', nachname: 'Clüver', email: 'jannileinchen@web.de', geburtsdatum: '2011-06-08',
+      first_name: 'Marie', last_name: 'Clüver', email: 'jannileinchen@web.de', birthdate: '2011-06-08',
     })
     expect(r.level).toBe('none')
   })
@@ -155,24 +155,24 @@ describe('findDuplicateCandidates — must NOT block', () => {
   // Regression: the prefix rule would call this the same person and 409 her.
   it('lets a PREFIX-named sibling register on the shared family mailbox', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch', geburtsdatum: '2009-08-02',
+      first_name: 'Daniela', last_name: 'Meier', email: 'familie.meier@bluewin.ch', birthdate: '2009-08-02',
     })
     expect(r.level).not.toBe('blocked')
     expect(await findBlockingMember(db, {
-      vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch',
+      first_name: 'Daniela', last_name: 'Meier', email: 'familie.meier@bluewin.ch',
     })).toBeNull()
   })
 
   it('ignores a shared surname alone', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Ferdinand', nachname: 'Fassbind', email: 'ferdi@example.com', geburtsdatum: '1974-06-03',
+      first_name: 'Ferdinand', last_name: 'Fassbind', email: 'ferdi@example.com', birthdate: '1974-06-03',
     })
     expect(r.level).toBe('none')
   })
 
   it('does not flag a genuine newcomer', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Mia', nachname: 'Zurbriggen', email: 'mia.z@example.com', geburtsdatum: '2004-11-11',
+      first_name: 'Mia', last_name: 'Zurbriggen', email: 'mia.z@example.com', birthdate: '2004-11-11',
     })
     expect(r.level).toBe('none')
   })
@@ -182,7 +182,7 @@ describe('findDuplicateCandidates — soft tiers', () => {
   // The case the admin merge exists for: same person, new address.
   it('flags (not blocks) the same person under a different email', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.f.privat@gmail.com', geburtsdatum: '2009-02-01',
+      first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.f.privat@gmail.com', birthdate: '2009-02-01',
     })
     expect(r.level).toBe('possible')
     expect(r.candidates[0]).toMatchObject({ id: 195, match: 'name_dob' })
@@ -190,7 +190,7 @@ describe('findDuplicateCandidates — soft tiers', () => {
 
   it('flags a returning former member as `returning`, not `blocked`', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Anaïs', nachname: 'Ramp', email: 'anflura@gmx.ch', geburtsdatum: '2001-05-14',
+      first_name: 'Anaïs', last_name: 'Ramp', email: 'anflura@gmx.ch', birthdate: '2001-05-14',
     })
     expect(r.level).toBe('returning')
     expect(r.candidates[0]).toMatchObject({ id: 719, match: 'exact', kscw_membership_active: false })
@@ -198,7 +198,7 @@ describe('findDuplicateCandidates — soft tiers', () => {
 
   it('catches a first-name spelling drift via surname + birthdate', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Oscar', nachname: 'Fassbind', email: 'oscar.f@example.com', geburtsdatum: '2009-02-01',
+      first_name: 'Oscar', last_name: 'Fassbind', email: 'oscar.f@example.com', birthdate: '2009-02-01',
     })
     expect(r.level).toBe('possible')
     expect(r.candidates[0].match).toBe('surname_dob')
@@ -206,7 +206,7 @@ describe('findDuplicateCandidates — soft tiers', () => {
 
   it('matches on a normalized phone number when the email changed', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'O.', nachname: 'Fassbind', email: 'new@example.com', telefon_mobil: '076 824 60 21',
+      first_name: 'O.', last_name: 'Fassbind', email: 'new@example.com', phone: '076 824 60 21',
     })
     expect(r.candidates.some((c) => c.id === 195)).toBe(true)
   })
@@ -215,14 +215,14 @@ describe('findDuplicateCandidates — soft tiers', () => {
   // match must outrank a surname+birthdate one.
   it('ranks an email + surname + birthdate match above surname + birthdate', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Oscar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com', geburtsdatum: '2009-02-01',
+      first_name: 'Oscar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com', birthdate: '2009-02-01',
     })
     expect(r.candidates[0]).toMatchObject({ id: 195, match: 'name_dob' })
   })
 
   it('ignores an unparseable phone instead of probing with the raw string', async () => {
     const r = await findDuplicateCandidates(db, {
-      vorname: 'Nobody', nachname: 'Unrelated', email: 'nobody@example.com', telefon_mobil: 'call me maybe',
+      first_name: 'Nobody', last_name: 'Unrelated', email: 'nobody@example.com', phone: 'call me maybe',
     })
     expect(r.level).toBe('none')
   })
@@ -232,7 +232,7 @@ describe('findDuplicateCandidates — soft tiers', () => {
   it('excludes the member the registration is already linked to', async () => {
     const r = await findDuplicateCandidates(
       db,
-      { vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com' },
+      { first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com' },
       { excludeMemberId: 195 },
     )
     expect(r.level).toBe('none')
@@ -267,10 +267,10 @@ describe('findDuplicateCandidatesBatch', () => {
   }
 
   const REGS = [
-    { id: 1, vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com', geburtsdatum: '2009-02-01', member: null },
-    { id: 2, vorname: 'Anaïs', nachname: 'Ramp', email: 'anflura@gmx.ch', geburtsdatum: '2001-05-14', member: null },
-    { id: 3, vorname: 'Mia', nachname: 'Zurbriggen', email: 'mia.z@example.com', geburtsdatum: '2004-11-11', member: null },
-    { id: 4, vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch', geburtsdatum: '2009-08-02', member: null },
+    { id: 1, first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com', birthdate: '2009-02-01', member: null },
+    { id: 2, first_name: 'Anaïs', last_name: 'Ramp', email: 'anflura@gmx.ch', birthdate: '2001-05-14', member: null },
+    { id: 3, first_name: 'Mia', last_name: 'Zurbriggen', email: 'mia.z@example.com', birthdate: '2004-11-11', member: null },
+    { id: 4, first_name: 'Daniela', last_name: 'Meier', email: 'familie.meier@bluewin.ch', birthdate: '2009-08-02', member: null },
   ]
 
   it('agrees with the per-row path for every registration', async () => {
@@ -302,11 +302,11 @@ describe('merge diff + patch', () => {
     ahv_nummer: null, iban: null, beitragskategorie: null, scorer_vb: false, referee_vb: false,
   }
   const reg = {
-    vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
-    telefon_mobil: '+41 79 444 55 66', adresse: 'Birmensdorferstrasse 12', plz: '8003', ort: 'Zürich',
-    geburtsdatum: '2009-02-01', nationalitaet_codes: 'CH', federation_of_origin: 'CH',
-    geschlecht: 'm', anrede: 'Herr', ahv_nummer: '756.1234.5678.97', iban: 'CH9300762011623852957',
-    beitragskategorie: 'Schüler', lizenz: 'Schreiber', membership_type: 'volleyball',
+    first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
+    phone: '+41 79 444 55 66', address: 'Birmensdorferstrasse 12', postal_code: '8003', city: 'Zürich',
+    birthdate: '2009-02-01', nationality_codes: 'CH', federation_of_origin: 'CH',
+    sex: 'm', salutation: 'Herr', ahv_number: '756.1234.5678.97', iban: 'CH9300762011623852957',
+    fee_category: 'Schüler', officials_requested: 'Schreiber', membership_type: 'volleyball',
   }
 
   it('marks gap-fills and overwrites differently', async () => {
@@ -318,7 +318,7 @@ describe('merge diff + patch', () => {
   })
 
   it('never proposes clearing a member column from a blank form field', async () => {
-    const diff = await buildMergeDiff(db, { ...reg, adresse: null, iban: '' }, member)
+    const diff = await buildMergeDiff(db, { ...reg, address: null, iban: '' }, member)
     expect(diff.find((d) => d.key === 'adresse')).toBeUndefined()
     expect(diff.find((d) => d.key === 'iban')).toBeUndefined()
   })
@@ -355,6 +355,10 @@ describe('mirrored transforms (kscw-hooks parity)', () => {
     // A level-less OTN asserts nothing — the club cannot back the claim.
     expect(mapLicences('OTN', 'basketball')).toEqual([])
     expect(mapLicences('', 'volleyball')).toEqual([])
+    // Migration 413 slugs map the same way; passive asserts nothing.
+    expect(mapLicences('vb_scorer,vb_referee', 'volleyball')).toEqual(['scorer_vb', 'referee_vb'])
+    expect(mapLicences('otr2,bb_referee', 'basketball')).toEqual(['otr2_bb', 'referee_bb'])
+    expect(mapLicences('vb_scorer', 'passive')).toEqual([])
   })
 
   it('normalizes sex, and drops anything it cannot read', () => {

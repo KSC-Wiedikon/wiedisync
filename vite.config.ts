@@ -51,6 +51,9 @@ export default defineConfig({
       // already waived (REG-2026-1054, 09.09.2026). bb-docs.js is dependency-free
       // ESM, so bundling it costs nothing. Types: bb-docs.d.ts beside it.
       '@bb-docs': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/bb-docs.js'),
+      // Registration column vocabulary (English slugs ↔ form / ClubDesk values),
+      // same arrangement as @bb-docs. Types: registration-values.d.ts.
+      '@registration-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
     },
   },
   server: {

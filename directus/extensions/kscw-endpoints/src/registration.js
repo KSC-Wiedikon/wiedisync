@@ -6,7 +6,11 @@
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
-import { BB_SITUATIONS, bbAgeAtSeasonStart, bbRequiredDocs, bbRequiredDocsAfterWaiver, fibaNatCode } from './bb-docs.js'
+import { bbAgeAtSeasonStart, bbRequiredDocs, bbRequiredDocsAfterWaiver, fibaNatCode } from './bb-docs.js'
+import {
+  englishRegistrationBody, normalizeSex, normalizeRole, normalizeOfficials, officialsToClubdesk,
+  normalizeBbSituation, normalizeRecentLicence,
+} from './registration-values.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
@@ -101,6 +105,25 @@ function normalizeCountryCodes(raw) {
   return codes.length ? codes.join(',') : null
 }
 
+/** Country names of a code list ("CH,IT") for display: { de: 'Schweiz, Italien',
+ *  en: 'Switzerland, Italy' }. Empty strings when there is no code. */
+async function countryNames(database, codes) {
+  const list = String(codes || '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean)
+  if (!list.length) return { de: '', en: '' }
+  const rows = await database('country_codes').whereIn('code', list).select('code', 'name_de', 'name_en')
+  const by = new Map(rows.map((r) => [r.code, r]))
+  const join = (k) => list.map((c) => by.get(c)?.[k] || c).join(', ')
+  return { de: join('name_de'), en: join('name_en') }
+}
+
+/** Sex for an email ("Männlich" / "Male"), from the stored 'm' | 'f'. */
+const SEX_LABEL = {
+  de: { m: 'Männlich', f: 'Weiblich' }, gsw: { m: 'Männlich', f: 'Wiiblich' },
+  en: { m: 'Male', f: 'Female' }, fr: { m: 'Homme', f: 'Femme' }, it: { m: 'Uomo', f: 'Donna' },
+}
+const sexLabel = (v, locale) => (SEX_LABEL[locale] || SEX_LABEL.de)[normalizeSex(v)] || '-'
+const natLabel = (reg, locale) => (locale === 'en' ? reg._nat?.en : reg._nat?.de) || '-'
+
 /** Federation of origin: an ISO alpha-2 code, or NULL ("didn't answer").
  *
  *  ⚠ 'NONE' is a RETIRED sentinel (migration 342) and the column's CHECK no
@@ -159,7 +182,7 @@ export function bbRecentLicenceMissing(membershipType, isGuest, situation, dob, 
   if (situation !== 'transfer_ch') return false
   const age = bbAgeAtSeasonStart(dob)
   if (age !== null && age < 12) return false
-  return !['ja', 'nein'].includes(String(recentLicence || '').toLowerCase())
+  return normalizeRecentLicence(recentLicence) === null
 }
 
 // ── Confirmation emails ─────────────────────────────────────────
@@ -211,7 +234,7 @@ const T = {
     gender: 'Geschlecht', licence: 'Lizenz', refLevel: 'Schiedsrichter-Stufe', ref: 'Referenz',
     adminTitle: 'Neue Anmeldung',
     adminCta: 'Im Admin prüfen',
-    adminSubject: (vorname, nachname, type) => `[KSCW] Neue Anmeldung: ${vorname} ${nachname} (${type})`,
+    adminSubject: (firstName, lastName, type) => `[KSCW] Neue Anmeldung: ${firstName} ${lastName} (${type})`,
     adminType: 'Typ', adminAhv: 'AHV', adminKantonsschule: 'Kantonsschule', adminBemerkungen: 'Bemerkungen',
     adminNextSteps: 'Nächste Schritte:',
     adminStep1: 'Daten im Admin-Bereich prüfen und ggf. bearbeiten',
@@ -252,7 +275,7 @@ const T = {
     gender: 'Gschlächt', licence: 'Lizenz', refLevel: 'Schiedsrichter-Stuefe', ref: 'Referenz',
     adminTitle: 'Neui Aamäldig',
     adminCta: 'Im Admin prüefe',
-    adminSubject: (vorname, nachname, type) => `[KSCW] Neui Aamäldig: ${vorname} ${nachname} (${type})`,
+    adminSubject: (firstName, lastName, type) => `[KSCW] Neui Aamäldig: ${firstName} ${lastName} (${type})`,
     adminType: 'Typ', adminAhv: 'AHV', adminKantonsschule: 'Kantonsschuel', adminBemerkungen: 'Bemerkige',
     adminNextSteps: 'Nächsti Schritt:',
     adminStep1: 'Date im Admin-Bereich prüefe und ev. bearbeite',
@@ -293,7 +316,7 @@ const T = {
     gender: 'Sex', licence: 'Licence', refLevel: 'Referee Level', ref: 'Reference',
     adminTitle: 'New Registration',
     adminCta: 'Review in admin',
-    adminSubject: (vorname, nachname, type) => `[KSCW] New registration: ${vorname} ${nachname} (${type})`,
+    adminSubject: (firstName, lastName, type) => `[KSCW] New registration: ${firstName} ${lastName} (${type})`,
     adminType: 'Type', adminAhv: 'AHV', adminKantonsschule: 'Cantonal School', adminBemerkungen: 'Notes',
     adminNextSteps: 'Next steps:',
     adminStep1: 'Review the data in the admin area and edit if needed',
@@ -334,7 +357,7 @@ const T = {
     gender: 'Sexe', licence: 'Licence', refLevel: "Niveau d'arbitrage", ref: 'Référence',
     adminTitle: 'Nouvelle inscription',
     adminCta: "Vérifier dans l'admin",
-    adminSubject: (vorname, nachname, type) => `[KSCW] Nouvelle inscription : ${vorname} ${nachname} (${type})`,
+    adminSubject: (firstName, lastName, type) => `[KSCW] Nouvelle inscription : ${firstName} ${lastName} (${type})`,
     adminType: 'Type', adminAhv: 'AVS', adminKantonsschule: 'École cantonale', adminBemerkungen: 'Remarques',
     adminNextSteps: 'Prochaines étapes :',
     adminStep1: "Vérifier les données dans l'espace admin et les modifier si nécessaire",
@@ -375,7 +398,7 @@ const T = {
     gender: 'Sesso', licence: 'Licenza', refLevel: 'Livello arbitrale', ref: 'Riferimento',
     adminTitle: 'Nuova iscrizione',
     adminCta: "Verifica nell'admin",
-    adminSubject: (vorname, nachname, type) => `[KSCW] Nuova iscrizione: ${vorname} ${nachname} (${type})`,
+    adminSubject: (firstName, lastName, type) => `[KSCW] Nuova iscrizione: ${firstName} ${lastName} (${type})`,
     adminType: 'Tipo', adminAhv: 'AVS', adminKantonsschule: 'Scuola cantonale', adminBemerkungen: 'Note',
     adminNextSteps: 'Prossimi passi:',
     adminStep1: "Verifica i dati nell'area admin e modificali se necessario",
@@ -401,7 +424,7 @@ const DOC_LABELS = {
     id_upload_front: 'ID / Pass — Vorderseite',
     id_upload_back: 'ID / Pass — Rückseite',
     bb_doc_lizenz: 'Lizenzantrag (unterschrieben)',
-    bb_doc_freibrief: 'Freibrief (unterschrieben)',
+    bb_doc_release_letter: 'Freibrief (unterschrieben)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
     bb_doc_u18parents: 'Einverständnis der Eltern (U18)',
@@ -411,7 +434,7 @@ const DOC_LABELS = {
     id_upload_front: 'ID / passport — front',
     id_upload_back: 'ID / passport — back',
     bb_doc_lizenz: 'Licence application (signed)',
-    bb_doc_freibrief: 'Release letter / Freibrief (signed)',
+    bb_doc_release_letter: 'Release letter / Freibrief (signed)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
     bb_doc_u18parents: 'Parental consent (U18)',
@@ -421,7 +444,7 @@ const DOC_LABELS = {
     id_upload_front: "Carte d'identité / passeport — recto",
     id_upload_back: "Carte d'identité / passeport — verso",
     bb_doc_lizenz: 'Demande de licence (signée)',
-    bb_doc_freibrief: 'Lettre de sortie / Freibrief (signée)',
+    bb_doc_release_letter: 'Lettre de sortie / Freibrief (signée)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
     bb_doc_u18parents: 'Autorisation parentale (U18)',
@@ -431,7 +454,7 @@ const DOC_LABELS = {
     id_upload_front: "Carta d'identità / passaporto — fronte",
     id_upload_back: "Carta d'identità / passaporto — retro",
     bb_doc_lizenz: 'Richiesta di licenza (firmata)',
-    bb_doc_freibrief: 'Lettera di svincolo / Freibrief (firmata)',
+    bb_doc_release_letter: 'Lettera di svincolo / Freibrief (firmata)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
     bb_doc_u18parents: 'Consenso dei genitori (U18)',
@@ -514,10 +537,9 @@ const DOCS_T = {
 }
 DOCS_T.gsw = DOCS_T.de
 
-// Capitalize the first letter for display. The registration form stores
-// free-text gender ("männlich") and the membership_type enum ("basketball")
-// in lowercase — both should render capitalized in emails ("Männlich",
-// "Basketball"). Returns the input unchanged when falsy/non-string.
+// Capitalize the first letter for display: the membership_type enum
+// ("basketball") renders as "Basketball" in emails. Returns the input
+// unchanged when falsy/non-string.
 function capFirst(s) {
   if (!s || typeof s !== 'string') return s
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -525,19 +547,19 @@ function capFirst(s) {
 
 function buildSummaryCard(reg, locale) {
   const l = t(locale)
-  const dob = reg.geburtsdatum ? formatDateCH(reg.geburtsdatum) : '-'
+  const dob = reg.birthdate ? formatDateCH(reg.birthdate) : '-'
   return buildInfoCard([
-    { label: l.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
+    { label: l.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
     { label: l.team, value: reg.team || '-', halfWidth: true },
-    { label: l.fee, value: reg.beitragskategorie || '-', halfWidth: true },
+    { label: l.fee, value: reg.fee_category || '-', halfWidth: true },
     { label: l.dob, value: dob, halfWidth: true },
     { label: l.email, value: reg.email },
-    { label: l.phone, value: reg.telefon_mobil || '-' },
-    { label: l.address, value: `${reg.adresse || ''}, ${reg.plz || ''} ${reg.ort || ''}` },
-    { label: l.nationality, value: reg.nationalitaet || '-', halfWidth: true },
-    { label: l.gender, value: capFirst(reg.geschlecht) || '-', halfWidth: true },
-    ...(reg.lizenz ? [{ label: l.licence, value: reg.lizenz }] : []),
-    ...(reg.schiedsrichter_stufe ? [{ label: l.refLevel, value: reg.schiedsrichter_stufe }] : []),
+    { label: l.phone, value: reg.phone || '-' },
+    { label: l.address, value: `${reg.address || ''}, ${reg.postal_code || ''} ${reg.city || ''}` },
+    { label: l.nationality, value: natLabel(reg, locale), halfWidth: true },
+    { label: l.gender, value: sexLabel(reg.sex, locale), halfWidth: true },
+    ...(reg.officials_requested ? [{ label: l.licence, value: officialsToClubdesk(reg.officials_requested, reg.membership_type) }] : []),
+    ...(reg.referee_level ? [{ label: l.refLevel, value: reg.referee_level }] : []),
     { label: l.ref, value: reg.reference_number },
   ])
 }
@@ -564,7 +586,7 @@ function buildVolleyballEmail(reg, locale) {
     title: l.vbTitle,
     subtitle: l.vbSubtitle,
     sport: 'volleyball',
-    greeting: l.greeting(reg.vorname),
+    greeting: l.greeting(reg.first_name),
     footerExtra: l.vbFooter,
   })
 }
@@ -582,7 +604,7 @@ function buildBasketballEmail(reg, locale) {
     title: l.bbTitle,
     subtitle: l.bbSubtitle,
     sport: 'basketball',
-    greeting: l.greeting(reg.vorname),
+    greeting: l.greeting(reg.first_name),
     footerExtra: l.bbFooter,
   })
 }
@@ -590,11 +612,11 @@ function buildBasketballEmail(reg, locale) {
 function buildPassiveEmail(reg, locale) {
   const l = t(locale)
   const summary = buildInfoCard([
-    { label: l.name, value: `${reg.vorname} ${reg.nachname}` },
+    { label: l.name, value: `${reg.first_name} ${reg.last_name}` },
     { label: l.email, value: reg.email },
-    { label: l.phone, value: reg.telefon_mobil || '-' },
-    ...(reg.lizenz ? [{ label: l.licence, value: reg.lizenz }] : []),
-    ...(reg.schiedsrichter_stufe ? [{ label: l.refLevel, value: reg.schiedsrichter_stufe }] : []),
+    { label: l.phone, value: reg.phone || '-' },
+    ...(reg.officials_requested ? [{ label: l.licence, value: officialsToClubdesk(reg.officials_requested, reg.membership_type) }] : []),
+    ...(reg.referee_level ? [{ label: l.refLevel, value: reg.referee_level }] : []),
     { label: l.ref, value: reg.reference_number },
   ])
 
@@ -606,7 +628,7 @@ function buildPassiveEmail(reg, locale) {
   return buildEmailLayout(body, {
     title: l.passiveTitle,
     subtitle: l.passiveSubtitle,
-    greeting: l.greeting(reg.vorname),
+    greeting: l.greeting(reg.first_name),
     footerExtra: 'KSC Wiedikon',
   })
 }
@@ -615,23 +637,23 @@ function buildPassiveEmail(reg, locale) {
 
 function buildAdminNotificationEmail(reg, locale = 'de') {
   const l = t(locale)
-  const dob = reg.geburtsdatum ? formatDateCH(reg.geburtsdatum) : '-'
+  const dob = reg.birthdate ? formatDateCH(reg.birthdate) : '-'
   const sport = reg.membership_type === 'volleyball' ? 'volleyball' : reg.membership_type === 'basketball' ? 'basketball' : null
 
   const summary = buildInfoCard([
-    { label: l.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
+    { label: l.name, value: `${reg.first_name} ${reg.last_name}`, halfWidth: true },
     { label: l.adminType, value: capFirst(reg.membership_type), halfWidth: true },
     { label: l.team, value: reg.team || '-', halfWidth: true },
-    { label: l.fee, value: reg.beitragskategorie || '-', halfWidth: true },
+    { label: l.fee, value: reg.fee_category || '-', halfWidth: true },
     { label: l.email, value: reg.email, halfWidth: true },
-    { label: l.phone, value: reg.telefon_mobil || '-', halfWidth: true },
-    { label: l.address, value: `${reg.adresse || ''}, ${reg.plz || ''} ${reg.ort || ''}` },
+    { label: l.phone, value: reg.phone || '-', halfWidth: true },
+    { label: l.address, value: `${reg.address || ''}, ${reg.postal_code || ''} ${reg.city || ''}` },
     { label: l.dob, value: dob, halfWidth: true },
-    { label: l.nationality, value: reg.nationalitaet || '-', halfWidth: true },
-    { label: l.adminAhv, value: reg.ahv_nummer || '-', halfWidth: true },
-    { label: l.adminKantonsschule, value: reg.kantonsschule || '-', halfWidth: true },
-    ...(reg.lizenz ? [{ label: l.licence, value: reg.lizenz }] : []),
-    ...(reg.schiedsrichter_stufe ? [{ label: l.refLevel, value: reg.schiedsrichter_stufe }] : []),
+    { label: l.nationality, value: natLabel(reg, locale), halfWidth: true },
+    { label: l.adminAhv, value: reg.ahv_number || '-', halfWidth: true },
+    { label: l.adminKantonsschule, value: reg.cantonal_school || '-', halfWidth: true },
+    ...(reg.officials_requested ? [{ label: l.licence, value: officialsToClubdesk(reg.officials_requested, reg.membership_type) }] : []),
+    ...(reg.referee_level ? [{ label: l.refLevel, value: reg.referee_level }] : []),
     { label: l.ref, value: reg.reference_number },
   ])
 
@@ -646,12 +668,12 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 </div>`
 
   const body = summary +
-    (reg.bemerkungen ? `<div style="font-size:13px;color:#94a3b8;margin-top:12px"><strong style="color:#e2e8f0">${l.adminBemerkungen}:</strong><br>${escHtml(reg.bemerkungen)}</div>` : '') +
+    (reg.remarks ? `<div style="font-size:13px;color:#94a3b8;margin-top:12px"><strong style="color:#e2e8f0">${l.adminBemerkungen}:</strong><br>${escHtml(reg.remarks)}</div>` : '') +
     instructions
 
   return buildEmailLayout(body, {
     title: l.adminTitle,
-    subtitle: `${reg.vorname} ${reg.nachname} — ${capFirst(reg.membership_type)}`,
+    subtitle: `${reg.first_name} ${reg.last_name} — ${capFirst(reg.membership_type)}`,
     sport,
     ctaUrl: 'https://wiedisync.kscw.ch/admin/anmeldungen',
     ctaLabel: l.adminCta,
@@ -768,7 +790,7 @@ export function registrationAllowed(roles, membershipType, opts = {}) {
 // (post-approval) registration. Mirrors REGISTRATION_FILE_COLS in kscw-hooks.
 const SELF_DOC_FIELDS = [
   'id_upload_front', 'id_upload_back',
-  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl',
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ]
 
@@ -798,7 +820,7 @@ export function registerRegistration(router, { database, logger, services, getSc
     // buildEmailLayout itself — pre-escaping those would render a family called
     // "Ruiz &amp; Sons" literally, with the entity visible.
     const rawVars = {
-      name: reg.vorname || '',
+      name: reg.first_name || '',
       documents: '', // list-only; rejected by validateTemplate outside the body
       reference: reg.reference_number || '',
       email: reg.email || '',
@@ -925,9 +947,11 @@ export function registerRegistration(router, { database, logger, services, getSc
   // POST /kscw/registration — create new registration
   router.post('/registration', async (req, res) => {
     try {
-      const body = req.body
-      if (!body || !body.vorname || !body.nachname || !body.email || !body.membership_type) {
-        return res.status(400).json({ error: 'vorname, nachname, email, membership_type required' })
+      // English keys (migration 413); kscw-website's form still posts the German
+      // ones, which englishRegistrationBody maps across.
+      const body = englishRegistrationBody(req.body)
+      if (!body.first_name || !body.last_name || !body.email || !body.membership_type) {
+        return res.status(400).json({ error: 'first_name, last_name, email, membership_type required' })
       }
 
       // ── Contact-data guards (2026-07-07) — reject un-normalizable values at the
@@ -940,7 +964,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       if (!emailNorm.ok || !emailNorm.value) {
         return res.status(400).json({ error: 'Invalid email format' })
       }
-      const phoneNorm = normalizePhone(body.telefon_mobil)
+      const phoneNorm = normalizePhone(body.phone)
       if (!phoneNorm.ok) {
         return res.status(400).json({
           error: isEn
@@ -949,7 +973,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           code: 'invalid_phone',
         })
       }
-      const ahvNorm = normalizeAhv(body.ahv_nummer)
+      const ahvNorm = normalizeAhv(body.ahv_number)
       if (!ahvNorm.ok) {
         return res.status(400).json({
           error: isEn
@@ -992,7 +1016,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // stored as null and the admin sets it in review; the form requires it
       // anyway (data-conditional-required), and passive falls back to
       // 'Passivmitglied' client-side.
-      if (feeCategoryRejected(body.beitragskategorie, body.membership_type)) {
+      if (feeCategoryRejected(body.fee_category, body.membership_type)) {
         return res.status(400).json({
           error: isEn ? 'Please choose a valid membership fee category.' : 'Bitte wähle eine gültige Beitragskategorie.',
           code: 'invalid_fee_category',
@@ -1003,7 +1027,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // the club's domain, greeting them by the name they typed (F-33). A name that
       // carries a link or markup turns that mail into a phishing relay, so it is
       // refused here; every other free-text column is length-capped at insert.
-      if (!registrationNameOk(body.vorname) || !registrationNameOk(body.nachname)) {
+      if (!registrationNameOk(body.first_name) || !registrationNameOk(body.last_name)) {
         return res.status(400).json({
           error: isEn ? 'Please enter a valid name.' : 'Bitte gib einen gültigen Namen ein.',
           code: 'invalid_name',
@@ -1015,14 +1039,14 @@ export function registerRegistration(router, { database, logger, services, getSc
       // league games, so they skip the licence apparatus: no AHV requirement and
       // no basketball ID/licence-document uploads (user 2026-07-15). Mirrors the
       // lightweight guest gate in kscw-website registration-form.js.
-      const isGuest = String(body.rolle || '').trim().toLowerCase() === 'guest'
+      const isGuest = normalizeRole(body.role) === 'guest'
 
       // AHV requiredness mirror (the form enforces it client-side): active VB
       // members under 23 and BB members under 25 need an AHV number for the
       // association licence. Server-side so a bypassed/stale form can't create
       // a licence-blocked registration.
-      if (!isGuest && !ahvNorm.value && body.geburtsdatum && ['volleyball', 'basketball'].includes(body.membership_type)) {
-        const dob = new Date(body.geburtsdatum)
+      if (!isGuest && !ahvNorm.value && body.birthdate && ['volleyball', 'basketball'].includes(body.membership_type)) {
+        const dob = new Date(body.birthdate)
         if (!Number.isNaN(dob.getTime())) {
           const now = new Date()
           let age = now.getFullYear() - dob.getFullYear()
@@ -1108,30 +1132,23 @@ export function registerRegistration(router, { database, logger, services, getSc
         id_upload_front: docId(body.id_upload_front),
         id_upload_back: docId(body.id_upload_back),
         bb_doc_lizenz: docId(body.bb_doc_lizenz),
-        bb_doc_freibrief: docId(body.bb_doc_freibrief),
+        bb_doc_release_letter: docId(body.bb_doc_release_letter),
         bb_doc_selfdecl: docId(body.bb_doc_selfdecl),
         bb_doc_natdecl: docId(body.bb_doc_natdecl),
         bb_doc_u18parents: docId(body.bb_doc_u18parents),
         bb_doc_schoolcert: docId(body.bb_doc_schoolcert),
       }
-      const bbSituation = BB_SITUATIONS.includes(body.bb_situation) ? body.bb_situation : null
-      // Only meaningful for a Swiss-club transfer, and only 'ja'/'nein' are stored
+      const bbSituation = normalizeBbSituation(body.bb_situation)
+      // Only meaningful for a Swiss-club transfer, and only a real yes/no is stored
       // (migration 232 CHECKs the same set). Anything else — including the field
       // being absent on an older cached bundle — is NULL: unanswered, which keeps
       // the Freibrief required rather than silently waiving it.
       const bbRecentLicence = bbSituation === 'transfer_ch'
-        && ['ja', 'nein'].includes(String(body.bb_recent_licence || '').toLowerCase())
-        ? String(body.bb_recent_licence).toLowerCase()
+        ? normalizeRecentLicence(body.bb_recent_licence)
         : null
-      // Coded nationality (migration 223). `natCodes` is the full ordered list;
-      // `primaryNatCode` keeps the legacy singular column populated so every
-      // consumer that still reads one code (the doc gate's fallback, the admin
-      // list) is unaffected. Fall back to whatever the body sends for forms
-      // still on the pre-multi-select bundle.
-      const natCodes = normalizeCountryCodes(body.nationalitaet_codes)
-      const primaryNatCode = natCodes
-        ? natCodes.split(',')[0]
-        : ((body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null)
+      // Coded nationality: the ordered list, first = primary (migration 413
+      // folded the old singular code and free text into it).
+      const natCodes = normalizeCountryCodes(body.nationality_codes)
       const federationOfOrigin = normalizeFederation(body.federation_of_origin)
       if (vbFederationMissing(body.membership_type, isGuest, federationOfOrigin)) {
         const msg = isEn
@@ -1139,7 +1156,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           : 'Bitte wähle deinen Herkunftsverband — wähle die Schweiz, falls dies deine erste Lizenz ist. Falls du dieses Feld nicht siehst, lade die Seite bitte neu.'
         return res.status(400).json({ error: msg, code: 'federation_required' })
       }
-      if (bbRecentLicenceMissing(body.membership_type, isGuest, bbSituation, body.geburtsdatum, bbRecentLicence)) {
+      if (bbRecentLicenceMissing(body.membership_type, isGuest, bbSituation, body.birthdate, bbRecentLicence)) {
         const msg = isEn
           ? 'Please tell us whether you held a Swiss Basketball licence in the last two seasons. If you cannot see this question, please reload the page.'
           : 'Bitte gib an, ob du in den letzten zwei Saisons eine Swiss-Basketball-Lizenz hattest. Falls du diese Frage nicht siehst, lade die Seite bitte neu.'
@@ -1148,10 +1165,10 @@ export function registerRegistration(router, { database, logger, services, getSc
       if (body.membership_type === 'basketball' && !isGuest) {
         // A dual national holding a Swiss passport is Swiss for FIBA, so the
         // gate judges the list as a whole (fibaNatCode), not just the primary.
-        const natCode = fibaNatCode(natCodes, body.nationalitaet_code)
+        const natCode = fibaNatCode(natCodes)
         // Situation + nationality + age drive the required set (school certificate
         // is optional → never required). Mirrors the client gate.
-        const required = bbRequiredDocs(bbSituation, natCode, body.geburtsdatum, bbRecentLicence)
+        const required = bbRequiredDocs(bbSituation, natCode, body.birthdate, bbRecentLicence)
         const missing = required.filter((k) => !docs[k])
         if (missing.length) {
           // Localized: this message reaches users on a STALE cached form JS
@@ -1189,35 +1206,34 @@ export function registerRegistration(router, { database, logger, services, getSc
       const id = await itemsService.createOne({
         status: 'pending',
         membership_type: body.membership_type,
-        anrede: capText(body.anrede, 30),
+        salutation: capText(body.salutation, 30),
         // Title-case names + address so lazy all-lowercase entry ("janina vanha",
         // "rosengartenstrasse 33", "zürich") is stored — and shown in the
         // confirmation / admin emails and the /admin list — properly capitalized.
-        vorname: titleCaseName(capText(body.vorname, 80)),
-        nachname: titleCaseName(capText(body.nachname, 80)),
+        first_name: titleCaseName(capText(body.first_name, 80)),
+        last_name: titleCaseName(capText(body.last_name, 80)),
         email: emailNorm.value,
-        telefon_mobil: phoneNorm.value,
-        adresse: titleCaseName(capText(body.adresse, 200)),
-        plz: capText(body.plz, 12),
-        ort: titleCaseName(capText(body.ort, 100)),
-        geburtsdatum: body.geburtsdatum || null,
-        nationalitaet: capText(body.nationalitaet, 200),
-        // Multi-nationality (migration 223): the ordered code list is the new
-        // source of truth, the singular code stays as its FIRST entry — the
-        // basketball document gate and the ClubDesk push both key off one code.
-        nationalitaet_codes: natCodes,
-        nationalitaet_code: primaryNatCode,
+        phone: phoneNorm.value,
+        address: titleCaseName(capText(body.address, 200)),
+        postal_code: capText(body.postal_code, 12),
+        city: titleCaseName(capText(body.city, 100)),
+        birthdate: body.birthdate || null,
+        // Ordered ISO code list, first = primary — the basketball document gate
+        // and the ClubDesk push key off it.
+        nationality_codes: natCodes,
         federation_of_origin: federationOfOrigin,
-        geschlecht: capText(body.geschlecht, 30),
-        ahv_nummer: ahvNorm.value,
+        sex: normalizeSex(body.sex),
+        ahv_number: ahvNorm.value,
         iban: ibanNorm.value,
         team: capText(Array.isArray(body.team) ? body.team.join(', ') : body.team, 255),
-        beitragskategorie: approvedFeeCategory(body.beitragskategorie, body.membership_type),
-        kantonsschule: capText(body.kantonsschule, 200),
-        rolle: capText(body.rolle, 100),
-        lizenz: capText(body.lizenz, 100),
-        schiedsrichter_stufe: capText(body.schiedsrichter_stufe, 100),
-        bemerkungen: capText(body.bemerkungen, 5000),
+        fee_category: approvedFeeCategory(body.fee_category, body.membership_type),
+        cantonal_school: capText(body.cantonal_school, 200),
+        // A passive registration's form sends its licence list as the role too;
+        // that is not a role, so it stores null (the list is officials_requested).
+        role: normalizeRole(body.role),
+        officials_requested: normalizeOfficials(body.officials_requested, body.membership_type),
+        referee_level: capText(body.referee_level, 100),
+        remarks: capText(body.remarks, 5000),
         locale: body.locale === 'en' ? 'en' : 'de',
         reference_number,
         submitted_at: new Date().toISOString(),
@@ -1234,6 +1250,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       })
 
       const reg = await itemsService.readOne(id)
+      reg._nat = await countryNames(database, reg.nationality_codes)
 
       // Send confirmation email to user (in the locale they used)
       const locale = body.locale === 'en' ? 'en' : 'de'
@@ -1278,7 +1295,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           const lAdmin = T[loc] || T.de
           await mail.send({
             to: tos,
-            subject: lAdmin.adminSubject(reg.vorname, reg.nachname, capFirst(reg.membership_type)),
+            subject: lAdmin.adminSubject(reg.first_name, reg.last_name, capFirst(reg.membership_type)),
             html: buildAdminNotificationEmail(reg, loc),
           })
         }
@@ -1289,7 +1306,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         const ownerLAdmin = T[locale] || T.de
         await mail.send({
           to: [OWNER_EMAIL],
-          subject: ownerLAdmin.adminSubject(reg.vorname, reg.nachname, capFirst(reg.membership_type)),
+          subject: ownerLAdmin.adminSubject(reg.first_name, reg.last_name, capFirst(reg.membership_type)),
           html: buildAdminNotificationEmail(reg, locale),
         })
       } catch (emailErr) {
@@ -1345,7 +1362,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       const itemsService = new ItemsService('registrations', { schema, knex: database })
 
       // Verify registration exists, is pending, and caller knows the reference number
-      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_freibrief, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = req.body
+      // englishRegistrationBody: the website's nachreichen page still sends
+      // `bb_doc_freibrief` (renamed bb_doc_release_letter by migration 413).
+      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = englishRegistrationBody(req.body)
       if (!reference_number) {
         return res.status(400).json({ error: 'reference_number required' })
       }
@@ -1390,7 +1409,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // holder may complete missing documents but never silently REPLACE ones an
       // admin already reviewed at approval time.
       const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
-      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_freibrief, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert]
+      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert]
         .map(fileId).filter(Boolean)
       if (providedIds.length) {
         const found = await database('directus_files')
@@ -1409,7 +1428,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       setDoc('id_upload_front', id_upload_front)
       setDoc('id_upload_back', id_upload_back)
       setDoc('bb_doc_lizenz', bb_doc_lizenz)
-      setDoc('bb_doc_freibrief', bb_doc_freibrief)
+      setDoc('bb_doc_release_letter', bb_doc_release_letter)
       setDoc('bb_doc_selfdecl', bb_doc_selfdecl)
       setDoc('bb_doc_natdecl', bb_doc_natdecl)
       setDoc('bb_doc_u18parents', bb_doc_u18parents)
@@ -1486,9 +1505,9 @@ export function registerRegistration(router, { database, logger, services, getSc
   // the licence forms carry — which is exactly why they are separate lists: the
   // JSON route must never start returning the PDF route's PII (see doc-template).
   const DOC_STATUS_FIELDS = [
-    'id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes',
-    'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
-    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+    'id', 'status', 'email', 'membership_type', 'nationality_codes',
+    'birthdate', 'bb_situation', 'bb_recent_licence', 'reference_number',
+    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
     'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
     // Migration 358 — a waived document is not owed, so the nachreichen page
     // must not list it and the prefilled-form route must not serve it.
@@ -1509,9 +1528,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       // Same "Swiss beats foreign" rule as the create gate — a dual national
       // must not be told on the nachreichen page that documents are still
       // missing which the create route never required of them.
-      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+      const natCode = fibaNatCode(reg.nationality_codes)
       const required = reg.membership_type === 'basketball'
-        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived)
+        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.birthdate, reg.bb_recent_licence, reg.bb_docs_waived)
         : []
       return res.json({
         id: reg.id,
@@ -1526,7 +1545,9 @@ export function registerRegistration(router, { database, logger, services, getSc
           id_upload_front: !!reg.id_upload_front,
           id_upload_back: !!reg.id_upload_back,
           bb_doc_lizenz: !!reg.bb_doc_lizenz,
-          bb_doc_freibrief: !!reg.bb_doc_freibrief,
+          bb_doc_release_letter: !!reg.bb_doc_release_letter,
+          // Pre-413 key, read by kscw-website's nachreichen page until it is switched.
+          bb_doc_freibrief: !!reg.bb_doc_release_letter,
           bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
           bb_doc_natdecl: !!reg.bb_doc_natdecl,
           bb_doc_u18parents: !!reg.bb_doc_u18parents,
@@ -1581,7 +1602,9 @@ export function registerRegistration(router, { database, logger, services, getSc
   }
 
   router.get('/registration/doc-template/:field', async (req, res) => {
-    const field = String(req.params.field || '')
+    // `bb_doc_freibrief` is the pre-413 column name kscw-website still links to.
+    const rawField = String(req.params.field || '')
+    const field = rawField === 'bb_doc_freibrief' ? 'bb_doc_release_letter' : rawField
     try {
       const tpl = BB_PDF_TEMPLATES[field]
       // Unknown field is rejected BEFORE the lookup, so this route cannot be used
@@ -1590,8 +1613,8 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       const auth = await authByReferenceAndEmail(req, [
         ...DOC_STATUS_FIELDS,
-        'vorname', 'nachname', 'adresse', 'plz', 'ort', 'geschlecht',
-        'nationalitaet', 'federation_of_origin',
+        'first_name', 'last_name', 'address', 'postal_code', 'city', 'sex',
+        'federation_of_origin',
       ])
       if (!auth.reg) return res.status(auth.status).json(auth.body)
       const reg = auth.reg
@@ -1599,9 +1622,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       // Only hand out a form the applicant actually owes and has not already
       // filed. Without this the route would serve any of the five to anyone
       // holding the pair, including forms their situation never required.
-      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+      const natCode = fibaNatCode(reg.nationality_codes)
       const required = reg.membership_type === 'basketball'
-        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived)
+        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.birthdate, reg.bb_recent_licence, reg.bb_docs_waived)
         : []
       if (!required.includes(field) || reg[field]) {
         return res.status(404).json({ error: 'No template for this document' })
@@ -1623,19 +1646,21 @@ export function registerRegistration(router, { database, logger, services, getSc
         federationOfOrigin = fed ? `${fed} (${country})` : country
       }
 
+      const nat = await countryNames(database, reg.nationality_codes)
       fillBbForm(field, pdfDoc, {
-        vorname: reg.vorname,
-        nachname: reg.nachname,
+        first_name: reg.first_name,
+        last_name: reg.last_name,
         email: reg.email,
-        adresse: reg.adresse,
-        plz: reg.plz,
-        ort: reg.ort,
-        geburtsdatum: reg.geburtsdatum,
-        nationalitaet: reg.nationalitaet,
-        nationalitaetCodes: String(reg.nationalitaet_codes || '')
+        address: reg.address,
+        postal_code: reg.postal_code,
+        city: reg.city,
+        birthdate: reg.birthdate,
+        nationality_codes: String(reg.nationality_codes || '')
           .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-        geschlecht: reg.geschlecht,
-        situation: reg.bb_situation,
+        nationality_de: nat.de,
+        nationality_en: nat.en,
+        sex: normalizeSex(reg.sex),
+        situation: normalizeBbSituation(reg.bb_situation),
         federationOfOrigin,
       }, {
         font,
@@ -1649,7 +1674,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const bytes = Buffer.from(await pdfDoc.save())
       // Name the file after the person, not the form: a family downloading three
       // of these otherwise ends up with three indistinguishable PDFs.
-      const safeName = `${tpl.filename}_${reg.nachname}_${reg.vorname}`
+      const safeName = `${tpl.filename}_${reg.last_name}_${reg.first_name}`
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 80)
       res.setHeader('Content-Type', 'application/pdf')
@@ -1704,10 +1729,10 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'Invalid registration id' })
       }
       const reg = await database('registrations').where('id', id)
-        .first('id', 'status', 'email', 'vorname', 'nachname', 'locale', 'membership_type',
-          'reference_number', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum',
+        .first('id', 'status', 'email', 'first_name', 'last_name', 'locale', 'membership_type',
+          'reference_number', 'nationality_codes', 'birthdate',
           'bb_situation', 'bb_recent_licence', 'bb_docs_waived',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
           'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
@@ -1731,9 +1756,9 @@ export function registerRegistration(router, { database, logger, services, getSc
       // Same required-set rule as the create gate, doc-status and the approval
       // hook — one source of truth, so the email never asks for a document the
       // applicant does not owe.
-      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+      const natCode = fibaNatCode(reg.nationality_codes)
       const required = reg.membership_type === 'basketball'
-        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived)
+        ? bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.birthdate, reg.bb_recent_licence, reg.bb_docs_waived)
         : []
       const missing = required.filter((f) => !reg[f])
       if (!missing.length) {
@@ -1825,10 +1850,10 @@ export function registerRegistration(router, { database, logger, services, getSc
       let reg = null
       if (req.body?.registration_id) {
         reg = await database('registrations').where('id', Number(req.body.registration_id))
-          .first('id', 'vorname', 'email', 'reference_number', 'membership_type', 'nationalitaet_code',
-            'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence',
+          .first('id', 'first_name', 'email', 'reference_number', 'membership_type',
+            'nationality_codes', 'birthdate', 'bb_situation', 'bb_recent_licence',
             'bb_docs_waived',
-            'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+            'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
             'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
         // The template is board work, the applicant is not: a real row renders
         // their name and email, so it is held to the registration scope (M7).
@@ -1838,13 +1863,13 @@ export function registerRegistration(router, { database, logger, services, getSc
       }
       let missing
       if (reg) {
-        const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
-        const required = bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived)
+        const natCode = fibaNatCode(reg.nationality_codes)
+        const required = bbRequiredDocsAfterWaiver(reg.bb_situation, natCode, reg.birthdate, reg.bb_recent_licence, reg.bb_docs_waived)
         missing = required.filter((f) => !reg[f])
       }
       if (!reg || !missing?.length) {
         reg = {
-          vorname: 'Chiara', email: 'beispiel@example.ch', reference_number: 'REG-2026-0000',
+          first_name: 'Chiara', email: 'beispiel@example.ch', reference_number: 'REG-2026-0000',
           membership_type: 'basketball',
         }
         missing = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']
@@ -2101,12 +2126,12 @@ export function registerRegistration(router, { database, logger, services, getSc
         for (const [k, v] of dupCheckIp) { if (now > v.resetAt) dupCheckIp.delete(k) }
       }
 
-      const { vorname, nachname, email } = req.body || {}
-      if (!vorname || !nachname || !email) return res.json({ already_member: false })
+      const { first_name, last_name, email } = englishRegistrationBody(req.body)
+      if (!first_name || !last_name || !email) return res.json({ already_member: false })
       const emailNorm = normalizeEmail(email)
       if (!emailNorm.ok || !emailNorm.value) return res.json({ already_member: false })
 
-      const blocker = await findBlockingMember(database, { vorname, nachname, email: emailNorm.value })
+      const blocker = await findBlockingMember(database, { first_name, last_name, email: emailNorm.value })
       return res.json({ already_member: !!blocker })
     } catch (err) {
       log.error({ msg: `registration/check-duplicate: ${err.message}`, endpoint: 'registration/check-duplicate', stack: err.stack })
@@ -2133,7 +2158,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // nothing about a row they cannot open.
       const regs = await database('registrations').whereIn('id', ids)
         .whereIn('membership_type', scope.sports)
-        .select('id', 'vorname', 'nachname', 'email', 'telefon_mobil', 'geburtsdatum', 'member')
+        .select('id', 'first_name', 'last_name', 'email', 'phone', 'birthdate', 'member')
       // Four queries for the whole page, not four per row. A registration
       // already linked to a member is not "a possible duplicate of that member"
       // — it IS them — so the batch excludes each row's own link, which is what
@@ -2236,16 +2261,16 @@ export function registerRegistration(router, { database, logger, services, getSc
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid registration id' })
       const reg = await database('registrations').where('id', id).first(
-        'id', 'membership_type', 'beitragskategorie', 'geburtsdatum', 'lizenz',
+        'id', 'membership_type', 'fee_category', 'birthdate', 'officials_requested',
         'fee_discount', 'fee_discount_pct', 'fee_discount_reason')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
       const denied = await assertRegistrationAdmin(req, reg.membership_type)
       if (denied) return res.status(denied.status).json({ error: denied.error })
 
-      const licences = mapLicences(reg.lizenz, reg.membership_type)
+      const licences = mapLicences(reg.officials_requested, reg.membership_type)
       const syntheticMember = {
-        birthdate: reg.geburtsdatum,
+        birthdate: reg.birthdate,
         scorer_vb: licences.includes('scorer_vb'),
         otr1_bb: licences.includes('otr1_bb'),
         otr2_bb: licences.includes('otr2_bb'),
@@ -2255,12 +2280,12 @@ export function registerRegistration(router, { database, logger, services, getSc
         fee_discount_pct: reg.fee_discount_pct,
       }
       const bare = { ...syntheticMember, fee_discount: null, fee_discount_pct: null }
-      const derived = feeBreakdown(reg.beitragskategorie, bare, { isGuest: false })
-      const effective = feeBreakdown(reg.beitragskategorie, syntheticMember, { isGuest: false })
+      const derived = feeBreakdown(reg.fee_category, bare, { isGuest: false })
+      const effective = feeBreakdown(reg.fee_category, syntheticMember, { isGuest: false })
 
       return res.json({
         registration: id,
-        category: reg.beitragskategorie || null,
+        category: reg.fee_category || null,
         is_guest: false,
         base_source: derived ? 'category_map' : null,
         surcharge_amount: NO_LICENCE_SURCHARGE,

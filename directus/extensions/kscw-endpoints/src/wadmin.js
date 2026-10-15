@@ -178,7 +178,7 @@ export { REGISTRATION_FILES_FOLDER }
 // registration.js SELF_DOC_FIELDS / bb-docs.js parseWaivedDocs.
 export const REGISTRATION_FILE_COLUMNS = [
   'id_upload_front', 'id_upload_back',
-  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl',
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ]
 

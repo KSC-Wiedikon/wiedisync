@@ -31,6 +31,8 @@ describe('bbRecentLicenceMissing', () => {
     expect(bbRecentLicenceMissing('basketball', false, 'transfer_ch', ADULT, 'ja')).toBe(false)
     expect(bbRecentLicenceMissing('basketball', false, 'transfer_ch', ADULT, 'nein')).toBe(false)
     expect(bbRecentLicenceMissing('basketball', false, 'transfer_ch', ADULT, 'NEIN')).toBe(false)
+    expect(bbRecentLicenceMissing('basketball', false, 'transfer_ch', ADULT, true)).toBe(false)
+    expect(bbRecentLicenceMissing('basketball', false, 'transfer_ch', ADULT, false)).toBe(false)
   })
 
   it('never asks outside a Swiss-club transfer', () => {
