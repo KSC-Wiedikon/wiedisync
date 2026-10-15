@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-14T12:45:10.983Z
+-- Generated:   2026-10-15T10:05:08.157Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict U4Wf9A5uOAlcbyv7F4ivxC8VlOcuh9lhRyOYngPKpFhk6cwBtWwxYIfAIfXJUf1
+\restrict NbSgJeS9uTNpqMQR6IVtX6BsiDr3mcG5C4RpkeMZtQvwR1GNkkKE1bXOkVvJFRZ
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -82,6 +82,18 @@ CREATE TYPE public.svrz_push_status_enum AS ENUM (
     'pushed',
     'failed'
 );
+
+
+--
+-- Name: app_to_cd(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_to_cd(p_domain text, p_value text) RETURNS text
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT clubdesk_value FROM clubdesk_value_map
+   WHERE domain = p_domain AND app_value = p_value AND is_canonical
+$$;
 
 
 --
@@ -233,6 +245,22 @@ END $$;
 --
 
 COMMENT ON FUNCTION public.bb_vb_time_overlap(p_vb_start time without time zone, p_vb_end time without time zone, p_bb_time text) IS 'Does a volleyball slot (start, end) collide with a basketball tip-off on the same floor? Mirrors vbBlocksSlot() in hallOccupancy.ts: VB occupies start-30..end+30, BB occupies tip..tip+120, strict overlap. NULL/unparseable input fails SAFE (true).';
+
+
+--
+-- Name: cd_to_app(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cd_to_app(p_domain text, p_value text) RETURNS text
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT app_value FROM clubdesk_value_map
+   WHERE domain = p_domain
+     AND (clubdesk_value = btrim(p_value)
+          OR lower(regexp_replace(clubdesk_value, '\s+', '', 'g')) = lower(regexp_replace(p_value, '\s+', '', 'g')))
+   ORDER BY (clubdesk_value = btrim(p_value)) DESC, is_canonical DESC
+   LIMIT 1
+$$;
 
 
 --
@@ -5099,6 +5127,54 @@ ALTER SEQUENCE public.clubdesk_export_row_id_seq OWNED BY public.clubdesk_export
 
 
 --
+-- Name: clubdesk_field_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_field_map (
+    id integer NOT NULL,
+    feed text NOT NULL,
+    clubdesk_header text NOT NULL,
+    staging_column text,
+    app_table text,
+    app_column text,
+    direction text NOT NULL,
+    value_domain text,
+    transform text,
+    notes text,
+    CONSTRAINT clubdesk_field_map_direction_check CHECK ((direction = ANY (ARRAY['down'::text, 'up'::text, 'both'::text, 'staged'::text]))),
+    CONSTRAINT clubdesk_field_map_feed_check CHECK ((feed = ANY (ARRAY['members'::text, 'finance_bookings'::text, 'finance_invoices'::text]))),
+    CONSTRAINT clubdesk_field_map_transform_check CHECK ((transform = ANY (ARRAY['date_ch'::text, 'datetime_ch'::text, 'chf'::text, 'phone'::text, 'ahv'::text, 'iban'::text, 'email'::text, 'country'::text, 'country_primary'::text, 'yes_no'::text, 'set'::text])))
+);
+
+
+--
+-- Name: TABLE clubdesk_field_map; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.clubdesk_field_map IS 'ClubDesk CSV header ↔ wiedisync column. ClubDesk stays German, wiedisync is English. Migration 412.';
+
+
+--
+-- Name: clubdesk_field_map_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.clubdesk_field_map_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: clubdesk_field_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.clubdesk_field_map_id_seq OWNED BY public.clubdesk_field_map.id;
+
+
+--
 -- Name: clubdesk_member_sync; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5289,6 +5365,46 @@ CREATE SEQUENCE public.clubdesk_sync_proposals_id_seq
 --
 
 ALTER SEQUENCE public.clubdesk_sync_proposals_id_seq OWNED BY public.clubdesk_sync_proposals.id;
+
+
+--
+-- Name: clubdesk_value_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_value_map (
+    id integer NOT NULL,
+    domain text NOT NULL,
+    app_value text NOT NULL,
+    clubdesk_value text NOT NULL,
+    is_canonical boolean DEFAULT true NOT NULL
+);
+
+
+--
+-- Name: TABLE clubdesk_value_map; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.clubdesk_value_map IS 'ClubDesk picklist value ↔ wiedisync English slug, per domain. is_canonical=false = legacy spelling, pull only. Migration 412.';
+
+
+--
+-- Name: clubdesk_value_map_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.clubdesk_value_map_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: clubdesk_value_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.clubdesk_value_map_id_seq OWNED BY public.clubdesk_value_map.id;
 
 
 --
@@ -12525,10 +12641,24 @@ ALTER TABLE ONLY public.clubdesk_export ALTER COLUMN row_id SET DEFAULT nextval(
 
 
 --
+-- Name: clubdesk_field_map id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_field_map ALTER COLUMN id SET DEFAULT nextval('public.clubdesk_field_map_id_seq'::regclass);
+
+
+--
 -- Name: clubdesk_sync_proposals id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.clubdesk_sync_proposals ALTER COLUMN id SET DEFAULT nextval('public.clubdesk_sync_proposals_id_seq'::regclass);
+
+
+--
+-- Name: clubdesk_value_map id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_value_map ALTER COLUMN id SET DEFAULT nextval('public.clubdesk_value_map_id_seq'::regclass);
 
 
 --
@@ -13583,6 +13713,22 @@ ALTER TABLE ONLY public.clubdesk_export
 
 
 --
+-- Name: clubdesk_field_map clubdesk_field_map_feed_clubdesk_header_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_field_map
+    ADD CONSTRAINT clubdesk_field_map_feed_clubdesk_header_key UNIQUE (feed, clubdesk_header);
+
+
+--
+-- Name: clubdesk_field_map clubdesk_field_map_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_field_map
+    ADD CONSTRAINT clubdesk_field_map_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: clubdesk_member_sync clubdesk_member_sync_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13596,6 +13742,22 @@ ALTER TABLE ONLY public.clubdesk_member_sync
 
 ALTER TABLE ONLY public.clubdesk_sync_proposals
     ADD CONSTRAINT clubdesk_sync_proposals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clubdesk_value_map clubdesk_value_map_domain_clubdesk_value_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_value_map
+    ADD CONSTRAINT clubdesk_value_map_domain_clubdesk_value_key UNIQUE (domain, clubdesk_value);
+
+
+--
+-- Name: clubdesk_value_map clubdesk_value_map_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_value_map
+    ADD CONSTRAINT clubdesk_value_map_pkey PRIMARY KEY (id);
 
 
 --
@@ -15107,6 +15269,13 @@ CREATE UNIQUE INDEX clubdesk_sync_proposals_refused_uq ON public.clubdesk_sync_p
 --
 
 CREATE INDEX clubdesk_sync_proposals_status_idx ON public.clubdesk_sync_proposals USING btree (status, detected_at DESC);
+
+
+--
+-- Name: clubdesk_value_map_canonical_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clubdesk_value_map_canonical_uq ON public.clubdesk_value_map USING btree (domain, app_value) WHERE is_canonical;
 
 
 --
@@ -19762,7 +19931,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict U4Wf9A5uOAlcbyv7F4ivxC8VlOcuh9lhRyOYngPKpFhk6cwBtWwxYIfAIfXJUf1
+\unrestrict NbSgJeS9uTNpqMQR6IVtX6BsiDr3mcG5C4RpkeMZtQvwR1GNkkKE1bXOkVvJFRZ
 
 
 
@@ -19778,7 +19947,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 415 migration(s) already in the schema above.
+-- Migration tracker seed — 416 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20206,6 +20375,7 @@ FROM (VALUES
   ('408-game-call-up-staff.sql'),
   ('409-hall-bookings.sql'),
   ('410-booking-extra-halls.sql'),
-  ('411-finance-books.sql')
+  ('411-finance-books.sql'),
+  ('412-clubdesk-maps.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
