@@ -21,6 +21,10 @@
 // unrecognised in the next.
 
 /** 'KS Wiedikon' first — it is the club's own school and by far the common answer. */
+/** 'Another Kantonsschule' — a category, not a school. Stored as 'other' since migration 415. */
+export const KANTONSSCHULE_OTHER = 'other'
+const KANTONSSCHULE_OTHER_VALUE = KANTONSSCHULE_OTHER
+
 export const KANTONSSCHULEN: readonly string[] = [
   'KS Wiedikon',
   'KS Birch',
@@ -47,7 +51,7 @@ export const KANTONSSCHULEN: readonly string[] = [
   'KS Zimmerberg',
   'KS Zürich Nord',
   'Liceo Artistico',
-  'Andere Kantonsschule',
+  KANTONSSCHULE_OTHER_VALUE,
 ]
 
 /**
@@ -57,4 +61,11 @@ export const KANTONSSCHULEN: readonly string[] = [
  * the signup form postdates them. Collapsing the two would turn "we have not
  * asked 681 people" into "681 people are not at a Kantonsschule".
  */
-export const KANTONSSCHULE_NONE = 'Nein'
+export const KANTONSSCHULE_NONE = 'none' // was 'Nein' (migration 415)
+
+/** Display label of a stored school value: the two slugs read as the form's wording. */
+export function kantonsschuleLabel(v: string): string {
+  if (v === KANTONSSCHULE_NONE) return 'Nein'
+  if (v === KANTONSSCHULE_OTHER) return 'Andere Kantonsschule'
+  return v
+}

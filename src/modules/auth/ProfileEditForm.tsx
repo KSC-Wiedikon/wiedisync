@@ -32,7 +32,7 @@ import { CheckIcon, ChevronDown, Info, Lock } from 'lucide-react'
 import IconButton from '@/components/IconButton'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
-import { KANTONSSCHULEN } from '../../utils/kantonsschulen'
+import { KANTONSSCHULEN, KANTONSSCHULE_NONE, kantonsschuleLabel } from '../../utils/kantonsschulen'
 import type { MemberPosition } from '../../types'
 import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 import { hasApiErrorCode } from '../../lib/apiErrorCode'
@@ -193,8 +193,8 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   const kantonsschuleOptions = useMemo(() => {
     const base = [
       { value: '', label: t('kantonsschuleUnset') },
-      { value: 'Nein', label: t('kantonsschuleNo') },
-      ...KANTONSSCHULEN.map((v) => ({ value: v, label: v })),
+      { value: KANTONSSCHULE_NONE, label: t('kantonsschuleNo') },
+      ...KANTONSSCHULEN.map((v) => ({ value: v, label: kantonsschuleLabel(v) })),
     ]
     const stored = user?.cantonal_school
     if (stored && !base.some((o) => o.value === stored)) base.push({ value: stored, label: stored })
@@ -798,8 +798,8 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Herr">{t('mr')}</SelectItem>
-                    <SelectItem value="Frau">{t('mrs')}</SelectItem>
+                    <SelectItem value="mr">{t('mr')}</SelectItem>
+                    <SelectItem value="ms">{t('mrs')}</SelectItem>
                   </SelectContent>
                 </Select>
               </FormField>

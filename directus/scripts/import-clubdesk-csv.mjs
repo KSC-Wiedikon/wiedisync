@@ -554,7 +554,8 @@ const psqlInput =
   "         CASE WHEN btrim(coalesce(austritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
   "              THEN to_date(btrim(austritt),'DD.MM.YYYY') END AS cd_austritt,\n" +
   "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS cd_sex,\n" +
-  "         left(NULLIF(btrim(anrede),''),10) AS cd_anrede,\n" +
+  // Salutation is a slug in wiedisync since migration 415 ('Herr' → 'mr').
+  "         cd_to_app('salutation', NULLIF(btrim(anrede),'')) AS cd_anrede,\n" +
   "         left(NULLIF(btrim(nationalitaet),''),100) AS cd_nationalitaet,\n" +
   "         regexp_replace(btrim(coalesce(ahv_nummer,'')), '[^0-9]', '', 'g') AS cd_ahv_digits,\n" +
   "         lower(btrim(coalesce(federation_of_origin,''))) AS cd_fed_name,\n" +

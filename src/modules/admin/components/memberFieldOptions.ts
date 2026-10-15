@@ -15,7 +15,7 @@
 // Labels are English-only on purpose — this whole explorer surface is (group
 // headers, "Yes"/"No", the field labels next door). Sentence case per CLAUDE.md.
 
-import { KANTONSSCHULEN, KANTONSSCHULE_NONE } from '../../../utils/kantonsschulen'
+import { KANTONSSCHULEN, KANTONSSCHULE_NONE, kantonsschuleLabel } from '../../../utils/kantonsschulen'
 
 export interface FieldOption {
   value: string
@@ -106,8 +106,9 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
   salutation: {
     nullable: true,
     options: [
-      { value: 'Herr', label: 'Herr' },
-      { value: 'Frau', label: 'Frau' },
+      // Slugs since migration 415; ClubDesk's Anrede is Herr / Frau.
+      { value: 'mr', label: 'Herr (Mr)' },
+      { value: 'ms', label: 'Frau (Ms)' },
     ],
   },
   /**
@@ -255,7 +256,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
     nullable: true,
     options: [
       { value: KANTONSSCHULE_NONE, label: 'Nein — not at a Kantonsschule' },
-      ...KANTONSSCHULEN.map((v) => ({ value: v, label: v })),
+      ...KANTONSSCHULEN.map((v) => ({ value: v, label: kantonsschuleLabel(v) })),
     ],
   },
 }

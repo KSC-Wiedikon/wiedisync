@@ -54,6 +54,7 @@ export default defineConfig({
       // Registration column vocabulary (English slugs ↔ form / ClubDesk values),
       // same arrangement as @bb-docs. Types: registration-values.d.ts.
       '@registration-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
+      '@member-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/member-values.js'),
     },
   },
   server: {

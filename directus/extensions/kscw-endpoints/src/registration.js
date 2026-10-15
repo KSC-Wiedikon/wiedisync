@@ -11,6 +11,7 @@ import {
   englishRegistrationBody, normalizeSex, normalizeRole, normalizeOfficials, officialsToClubdesk,
   normalizeBbSituation, normalizeRecentLicence,
 } from './registration-values.js'
+import { normalizeSalutation, normalizeCantonalSchool, cantonalSchoolToLegacy } from './member-values.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
@@ -651,7 +652,7 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
     { label: l.dob, value: dob, halfWidth: true },
     { label: l.nationality, value: natLabel(reg, locale), halfWidth: true },
     { label: l.adminAhv, value: reg.ahv_number || '-', halfWidth: true },
-    { label: l.adminKantonsschule, value: reg.cantonal_school || '-', halfWidth: true },
+    { label: l.adminKantonsschule, value: cantonalSchoolToLegacy(reg.cantonal_school) || '-', halfWidth: true },
     ...(reg.officials_requested ? [{ label: l.licence, value: officialsToClubdesk(reg.officials_requested, reg.membership_type) }] : []),
     ...(reg.referee_level ? [{ label: l.refLevel, value: reg.referee_level }] : []),
     { label: l.ref, value: reg.reference_number },
@@ -1206,7 +1207,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const id = await itemsService.createOne({
         status: 'pending',
         membership_type: body.membership_type,
-        salutation: capText(body.salutation, 30),
+        salutation: normalizeSalutation(body.salutation),
         // Title-case names + address so lazy all-lowercase entry ("janina vanha",
         // "rosengartenstrasse 33", "zürich") is stored — and shown in the
         // confirmation / admin emails and the /admin list — properly capitalized.
@@ -1227,7 +1228,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         iban: ibanNorm.value,
         team: capText(Array.isArray(body.team) ? body.team.join(', ') : body.team, 255),
         fee_category: approvedFeeCategory(body.fee_category, body.membership_type),
-        cantonal_school: capText(body.cantonal_school, 200),
+        cantonal_school: normalizeCantonalSchool(capText(body.cantonal_school, 200)),
         // A passive registration's form sends its licence list as the role too;
         // that is not a role, so it stores null (the list is officials_requested).
         role: normalizeRole(body.role),

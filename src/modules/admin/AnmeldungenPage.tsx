@@ -27,6 +27,7 @@ import {
   ROLE_VALUES, OFFICIAL_VALUES, officialsList, normalizeOfficials,
   officialsToClubdesk, roleToClubdesk, sexToClubdesk, salutationFromSex,
 } from '@registration-values'
+import { cantonalSchoolToLegacy } from '@member-values'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import DatePicker from '../../components/ui/DatePicker'
@@ -269,7 +270,7 @@ function buildClubDeskCSV(items: Registration[]): string {
       '', '', '',
       item.fee_category || '',
       '', '',
-      item.cantonal_school || '',
+      cantonalSchoolToLegacy(item.cantonal_school),
       officialsToClubdesk(item.officials_requested, item.membership_type),
       '',
       item.ahv_number || '',

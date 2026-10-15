@@ -131,7 +131,8 @@ async function harvestLicenceList(page) {
   const normCat = (c) => {
     if (!c) return null
     if (/^U ?\d+$/i.test(c)) return c.replace(/^U ?(\d+)$/i, 'U $1')
-    if (/^(Offizielle\/r|Ufficiale|Officiel(\/le)?)$/i.test(c)) return 'Offizielle/r'
+    // Stored as the slug 'official' since migration 415 (was 'Offizielle/r').
+    if (/^(Offizielle\/r|Ufficiale|Officiel(\/le)?)$/i.test(c)) return 'official'
     return c
   }
   // A person can appear on several list rows (e.g. player + official); the
@@ -292,7 +293,7 @@ UPDATE members m
  WHERE m.id = b.member_id
    AND nullif(btrim(b.licence_category),'') IS NOT NULL
    AND (nullif(btrim(m.licence_category),'') IS NULL
-        OR btrim(m.licence_category) IN ('Senior', 'Offizielle/r')
+        OR btrim(m.licence_category) IN ('Senior', 'official', 'Offizielle/r')
         OR btrim(m.licence_category) ~ '^U ?[0-9]+$')
    AND btrim(m.licence_category) IS DISTINCT FROM btrim(b.licence_category);
 

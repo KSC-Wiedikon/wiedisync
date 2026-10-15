@@ -5,6 +5,7 @@
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
 import { roleToClubdesk, normalizeOfficials, officialsList } from './registration-values.js'
+import { normalizeSalutation, salutationToClubdesk, cantonalSchoolToLegacy, normalizeLicenceCategory, LICENCE_CATEGORY_OFFICIAL } from './member-values.js'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
@@ -456,7 +457,9 @@ const CD_MITTELSCHULE_MAP = {
   'Andere Kantonsschule': '',
 }
 export function kantonsschuleCell(v) {
-  const s = String(v ?? '').trim()
+  // Slugs since migration 415: 'none' (was 'Nein') and 'other' (was 'Andere
+  // Kantonsschule') are mapped back to the old spellings the rules below expect.
+  const s = cantonalSchoolToLegacy(v)
   if (!s || s.toLowerCase() === 'nein') return ''
   return Object.prototype.hasOwnProperty.call(CD_MITTELSCHULE_MAP, s) ? CD_MITTELSCHULE_MAP[s] : s
 }
@@ -643,7 +646,8 @@ export const PROPOSAL_COLUMNS = {
   // not fail loudly, it would quietly put 'männlich' in the column the whole
   // gender pipeline reads (fees, the join-team picker, the licence exports).
   sex: 'sex',
-  salutation: 'text',
+  // Slug since migration 415 ('mr'/'ms'); the conflict rule stages ClubDesk's 'Herr'/'Frau'.
+  salutation: 'salutation',
   // ⚠ Writing `nationalitaet` is correct despite the column being
   // trigger-derived: members_sync_nationality() resolves a written display name
   // back to nationalitaet_codes and re-canonicalises the name. Writing the CODE
@@ -689,6 +693,10 @@ export function coerceProposalValue(field, raw, ctx = {}) {
   const v = String(raw ?? '').trim()
   if (!v) return { ok: false }
   if (type === 'bool') return { ok: v === 'true', value: true }
+  if (type === 'salutation') {
+    const s = normalizeSalutation(v)
+    return s ? { ok: true, value: s } : { ok: false }
+  }
   // ⚠⚠ TWO vocabularies reach this function, and forgetting the second one is
   // the whole bug class it now guards (2026-08-29). `proposed_value` is written
   // by two different detection passes:
@@ -1384,8 +1392,9 @@ export function trainerLicenceDisplay(codes, loc) {
 // licence. Suppressed here — an official-only member sends an empty cell (a
 // harmless no-op on import). members.licence_category keeps the value.
 export function lizenzartCell(licenceCategory) {
-  const v = String(licenceCategory || '').trim()
-  return v === 'Offizielle/r' ? '' : v
+  // 'official' since migration 415 (was 'Offizielle/r'); both suppress the cell.
+  const v = normalizeLicenceCategory(licenceCategory) ?? ''
+  return v === LICENCE_CATEGORY_OFFICIAL ? '' : v
 }
 
 export function buildPushCsv(members, { create = false, countryNames = null } = {}) {
@@ -1420,7 +1429,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // CD_PUSH_CONTACT_HEADERS). Creates push their own values (a new contact
       // has no ClubDesk value to blank).
       ibanOut,
-      m.salutation || '', m.nationalitaet || '',
+      salutationToClubdesk(m.salutation), m.nationalitaet || '',
       // Federation of Origin. The echo can't ride on the field itself the way
       // anrede/nationalitaet do (those already hold ClubDesk's own German
       // string): wiedisync stores a CODE, so /up stashes ClubDesk's raw cell in
@@ -1913,7 +1922,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     }
     // Anrede / Nationalität / AHV are echo-protected — see cmpEcho above.
     // AHV compares digits-only (dot formatting differs between the systems).
-    cmpEcho('salutation', r.salutation, r.cd_anrede, driftLower(r.salutation), driftLower(r.cd_anrede))
+    cmpEcho('salutation', r.salutation, r.cd_anrede, driftLower(salutationToClubdesk(r.salutation)), driftLower(r.cd_anrede))
     // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
     // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
     // into OUR display name, while ClubDesk holds its own picklist spelling —

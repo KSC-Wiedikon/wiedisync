@@ -30,6 +30,7 @@
 
 import { normalizePhone } from './normalize.js'
 import { normalizeSex, normalizeOfficials, officialsList } from './registration-values.js'
+import { normalizeSalutation } from './member-values.js'
 
 /** Symmetric first-name-prefix match — the same rule the ClubDesk linker and
  *  createMemberFromRegistration use: "Dani" ↔ "Daniel" is the same person,
@@ -345,7 +346,7 @@ export async function buildMergeDiff(db, reg, member) {
     ['nationalitaet_codes', 'Nationality', natCodes],
     ['federation_of_origin', 'Federation of origin', normFederation(reg.federation_of_origin)],
     ['sex', 'Sex', normalizeSex(reg.sex)],
-    ['salutation', 'Salutation', ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation : null],
+    ['salutation', 'Salutation', normalizeSalutation(reg.salutation)],
     ['ahv_number', 'AHV number', reg.ahv_number],
     ['iban', 'IBAN', reg.iban],
     ['fee_category', 'Fee category', reg.fee_category],

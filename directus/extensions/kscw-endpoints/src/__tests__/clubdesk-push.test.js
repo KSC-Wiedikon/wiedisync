@@ -490,7 +490,7 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // the bottom, which for `email` would mean any register free-text landing in
     // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences'],
+      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences', 'salutation'],
         `${field} has type ${type}`).toContain(type)
     }
   })
@@ -1471,5 +1471,22 @@ describe('buildPushCsv — Sektion + Lizenz bestellt', () => {
     const h = header.split(';'); const c = row.split(';')
     expect(c[h.indexOf('Lizenz bestellt')]).toBe('12.09.2026')
     expect(c[h.indexOf('Sektion')]).toBe('KSCW')
+  })
+})
+
+describe('member values at the ClubDesk border (migration 415)', () => {
+  it('pushes the German salutation, school and licence-category cells', async () => {
+    const { kantonsschuleCell, lizenzartCell, coerceProposalValue } = await import('../clubdesk-update.js')
+    expect(kantonsschuleCell('none')).toBe('')
+    expect(kantonsschuleCell('other')).toBe('')
+    expect(kantonsschuleCell('Nein')).toBe('')
+    expect(kantonsschuleCell('KS Rämibühl (Realgymnasium)')).toBe('KS Rämibühl')
+    expect(lizenzartCell('official')).toBe('')
+    expect(lizenzartCell('Offizielle/r')).toBe('')
+    expect(lizenzartCell('RLL')).toBe('RLL')
+    // The conflict rule stages ClubDesk's cell; the accept stores the slug.
+    expect(coerceProposalValue('salutation', 'Herr')).toEqual({ ok: true, value: 'mr' })
+    expect(coerceProposalValue('salutation', 'ms')).toEqual({ ok: true, value: 'ms' })
+    expect(coerceProposalValue('salutation', 'Dr.')).toEqual({ ok: false })
   })
 })

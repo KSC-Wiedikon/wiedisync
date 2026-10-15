@@ -1,6 +1,15 @@
+import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // The backend vocabulary modules the app imports (same aliases as vite.config.ts).
+  resolve: {
+    alias: {
+      '@bb-docs': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/bb-docs.js'),
+      '@registration-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
+      '@member-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/member-values.js'),
+    },
+  },
   test: {
     environment: 'node',
     // vitest 5 clears every mock before each test by default; the suite is

@@ -11,7 +11,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@bb-docs": ["./directus/extensions/kscw-endpoints/src/bb-docs"],
-      "@registration-values": ["./directus/extensions/kscw-endpoints/src/registration-values"]
+      "@registration-values": ["./directus/extensions/kscw-endpoints/src/registration-values"],
+      "@member-values": ["./directus/extensions/kscw-endpoints/src/member-values"]
     },
 
     /* Bundler mode */

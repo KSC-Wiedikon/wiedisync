@@ -27,6 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
+import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory } from '../../kscw-endpoints/src/member-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -6022,6 +6023,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return /^[A-Z]{2}$/.test(v) ? v : null
   }
 
+  // ── members: German values arriving after migration 415 ────────────────
+  // Salutation, cantonal school and the officials licence category are slugs
+  // now, behind CHECKs. A cached pre-415 bundle, the Data Studio or an import
+  // can still send 'Herr' / 'Nein' / 'Offizielle/r'; normalise instead of 400.
+  const normalizeMemberValues = (payload) => {
+    if (!payload || typeof payload !== 'object') return payload
+    if ('salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
+    if ('cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
+    if ('licence_category' in payload && payload.licence_category != null) payload.licence_category = normalizeLicenceCategory(payload.licence_category)
+    return payload
+  }
+  filter('members.items.create', (payload) => normalizeMemberValues(payload))
+  filter('members.items.update', (payload) => normalizeMemberValues(payload))
+  filter('registrations.items.update', (payload) => {
+    if (payload && 'salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
+    if (payload && 'cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
+    return payload
+  })
+
   // ── Create or link member from approved registration ───────────
   // Symmetric first-name-prefix match (same rule the ClubDesk linker uses):
   // "Dani" ↔ "Daniel" is the same person; "Anna" ↔ "Luca" is not. Missing
@@ -6169,7 +6189,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
       const regSex = normalizeSex(reg.sex)
       if (!existingMember.sex && regSex) updates.sex = regSex
-      // Salutation ('Herr'/'Frau') — the ClubDesk sync-up reads its Anrede
+      // Salutation ('mr'/'ms' since migration 415) — the ClubDesk sync-up reads its Anrede
       // column off the member. The signup form never asks for it directly
       // (no Anrede field exists on the public registration flow, so
       // reg.salutation is realistically always empty); sex IS asked and
@@ -6178,12 +6198,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // to whichever sex is already known (existing member or this
       // registration) when reg.salutation itself carries no usable value.
       if (!existingMember.salutation) {
-        if (['Herr', 'Frau'].includes(reg.salutation)) updates.salutation = reg.salutation
-        else {
-          const sexKnown = existingMember.sex || regSex
-          if (sexKnown === 'm') updates.salutation = 'Herr'
-          else if (sexKnown === 'f') updates.salutation = 'Frau'
-        }
+        const sal = normalizeSalutation(reg.salutation) ?? salutationForSex(existingMember.sex || regSex)
+        if (sal) updates.salutation = sal
       }
       if (!existingMember.ahv_number && reg.ahv_number) updates.ahv_number = reg.ahv_number
       // Payout IBAN from the signup form (migration 185) — fill-only, and
@@ -6287,8 +6303,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // Salutation — see the fill-only branch above for why this derives
         // from Geschlecht rather than waiting on a field the signup form
         // never asks.
-        salutation: ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation
-          : sex === 'm' ? 'Herr' : sex === 'f' ? 'Frau' : null,
+        salutation: normalizeSalutation(reg.salutation) ?? salutationForSex(sex),
         ahv_number: reg.ahv_number || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
         // (mod-97) + normalized by registration.js; confirmed since the member
