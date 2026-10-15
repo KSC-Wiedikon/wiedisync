@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T12:25:16.907Z
+-- Generated:   2026-10-15T13:54:40.857Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict vctUqGIBdJttqv2EIaamoWS0zITeTPJQfLR70qMZR3cRROGCX8qGBchKyeWkztK
+\restrict 074i2l7hYREgj2NtsdVmeZfNAzpbBRUyRQPGIs9bZowGlTHLtIoqj5B0aLUm2F7
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1113,9 +1113,9 @@ CREATE FUNCTION public.kscw_refresh_event_sport_section(p_events integer[]) RETU
     SET search_path TO 'public'
     AS $$
   UPDATE events e
-  SET sport_section = kscw_event_sport_section(e.id)
+  SET permissions_section = kscw_event_sport_section(e.id)
   WHERE e.id = ANY(p_events)
-    AND e.sport_section IS DISTINCT FROM kscw_event_sport_section(e.id)
+    AND e.permissions_section IS DISTINCT FROM kscw_event_sport_section(e.id)
 $$;
 
 
@@ -1128,9 +1128,9 @@ CREATE FUNCTION public.kscw_refresh_member_sport_section(p_members integer[]) RE
     SET search_path TO 'public'
     AS $$
   UPDATE members m
-  SET sport_section = kscw_member_sport_section(m.id, m.sektion, m.beitragskategorie)
+  SET permissions_section = kscw_member_sport_section(m.id, m.club_section, m.fee_category)
   WHERE m.id = ANY(p_members)
-    AND m.sport_section IS DISTINCT FROM kscw_member_sport_section(m.id, m.sektion, m.beitragskategorie)
+    AND m.permissions_section IS DISTINCT FROM kscw_member_sport_section(m.id, m.club_section, m.fee_category)
 $$;
 
 
@@ -1504,7 +1504,7 @@ BEGIN
     INTO v_clubdesk_id, v_pending_before
     FROM members m
    WHERE m.id = NEW.members_id
-     AND COALESCE(BTRIM(m.beitragskategorie), '') = ''
+     AND COALESCE(BTRIM(m.fee_category), '') = ''
      AND m.kscw_membership_active IS TRUE
      AND NOT EXISTS (SELECT 1 FROM member_teams mt
                       WHERE mt.member = NEW.members_id
@@ -1515,15 +1515,15 @@ BEGIN
   END IF;
 
   UPDATE members m SET
-    beitragskategorie = 'Gratis',
+    fee_category = 'Gratis',
     clubdesk_push_pending = CASE WHEN m.clubdesk_id IS NOT NULL
       THEN true ELSE m.clubdesk_push_pending END,
     clubdesk_push_changes = CASE WHEN m.clubdesk_id IS NOT NULL THEN
       (SELECT COALESCE(jsonb_agg(e), '[]'::jsonb)
          FROM jsonb_array_elements(COALESCE(m.clubdesk_push_changes, '[]'::jsonb)) e
-        WHERE e->>'field' <> 'beitragskategorie')
+        WHERE e->>'field' NOT IN ('beitragskategorie', 'fee_category'))
       || jsonb_build_array(jsonb_build_object(
-           'field', 'beitragskategorie', 'old_value', NULL, 'new_value', 'Gratis'))
+           'field', 'fee_category', 'old_value', NULL, 'new_value', 'Gratis'))
       ELSE m.clubdesk_push_changes END
   WHERE m.id = NEW.members_id;
 
@@ -1538,7 +1538,7 @@ BEGIN
   VALUES ('fee_category_auto', 'members', NEW.members_id::text,
           jsonb_build_object(
             'source', 'staff_gratis_fill',
-            'field', 'beitragskategorie',
+            'field', 'fee_category',
             'value', 'Gratis',
             'team', NEW.teams_id,
             'junction', TG_TABLE_NAME,
@@ -1588,13 +1588,13 @@ BEGIN
   BEGIN
     -- Locked so nothing changes the row between the checks and the UPDATE.
     -- NOT FOUND = the member was deleted and took this junction row with it.
-    SELECT mm.beitragskategorie, mm.clubdesk_id, mm.clubdesk_push_pending,
+    SELECT mm.fee_category, mm.clubdesk_id, mm.clubdesk_push_pending,
            mm.clubdesk_push_changes, mm.clubdesk_pushed_at, mm.date_updated
       INTO m
       FROM members mm
      WHERE mm.id = v_member
        FOR UPDATE;
-    IF NOT FOUND OR m.beitragskategorie IS DISTINCT FROM 'Gratis' THEN
+    IF NOT FOUND OR m.fee_category IS DISTINCT FROM 'Gratis' THEN
       RETURN NULL;
     END IF;
     IF EXISTS (SELECT 1 FROM member_teams mt
@@ -1609,7 +1609,7 @@ BEGIN
       FROM user_logs l
      WHERE l.collection_name = 'members'
        AND l.record_id = v_member::text
-       AND strpos(COALESCE(l.data::text, ''), 'beitragskategorie') > 0
+       AND (strpos(COALESCE(l.data::text, ''), 'beitragskategorie') > 0 OR strpos(COALESCE(l.data::text, ''), 'fee_category') > 0)
      ORDER BY l.id DESC
      LIMIT 1;
     IF NOT FOUND OR fill.action IS DISTINCT FROM 'fee_category_auto' THEN
@@ -1624,7 +1624,7 @@ BEGIN
                   WHERE r.id > v_hwm
                     AND r.collection = 'members'
                     AND r.item = v_member::text
-                    AND strpos(COALESCE(r.delta::text, ''), 'beitragskategorie') > 0) THEN
+                    AND (strpos(COALESCE(r.delta::text, ''), 'beitragskategorie') > 0 OR strpos(COALESCE(r.delta::text, ''), 'fee_category') > 0)) THEN
         RETURN NULL;
       END IF;
     END IF;
@@ -1645,13 +1645,13 @@ BEGIN
     -- Drop the queued 'Gratis' entry (262's shape); keep every other entry.
     IF jsonb_typeof(m.clubdesk_push_changes) = 'array' AND EXISTS (
          SELECT 1 FROM jsonb_array_elements(m.clubdesk_push_changes) e
-          WHERE e->>'field' = 'beitragskategorie'
+          WHERE e->>'field' IN ('beitragskategorie', 'fee_category')
             AND e->>'new_value' = 'Gratis') THEN
       v_had_entry := true;
       SELECT COALESCE(jsonb_agg(t.e ORDER BY t.ord), '[]'::jsonb)
         INTO v_changes
         FROM jsonb_array_elements(m.clubdesk_push_changes) WITH ORDINALITY AS t(e, ord)
-       WHERE t.e->>'field' IS DISTINCT FROM 'beitragskategorie';
+       WHERE t.e->>'field' NOT IN ('beitragskategorie', 'fee_category');
     END IF;
 
     -- The pending flag goes only when the fill was provably its sole reason
@@ -1667,7 +1667,7 @@ BEGIN
                          AND l.id > fill.id), false);
 
     UPDATE members SET
-      beitragskategorie = NULL,
+      fee_category = NULL,
       clubdesk_push_changes = CASE WHEN v_had_entry
         THEN NULLIF(v_changes, '[]'::jsonb) ELSE clubdesk_push_changes END,
       clubdesk_push_pending = CASE WHEN v_clear
@@ -1678,7 +1678,7 @@ BEGIN
     VALUES ('fee_category_auto_revert', 'members', v_member::text,
             jsonb_build_object(
               'source', 'staff_gratis_revert',
-              'field', 'beitragskategorie',
+              'field', 'fee_category',
               'old_value', 'Gratis',
               'value', NULL,
               'team', OLD.teams_id,
@@ -1697,7 +1697,7 @@ BEGIN
       VALUES ('fee_category_auto_revert_needs_clubdesk', 'members', v_member::text,
               jsonb_build_object(
                 'source', 'staff_gratis_revert',
-                'field', 'beitragskategorie',
+                'field', 'fee_category',
                 'clubdesk_value', 'Gratis',
                 'clubdesk_id', m.clubdesk_id,
                 'reason', CASE WHEN v_in_flight THEN 'push_in_flight' ELSE 'pushed' END,
@@ -1969,7 +1969,7 @@ CREATE FUNCTION public.trg_events_sport_section() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-  NEW.sport_section := kscw_event_sport_section(NEW.id);
+  NEW.permissions_section := kscw_event_sport_section(NEW.id);
   RETURN NEW;
 END $$;
 
@@ -2340,7 +2340,7 @@ CREATE FUNCTION public.trg_members_sport_section() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-  NEW.sport_section := kscw_member_sport_section(NEW.id, NEW.sektion, NEW.beitragskategorie);
+  NEW.permissions_section := kscw_member_sport_section(NEW.id, NEW.club_section, NEW.fee_category);
   RETURN NEW;
 END $$;
 
@@ -5990,11 +5990,11 @@ CREATE TABLE public.events (
     carpool_enabled boolean DEFAULT false NOT NULL,
     carpool_teams jsonb,
     signup_form_slug text,
-    sport_section text DEFAULT 'both'::text NOT NULL,
+    permissions_section text DEFAULT 'both'::text NOT NULL,
     additional_halls json,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
-    CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text))),
-    CONSTRAINT events_sport_section_check CHECK ((sport_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text])))
+    CONSTRAINT events_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
+    CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
 
@@ -9456,14 +9456,14 @@ CREATE TABLE public.members (
     "user" uuid,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    is_spielplaner boolean DEFAULT false NOT NULL,
-    adresse character varying(255),
-    plz character varying(10),
-    ort character varying(100),
+    is_scheduler boolean DEFAULT false NOT NULL,
+    address character varying(255),
+    postal_code character varying(10),
+    city character varying(100),
     nationalitaet character varying(100),
-    anrede character varying(10),
-    ahv_nummer character varying(20),
-    beitragskategorie character varying(100),
+    salutation character varying(10),
+    ahv_number character varying(20),
+    fee_category character varying(100),
     licence_category character varying(50),
     licence_activated boolean,
     licence_validated boolean,
@@ -9486,10 +9486,10 @@ CREATE TABLE public.members (
     billing_name character varying(255),
     billing_email character varying(255),
     billing_address character varying(255),
-    billing_plz character varying(10),
-    billing_ort character varying(100),
+    billing_postal_code character varying(10),
+    billing_city character varying(100),
     billing_phone character varying(255),
-    sektion character varying(32),
+    club_section character varying(32),
     billing_iban character varying(34),
     iban_confirmed boolean DEFAULT false NOT NULL,
     never_dun boolean DEFAULT false NOT NULL,
@@ -9533,29 +9533,29 @@ CREATE TABLE public.members (
     licence_status_updated_at timestamp with time zone,
     licence_status_by_name character varying(120),
     register_status character varying(24),
-    eintritt date,
-    austritt date,
+    joined_on date,
+    left_on date,
     vis_player_no_manual integer,
     vis_manual_vis_name text,
-    kantonsschule character varying(64),
+    cantonal_school character varying(64),
     deactivated_at timestamp with time zone,
     dues_paid boolean DEFAULT false NOT NULL,
     dues_paid_season character varying(9),
     dues_paid_at date,
     licence_ordered_at date,
-    sport_section text DEFAULT 'both'::text NOT NULL,
-    CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
+    permissions_section text DEFAULT 'both'::text NOT NULL,
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
+    CONSTRAINT members_left_on_needs_departed_status CHECK (((left_on IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
     CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
+    CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Aktivmitglied'::character varying, 'Passivmitglied'::character varying, 'Ehrenmitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying, 'Zwischenjahr'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
-    CONSTRAINT members_sport_section_check CHECK ((sport_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
 );
@@ -9611,10 +9611,10 @@ COMMENT ON COLUMN public.members.nationalitaet IS 'DERIVED — German display na
 
 
 --
--- Name: COLUMN members.beitragskategorie; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.fee_category; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.beitragskategorie IS 'ClubDesk fee category (German picklist value, ClubDesk-owned; synced down, never derived here).';
+COMMENT ON COLUMN public.members.fee_category IS 'ClubDesk fee category (German picklist value, ClubDesk-owned; synced down, never derived here).';
 
 
 --
@@ -9744,10 +9744,10 @@ COMMENT ON COLUMN public.members.billing_different IS 'When true, the EXPENSE-PA
 
 
 --
--- Name: COLUMN members.sektion; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.club_section; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.sektion IS 'ClubDesk Sektion (Volleyball / Basketball / KSCW) — the member''s sport division. Synced from clubdesk_export by import-clubdesk-csv.mjs; ClubDesk-authoritative (always updated).';
+COMMENT ON COLUMN public.members.club_section IS 'ClubDesk Sektion (Volleyball / Basketball / KSCW) — the member''s sport division. Synced from clubdesk_export by import-clubdesk-csv.mjs; ClubDesk-authoritative (always updated).';
 
 
 --
@@ -10017,17 +10017,17 @@ COMMENT ON COLUMN public.members.register_status IS 'The club register''s member
 
 
 --
--- Name: COLUMN members.eintritt; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.joined_on; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.eintritt IS 'Club entry date (ClubDesk "Eintritt"). Pushed as dd.mm.yyyy. For members created from a signup this is the registration SUBMISSION date (user rule 2026-07-06); for everybody else it is whatever the register holds.';
+COMMENT ON COLUMN public.members.joined_on IS 'Club entry date (ClubDesk "Eintritt"). Pushed as dd.mm.yyyy. For members created from a signup this is the registration SUBMISSION date (user rule 2026-07-06); for everybody else it is whatever the register holds.';
 
 
 --
--- Name: COLUMN members.austritt; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.left_on; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.austritt IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
+COMMENT ON COLUMN public.members.left_on IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
 
 
 --
@@ -10045,10 +10045,10 @@ COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName L
 
 
 --
--- Name: COLUMN members.kantonsschule; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN members.cantonal_school; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.kantonsschule IS 'Which Zurich Kantonsschule this member attends. ''Nein'' = asked and not at one; NULL = never asked. Mirrors the signup form''s list (kscw-website weiteres/anmeldung.astro); intentionally unconstrained — see migration 315.';
+COMMENT ON COLUMN public.members.cantonal_school IS 'Which Zurich Kantonsschule this member attends. ''Nein'' = asked and not at one; NULL = never asked. Mirrors the signup form''s list (kscw-website weiteres/anmeldung.astro); intentionally unconstrained — see migration 315.';
 
 
 --
@@ -19925,7 +19925,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vctUqGIBdJttqv2EIaamoWS0zITeTPJQfLR70qMZR3cRROGCX8qGBchKyeWkztK
+\unrestrict 074i2l7hYREgj2NtsdVmeZfNAzpbBRUyRQPGIs9bZowGlTHLtIoqj5B0aLUm2F7
 
 
 
@@ -19941,7 +19941,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 417 migration(s) already in the schema above.
+-- Migration tracker seed — 418 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20371,6 +20371,7 @@ FROM (VALUES
   ('410-booking-extra-halls.sql'),
   ('411-finance-books.sql'),
   ('412-clubdesk-maps.sql'),
-  ('413-registrations-english.sql')
+  ('413-registrations-english.sql'),
+  ('414-members-english-names.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
