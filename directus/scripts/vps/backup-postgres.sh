@@ -14,6 +14,18 @@ GPG_RECIPIENT=backup@kscw.ch
 PLAIN="$BACKUP_DIR/kscw_${DATE}.sql.gz"
 docker exec $CONTAINER pg_dump -U supabase_admin -d postgres --no-owner --no-acl | gzip > "$PLAIN"
 
+# Nomal (video analysis, repo KSC-Wiedikon/nomal) keeps its own database on the same
+# server. Prod only: nomal_dev is disposable. Skipped until the database exists.
+# The file name starts with nomal_, so restore-test.sh (kscw_20*) never picks it up.
+NOMAL=""
+NOMAL_FAILED=0
+if docker exec $CONTAINER psql -U supabase_admin -d postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname = 'nomal'" | grep -qx 1; then
+  NOMAL="$BACKUP_DIR/nomal_${DATE}.sql.gz"
+  docker exec $CONTAINER pg_dump -U supabase_admin -d nomal --no-owner --no-acl | gzip > "$NOMAL"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || NOMAL_FAILED=1
+fi
+
 # Encrypt for offsite copies (recipient = public-key-only VPS keyring)
 # Encrypt every .sql.gz that doesn't yet have a .gpg twin (catches today's + last 7 days).
 for f in "$BACKUP_DIR"/*.sql.gz; do
@@ -74,5 +86,7 @@ if [ "$NAS_OK" -eq 1 ]; then OFFSITE+=("NAS OK"); else OFFSITE+=("NAS FAILED"); 
 
 SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
 [ ${#PRUNE_FAILED[@]} -gt 0 ] && SUMMARY="$SUMMARY; retention prune FAILED on ${PRUNE_FAILED[*]}"
+[ "$NOMAL_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; nomal dump FAILED"
+[ -n "$NOMAL" ] && [ "$NOMAL_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; nomal $(ls -lh "$NOMAL" | awk '{print $5}') plain"
 case "$SUMMARY" in *FAILED*) RESULT="Backup INCOMPLETE" ;; *) RESULT="Backup complete" ;; esac
 echo "$(date): $RESULT - $(ls -lh $PLAIN | awk '{print $5}') plain / $(ls -lh $PLAIN.gpg | awk '{print $5}') gpg - offsite (all gpg): $SUMMARY" >> /data/backups/backup.log
