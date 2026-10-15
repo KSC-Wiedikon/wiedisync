@@ -7,35 +7,14 @@
 // Types: registration-values.d.ts beside it.
 //
 // Phase 2a of the English-only DB migration (.planning/english-db-migration.md).
-// ⚠ kscw-website's registration-form.js (separate repo) still posts the German
-// keys and values. englishRegistrationBody() accepts both until it is switched.
+// Request bodies carry the English keys only: kscw-website posts them since
+// 15.10.2026, and the German-key mapping (REG_KEY_RENAMES) is gone. The value
+// normalisers below still accept the German form values.
 //
 // Converted in 2a: sex, role, officials_requested, bb_situation,
 // bb_recent_licence, nationality_codes. Still ClubDesk-valued until phase 2b
 // (members shares them): salutation, fee_category, cantonal_school,
 // club_section_choice.
-
-/** Old (German) request/column key → new (English) column. */
-export const REG_KEY_RENAMES = {
-  anrede: 'salutation',
-  vorname: 'first_name',
-  nachname: 'last_name',
-  telefon_mobil: 'phone',
-  adresse: 'address',
-  plz: 'postal_code',
-  ort: 'city',
-  geburtsdatum: 'birthdate',
-  geschlecht: 'sex',
-  ahv_nummer: 'ahv_number',
-  beitragskategorie: 'fee_category',
-  kantonsschule: 'cantonal_school',
-  rolle: 'role',
-  bemerkungen: 'remarks',
-  lizenz: 'officials_requested',
-  schiedsrichter_stufe: 'referee_level',
-  sektion_choice: 'club_section_choice',
-  bb_doc_freibrief: 'bb_doc_release_letter',
-}
 
 const norm = (v) => String(v ?? '').trim().toLowerCase()
 
@@ -142,29 +121,4 @@ export function normalizeRecentLicence(v) {
   if (['ja', 'yes', 'true', '1'].includes(s)) return true
   if (['nein', 'no', 'false', '0'].includes(s)) return false
   return null
-}
-
-// ── the request body ────────────────────────────────────────────────────────
-
-/**
- * A signup / admin body with German OR English keys → English keys. When both
- * spellings are present the English one wins. The three nationality fields of
- * the old form collapse into `nationality_codes` (the coded list first, then
- * the single primary code). Values are NOT converted here — the route does that
- * with the normalizers above, next to its other validation.
- */
-export function englishRegistrationBody(body) {
-  const src = body && typeof body === 'object' ? body : {}
-  const out = {}
-  for (const [k, v] of Object.entries(src)) {
-    if (k === 'nationalitaet' || k === 'nationalitaet_code' || k === 'nationalitaet_codes') continue
-    const nk = REG_KEY_RENAMES[k] ?? k
-    if (nk !== k && Object.prototype.hasOwnProperty.call(src, nk)) continue
-    out[nk] = v
-  }
-  if (out.nationality_codes == null || out.nationality_codes === '') {
-    const legacy = src.nationalitaet_codes || src.nationalitaet_code
-    if (legacy) out.nationality_codes = legacy
-  }
-  return out
 }

@@ -1,34 +1,12 @@
-// Registration vocabulary (migration 413): the public form still posts German
-// keys and values, the DB stores English slugs, ClubDesk wants the German back.
+// Registration vocabulary (migration 413): the public form posts English keys
+// (German form values are still normalised), the DB stores English slugs,
+// ClubDesk wants the German back.
 import { describe, it, expect } from 'vitest'
 import {
-  englishRegistrationBody, normalizeSex, sexToClubdesk, salutationFromSex,
+  normalizeSex, sexToClubdesk, salutationFromSex,
   normalizeRole, roleToClubdesk, normalizeOfficials, officialsToClubdesk,
   normalizeBbSituation, normalizeRecentLicence,
 } from '../registration-values.js'
-
-describe('englishRegistrationBody', () => {
-  it('maps the website form keys onto the English columns', () => {
-    const out = englishRegistrationBody({
-      vorname: 'Mia', nachname: 'Muster', telefon_mobil: '079', adresse: 'Weg 1', plz: '8003', ort: 'Zürich',
-      geburtsdatum: '2010-01-01', geschlecht: 'weiblich', lizenz: 'OTR 1', bb_doc_freibrief: 'uuid',
-      nationalitaet: 'Italien', nationalitaet_code: 'IT', nationalitaet_codes: 'IT,CH', email: 'm@x.ch',
-    })
-    expect(out).toMatchObject({
-      first_name: 'Mia', last_name: 'Muster', phone: '079', address: 'Weg 1', postal_code: '8003', city: 'Zürich',
-      birthdate: '2010-01-01', sex: 'weiblich', officials_requested: 'OTR 1', bb_doc_release_letter: 'uuid',
-      nationality_codes: 'IT,CH', email: 'm@x.ch',
-    })
-    expect(out).not.toHaveProperty('nationalitaet')
-    expect(out).not.toHaveProperty('vorname')
-  })
-
-  it('falls back to the single code, and lets an English key win', () => {
-    expect(englishRegistrationBody({ nationalitaet_code: 'DE' }).nationality_codes).toBe('DE')
-    expect(englishRegistrationBody({ vorname: 'Old', first_name: 'New' }).first_name).toBe('New')
-    expect(englishRegistrationBody(null)).toEqual({})
-  })
-})
 
 describe('values', () => {
   it('sex', () => {

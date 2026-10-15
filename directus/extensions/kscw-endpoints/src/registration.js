@@ -8,7 +8,7 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, es
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { bbAgeAtSeasonStart, bbRequiredDocs, bbRequiredDocsAfterWaiver, fibaNatCode } from './bb-docs.js'
 import {
-  englishRegistrationBody, normalizeSex, normalizeRole, normalizeOfficials, officialsToClubdesk,
+  normalizeSex, normalizeRole, normalizeOfficials, officialsToClubdesk,
   normalizeBbSituation, normalizeRecentLicence,
 } from './registration-values.js'
 import { normalizeSalutation, normalizeCantonalSchool, cantonalSchoolToLegacy, feeCategoryLabel } from './member-values.js'
@@ -28,6 +28,9 @@ import { Transform } from 'node:stream'
 import { signTicket, verifyTicket } from './scorer-exam.js'
 import { sniffUpload, safeFilename, createLimiter, overDailyBudget } from './public-upload.js'
 import { callerSportScope, membersInScope, parseRoles, scopeAllowsMember } from './sport-scope.js'
+
+/** The JSON body as an object (English keys, migration 413) — `{}` for anything else. */
+const requestBody = (req) => (req.body && typeof req.body === 'object' ? req.body : {})
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -948,9 +951,8 @@ export function registerRegistration(router, { database, logger, services, getSc
   // POST /kscw/registration — create new registration
   router.post('/registration', async (req, res) => {
     try {
-      // English keys (migration 413); kscw-website's form still posts the German
-      // ones, which englishRegistrationBody maps across.
-      const body = englishRegistrationBody(req.body)
+      // English keys only (migration 413).
+      const body = requestBody(req)
       if (!body.first_name || !body.last_name || !body.email || !body.membership_type) {
         return res.status(400).json({ error: 'first_name, last_name, email, membership_type required' })
       }
@@ -1363,9 +1365,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const itemsService = new ItemsService('registrations', { schema, knex: database })
 
       // Verify registration exists, is pending, and caller knows the reference number
-      // englishRegistrationBody: the website's nachreichen page still sends
-      // `bb_doc_freibrief` (renamed bb_doc_release_letter by migration 413).
-      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = englishRegistrationBody(req.body)
+      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = requestBody(req)
       if (!reference_number) {
         return res.status(400).json({ error: 'reference_number required' })
       }
@@ -1547,8 +1547,6 @@ export function registerRegistration(router, { database, logger, services, getSc
           id_upload_back: !!reg.id_upload_back,
           bb_doc_lizenz: !!reg.bb_doc_lizenz,
           bb_doc_release_letter: !!reg.bb_doc_release_letter,
-          // Pre-413 key, read by kscw-website's nachreichen page until it is switched.
-          bb_doc_freibrief: !!reg.bb_doc_release_letter,
           bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
           bb_doc_natdecl: !!reg.bb_doc_natdecl,
           bb_doc_u18parents: !!reg.bb_doc_u18parents,
@@ -1603,9 +1601,7 @@ export function registerRegistration(router, { database, logger, services, getSc
   }
 
   router.get('/registration/doc-template/:field', async (req, res) => {
-    // `bb_doc_freibrief` is the pre-413 column name kscw-website still links to.
-    const rawField = String(req.params.field || '')
-    const field = rawField === 'bb_doc_freibrief' ? 'bb_doc_release_letter' : rawField
+    const field = String(req.params.field || '')
     try {
       const tpl = BB_PDF_TEMPLATES[field]
       // Unknown field is rejected BEFORE the lookup, so this route cannot be used
@@ -2127,7 +2123,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         for (const [k, v] of dupCheckIp) { if (now > v.resetAt) dupCheckIp.delete(k) }
       }
 
-      const { first_name, last_name, email } = englishRegistrationBody(req.body)
+      const { first_name, last_name, email } = requestBody(req)
       if (!first_name || !last_name || !email) return res.json({ already_member: false })
       const emailNorm = normalizeEmail(email)
       if (!emailNorm.ok || !emailNorm.value) return res.json({ already_member: false })

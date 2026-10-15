@@ -4,14 +4,14 @@
 //
 // Dependency-free ESM like member-values.js: kscw-endpoints and kscw-hooks import
 // this one copy. Every normaliser accepts the old German value too, because a
-// cached pre-420 bundle and the kscw-website admin still send it.
+// cached pre-420 bundle may still send it (kscw-website sends the slugs since
+// its v1.31.0).
 
 const trim = (v) => String(v ?? '').trim()
 
 // ── events.event_type ───────────────────────────────────────────────────────
 export const EVENT_TYPES = ['club', 'social', 'meeting', 'tournament', 'training_weekend', 'friendly', 'other']
 const EVENT_TYPE_IN = { verein: 'club', trainingsweekend: 'training_weekend', 'training weekend': 'training_weekend' }
-const EVENT_TYPE_LEGACY = { club: 'verein', training_weekend: 'trainingsweekend' }
 /** The types the Public policy and /kscw/public/events serve (setup-permissions.mjs). */
 export const PUBLIC_EVENT_TYPES = ['club', 'tournament']
 /** 'verein' → 'club', 'trainingsweekend' → 'training_weekend'; slugs and unknown values pass through. */
@@ -19,15 +19,6 @@ export function normalizeEventType(v) {
   const s = trim(v)
   if (!s) return null
   return EVENT_TYPE_IN[s.toLowerCase()] ?? s
-}
-/**
- * Slug → the pre-420 value. ONLY for the kscw-website, which still switches on
- * 'verein' (index.astro event chip) — /kscw/public/events answers in its old
- * vocabulary until the website reads the slugs.
- */
-export function eventTypeToLegacy(v) {
-  const s = normalizeEventType(v)
-  return s ? (EVENT_TYPE_LEGACY[s] ?? s) : v ?? null
 }
 
 // ── game_scheduling_slots.source + team_slot_config sources ────────────────

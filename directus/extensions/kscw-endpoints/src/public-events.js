@@ -16,13 +16,11 @@
  *
  * Response shape mirrors Directus: { data: [...] } with snake_case fields.
  *
- * ⚠ `event_type` is answered in the PRE-420 vocabulary ('verein', 'trainingsweekend'):
- * the website's event chip switches on 'verein' (kscw-website index.astro), and the
- * website is this feed's only consumer. Drop eventTypeToLegacy once the website
- * reads the slugs ('club', 'training_weekend').
+ * `event_type` is answered as stored — the migration-420 slugs ('club', 'tournament').
+ * kscw-website reads them since its v1.31.0 (16.10.2026).
  */
 
-import { PUBLIC_EVENT_TYPES, eventTypeToLegacy } from './scheduling-values.js'
+import { PUBLIC_EVENT_TYPES } from './scheduling-values.js'
 
 const PUBLIC_EVENT_FIELDS = [
   'id', 'title', 'event_type', 'start_date', 'end_date',
@@ -105,7 +103,7 @@ export function registerPublicEvents(router, { database, logger }) {
       const rows = await q
 
       res.set('Cache-Control', 'public, max-age=300')
-      res.json({ data: rows.map((r) => ({ ...r, event_type: eventTypeToLegacy(r.event_type) })) })
+      res.json({ data: rows })
     } catch (err) {
       log.error({
         msg: `public-events: ${err.message}`,

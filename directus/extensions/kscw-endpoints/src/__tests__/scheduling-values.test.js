@@ -2,7 +2,7 @@
 // German spellings still accepted on the way in.
 import { describe, it, expect } from 'vitest'
 import {
-  normalizeEventType, eventTypeToLegacy, normalizeSlotSource, normalizeTeamSlotConfig,
+  normalizeEventType, normalizeSlotSource, normalizeTeamSlotConfig,
   normalizeBbSlotConfig, bbTournamentListStatus, normalizeSchedulingPayload,
 } from '../scheduling-values.js'
 
@@ -13,11 +13,6 @@ describe('scheduling values', () => {
     expect(normalizeEventType('club')).toBe('club')
     expect(normalizeEventType('friendly')).toBe('friendly')
     expect(normalizeEventType('')).toBeNull()
-    // The website compat: the slugs go back out in the old spelling, the rest as is.
-    expect(eventTypeToLegacy('club')).toBe('verein')
-    expect(eventTypeToLegacy('training_weekend')).toBe('trainingsweekend')
-    expect(eventTypeToLegacy('tournament')).toBe('tournament')
-    expect(eventTypeToLegacy(null)).toBeNull()
   })
 
   it('slot source', () => {

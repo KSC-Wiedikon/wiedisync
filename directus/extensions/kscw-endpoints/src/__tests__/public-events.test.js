@@ -205,11 +205,10 @@ describe('GET /public/events', () => {
     ])
   })
 
-  it('answers event_type in the pre-420 vocabulary the website switches on', async () => {
-    // kscw-website index.astro labels `'verein'` as Club; 'club' would fall to "Other".
+  it('answers event_type as the stored slugs (no pre-420 spelling)', async () => {
     const res = makeRes()
     await makeHandler(fixtures())({ query: {} }, res)
-    expect(res.body.data.map((e) => e.event_type)).toEqual(['verein', 'verein', 'verein'])
+    expect(res.body.data.map((e) => e.event_type)).toEqual(['club', 'club', 'club'])
   })
 
   it('from/limit still narrow the result', async () => {

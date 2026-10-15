@@ -1,8 +1,6 @@
 // Typed contract for registration-values.js (imported by the frontend through
 // the `@registration-values` alias). Keep in step with the module next door.
 
-export const REG_KEY_RENAMES: Record<string, string>
-
 export type RegSex = 'm' | 'f'
 export const SEX_VALUES: RegSex[]
 export function normalizeSex(v: unknown): RegSex | null
@@ -25,5 +23,3 @@ export type BbSituation = 'new' | 'transfer_ch' | 'transfer_intl' | 'returning'
 export const BB_SITUATION_VALUES: BbSituation[]
 export function normalizeBbSituation(v: unknown): BbSituation | null
 export function normalizeRecentLicence(v: unknown): boolean | null
-
-export function englishRegistrationBody(body: unknown): Record<string, unknown>
