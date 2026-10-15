@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 const ROLE_GROUPS = [
-  { key: 'globalRoles', roles: ['vorstand', 'finance', 'revisor', 'admin', 'vb_admin', 'bb_admin', 'superuser'] },
+  { key: 'globalRoles', roles: ['board', 'finance', 'revisor', 'admin', 'vb_admin', 'bb_admin', 'superuser'] },
   { key: 'teamRoles', roles: ['coach', 'team_responsible', 'captain'] },
   // otn1_bb/otn2_bb are the Basketplan levels
   // (migration 228). All three are offered — they are additive, not a swap.

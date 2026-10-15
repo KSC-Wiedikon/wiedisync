@@ -66,7 +66,7 @@ describe('sportsForMember', () => {
 describe('buildMemberGroups', () => {
   it('files a member under every group they qualify for', () => {
     const cache = cacheOf({ players: { '1': ['1'] }, coaches: { '1': ['1'] } })
-    const m = { id: 1, club_section: 'volleyball', role: ['user', 'vorstand'], scorer_vb: true }
+    const m = { id: 1, club_section: 'volleyball', role: ['user', 'board'], scorer_vb: true }
     const g = flatten(buildMemberGroups([m], [m], cache))
     expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:1']).toEqual(['1'])
     expect(g['sport:volleyball/officials:vb/officials:vb:scorers']).toEqual(['1'])
@@ -105,7 +105,7 @@ describe('buildMemberGroups', () => {
   })
 
   it('reads role from a JSON string as well as an array', () => {
-    const m = { id: 6, role: '["user","vorstand"]' }
+    const m = { id: 6, role: '["user","board"]' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
     expect(g['club:vorstand']).toEqual(['6'])
   })

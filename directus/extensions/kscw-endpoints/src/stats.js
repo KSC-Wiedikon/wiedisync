@@ -104,7 +104,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/schreiber', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_schreiber_coverage', req.query, req.kscwSportScope)
+      const rows = await queryView('stats_scorer_coverage', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats schreiber error:', err.message)
@@ -114,7 +114,7 @@ export function registerStats(router, { database, getSchema, services, logger })
 
   router.get('/stats/missing-schreiber', requireAdmin, async (req, res) => {
     try {
-      const rows = await queryView('stats_games_missing_schreiber', req.query, req.kscwSportScope)
+      const rows = await queryView('stats_games_missing_scorer', req.query, req.kscwSportScope)
       res.json({ data: rows })
     } catch (err) {
       logger.error('Stats missing-schreiber error:', err.message)
@@ -159,8 +159,8 @@ export function registerStats(router, { database, getSchema, services, logger })
         database('stats_club_overview').select('*').then(r => r[0] || {}),
         database('stats_members').select('*').then(r => r[0] || {}),
         queryView('stats_team_roster', req.query, req.kscwSportScope),
-        queryView('stats_schreiber_coverage', req.query, req.kscwSportScope),
-        queryView('stats_games_missing_schreiber', req.query, req.kscwSportScope),
+        queryView('stats_scorer_coverage', req.query, req.kscwSportScope),
+        queryView('stats_games_missing_scorer', req.query, req.kscwSportScope),
         queryView('stats_participation', req.query, req.kscwSportScope),
         queryView('stats_game_results', req.query, req.kscwSportScope),
         queryView('stats_delegations', req.query, req.kscwSportScope),

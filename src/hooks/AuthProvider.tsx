@@ -24,7 +24,7 @@ import { bootstrapIdentityKey } from '../lib/identityBootstrap'
 /** Base roles carried on `members.role` — typed off the Member enum so a renamed
  *  role fails at compile time instead of silently never matching. */
 type BaseRole = Member['role'][number]
-const BASE_ROLES: readonly BaseRole[] = ['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance', 'revisor']
+const BASE_ROLES: readonly BaseRole[] = ['board', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance', 'revisor']
 const isBaseRole = (r: string): r is BaseRole => (BASE_ROLES as readonly string[]).includes(r)
 const isLicenceFlag = (r: string): r is LicenceType => (LICENCE_TYPES as readonly string[]).includes(r)
 
@@ -716,7 +716,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     && filled(user?.last_name) && filled(user?.phone) && filled(user?.birthdate)
     && filled(user?.address) && filled(user?.postal_code) && filled(user?.city)
     && filled(user?.nationality_codes)
-  const isVorstand = roles.includes('vorstand') || isGlobalAdmin
+  const isVorstand = roles.includes('board') || isGlobalAdmin
   // 'finance' is an orthogonal role (treasurer / finance team). Global admins
   // implicitly have it; the finance dashboard opens for board OR finance.
   const isFinance = roles.includes('finance') || isGlobalAdmin

@@ -147,7 +147,7 @@ function mapRole(pbRoles) {
   if (roles.includes('superuser')) return 'Superuser'
   if (roles.includes('admin')) return 'Admin'
   if (roles.includes('vb_admin') || roles.includes('bb_admin')) return 'Admin'
-  if (roles.includes('vorstand')) return 'Coach'
+  if (roles.includes('board')) return 'Coach'
   return 'Member'
 }
 

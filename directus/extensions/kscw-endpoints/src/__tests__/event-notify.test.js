@@ -19,7 +19,7 @@ describe('sportAdminCovers (F59)', () => {
   })
 
   it('is false for anyone without a sport-admin role', () => {
-    expect(sportAdminCovers(['user', 'coach', 'vorstand'], ['volleyball'], true)).toBe(false)
+    expect(sportAdminCovers(['user', 'coach', 'board'], ['volleyball'], true)).toBe(false)
   })
 })
 

@@ -147,13 +147,13 @@ ORDER BY m.last_name, m.first_name;
 \echo === BB-3. CD says OTR/OTN licence, Directus is missing it ===
 SELECT m.id, m.first_name, m.last_name, m.email,
        cb.official_licence AS cd_offliz,
-       clubdesk_offliz_to_dx(cb.official_licence) AS expected_dx_licence,
+       clubdesk_official_licence_to_column(cb.official_licence) AS expected_dx_licence,
        ml.lic AS dx_licences
 FROM members m
 JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_basketball cb ON cb.clubdesk_id = (SELECT cd_id FROM cd_match_bb WHERE dx_id = m.id LIMIT 1)
-WHERE clubdesk_offliz_to_dx(cb.official_licence) IS NOT NULL
-  AND NOT (ml.lic ? clubdesk_offliz_to_dx(cb.official_licence))
+WHERE clubdesk_official_licence_to_column(cb.official_licence) IS NOT NULL
+  AND NOT (ml.lic ? clubdesk_official_licence_to_column(cb.official_licence))
 ORDER BY m.last_name;
 
 \echo
@@ -163,7 +163,7 @@ SELECT m.id, m.first_name, m.last_name, m.email, ml.lic AS licences,
 FROM members m
 JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_basketball cb ON cb.clubdesk_id = (SELECT cd_id FROM cd_match_bb WHERE dx_id = m.id LIMIT 1)
-WHERE clubdesk_offliz_to_dx(cb.official_licence) IS NULL
+WHERE clubdesk_official_licence_to_column(cb.official_licence) IS NULL
   AND (m.otr1_bb OR m.otr2_bb OR m.otn1_bb OR m.otn2_bb)
 ORDER BY m.last_name;
 

@@ -253,7 +253,7 @@ export function registerSignupInvites(router, { database, logger, services, getS
         allowed = roles.includes('admin') || roles.includes('superuser')
           // The board only inside its own section (M7, 2026-10-12): the link
           // claims the member's account, and the caller sees it (invite_url).
-          || (roles.includes('vorstand') && await scopeAllowsMember(database, callerSportScope(roles), target.id))
+          || (roles.includes('board') && await scopeAllowsMember(database, callerSportScope(roles), target.id))
       }
       if (!allowed) return res.status(403).json({ error: 'Not authorized' })
 

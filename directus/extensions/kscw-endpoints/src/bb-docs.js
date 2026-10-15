@@ -104,20 +104,28 @@ export function fibaNatCode(codes, fallback) {
   return list[0] || String(fallback || '').trim().toUpperCase().slice(0, 2)
 }
 
+// Document columns renamed since the website went live (migrations 413 / 422).
+// Waiver lists stored before a rename still name the old column.
+export const LEGACY_DOC_COLUMNS = Object.freeze({
+  __proto__: null,
+  bb_doc_freibrief: 'bb_doc_release_letter',
+  bb_doc_lizenz: 'bb_doc_licence',
+})
+
 // Documents an approver has waived for ONE registration (migration 358), parsed
 // from the stored comma list. Unknown names are dropped rather than trusted: the
 // column is admin-writable, and a typo that silently waived nothing is safer than
 // a typo that silently waived something.
 export function parseWaivedDocs(waived) {
   const known = new Set([
-    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
+    'id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter',
     'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
   ])
   return String(waived || '')
     .split(',')
     .map((s) => s.trim())
-    // Column renamed by migration 413; an admin's pre-413 waiver still counts.
-    .map((s) => (s === 'bb_doc_freibrief' ? 'bb_doc_release_letter' : s))
+    // Columns renamed by migrations 413 / 422; an older waiver still counts.
+    .map((s) => LEGACY_DOC_COLUMNS[s] ?? s)
     .filter((s) => known.has(s))
 }
 
@@ -140,7 +148,7 @@ export function bbRequiredDocsAfterWaiver(situation, natCode, dob, recentLicence
 // rows created before the situation field existed keep a sane required set.
 export function bbRequiredDocs(rawSituation, natCode, dob, recentLicence) {
   const situation = situationSlug(rawSituation)
-  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_licence']
   const foreign = natCode && natCode !== 'CH'
   const minor = bbIsMinor(dob)
   if (!BB_SITUATIONS.includes(situation)) {

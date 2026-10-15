@@ -23,7 +23,7 @@ export interface ActivityWithTeam extends BroadcastActivity {
  * Pure predicate — does this member have the right to send a broadcast for this activity?
  *
  * Mirrors the backend authorization in `POST /activities/:type/:id/broadcast`:
- *   - `admin` / `superuser` / `vorstand`           → true for any activity
+ *   - `admin` / `superuser` / `board`              → true for any activity
  *   - `vb_admin` (sport='volleyball') / `bb_admin` (sport='basketball') → true for matching sport
  *   - For game/training: coach or team-responsible of `activity.teamId` → true
  *   - For event: team-coach pathway DOES NOT apply (events are not team-scoped here)
@@ -34,7 +34,7 @@ export function canBroadcast(activity: ActivityWithTeam, member: MemberLike | nu
   const roles = member.role
 
   // Global admin pathways — work for any activity type.
-  if (roles.includes('admin') || roles.includes('superuser') || roles.includes('vorstand')) {
+  if (roles.includes('admin') || roles.includes('superuser') || roles.includes('board')) {
     return true
   }
 

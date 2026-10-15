@@ -123,7 +123,7 @@ export async function canReadFormAnswers(db, accountability, form) {
   if (!caller) return false
   const roles = parseRoles(caller.role)
   // Club-wide on purpose (M7, 2026-10-12): forms are board work, not sport data.
-  if (roles.some((r) => r === 'admin' || r === 'superuser' || r === 'vorstand')) return true
+  if (roles.some((r) => r === 'admin' || r === 'superuser' || r === 'board')) return true
   if (form.created_by != null && String(form.created_by) === String(caller.id)) return true
 
   const teamRows = await db('forms_teams').where('forms_id', form.id).select('teams_id')

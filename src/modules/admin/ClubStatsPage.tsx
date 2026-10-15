@@ -31,7 +31,7 @@ interface StatsOverview {
   upcoming_trainings: string
   upcoming_events: string
   upcoming_home_games: string
-  upcoming_home_games_no_schreiber: string
+  upcoming_home_games_no_scorer: string
   // Sport-filtered member stats
   vb_registered: string
   bb_registered: string
@@ -41,8 +41,8 @@ interface StatsOverview {
   vb_lic_referee: string
   bb_lic_otr1: string
   bb_lic_otr2: string
-  vb_vorstand: string
-  bb_vorstand: string
+  vb_board: string
+  bb_board: string
   vb_admins: string
   bb_admins: string
 }
@@ -60,7 +60,7 @@ interface StatsMembers {
   role_admin: string
   role_vb_admin: string
   role_bb_admin: string
-  role_vorstand: string
+  role_board: string
 }
 
 interface TeamRoster {
@@ -281,7 +281,7 @@ export default function ClubStatsPage() {
         teamsSub: `VB ${n(ov.vb_teams)} · BB ${n(ov.bb_teams)}`,
         games: n(ov.upcoming_games),
         gamesSub: `${n(ov.completed_games)} ${t('clubStatsCompleted')}`,
-        gaps: n(ov.upcoming_home_games_no_schreiber),
+        gaps: n(ov.upcoming_home_games_no_scorer),
         gapsSub: `${t('clubStatsOf')} ${n(ov.upcoming_home_games)} ${t('clubStatsHomeGames')}`,
       }
     }
@@ -320,7 +320,7 @@ export default function ClubStatsPage() {
         refereeVB: n(mem.licence_referee_vb),
         otr1BB: n(mem.licence_otr1_bb),
         otr2BB: n(mem.licence_otr2_bb),
-        vorstand: n(mem.role_vorstand),
+        vorstand: n(mem.role_board),
         admins: n(mem.role_admin) + n(mem.role_superuser),
         adminsSub: `VB ${n(mem.role_vb_admin)} · BB ${n(mem.role_bb_admin)}`,
       }
@@ -332,7 +332,7 @@ export default function ClubStatsPage() {
       refereeVB: n(ov.vb_lic_referee),
       otr1BB: n(ov.bb_lic_otr1),
       otr2BB: n(ov.bb_lic_otr2),
-      vorstand: isVB ? n(ov.vb_vorstand) : n(ov.bb_vorstand),
+      vorstand: isVB ? n(ov.vb_board) : n(ov.bb_board),
       admins: isVB ? n(ov.vb_admins) : n(ov.bb_admins),
       adminsSub: isVB ? `VB ${n(mem.role_vb_admin)}` : `BB ${n(mem.role_bb_admin)}`,
     }

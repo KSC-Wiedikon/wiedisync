@@ -562,7 +562,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
   }
   // Same gate as finance.js: board or the orthogonal 'finance' role.
   const canManageFinance = (req, mem) =>
-    !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
+    !!req.accountability?.admin || (!!mem && ['board', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
 
   /** Sections the caller may act as TK for. Board / finance see every section
    *  (incl. rows with no section); a Sport Admin sees only their own. Empty = not

@@ -153,7 +153,7 @@ export interface Member extends BaseRecord {
   number: number
   position: MemberPosition[]
   photo: string
-  role: ('user' | 'vorstand' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser' | 'finance' | 'revisor')[]
+  role: ('user' | 'board' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser' | 'finance' | 'revisor')[]
   kscw_membership_active: boolean
   birthdate: string
 
@@ -1301,7 +1301,7 @@ export type FineCategory = 'late_signin' | 'no_show' | 'late_payment' | 'custom'
 export type FineStatus = 'open' | 'paid' | 'waived'
 export type FineActivityType = 'training' | 'game' | 'event'
 export type FinePayMethod = 'cash' | 'twint' | 'transfer' | 'other'
-export type FinePayTo = 'team_kasse' | 'club_kasse'
+export type FinePayTo = 'team_fund' | 'club_fund'
 export type FineResetWindow = 'calendar_month' | 'rolling_30d' | 'rolling_90d' | 'season' | 'never'
 
 export interface FineRuleTier {

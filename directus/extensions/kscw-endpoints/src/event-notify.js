@@ -161,7 +161,7 @@ export function registerEventNotify(router, { services, database, getSchema, log
         // The board's uncapped fan-out stops at its own section too (M7, 2026-10-12):
         // a vorstand below full admin is sport-confined by their admin tier. A
         // team-less or mixed event is 'both' and counts for either section.
-        const boardOk = roles.includes('vorstand')
+        const boardOk = roles.includes('board')
           && sportScopeAllows(callerSportScope(roles), sportOfTeams(await eventTeamSports()))
         if (roles.includes('admin') || roles.includes('superuser') || boardOk || sportAdminOk) privileged = true
         if (roles.includes('admin') || roles.includes('superuser') || sportAdminOk) {
@@ -245,7 +245,7 @@ export function registerEventNotify(router, { services, database, getSchema, log
       const roles = elevated ? (event.invited_roles ?? []) : []
       for (const role of roles) {
         // Global roles (use JSONB containment to avoid substring matches)
-        if (['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser'].includes(role)) {
+        if (['board', 'admin', 'vb_admin', 'bb_admin', 'superuser'].includes(role)) {
           const members = await db('members')
             .whereRaw(`role::jsonb @> ?`, [JSON.stringify([role])])
             .select('id')

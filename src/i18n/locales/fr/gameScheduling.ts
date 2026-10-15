@@ -668,7 +668,7 @@ export default {
   mailboxGroup_cdgroup_referee_bb: 'Arbitres (basketball)',
   mailboxGroup_cdgroup_officials_bb: 'Officiels (basketball)',
   mailboxSeasonScopeHint: '— s’applique aux joueurs, rôles et équipes',
-  mailboxGroup_role_vorstand: 'Comité',
+  mailboxGroup_role_board: 'Comité',
   mailboxSection_everyone: 'Affiliation',
   mailboxSection_sektion: 'Sections',
   mailboxSection_players: 'Joueurs',

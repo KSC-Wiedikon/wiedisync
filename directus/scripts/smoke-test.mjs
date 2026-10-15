@@ -339,7 +339,7 @@ async function main() {
     // read their OWN team (200) and be refused on a team outside their scope
     // (403). The scope check is skipped when the coach token also holds a
     // sport-admin / board / finance role, because those legitimately see all.
-    const coachIsWider = ['vb_admin', 'bb_admin', 'vorstand', 'admin', 'superuser', 'finance'].some((r) => coachRoles.includes(r))
+    const coachIsWider = ['vb_admin', 'bb_admin', 'board', 'admin', 'superuser', 'finance'].some((r) => coachRoles.includes(r))
     if (coachTeamIds.length) {
       await check(`kscw/finance/team/${coachTeamIds[0]} (coach, own team)`, () => api('GET', `/kscw/finance/team/${coachTeamIds[0]}`))
     } else {

@@ -48,7 +48,7 @@ describe('canBroadcast', () => {
   })
 
   it('vorstand → true for event, game, training', () => {
-    const m = member({ role: ['vorstand'] })
+    const m = member({ role: ['board'] })
     expect(canBroadcast(event(), m)).toBe(true)
     expect(canBroadcast(game(), m)).toBe(true)
     expect(canBroadcast(training(), m)).toBe(true)

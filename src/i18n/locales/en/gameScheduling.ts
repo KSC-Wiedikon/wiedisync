@@ -699,7 +699,7 @@ export default {
   mailboxGroup_cdgroup_referee_bb: 'Referees (basketball)',
   mailboxGroup_cdgroup_officials_bb: 'Officials (basketball)',
   mailboxSeasonScopeHint: '— applies to players, roles and teams',
-  mailboxGroup_role_vorstand: 'Board',
+  mailboxGroup_role_board: 'Board',
   mailboxSection_everyone: 'Membership',
   mailboxSection_sektion: 'Sections',
   mailboxSection_players: 'Players',

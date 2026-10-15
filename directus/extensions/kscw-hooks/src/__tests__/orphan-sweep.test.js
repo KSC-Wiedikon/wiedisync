@@ -149,20 +149,20 @@ describe('form_uploads orphan sweep', () => {
 })
 
 describe('registration-docs orphan sweep', () => {
-  const COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_licence']
   it('keeps referenced docs and every file outside the registration folder', async () => {
     const t = {
       directus_files: [
         { id: id(1), folder: REG_FOLDER, uploaded_on: ago(30) },       // orphan → deleted
         { id: id(2), folder: REG_FOLDER, uploaded_on: ago(30) },       // id_upload_back
-        { id: id(3), folder: REG_FOLDER, uploaded_on: ago(30) },       // bb_doc_lizenz
+        { id: id(3), folder: REG_FOLDER, uploaded_on: ago(30) },       // bb_doc_licence
         { id: id(4), folder: REG_FOLDER, uploaded_on: ago(23) },       // younger than 24 h
         { id: id(5), folder: FORM_UPLOADS_FOLDER, uploaded_on: ago(900) },
         { id: id(6), folder: null, uploaded_on: ago(900) },
       ],
       registrations: [
-        { id: 1, id_upload_front: null, id_upload_back: id(2), bb_doc_lizenz: null },
-        { id: 2, id_upload_front: null, id_upload_back: null, bb_doc_lizenz: id(3) },
+        { id: 1, id_upload_front: null, id_upload_back: id(2), bb_doc_licence: null },
+        { id: 2, id_upload_front: null, id_upload_back: null, bb_doc_licence: id(3) },
       ],
       directus_relations: [],
     }

@@ -93,7 +93,7 @@ export function currentSeasonLabel(now = new Date()) {
  * published and versioned; see fetchTemplate() in registration.js.
  */
 export const BB_PDF_TEMPLATES = {
-  bb_doc_lizenz: { file: 'lizenzantrag-swiss-basketball.pdf', filename: 'Lizenzantrag' },
+  bb_doc_licence: { file: 'lizenzantrag-swiss-basketball.pdf', filename: 'Lizenzantrag' },
   bb_doc_selfdecl: { file: 'player-self-declaration-fiba.pdf', filename: 'Player-Self-Declaration' },
   bb_doc_natdecl: { file: 'acknowledgment-national-team-restriction-fiba.pdf', filename: 'Acknowledgment-National-Team-Restriction' },
   bb_doc_release_letter: { file: 'freibrief-swiss-basketball.pdf', filename: 'Freibrief' },
@@ -148,7 +148,7 @@ const FILLERS = {
   // _2 = NAME, _3 = VORNAME, _4 = STRASSE, _5/_6 = the narrow PLZ and wide ORT
   // boxes, _7 = E-MAIL. They are positions, not names; the copy this file replaced
   // had the mapping shifted by one and wrote the email into the name box.
-  bb_doc_lizenz(form, d, ctx) {
+  bb_doc_licence(form, d, ctx) {
     setField(form, 'undefined', 'KSC Wiedikon', ctx)
     setField(form, 'undefined_2', d.last_name, ctx)
     setField(form, 'undefined_3', d.first_name, ctx)

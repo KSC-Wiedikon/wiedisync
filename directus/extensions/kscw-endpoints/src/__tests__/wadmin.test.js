@@ -450,3 +450,17 @@ describe('mixedParticipantRow (F-10)', () => {
       .toMatchObject({ name: 'Member #9', positions: ['A', 'B', 'C'] })
   })
 })
+
+// Migration 422: kscw-website still reads the licence application as bb_doc_lizenz.
+import { withLegacyKeys } from '../wadmin.js'
+describe('withLegacyKeys', () => {
+  it('echoes bb_doc_licence as bb_doc_lizenz on registrations only', () => {
+    expect(withLegacyKeys('registrations', [{ id: 1, bb_doc_licence: 'f1' }]))
+      .toEqual([{ id: 1, bb_doc_licence: 'f1', bb_doc_lizenz: 'f1' }])
+    expect(withLegacyKeys('registrations', { id: 2, bb_doc_licence: null }))
+      .toEqual({ id: 2, bb_doc_licence: null, bb_doc_lizenz: null })
+    expect(withLegacyKeys('registrations', { id: 3 })).toEqual({ id: 3 })
+    expect(withLegacyKeys('news', [{ id: 1, bb_doc_licence: 'x' }])).toEqual([{ id: 1, bb_doc_licence: 'x' }])
+    expect(withLegacyKeys('registrations', null)).toBe(null)
+  })
+})

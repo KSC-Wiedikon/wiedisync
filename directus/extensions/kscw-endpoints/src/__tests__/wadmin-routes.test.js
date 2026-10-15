@@ -174,7 +174,7 @@ function seed() {
       { id: FILE_PUBLIC, folder: null },
     ],
     registrations: [
-      { id: 500, id_upload_front: FILE_REG, id_upload_back: FILE_PASSPORT, bb_doc_lizenz: null },
+      { id: 500, id_upload_front: FILE_REG, id_upload_back: FILE_PASSPORT, bb_doc_licence: null },
       { id: 501, id_upload_front: FILE_PUBLIC },
     ],
     events: [{ id: 5, title: 'Mixed' }],
@@ -605,7 +605,7 @@ describe('M7: registrations section is sport-scoped for a confined grant holder'
     tables.directus_users.push({ id: U_VB, role_name: 'Sport Admin' }, { id: U_DUAL, role_name: 'Sport Admin' })
     tables.website_admin_access.push({ user: U_VB, sections: ['registrations'] }, { user: U_DUAL, sections: ['registrations'] })
     tables.members.push(
-      { id: 80, user: U_VB, role: '["vorstand","vb_admin"]' },
+      { id: 80, user: U_VB, role: '["board","vb_admin"]' },
       { id: 81, user: U_DUAL, role: '["vb_admin","bb_admin"]' },
     )
     tables.registrations.push(

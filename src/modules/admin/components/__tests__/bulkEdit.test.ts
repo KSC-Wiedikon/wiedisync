@@ -82,9 +82,9 @@ describe('computeMemberPatch', () => {
     // The bug this exists to prevent: bulk "add the finance role" arriving as a
     // set and stripping every other role these members held.
     expect(computeMemberPatch(
-      { role: ['user', 'vorstand'] },
+      { role: ['user', 'board'] },
       [{ key: 'role', mode: 'add', value: ['finance'] }],
-    )).toEqual({ role: ['user', 'vorstand', 'finance'] })
+    )).toEqual({ role: ['user', 'board', 'finance'] })
 
     expect(computeMemberPatch(
       { role: ['user'] },
@@ -101,13 +101,13 @@ describe('computeMemberPatch', () => {
 
   it('removes only what is there, keeping order', () => {
     expect(computeMemberPatch(
-      { role: ['user', 'vorstand', 'finance'] },
-      [{ key: 'role', mode: 'remove', value: ['vorstand'] }],
+      { role: ['user', 'board', 'finance'] },
+      [{ key: 'role', mode: 'remove', value: ['board'] }],
     )).toEqual({ role: ['user', 'finance'] })
 
     expect(computeMemberPatch(
       { role: ['user'] },
-      [{ key: 'role', mode: 'remove', value: ['vorstand'] }],
+      [{ key: 'role', mode: 'remove', value: ['board'] }],
     )).toEqual({})
   })
 

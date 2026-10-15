@@ -12,7 +12,7 @@ import MailboxPanel from '../gameScheduling/components/MailboxPanel'
  * superadmin OR app `admin`/`superuser`, and nothing else — the route is behind
  * `GlobalAdminRoute`, mirroring the server's authForAccount('admin') (which has
  * no branch of its own: the admin||superuser early-return IS the whole grant).
- * `vorstand` was considered and explicitly rejected; don't "restore" it.
+ * `board` (was `vorstand`) was considered and explicitly rejected; don't "restore" it.
  *
  * This page also hosts the group send (compose → "Email a group"), so widening
  * the gate widens who can mail the entire club.

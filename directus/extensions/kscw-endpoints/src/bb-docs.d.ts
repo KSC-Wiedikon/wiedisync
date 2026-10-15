@@ -21,7 +21,7 @@
 export type BbDocField =
   | 'id_upload_front'
   | 'id_upload_back'
-  | 'bb_doc_lizenz'
+  | 'bb_doc_licence'
   | 'bb_doc_release_letter'
   | 'bb_doc_selfdecl'
   | 'bb_doc_natdecl'
@@ -30,6 +30,8 @@ export type BbDocField =
 
 /** Licensing situations the required-document rules recognise. */
 export const BB_SITUATIONS: string[]
+
+export const LEGACY_DOC_COLUMNS: Readonly<Record<string, BbDocField>>
 
 /** Accepts an ISO date string or a JS Date (raw knex returns `date` as Date). */
 export function bbAgeAtSeasonStart(dob: string | Date | null | undefined): number | null

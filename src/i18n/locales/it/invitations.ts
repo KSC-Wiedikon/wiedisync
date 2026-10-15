@@ -9,7 +9,7 @@ export default {
   teamRoles: 'Ruoli del team',
   licences: 'Licenze',
   functions: 'Funzioni',
-  role_vorstand: 'Comitato',
+  role_board: 'Comitato',
   role_admin: 'Admin',
   role_vb_admin: 'Admin VB',
   role_bb_admin: 'Admin BB',

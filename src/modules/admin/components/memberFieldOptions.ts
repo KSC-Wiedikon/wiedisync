@@ -265,7 +265,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
 export const MEMBER_MULTI_FIELDS: Record<string, FieldOption[]> = {
   role: [
     { value: 'user', label: 'User' },
-    { value: 'vorstand', label: 'Board' },
+    { value: 'board', label: 'Board' },
     { value: 'finance', label: 'Finance' },
     { value: 'vb_admin', label: 'VB admin' },
     { value: 'bb_admin', label: 'BB admin' },
@@ -283,7 +283,7 @@ export const MEMBER_MULTI_FIELDS: Record<string, FieldOption[]> = {
  */
 export interface MultiRequirement { when: string; oneOf: readonly string[]; fallback: string }
 export const MEMBER_MULTI_REQUIRES: Record<string, MultiRequirement> = {
-  role: { when: 'vorstand', oneOf: ['admin', 'vb_admin', 'bb_admin'], fallback: 'admin' },
+  role: { when: 'board', oneOf: ['admin', 'vb_admin', 'bb_admin'], fallback: 'admin' },
 }
 
 /**

@@ -91,7 +91,7 @@ const DUES_SUBJECT_SQL = "subject ILIKE '%mitgliederbeitrag%'"
  *  into the club's books, neither of which follow the app's UI locale. */
 const WAIVER_LABELS = {
   honorary: 'Erlass — Ehrenmitglied',
-  vorstand: 'Erlass — Vorstand',
+  board: 'Erlass — Vorstand',
   coach: 'Erlass — Trainer*in',
   gratis: 'Erlass — Gratismitgliedschaft',
   default: 'Erlass',
@@ -213,7 +213,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   // Club-wide on purpose, fines and referee fees included (M7, 2026-10-12): every
   // finance endpoint is board work; only the sport-admin tier below is sport-scoped.
   const canManageFinance = (req, mem) =>
-    !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
+    !!req.accountability?.admin || (!!mem && ['board', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
   // Read-only finance access = the above OR the 'revisor' role (the auditors the
   // statutes elect). Every GET under /finance/* that shows club-wide books uses
   // this; every write keeps canManageFinance, so a Revisor can look but never post.

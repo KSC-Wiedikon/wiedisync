@@ -35,7 +35,7 @@ const db = fakeDb({
 
 describe('parseRoles / callerSportScope', () => {
   it('reads JSON text, arrays and junk', () => {
-    expect(parseRoles('["vb_admin","vorstand"]')).toEqual(['vb_admin', 'vorstand'])
+    expect(parseRoles('["vb_admin","board"]')).toEqual(['vb_admin', 'board'])
     expect(parseRoles(['bb_admin'])).toEqual(['bb_admin'])
     expect(parseRoles('not json')).toEqual([])
     expect(parseRoles(null)).toEqual([])
@@ -43,11 +43,11 @@ describe('parseRoles / callerSportScope', () => {
 
   it('confines a single sport admin, board member or not', () => {
     expect(callerSportScope('["vb_admin"]')).toBe('volleyball')
-    expect(callerSportScope(['vorstand', 'bb_admin'])).toBe('basketball')
+    expect(callerSportScope(['board', 'bb_admin'])).toBe('basketball')
   })
 
   it('never confines a full admin, a dual sport admin, a Directus admin or a non-admin', () => {
-    expect(callerSportScope(['vorstand', 'vb_admin', 'admin'])).toBeNull()
+    expect(callerSportScope(['board', 'vb_admin', 'admin'])).toBeNull()
     expect(callerSportScope(['vb_admin', 'bb_admin'])).toBeNull()
     expect(callerSportScope(['vb_admin'], { directusAdmin: true })).toBeNull()
     expect(callerSportScope(['user'])).toBeNull()

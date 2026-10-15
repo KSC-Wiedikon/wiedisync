@@ -314,7 +314,7 @@ export function buildMemberGroups(
     {
       key: 'club:vorstand',
       labelKey: 'explorerGroupVorstand',
-      memberIds: ids(allMembers.filter((m) => hasRole(m, 'vorstand'))),
+      memberIds: ids(allMembers.filter((m) => hasRole(m, 'board'))),
     },
     // ⚠ Club-wide: everybody with this status, INCLUDING the people already
     // listed under a sport above. Not a leftovers bucket — "how many honorary

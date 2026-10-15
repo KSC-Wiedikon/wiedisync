@@ -27,7 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
-import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus, normalizeFeeCategory } from '../../kscw-endpoints/src/member-values.js'
+import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus, normalizeFeeCategory, normalizeAppRoles } from '../../kscw-endpoints/src/member-values.js'
 import { normalizeSchedulingPayload } from '../../kscw-endpoints/src/scheduling-values.js'
 import { normalizeInvoiceStatus, normalizePaymentMethod, normalizeEntryType } from '../../kscw-endpoints/src/finance-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
@@ -219,7 +219,7 @@ async function resolveDirectusRole(db, memberId) {
 
   // A vorstand member always carries admin, vb_admin or bb_admin (migration
   // 402/403 trigger), so the board lands here or in the sport-admin branch
-  // just below — the 'vorstand' branches further down only see a row the
+  // just below — the 'board' branches further down only see a row the
   // trigger has not touched yet.
   if (roles.includes('superuser') || roles.includes('admin')) {
     return { userId: member.user, roleName: 'Superuser' }
@@ -236,10 +236,10 @@ async function resolveDirectusRole(db, memberId) {
   const isTeamResponsible = await hasActiveStaffRow(db, memberId)
 
   // Vorstand who is also a coach → Team Responsible (higher write access)
-  if (roles.includes('vorstand') && isTeamResponsible) {
+  if (roles.includes('board') && isTeamResponsible) {
     return { userId: member.user, roleName: 'Team Responsible' }
   }
-  if (roles.includes('vorstand')) {
+  if (roles.includes('board')) {
     return { userId: member.user, roleName: 'Vorstand' }
   }
   if (isTeamResponsible) {
@@ -413,7 +413,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // with this fixed UUID on every environment and moves the EXISTING files;
   // this hook covers FUTURE uploads. Best-effort (try/catch + log).
   const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
-  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert']
+  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert']
   async function quarantineRegistrationDocs(registrationId) {
     try {
       if (!registrationId) return
@@ -677,6 +677,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('members.items.create', async (payload) => trimMemberStrings(payload))
   filter('members.items.update', async (payload) => trimMemberStrings(payload))
 
+  // ── Role token 'vorstand' → 'board' (migration 422) ────────────────────
+  // Registered before priv-strip and the role sync, so every filter below sees
+  // the English token. A cached bundle still sends the old one — in the member
+  // editor's role chips, an event's invited roles, an announcement audience.
+  const ROLE_LIST_FIELDS = { members: 'role', events: 'invited_roles', announcements: 'audience_roles' }
+  for (const [collection, field] of Object.entries(ROLE_LIST_FIELDS)) {
+    for (const event of ['create', 'update']) {
+      filter(`${collection}.items.${event}`, (payload) => {
+        if (payload && typeof payload === 'object' && payload[field] != null) payload[field] = normalizeAppRoles(payload[field])
+        return payload
+      })
+    }
+  }
+
   // Defense-in-depth: strip privilege-bearing flags from the payload unless the
   // caller is admin / superuser. The Directus field-level permissions SHOULD be
   // admin-only — but the action hooks below escalate each of these into a real
@@ -696,7 +710,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // member ranked admin / superuser / vorstand — the Sport Admin policy grants
   // members update on every field, and `email` feeds the login + password
   // reset. Self-edits pass (your own row is yours).
-  const STAFF_RANKS = ['admin', 'superuser', 'vorstand']
+  const STAFF_RANKS = ['admin', 'superuser', 'board']
   const IDENTITY_FIELDS = ['email', 'user']
   filter('members.items.update', async (payload, meta, context) => {
     if (!payload || !IDENTITY_FIELDS.some((f) => f in payload)) return payload
@@ -1033,7 +1047,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // the per-user FINANCE policy alongside the base-role sync.
         await reconcileRolePolicy(id, 'finance')
         await reconcileRolePolicy(id, 'revisor')
-        await reconcileRolePolicy(id, 'vorstand')
+        await reconcileRolePolicy(id, 'board')
         await reconcileRolePolicy(id, 'vb_admin')
         await reconcileRolePolicy(id, 'bb_admin')
       }
@@ -1235,7 +1249,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // access immediately, without waiting for a setup-perms deploy (§13 does the
   // same as an idempotent reconcile).
   //
-  // 'vorstand' gets the same per-user layer for the `KSCW Vorstand` policy: a
+  // 'board' gets the same per-user layer for the `KSCW Vorstand` policy: a
   // board member's BASE role can outrank or replace Vorstand (bb_admin → Sport
   // Admin, a coaching board member → Team Responsible), and neither carries the
   // Vorstand policy — so /admin/finance opened for them (canAccessFinance =
@@ -1250,7 +1264,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     finance: 'KSCW Finance',
     // The elected auditors: read-only books (setup-permissions.mjs §9c²).
     revisor: 'KSCW Revisor',
-    vorstand: 'KSCW Vorstand',
+    board: 'KSCW Vorstand',
     vb_admin: 'KSCW Sport Admin VB',
     bb_admin: 'KSCW Sport Admin BB',
   }
@@ -2316,7 +2330,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       denyAudience('Only global admins can post club-wide announcements. Target a sport or specific teams instead.')
     }
 
-    // Role targeting crosses every sport boundary by nature (role:vorstand,
+    // Role targeting crosses every sport boundary by nature (role:board,
     // role:finance), so it stays global-admin only.
     if (type === 'roles') {
       denyAudience('Only global admins can target announcements by role.')
@@ -3302,7 +3316,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!m) return payload
     const roles = Array.isArray(m.role) ? m.role : []
     const isManager = roles.includes('admin') || roles.includes('superuser')
-      || roles.includes('vorstand') || roles.includes('vb_admin') || roles.includes('bb_admin')
+      || roles.includes('board') || roles.includes('vb_admin') || roles.includes('bb_admin')
 
     if (!isManager) {
       // A PATCH is partial, so judge the state the write would PRODUCE, not the
@@ -6120,6 +6134,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('members.items.create', (payload) => normalizeMemberValues(payload))
   filter('members.items.update', (payload) => normalizeMemberValues(payload))
   filter('registrations.items.update', (payload) => {
+    // Migration 422: bb_doc_lizenz → bb_doc_licence (a cached AnmeldungenPage).
+    if (payload && typeof payload === 'object' && 'bb_doc_lizenz' in payload) {
+      if (!('bb_doc_licence' in payload)) payload.bb_doc_licence = payload.bb_doc_lizenz
+      delete payload.bb_doc_lizenz
+    }
     if (payload && 'salutation' in payload && payload.salutation != null) payload.salutation = normalizeSalutation(payload.salutation)
     if (payload && 'cantonal_school' in payload && payload.cantonal_school != null) payload.cantonal_school = normalizeCantonalSchool(payload.cantonal_school)
     if (payload && payload.club_section_choice) payload.club_section_choice = normalizeClubSection(payload.club_section_choice) ?? payload.club_section_choice
@@ -6523,7 +6542,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const reg = await (context?.database ?? database)('registrations').where('id', key)
         .first('id', 'membership_type', 'nationality_codes', 'birthdate', 'bb_situation', 'bb_recent_licence', 'reference_number',
           'bb_docs_waived',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
+          'id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg || reg.membership_type !== 'basketball') continue
       // The same PATCH may edit situation/nationality/DOB *and* approve — evaluate
       // the required set against the post-update values (payload wins), so a
@@ -7821,7 +7840,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // reaches this filter; admins and system context bypass it.
   const ROSTER_ADD_CAP_PER_HOUR = 30
   // Staff who can already read every member — a cap would protect nothing.
-  const ROSTER_ADD_UNCAPPED_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser']
+  const ROSTER_ADD_UNCAPPED_ROLES = ['board', 'vb_admin', 'bb_admin', 'admin', 'superuser']
   const ROSTER_ADD_WINDOW_MS = 60 * 60 * 1000
   // actor member id → timestamps of adds that passed this filter in the window.
   const rosterAddLedger = new Map()
@@ -8009,7 +8028,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
     return payload
   })
-  const SPONSOR_CLUB_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser', 'website_admin']
+  const SPONSOR_CLUB_ROLES = ['board', 'vb_admin', 'bb_admin', 'admin', 'superuser', 'website_admin']
 
   // event_sessions: only for an event the caller created or whose team they lead.
   async function actorManagesEvent(db, accountability, eventId) {
@@ -8034,7 +8053,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // sport-confined holder — vb_admin or bb_admin below full admin, which every
   // board member below full admin is — covers only the events of their own
   // section plus club events ('both'); see clubRoleCoversEvent.
-  const EVENT_CLUB_ROLES = ['vorstand', 'vb_admin', 'bb_admin', 'admin', 'superuser']
+  const EVENT_CLUB_ROLES = ['board', 'vb_admin', 'bb_admin', 'admin', 'superuser']
   async function clubRoleCoversEvent(db, accountability, eventId) {
     const caller = await callerSportScope(db, accountability)
     return !caller || eventInScope(db, caller.scope, eventId)

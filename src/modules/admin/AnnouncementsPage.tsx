@@ -44,7 +44,7 @@ const ROLE_GROUPS: { labelKey: string; options: { token: string; labelKey: strin
       { token: 'role:superuser', labelKey: 'roleSuperuser' },
       { token: 'role:vb_admin', labelKey: 'roleVbAdmin' },
       { token: 'role:bb_admin', labelKey: 'roleBbAdmin' },
-      { token: 'role:vorstand', labelKey: 'roleVorstand' },
+      { token: 'role:board', labelKey: 'roleVorstand' },
       { token: 'role:website_admin', labelKey: 'roleWebsiteAdmin' },
       { token: 'role:finance', labelKey: 'roleFinance' },
       { token: 'role:user', labelKey: 'roleUser' },

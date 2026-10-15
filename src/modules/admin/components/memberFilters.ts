@@ -75,7 +75,7 @@ export type LicenceKey = (typeof LICENCE_TYPES)[number]
 // comma-separated column, so the match below reads it differently.
 export type TrainerLicenceKey = TrainerLicence
 
-export const ROLE_TYPES = ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin', 'user'] as const
+export const ROLE_TYPES = ['superuser', 'admin', 'board', 'vb_admin', 'bb_admin', 'user'] as const
 export type RoleKey = (typeof ROLE_TYPES)[number]
 
 export const POSITIONS: MemberPosition[] = [

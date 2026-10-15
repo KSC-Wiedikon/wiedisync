@@ -32,3 +32,5 @@ export const FEE_CATEGORY_VALUES: string[]
 export function normalizeFeeCategory(v: unknown): string | null
 export function feeCategoryLabel(v: unknown): string
 export function feeCategorySport(v: unknown): 'volleyball' | 'basketball' | null
+
+export function normalizeAppRoles<T>(v: T): T

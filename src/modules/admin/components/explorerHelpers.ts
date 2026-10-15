@@ -43,7 +43,7 @@ export type ClubdeskSyncStatus =
 
 /** One retained registration document (post-approval) for the reg-files column. */
 export interface RegFileDoc {
-  /** Registration column, e.g. 'id_upload_front' / 'bb_doc_lizenz'. */
+  /** Registration column, e.g. 'id_upload_front' / 'bb_doc_licence'. */
   field: string
   /** directus_files id — opened via the admin asset URL. */
   fileId: string

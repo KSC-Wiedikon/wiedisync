@@ -22,7 +22,7 @@ import { normalizeClubSection } from './member-values.js'
 // disjoint namespaces because "role" means three different things here: an
 // app-permission value in members.role, a team function derived from a
 // junction, and a qualification boolean on members.
-export const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand', 'website_admin', 'finance', 'user']
+export const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'board', 'website_admin', 'finance', 'user']
 export const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
 // The two OTN levels (migration 228) are separate audiences, so targeting all
 // OTN people means ticking otn1_bb + otn2_bb. The coarse `otn_bb` flag they
@@ -262,7 +262,7 @@ export const MAILBOX_GROUPS = [
   { key: 'cdgroup:referee_vb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'VB Schiedsrichter*innen' } },
   { key: 'cdgroup:referee_bb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'BB Schiedsrichter' } },
   { key: 'cdgroup:officials_bb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'BB Offiziellen' } },
-  { key: 'role:vorstand', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['role:vorstand'] } },
+  { key: 'role:board', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['role:board'] } },
   // ⚠ The ONLY group not sourced from `members`. Former members are not member
   // rows — ClubDesk holds 428 of them and wiedisync holds none once the stale
   // active flags are cleared — so this reads the contact register directly.

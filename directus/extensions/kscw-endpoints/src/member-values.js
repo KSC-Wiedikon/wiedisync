@@ -159,3 +159,28 @@ export function feeCategorySport(v) {
   if (s.startsWith('bb_')) return 'basketball'
   return null
 }
+
+// ── app roles (members.role, migration 422) ─────────────────────────────────
+// The board's role token was 'vorstand' until migration 422. A cached bundle or
+// the Data Studio can still send it — in members.role, events.invited_roles and
+// announcement audiences ('role:vorstand'). Every other token passes untouched.
+const APP_ROLE_LEGACY = Object.freeze({ __proto__: null, vorstand: 'board' })
+const swapRole = (r) => {
+  if (typeof r !== 'string') return r
+  if (r.startsWith('role:')) return `role:${APP_ROLE_LEGACY[r.slice(5)] ?? r.slice(5)}`
+  return APP_ROLE_LEGACY[r] ?? r
+}
+/**
+ * Role list (array, or its JSON text) with legacy tokens renamed and duplicates
+ * dropped; same shape back. Anything else is returned as is.
+ */
+export function normalizeAppRoles(v) {
+  if (Array.isArray(v)) return [...new Set(v.map(swapRole))]
+  if (typeof v === 'string' && v.trim().startsWith('[')) {
+    try {
+      const list = JSON.parse(v)
+      if (Array.isArray(list)) return JSON.stringify([...new Set(list.map(swapRole))])
+    } catch { /* not JSON — leave it to the CHECK */ }
+  }
+  return v
+}

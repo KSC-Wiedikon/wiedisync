@@ -33,7 +33,8 @@
  *     never a pattern.
  *   • lint-db-names.baseline.json (`--allow-known`): German names that are
  *     already in the DB and wait for a future migration. Temporary — delete an
- *     entry when its migration ships (a stale entry is reported).
+ *     entry when its migration ships (a stale entry is reported). Emptied and
+ *     deleted by migration 422 (16.10.2026); a missing file = empty baseline.
  *
  * Exit codes: 0 clean · 1 a finding that is neither allowlisted nor (with
  * --allow-known) in the baseline · 2 usage / psql error.

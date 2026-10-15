@@ -15,7 +15,7 @@ import registerHooks from '../index.js'
 // ── In-memory knex: where / whereIn / andWhere / first / select over TABLES ──
 const TABLES = {
   members: [
-    { id: 1, user: 'u-bb', role: ['vorstand', 'bb_admin'], permissions_section: 'basketball' },
+    { id: 1, user: 'u-bb', role: ['board', 'bb_admin'], permissions_section: 'basketball' },
     { id: 2, user: 'u-vb', role: ['vb_admin'], permissions_section: 'volleyball' },
     { id: 3, user: 'u-dual', role: ['vb_admin', 'bb_admin'], permissions_section: 'both' },
     { id: 4, user: 'u-coach', role: ['user'], permissions_section: 'volleyball' },

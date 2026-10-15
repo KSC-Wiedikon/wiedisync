@@ -729,7 +729,7 @@ interface FeeRuleFinding {
   category: string | null
   register_amount: number | null
   expected: number | null
-  reason: 'honorary' | 'vorstand' | 'coach' | null
+  reason: 'honorary' | 'board' | 'coach' | null
   kind: 'free_but_billed' | 'passiv_wrong_category' | 'amount_mismatch'
     | 'no_register_amount' | 'no_category' | 'unmapped_category'
 }

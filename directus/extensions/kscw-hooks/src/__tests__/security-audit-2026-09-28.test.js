@@ -406,7 +406,7 @@ describe('F19: events_members create needs an event manager', () => {
     await expect(runFilters('events_members.items.create', { events_id: 12, members_id: 5 }, {}, ctx({ staffTeams: [3] }))).resolves.toBeDefined()
   })
   it('vorstand may invite; admin and system bypass', async () => {
-    await expect(runFilters('events_members.items.create', { events_id: 12, members_id: 5 }, {}, ctx({ role: ['vorstand'] }))).resolves.toBeDefined()
+    await expect(runFilters('events_members.items.create', { events_id: 12, members_id: 5 }, {}, ctx({ role: ['board'] }))).resolves.toBeDefined()
     await expect(runFilters('events_members.items.create', { events_id: 12 }, {}, { database: fakeKnex(() => undefined), accountability: { user: 'a', admin: true } })).resolves.toBeDefined()
     await expect(runFilters('events_members.items.create', { events_id: 12 }, {}, { database: fakeKnex(() => undefined), accountability: null })).resolves.toBeDefined()
   })
@@ -442,7 +442,7 @@ describe('F24: member_teams create guard', () => {
     await expect(runFilters('member_teams.items.create', { member: 5, team: 3 }, {}, ctx({ recent: 30 })))
       .rejects.toMatchObject({ code: 'ROSTER_ADD_RATE_LIMITED' })
     await expect(runFilters('member_teams.items.create', { member: 5, team: 3 }, {}, ctx({ recent: 29 }))).resolves.toBeDefined()
-    await expect(runFilters('member_teams.items.create', { member: 5, team: 3 }, {}, ctx({ recent: 99, role: ['vorstand'] }))).resolves.toBeDefined()
+    await expect(runFilters('member_teams.items.create', { member: 5, team: 3 }, {}, ctx({ recent: 99, role: ['board'] }))).resolves.toBeDefined()
   })
   it('an array POST cannot slip past the cap before user_logs is written', async () => {
     // Directus createMany runs every item's filter in one trx and emits the

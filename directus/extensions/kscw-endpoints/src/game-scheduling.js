@@ -184,7 +184,7 @@ export function expectedStaffTierRole(memberRoles, hasActiveStaff) {
   if (roles.includes('superuser') || roles.includes('admin')) return null
   if (roles.includes('vb_admin') || roles.includes('bb_admin')) return null
   if (hasActiveStaff) return 'Team Responsible'
-  if (roles.includes('vorstand')) return 'Vorstand'
+  if (roles.includes('board')) return 'Vorstand'
   return 'Member'
 }
 

@@ -71,7 +71,7 @@ describe('scopeForRoles', () => {
 
   it('refuses everyone else — including roles that look privileged', () => {
     // vorstand and finance reach other admin pages; neither is on this one.
-    for (const roles of [[], ['user'], ['user', 'vorstand'], ['user', 'finance'], ['user', 'website_admin']]) {
+    for (const roles of [[], ['user'], ['user', 'board'], ['user', 'finance'], ['user', 'website_admin']]) {
       expect(scopeForRoles(roles)).toBeNull()
     }
   })

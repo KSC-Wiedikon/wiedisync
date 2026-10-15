@@ -63,3 +63,22 @@ describe('fee category vocabulary (migration 417)', async () => {
     expect(feeCategorySport('Passivmitglied')).toBeNull()
   })
 })
+
+// Migration 422: the board's role token 'vorstand' → 'board'.
+import { normalizeAppRoles } from '../member-values.js'
+describe('normalizeAppRoles', () => {
+  it('renames the legacy token, keeps order and drops duplicates', () => {
+    expect(normalizeAppRoles(['user', 'vorstand', 'admin'])).toEqual(['user', 'board', 'admin'])
+    expect(normalizeAppRoles(['vorstand', 'board'])).toEqual(['board'])
+  })
+  it('handles announcement audience tokens and JSON text', () => {
+    expect(normalizeAppRoles(['role:vorstand', 'fn:coach'])).toEqual(['role:board', 'fn:coach'])
+    expect(normalizeAppRoles('["user","vorstand"]')).toBe('["user","board"]')
+  })
+  it('leaves everything else alone', () => {
+    expect(normalizeAppRoles(['user', 'finance'])).toEqual(['user', 'finance'])
+    expect(normalizeAppRoles(null)).toBe(null)
+    expect(normalizeAppRoles('not json')).toBe('not json')
+    expect(normalizeAppRoles(['constructor'])).toEqual(['constructor'])
+  })
+})

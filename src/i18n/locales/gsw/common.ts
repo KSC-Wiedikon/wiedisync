@@ -179,7 +179,7 @@ export default {
     coach: 'Coach',
     captain: 'Captain',
     team_responsible: 'Team-Verantw.',
-    vorstand: 'Vorstand',
+    board: 'Vorstand',
     admin: 'Admin',
     vb_admin: 'VB-Admin',
     bb_admin: 'BB-Admin',

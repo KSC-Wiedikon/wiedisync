@@ -238,7 +238,7 @@ function writeNoisePref(key: string, value: boolean): void {
  * change both.
  */
 const PRIVILEGED_TARGET_ROLES: ReadonlySet<string> = new Set([
-  'admin', 'superuser', 'vorstand', 'vb_admin', 'bb_admin', 'finance',
+  'admin', 'superuser', 'board', 'vb_admin', 'bb_admin', 'finance',
 ])
 
 /** `members.role` is a jsonb string array, but a legacy row can hold a bare string. */

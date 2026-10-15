@@ -132,7 +132,7 @@ export function isJsExportAdmin(role, teamSport, { directusAdmin = false } = {})
   if (directusAdmin) return true
   const roles = normalizeRole(role)
   if (roles.includes('admin') || roles.includes('superuser')) return true
-  if (!['vb_admin', 'bb_admin', 'vorstand'].some((r) => roles.includes(r))) return false
+  if (!['vb_admin', 'bb_admin', 'board'].some((r) => roles.includes(r))) return false
   return sportScopeAllows(callerSportScope(roles), sportOfTeams([teamSport]))
 }
 

@@ -102,7 +102,7 @@ const SURCHARGE_DUE = `(
 const OWES_NOTHING = `(
      ${FEE_CAT} IN ('free', 'none')
   OR m.register_status = 'honorary'
-  OR COALESCE(m.role, '[]'::jsonb) @> '["vorstand"]'::jsonb
+  OR COALESCE(m.role, '[]'::jsonb) @> '["board"]'::jsonb
   OR (m.fee_base_override IS NOT NULL AND m.fee_base_override <= 0
       AND (m.fee_surcharge_override IS FALSE
            OR (m.fee_surcharge_override IS NULL AND NOT ${SURCHARGE_DUE})))

@@ -38,7 +38,7 @@ export async function authorizePollViewer(db, req, poll) {
   // Sport admins and the board read live results inside their own section only
   // (M7, 2026-10-12); a team-less poll is club-wide ('both'). Out of section they
   // fall through to the coach / creator / roster tiers like anyone else.
-  if ((roles.includes('vb_admin') || roles.includes('bb_admin') || roles.includes('vorstand'))
+  if ((roles.includes('vb_admin') || roles.includes('bb_admin') || roles.includes('board'))
     && await scopeAllowsTeams(db, callerSportScope(roles), [poll.team])) return true
   if (poll.team) {
     const [coach, tr] = await Promise.all([

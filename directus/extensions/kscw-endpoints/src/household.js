@@ -205,7 +205,7 @@ async function mayReadHouseholds(database, accountability) {
   if (!userId) return false
   const caller = await database('members').where('user', userId).first('role')
   const roles = callerRoles(caller)
-  return roles.includes('vorstand') || roles.includes('vb_admin') || roles.includes('bb_admin')
+  return roles.includes('board') || roles.includes('vb_admin') || roles.includes('bb_admin')
 }
 
 /**

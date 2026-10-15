@@ -227,7 +227,7 @@ const SYNC_CHIP_CLASS: Record<ClubdeskSyncStatus, string> = {
 const REG_DOC_LABEL_KEY: Record<string, string> = {
   id_upload_front: 'anmeldungenDocIdFront',
   id_upload_back: 'anmeldungenDocIdBack',
-  bb_doc_lizenz: 'anmeldungenDocLizenz',
+  bb_doc_licence: 'anmeldungenDocLizenz',
   bb_doc_release_letter: 'anmeldungenDocFreibrief',
   bb_doc_selfdecl: 'anmeldungenDocSelfDecl',
   bb_doc_natdecl: 'anmeldungenDocNatDecl',
@@ -835,7 +835,7 @@ export default function ExplorerGrid({
           return federationLabel(rawField(m, 'federation_of_origin') as string | null)
         // The four columns whose stored value is a lowercase code. Without a
         // label they reach the screen — and the Excel export — as `staff_only`,
-        // `["user", "vorstand"]`, `m` and `german`. Each already has exactly one
+        // `["user", "board"]`, `m` and `german`. Each already has exactly one
         // label list elsewhere in the app, and these reuse it rather than
         // inventing a second: positions from memberPositions.ts (the same names
         // the roster and the profile picker show), roles and sex from

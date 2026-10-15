@@ -175,7 +175,7 @@ export default {
     coach: 'Coach',
     captain: 'Capitano',
     team_responsible: 'Resp. squadra',
-    vorstand: 'Comitato',
+    board: 'Comitato',
     admin: 'Admin',
     vb_admin: 'Admin VB',
     bb_admin: 'Admin BB',

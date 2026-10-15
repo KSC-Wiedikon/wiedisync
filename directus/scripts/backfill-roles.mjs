@@ -92,9 +92,9 @@ async function main() {
       targetRole = 'Superuser'
     } else if (appRoles.includes('vb_admin') || appRoles.includes('bb_admin')) {
       targetRole = 'Sport Admin'
-    } else if (appRoles.includes('vorstand') && isCoachOrTR) {
+    } else if (appRoles.includes('board') && isCoachOrTR) {
       targetRole = 'Team Responsible' // Vorstand+Coach → Team Responsible (more write access)
-    } else if (appRoles.includes('vorstand')) {
+    } else if (appRoles.includes('board')) {
       targetRole = 'Vorstand'
     } else if (isCoachOrTR) {
       targetRole = 'Team Responsible'

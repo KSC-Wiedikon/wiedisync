@@ -229,7 +229,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   const sektionLabel = (s: string | null) => s || t('duesSektionDefault')
   /** Why this member's bill came to nothing — the same reason the invoice prints. */
   const waiverWhy = (reason: DuesPreviewRow['waiver_reason']) => ({
-    honorary: t('duesWaiverWhyHonorary'), vorstand: t('duesWaiverWhyVorstand'),
+    honorary: t('duesWaiverWhyHonorary'), board: t('duesWaiverWhyVorstand'),
     coach: t('duesWaiverWhyCoach'), gratis: t('duesWaiverWhyGratis'),
   }[reason ?? 'gratis'] ?? t('duesWaiverWhyGratis'))
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])

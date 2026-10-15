@@ -65,7 +65,7 @@ function world(over = {}) {
     members: [
       { id: 1, user: 'u-coach', role: '["user"]' },
       { id: 2, user: 'u-player', role: '["user"]' },
-      { id: 3, user: 'u-vorstand', role: '["user","vorstand"]' },
+      { id: 3, user: 'u-vorstand', role: '["user","board"]' },
       { id: 4, user: 'u-bbadmin', role: '["user","bb_admin"]' },
       { id: 5, user: 'u-vbadmin', role: '["user","vb_admin"]' },
       { id: 6, user: 'u-creator', role: '["user"]' },
@@ -97,7 +97,7 @@ describe('canReadFormAnswers — mirrors form_submissions read scope', () => {
   it.each([
     ['active coach of a linked team', 'u-coach', true],
     ['the creator', 'u-creator', true],
-    ['vorstand', 'u-vorstand', true],
+    ['board', 'u-vorstand', true],
     ['vb_admin (team sport)', 'u-vbadmin', true],
     ['bb_admin (other sport)', 'u-bbadmin', false],
     ['coach of a linked INACTIVE team only', 'u-oldcoach', false],

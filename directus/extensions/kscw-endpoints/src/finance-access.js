@@ -11,7 +11,7 @@
  * canManageFinance / canReadFinance in finance.js.
  */
 
-export const FINANCE_WRITE_ROLES = ['vorstand', 'admin', 'superuser', 'finance']
+export const FINANCE_WRITE_ROLES = ['board', 'admin', 'superuser', 'finance']
 export const FINANCE_READ_ONLY_ROLES = ['revisor']
 
 export function parseRoles(raw) {

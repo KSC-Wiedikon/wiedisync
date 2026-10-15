@@ -610,7 +610,7 @@ export interface DuesPreviewRow {
    *  accounting has a record for every member, with the entitlement and the
    *  waiver both on the document. */
   waiver: number
-  waiver_reason: 'honorary' | 'vorstand' | 'coach' | 'gratis' | null
+  waiver_reason: 'honorary' | 'board' | 'coach' | 'gratis' | null
   /** Free by CATEGORY ('Gratis'). Their invoice carries the exemption line even
    *  at 0.00 — the club has no comparable rate for every sektion. */
   exempt: boolean

@@ -90,7 +90,7 @@ interface Registration extends BaseRecord {
    *  last two seasons? null = unanswered. Only false waives the Freibrief —
    *  see bbFreibriefWaived. */
   bb_recent_licence: boolean | null
-  bb_doc_lizenz: string | null
+  bb_doc_licence: string | null
   bb_doc_release_letter: string | null
   bb_doc_selfdecl: string | null
   bb_doc_natdecl: string | null
@@ -130,7 +130,7 @@ const DOC_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 const DOC_UPLOAD_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 
 const DOC_FIELDS: (keyof Registration)[] = [
-  'bb_doc_lizenz',
+  'bb_doc_licence',
   'bb_doc_release_letter',
   'bb_doc_selfdecl',
   'bb_doc_natdecl',
@@ -145,7 +145,7 @@ const DOC_FIELDS: (keyof Registration)[] = [
 // approver back to the grid to diff it by eye). Same labels the document grid
 // renders, so the toast and the row read alike.
 const DOC_LABEL_KEYS: Record<string, string> = {
-  bb_doc_lizenz: 'anmeldungenDocLizenz',
+  bb_doc_licence: 'anmeldungenDocLizenz',
   bb_doc_release_letter: 'anmeldungenDocFreibrief',
   bb_doc_selfdecl: 'anmeldungenDocSelfDecl',
   bb_doc_natdecl: 'anmeldungenDocNatDecl',
@@ -1276,7 +1276,7 @@ function ExpandedDetails({
   }
 
   const bbDocs: { key: keyof Registration; label: string }[] = [
-    { key: 'bb_doc_lizenz', label: t('anmeldungenDocLizenz') },
+    { key: 'bb_doc_licence', label: t('anmeldungenDocLizenz') },
     { key: 'bb_doc_release_letter', label: t('anmeldungenDocFreibrief') },
     { key: 'bb_doc_selfdecl', label: t('anmeldungenDocSelfDecl') },
     { key: 'bb_doc_natdecl', label: t('anmeldungenDocNatDecl') },

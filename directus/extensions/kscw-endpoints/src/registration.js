@@ -30,7 +30,15 @@ import { sniffUpload, safeFilename, createLimiter, overDailyBudget } from './pub
 import { callerSportScope, membersInScope, parseRoles, scopeAllowsMember } from './sport-scope.js'
 
 /** The JSON body as an object (English keys, migration 413) — `{}` for anything else. */
-const requestBody = (req) => (req.body && typeof req.body === 'object' ? req.body : {})
+// kscw-website still posts the licence application as `bb_doc_lizenz` — column
+// bb_doc_licence since migration 422. Drop the rename once the website is switched.
+const LEGACY_LICENCE_KEY = 'bb_doc_lizenz'
+const requestBody = (req) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {}
+  if (!Object.hasOwn(body, LEGACY_LICENCE_KEY)) return body
+  const { [LEGACY_LICENCE_KEY]: legacy, ...rest } = body
+  return Object.hasOwn(rest, 'bb_doc_licence') ? rest : { ...rest, bb_doc_licence: legacy }
+}
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -427,7 +435,7 @@ const DOC_LABELS = {
   de: {
     id_upload_front: 'ID / Pass — Vorderseite',
     id_upload_back: 'ID / Pass — Rückseite',
-    bb_doc_lizenz: 'Lizenzantrag (unterschrieben)',
+    bb_doc_licence: 'Lizenzantrag (unterschrieben)',
     bb_doc_release_letter: 'Freibrief (unterschrieben)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
@@ -437,7 +445,7 @@ const DOC_LABELS = {
   en: {
     id_upload_front: 'ID / passport — front',
     id_upload_back: 'ID / passport — back',
-    bb_doc_lizenz: 'Licence application (signed)',
+    bb_doc_licence: 'Licence application (signed)',
     bb_doc_release_letter: 'Release letter / Freibrief (signed)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
@@ -447,7 +455,7 @@ const DOC_LABELS = {
   fr: {
     id_upload_front: "Carte d'identité / passeport — recto",
     id_upload_back: "Carte d'identité / passeport — verso",
-    bb_doc_lizenz: 'Demande de licence (signée)',
+    bb_doc_licence: 'Demande de licence (signée)',
     bb_doc_release_letter: 'Lettre de sortie / Freibrief (signée)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
@@ -457,7 +465,7 @@ const DOC_LABELS = {
   it: {
     id_upload_front: "Carta d'identità / passaporto — fronte",
     id_upload_back: "Carta d'identità / passaporto — retro",
-    bb_doc_lizenz: 'Richiesta di licenza (firmata)',
+    bb_doc_licence: 'Richiesta di licenza (firmata)',
     bb_doc_release_letter: 'Lettera di svincolo / Freibrief (firmata)',
     bb_doc_selfdecl: "Player's Self Declaration",
     bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
@@ -772,7 +780,7 @@ export const ALL_MEMBERSHIP_TYPES = Object.freeze(['volleyball', 'basketball', '
 export function registrationSportsFor(roles, { directusAdmin = false } = {}) {
   const list = parseRoles(roles)
   if (directusAdmin || list.includes('admin') || list.includes('superuser')) return ALL_MEMBERSHIP_TYPES
-  if (list.includes('vorstand')) {
+  if (list.includes('board')) {
     const scope = callerSportScope(list)
     return scope ? [scope, 'passive'] : ALL_MEMBERSHIP_TYPES
   }
@@ -794,7 +802,7 @@ export function registrationAllowed(roles, membershipType, opts = {}) {
 // (post-approval) registration. Mirrors REGISTRATION_FILE_COLS in kscw-hooks.
 const SELF_DOC_FIELDS = [
   'id_upload_front', 'id_upload_back',
-  'bb_doc_lizenz', 'bb_doc_release_letter', 'bb_doc_selfdecl',
+  'bb_doc_licence', 'bb_doc_release_letter', 'bb_doc_selfdecl',
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ]
 
@@ -1134,7 +1142,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const docs = {
         id_upload_front: docId(body.id_upload_front),
         id_upload_back: docId(body.id_upload_back),
-        bb_doc_lizenz: docId(body.bb_doc_lizenz),
+        bb_doc_licence: docId(body.bb_doc_licence),
         bb_doc_release_letter: docId(body.bb_doc_release_letter),
         bb_doc_selfdecl: docId(body.bb_doc_selfdecl),
         bb_doc_natdecl: docId(body.bb_doc_natdecl),
@@ -1365,7 +1373,8 @@ export function registerRegistration(router, { database, logger, services, getSc
       const itemsService = new ItemsService('registrations', { schema, knex: database })
 
       // Verify registration exists, is pending, and caller knows the reference number
-      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = requestBody(req)
+      // requestBody renames kscw-website's `bb_doc_lizenz` (migration 422).
+      const { reference_number, id_upload_front, id_upload_back, bb_doc_licence, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = requestBody(req)
       if (!reference_number) {
         return res.status(400).json({ error: 'reference_number required' })
       }
@@ -1410,7 +1419,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // holder may complete missing documents but never silently REPLACE ones an
       // admin already reviewed at approval time.
       const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
-      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert]
+      const providedIds = [id_upload_front, id_upload_back, bb_doc_licence, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert]
         .map(fileId).filter(Boolean)
       if (providedIds.length) {
         const found = await database('directus_files')
@@ -1428,7 +1437,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       }
       setDoc('id_upload_front', id_upload_front)
       setDoc('id_upload_back', id_upload_back)
-      setDoc('bb_doc_lizenz', bb_doc_lizenz)
+      setDoc('bb_doc_licence', bb_doc_licence)
       setDoc('bb_doc_release_letter', bb_doc_release_letter)
       setDoc('bb_doc_selfdecl', bb_doc_selfdecl)
       setDoc('bb_doc_natdecl', bb_doc_natdecl)
@@ -1508,7 +1517,7 @@ export function registerRegistration(router, { database, logger, services, getSc
   const DOC_STATUS_FIELDS = [
     'id', 'status', 'email', 'membership_type', 'nationality_codes',
     'birthdate', 'bb_situation', 'bb_recent_licence', 'reference_number',
-    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
+    'id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter',
     'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
     // Migration 358 — a waived document is not owed, so the nachreichen page
     // must not list it and the prefilled-form route must not serve it.
@@ -1545,7 +1554,9 @@ export function registerRegistration(router, { database, logger, services, getSc
         docs: {
           id_upload_front: !!reg.id_upload_front,
           id_upload_back: !!reg.id_upload_back,
-          bb_doc_lizenz: !!reg.bb_doc_lizenz,
+          bb_doc_licence: !!reg.bb_doc_licence,
+          // Pre-422 key, read by kscw-website's nachreichen page until it is switched.
+          bb_doc_lizenz: !!reg.bb_doc_licence,
           bb_doc_release_letter: !!reg.bb_doc_release_letter,
           bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
           bb_doc_natdecl: !!reg.bb_doc_natdecl,
@@ -1601,7 +1612,9 @@ export function registerRegistration(router, { database, logger, services, getSc
   }
 
   router.get('/registration/doc-template/:field', async (req, res) => {
-    const field = String(req.params.field || '')
+    // kscw-website still links the licence application as `bb_doc_lizenz` (migration 422).
+    const rawField = String(req.params.field || '')
+    const field = rawField === LEGACY_LICENCE_KEY ? 'bb_doc_licence' : rawField
     try {
       const tpl = BB_PDF_TEMPLATES[field]
       // Unknown field is rejected BEFORE the lookup, so this route cannot be used
@@ -1729,7 +1742,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         .first('id', 'status', 'email', 'first_name', 'last_name', 'locale', 'membership_type',
           'reference_number', 'nationality_codes', 'birthdate',
           'bb_situation', 'bb_recent_licence', 'bb_docs_waived',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
+          'id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter',
           'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
@@ -1830,7 +1843,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const actorRoles = Array.isArray(actor?.role) ? actor.role
         : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
       const allowed = req.accountability.admin === true
-        || ['admin', 'superuser', 'vorstand', 'bb_admin'].some((r) => actorRoles.includes(r))
+        || ['admin', 'superuser', 'board', 'bb_admin'].some((r) => actorRoles.includes(r))
       if (!allowed) return res.status(403).json({ error: 'Not authorized' })
 
       const locale = REG_LOCALES.includes(req.body?.locale) ? req.body.locale : 'de'
@@ -1850,7 +1863,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           .first('id', 'first_name', 'email', 'reference_number', 'membership_type',
             'nationality_codes', 'birthdate', 'bb_situation', 'bb_recent_licence',
             'bb_docs_waived',
-            'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_release_letter',
+            'id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_release_letter',
             'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
         // The template is board work, the applicant is not: a real row renders
         // their name and email, so it is held to the registration scope (M7).
@@ -1869,7 +1882,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           first_name: 'Chiara', email: 'beispiel@example.ch', reference_number: 'REG-2026-0000',
           membership_type: 'basketball',
         }
-        missing = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']
+        missing = ['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl']
       }
 
       const { subject, html } = await buildDocsRequestEmail(reg, locale, missing, overrides)

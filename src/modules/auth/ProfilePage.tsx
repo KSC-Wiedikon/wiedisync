@@ -461,7 +461,7 @@ export default function ProfilePage() {
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('roles')}</span>
                 <div className="flex flex-col border-l-2 border-input pl-3">
                   {[...user.role].sort((a, b) => {
-                    const order = ['user', 'coach', 'team_responsible', 'finance', 'vb_admin', 'bb_admin', 'vorstand', 'admin', 'superuser', 'superadmin']
+                    const order = ['user', 'coach', 'team_responsible', 'finance', 'vb_admin', 'bb_admin', 'board', 'admin', 'superuser', 'superadmin']
                     return (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b))
                   }).map((r) => (
                     <div key={r} className="flex items-center gap-2.5 py-1">

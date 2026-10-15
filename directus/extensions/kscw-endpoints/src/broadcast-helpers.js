@@ -257,7 +257,7 @@ export async function checkBroadcastPermission(database, sender, activityType, a
 
   if (activityType === 'event') {
     // Club-wide on purpose (M7, 2026-10-12): broadcasts are board work, not sport data.
-    if (roles.includes('vorstand')) return
+    if (roles.includes('board')) return
     const sport = activity?.primary_sport
     if (sport === 'volleyball' && roles.includes('vb_admin')) return
     if (sport === 'basketball' && roles.includes('bb_admin')) return

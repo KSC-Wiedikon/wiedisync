@@ -3950,7 +3950,7 @@ async function main() {
         const appRoles = m.role
         if (appRoles.some(r => ['superuser', 'admin', 'vb_admin', 'bb_admin'].includes(r))) continue
         const want = leaderUserIds.has(u.id) ? 'Team Responsible'
-          : appRoles.includes('vorstand') ? 'Vorstand' : 'Member'
+          : appRoles.includes('board') ? 'Vorstand' : 'Member'
         const have = tierIdToName[u.role]
         if (have !== want) changes.push({ userId: u.id, memberId: m.id, have, want })
       }
@@ -4040,7 +4040,7 @@ async function main() {
   // deploy-time reconcile (catches manual SQL edits / pre-hook grants).
 
   //
-  // 'vorstand' gets the same user-level layer for VORSTAND_POLICY: a board
+  // 'board' gets the same user-level layer for VORSTAND_POLICY: a board
   // member's base role can be Sport Admin (bb_admin/vb_admin) or Team
   // Responsible (also coaches), neither of which carries the Vorstand policy —
   // the app still opens /admin/finance for them (canAccessFinance = isVorstand)
@@ -4056,7 +4056,7 @@ async function main() {
   const ROLE_POLICY_BACKFILLS = [
     ['finance', FINANCE_POLICY, 'FINANCE'],
     ['revisor', REVISOR_POLICY, 'REVISOR'],
-    ['vorstand', VORSTAND_POLICY, 'VORSTAND'],
+    ['board', VORSTAND_POLICY, 'VORSTAND'],
     ...SPORT_SECTION_POLICIES.map((sp) => [sp.appRole, sp.id, sp.label]),
   ]
   for (const [appRole, policyId, label] of ROLE_POLICY_BACKFILLS) {

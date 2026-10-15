@@ -171,7 +171,7 @@ const ADMIN_ROLES = Object.freeze(['admin', 'superuser', 'vb_admin', 'bb_admin']
  * mid-flight and leaves the club one administrator short with no undo.
  */
 const PRIVILEGED_TARGET_ROLES = Object.freeze([
-  'admin', 'superuser', 'vorstand', 'vb_admin', 'bb_admin', 'finance',
+  'admin', 'superuser', 'board', 'vb_admin', 'bb_admin', 'finance',
 ])
 
 export function registerDeleteImpact(router, { database, logger, services, getSchema }) {

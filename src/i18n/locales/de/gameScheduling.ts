@@ -697,7 +697,7 @@ export default {
   mailboxGroup_cdgroup_referee_bb: 'Schiedsrichter*innen (Basketball)',
   mailboxGroup_cdgroup_officials_bb: 'Offizielle (Basketball)',
   mailboxSeasonScopeHint: '— gilt für Spieler*innen, Rollen und Teams',
-  mailboxGroup_role_vorstand: 'Vorstand',
+  mailboxGroup_role_board: 'Vorstand',
   mailboxSection_everyone: 'Mitgliedschaft',
   mailboxSection_sektion: 'Sektionen',
   mailboxSection_players: 'Spieler*innen',

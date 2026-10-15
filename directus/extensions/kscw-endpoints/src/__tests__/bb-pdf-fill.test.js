@@ -102,7 +102,7 @@ describe('winAnsiSafe (licence-PDF text guard)', () => {
 describe('BB_PDF_TEMPLATES', () => {
   it('covers the five club-issued forms and neither ID scan', () => {
     expect(Object.keys(BB_PDF_TEMPLATES).sort()).toEqual([
-      'bb_doc_lizenz', 'bb_doc_natdecl', 'bb_doc_release_letter',
+      'bb_doc_licence', 'bb_doc_natdecl', 'bb_doc_release_letter',
       'bb_doc_selfdecl', 'bb_doc_u18parents',
     ])
     // A passport photo has nothing to pre-fill; offering a "template" for it
@@ -122,7 +122,7 @@ describe('BB_PDF_TEMPLATES', () => {
 describe('fillBbForm — Lizenzantrag positional mapping', () => {
   it("writes each value into the box that field number actually is", () => {
     const { pdfDoc, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW })
 
     // The regression that motivated this module: these are POSITIONS, and being
     // off by one silently swaps identity fields on a federation document.
@@ -137,7 +137,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
 
   it('splits the birthdate across the day/month/year boxes', () => {
     const { pdfDoc, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW })
     expect(text.Tag).toBe('31')
     expect(text.Monat).toBe('10')
     expect(text.Jahr).toBe('2013')
@@ -147,7 +147,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
     // String(date).slice(0,10) would be "Thu Jan 15"; a UTC conversion would shift
     // the day back in Europe/Zurich. Both were live bugs in sibling code.
     const { pdfDoc, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, birthdate: new Date(2013, 9, 31) }, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, { ...APPLICANT, birthdate: new Date(2013, 9, 31) }, { now: NOW })
     expect(text.Tag).toBe('31')
     expect(text.Monat).toBe('10')
     expect(text.Jahr).toBe('2013')
@@ -155,7 +155,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
 
   it('ticks the sex box and defaults a situation-less row to new member', () => {
     const { pdfDoc, checked } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW })
     expect(checked).toContain('Mann')
     // Legacy rows predate the situation question; the licence still has to say
     // something, and "new member" is the only safe default.
@@ -166,7 +166,7 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
     // The form asks whether the player is Swiss, not which passport is listed
     // first — same "Swiss beats foreign" rule the document gate applies.
     const { pdfDoc, checked, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, nationality_codes: ['IT', 'CH'] }, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, { ...APPLICANT, nationality_codes: ['IT', 'CH'] }, { now: NOW })
     expect(checked).toContain('Schweiz')
     expect(checked).not.toContain('Andere')
     expect(text['KOPIE DES PASSES ODER DER ID BEILAGEN']).toBeUndefined()
@@ -174,14 +174,14 @@ describe('fillBbForm — Lizenzantrag positional mapping', () => {
 
   it('ticks Andere and names the country for a foreign national', () => {
     const { pdfDoc, checked, text } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW })
     expect(checked).toContain('Andere')
     expect(text['KOPIE DES PASSES ODER DER ID BEILAGEN']).toBe('Deutschland')
   })
 
   it('maps a returning player onto the international-transfer box', () => {
     const { pdfDoc, checked } = recorder()
-    fillBbForm('bb_doc_lizenz', pdfDoc, { ...APPLICANT, situation: 'returning' }, { now: NOW })
+    fillBbForm('bb_doc_licence', pdfDoc, { ...APPLICANT, situation: 'returning' }, { now: NOW })
     expect(checked).toContain('Internationaler Transfer')
   })
 })
@@ -247,7 +247,7 @@ describe('fillBbForm — contract', () => {
       if (name === 'undefined_4') throw new Error('no such field')
       return { setText: (v) => { text[name] = v }, setFontSize: () => {}, updateAppearances: () => {} }
     }
-    expect(() => fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW })).not.toThrow()
+    expect(() => fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW })).not.toThrow()
     expect(text.undefined_2).toBe('Jung')
     expect(text.undefined_4).toBeUndefined()
   })
@@ -264,7 +264,7 @@ describe('fillBbForm — contract', () => {
       },
       setFontSize: () => {}, updateAppearances: () => {},
     })
-    fillBbForm('bb_doc_lizenz', pdfDoc, APPLICANT, { now: NOW, onEncodeError: (n) => seen.push(n) })
+    fillBbForm('bb_doc_licence', pdfDoc, APPLICANT, { now: NOW, onEncodeError: (n) => seen.push(n) })
     expect(seen).toContain('undefined_2')
   })
 })

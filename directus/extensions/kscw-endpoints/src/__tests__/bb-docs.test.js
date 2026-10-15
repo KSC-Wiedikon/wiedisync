@@ -44,34 +44,34 @@ describe('bbIsMinor', () => {
   it('bbRequiredDocs honours a Date DOB for a minor international transfer', () => {
     const minorAsDate = new Date(Number(minorDob.slice(0, 4)), 0, 15)
     expect(set(bbRequiredDocs('transfer_intl', 'CH', minorAsDate)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents']))
   })
 })
 
 describe('bbRequiredDocs — always requires the base three', () => {
   it('new Swiss adult → ID front/back + Lizenzantrag only', () => {
     expect(set(bbRequiredDocs('new', 'CH', adultDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence']))
   })
 })
 
 describe('bbRequiredDocs — new player', () => {
   it('foreign adult → + self declaration (no national team decl.)', () => {
     expect(set(bbRequiredDocs('new', 'IT', adultDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl']))
   })
   it('foreign minor → + self declaration + national team declaration', () => {
     expect(set(bbRequiredDocs('new', 'IT', minorDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
   })
   it('Swiss minor → still just the base three', () => {
     expect(set(bbRequiredDocs('new', 'CH', minorDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence']))
   })
 })
 
 describe('bbRequiredDocs — transfer from a Swiss club', () => {
-  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_licence']
   const withFreibrief = set([...base, 'bb_doc_release_letter'])
 
   it('requires the Freibrief regardless of nationality', () => {
@@ -132,11 +132,11 @@ describe('bbRequiredDocs — international transfer / returner', () => {
   for (const sit of ['transfer_intl', 'returning']) {
     it(`${sit} adult → + self declaration`, () => {
       expect(set(bbRequiredDocs(sit, 'CH', adultDob)))
-        .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl']))
+        .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl']))
     })
     it(`${sit} minor → + self decl. + national team decl. + U18 parental consent (school cert stays optional)`, () => {
       expect(set(bbRequiredDocs(sit, 'CH', minorDob)))
-        .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents']))
+        .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents']))
     })
     it(`${sit} never requires the optional school certificate`, () => {
       expect(bbRequiredDocs(sit, 'IT', minorDob)).not.toContain('bb_doc_schoolcert')
@@ -147,13 +147,13 @@ describe('bbRequiredDocs — international transfer / returner', () => {
 describe('bbRequiredDocs — legacy fallback (no/unknown situation)', () => {
   it('unknown situation + foreign → legacy natCode rule (self + national team decl.)', () => {
     expect(set(bbRequiredDocs(null, 'IT', adultDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
     expect(set(bbRequiredDocs('garbage', 'IT', adultDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence', 'bb_doc_selfdecl', 'bb_doc_natdecl']))
   })
   it('unknown situation + Swiss → base three', () => {
     expect(set(bbRequiredDocs(null, 'CH', adultDob)))
-      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']))
+      .toEqual(set(['id_upload_front', 'id_upload_back', 'bb_doc_licence']))
   })
 })
 
@@ -166,5 +166,8 @@ describe('BB_SITUATIONS', () => {
     expect(bbRequiredDocs('neu', 'CH', adultDob)).toEqual(bbRequiredDocs('new', 'CH', adultDob))
     expect(bbRequiredDocs('rueckkehr', 'IT', adultDob)).toEqual(bbRequiredDocs('returning', 'IT', adultDob))
     expect(parseWaivedDocs('bb_doc_freibrief')).toEqual(['bb_doc_release_letter'])
+    // Migration 422 renamed the licence application; an older waiver still counts.
+    expect(parseWaivedDocs('id_upload_front, bb_doc_lizenz')).toEqual(['id_upload_front', 'bb_doc_licence'])
+    expect(parseWaivedDocs('constructor,__proto__')).toEqual([])
   })
 })

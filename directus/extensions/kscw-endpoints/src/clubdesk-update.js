@@ -1173,7 +1173,7 @@ export async function guestMemberIdSet(database, memberIds, season) {
  * Who owes CHF 0 by RULE rather than by fee category (user 2026-08-13).
  *
  *   honorary  register_status 'Ehrenmitglied'
- *   vorstand  the `vorstand` app role
+ *   board     the `board` app role
  *   coach     coach of an ACTIVE team
  *
  * ⚠ A TEAM RESPONSIBLE IS NOT A COACH (user 2026-08-13) — teams_responsibles is
@@ -1187,7 +1187,7 @@ export async function guestMemberIdSet(database, memberIds, season) {
  * "should be free but is billed") and the dues run (which waives the bill).
  * Split them and the check would flag members the run then bills anyway.
  *
- * @returns {Promise<Map<number, 'honorary'|'vorstand'|'coach'>>} reason per
+ * @returns {Promise<Map<number, 'honorary'|'board'|'coach'>>} reason per
  *   member — it travels because it is printed on the invoice's waiver line.
  */
 export async function resolveFeeWaivers(database, memberIds = null) {
@@ -1200,7 +1200,7 @@ export async function resolveFeeWaivers(database, memberIds = null) {
   if (ids) { filter = 'AND m.id = ANY(?)'; bind.push(ids) }
   const res = await database.raw(`
     SELECT m.id, m.register_status,
-           (m.role @> '["vorstand"]'::jsonb) AS is_vorstand,
+           (m.role @> '["board"]'::jsonb) AS is_board,
            EXISTS (
              SELECT 1 FROM teams_coaches j
                JOIN teams t ON t.id = j.teams_id AND t.active
@@ -1214,7 +1214,7 @@ export async function resolveFeeWaivers(database, memberIds = null) {
     // of these at once (an honorary coach reads 'honorary', not whichever the
     // query happened to evaluate first).
     if (normalizeRegisterStatus(r.register_status) === 'honorary') out.set(Number(r.id), 'honorary')
-    else if (r.is_vorstand === true) out.set(Number(r.id), 'vorstand')
+    else if (r.is_board === true) out.set(Number(r.id), 'board')
     else if (r.is_coach === true) out.set(Number(r.id), 'coach')
   }
   return out
@@ -2889,7 +2889,7 @@ export async function linkBackAutoSyncedMembers(database, log) {
 export function syncStatusAccess(roles, { directusAdmin = false } = {}) {
   if (directusAdmin) return { sportScope: null }
   const list = parseRoles(roles)
-  if (!['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin'].some((r) => list.includes(r))) return null
+  if (!['superuser', 'admin', 'board', 'vb_admin', 'bb_admin'].some((r) => list.includes(r))) return null
   return { sportScope: callerSportScope(list) }
 }
 
