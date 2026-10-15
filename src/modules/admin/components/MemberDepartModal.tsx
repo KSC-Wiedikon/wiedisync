@@ -71,7 +71,7 @@ export default function MemberDepartModal({
     // An exit date that is ALREADY set is never overwritten: it is usually the
     // real, known leaving date and today is only a guess. Same rule the field
     // grid's prefill follows (ExplorerMemberFields.setField).
-    const stored = String(member.austritt ?? '').slice(0, 10)
+    const stored = String(member.left_on ?? '').slice(0, 10)
     return stored || todayLocal()
   })
   const [rosters, setRosters] = useState<RosterPreview | null>(null)

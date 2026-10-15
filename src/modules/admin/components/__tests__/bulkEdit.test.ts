@@ -49,7 +49,7 @@ describe('valuesEqual', () => {
 describe('computeMemberPatch', () => {
   it('omits a key the member already holds', () => {
     const patch = computeMemberPatch(
-      { language: 'german', plz: '8003' },
+      { language: 'german', postal_code: '8003' },
       [{ key: 'language', mode: 'set', value: 'german' }],
     )
     expect(patch).toEqual({})
@@ -57,25 +57,25 @@ describe('computeMemberPatch', () => {
 
   it('includes only the keys that actually change', () => {
     const patch = computeMemberPatch(
-      { language: 'german', plz: '8003' },
+      { language: 'german', postal_code: '8003' },
       [
         { key: 'language', mode: 'set', value: 'german' },
-        { key: 'plz', mode: 'set', value: '8004' },
+        { key: 'postal_code', mode: 'set', value: '8004' },
       ],
     )
-    expect(patch).toEqual({ plz: '8004' })
+    expect(patch).toEqual({ postal_code: '8004' })
   })
 
   it('clears to null, and skips a member who is already empty', () => {
-    expect(computeMemberPatch({ ort: 'Zürich' }, [{ key: 'ort', mode: 'clear', value: null }]))
-      .toEqual({ ort: null })
-    expect(computeMemberPatch({ ort: '' }, [{ key: 'ort', mode: 'clear', value: null }]))
+    expect(computeMemberPatch({ city: 'Zürich' }, [{ key: 'city', mode: 'clear', value: null }]))
+      .toEqual({ city: null })
+    expect(computeMemberPatch({ city: '' }, [{ key: 'city', mode: 'clear', value: null }]))
       .toEqual({})
   })
 
   it('writes an empty text value as null, never as an empty string', () => {
-    expect(computeMemberPatch({ ort: 'Zürich' }, [{ key: 'ort', mode: 'set', value: '' }]))
-      .toEqual({ ort: null })
+    expect(computeMemberPatch({ city: 'Zürich' }, [{ key: 'city', mode: 'set', value: '' }]))
+      .toEqual({ city: null })
   })
 
   it('adds to each member’s OWN list instead of replacing it', () => {

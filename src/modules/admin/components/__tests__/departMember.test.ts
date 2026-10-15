@@ -14,7 +14,7 @@ describe('buildDepartPatch', () => {
   it('writes all four columns, both flags off', () => {
     expect(PATCH).toEqual({
       register_status: 'Ehemaliges Mitglied',
-      austritt: '2026-06-30',
+      left_on: '2026-06-30',
       kscw_membership_active: false,
       wiedisync_active: false,
     })
@@ -31,7 +31,7 @@ describe('DEPARTED_ORDERED', () => {
 describe('alreadyDeparted', () => {
   const departed = {
     register_status: 'Ehemaliges Mitglied',
-    austritt: '2026-06-30',
+    left_on: '2026-06-30',
     kscw_membership_active: false,
     wiedisync_active: false,
   }
@@ -41,11 +41,11 @@ describe('alreadyDeparted', () => {
   })
 
   it('tolerates a timestamp-shaped austritt', () => {
-    expect(alreadyDeparted({ ...departed, austritt: '2026-06-30T00:00:00Z' }, PATCH)).toBe(true)
+    expect(alreadyDeparted({ ...departed, left_on: '2026-06-30T00:00:00Z' }, PATCH)).toBe(true)
   })
 
   it('is false on a different exit date', () => {
-    expect(alreadyDeparted({ ...departed, austritt: '2026-05-31' }, PATCH)).toBe(false)
+    expect(alreadyDeparted({ ...departed, left_on: '2026-05-31' }, PATCH)).toBe(false)
   })
 
   it('is false on a different departed status', () => {
@@ -67,7 +67,7 @@ describe('alreadyDeparted', () => {
 
   it('is false on a member who was never departed at all', () => {
     expect(alreadyDeparted(
-      { register_status: 'Aktivmitglied', austritt: null, kscw_membership_active: true, wiedisync_active: true },
+      { register_status: 'Aktivmitglied', left_on: null, kscw_membership_active: true, wiedisync_active: true },
       PATCH,
     )).toBe(false)
   })

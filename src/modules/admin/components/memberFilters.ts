@@ -25,7 +25,7 @@ export const BOOL_FIELDS = [
   'shell',
   'shell_reminder_sent',
   'coach_approved_team',
-  'is_spielplaner',
+  'is_scheduler',
   'licence_activated',
   'licence_validated',
   'hide_phone',
@@ -53,13 +53,13 @@ export type GuestKey = (typeof GUEST_KEYS)[number]
 export const PRESENCE_FIELDS = [
   'email', 'phone', 'license_nr', 'number', 'photo', 'birthdate',
   'user', 'requested_team',
-  'adresse', 'plz', 'ort',
+  'address', 'postal_code', 'city',
   // Coded nationality (migration 223) replaces the free-text `nationalitaet` as
   // the presence probe — the latter is trigger-derived from it, so filtering on
   // the codes is the same question asked of the authoritative column.
   'nationalitaet_codes', 'federation_of_origin',
-  'vm_email', 'ahv_nummer',
-  'licence_category', 'beitragskategorie',
+  'vm_email', 'ahv_number',
+  'licence_category', 'fee_category',
   'shell_expires',
   // licence_activation_date / licence_validation_date intentionally omitted —
   // restricted field perms 403 the explorer cache fetch (see useExplorerCache).

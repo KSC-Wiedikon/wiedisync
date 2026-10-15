@@ -31,7 +31,7 @@ import type { FinanceInvoice } from './types'
 
 const MAX_DOC_MB = 15
 
-const BILLING_FIELDS = ['billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban'] as const
+const BILLING_FIELDS = ['billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_phone', 'billing_iban'] as const
 
 /** Age in years from a yyyy-mm-dd birthdate, or null. */
 function ageOf(birthdate?: string | null): number | null {
@@ -49,10 +49,10 @@ const fullName = (m: FinanceMember) => [(m.nickname || m.first_name), m.last_nam
 
 /** Member's sport: ClubDesk Sektion first, else the membership-category VB/BB prefix. */
 function sportOf(m: FinanceMember): 'volleyball' | 'basketball' | null {
-  const sek = (m.sektion ?? '').toLowerCase()
+  const sek = (m.club_section ?? '').toLowerCase()
   if (sek.includes('volley')) return 'volleyball'
   if (sek.includes('basket')) return 'basketball'
-  const cat = (m.beitragskategorie ?? '').trim().toUpperCase()
+  const cat = (m.fee_category ?? '').trim().toUpperCase()
   if (cat.startsWith('VB')) return 'volleyball'
   if (cat.startsWith('BB')) return 'basketball'
   return null
@@ -178,8 +178,8 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
     billing_name: member.billing_name ?? '',
     billing_email: member.billing_email ?? '',
     billing_address: member.billing_address ?? '',
-    billing_plz: member.billing_plz ?? '',
-    billing_ort: member.billing_ort ?? '',
+    billing_postal_code: member.billing_postal_code ?? '',
+    billing_city: member.billing_city ?? '',
     billing_phone: member.billing_phone ?? '',
     billing_iban: member.billing_iban ?? '',
   })
@@ -226,7 +226,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
     }
   }
 
-  const addressLine = [member.adresse, [member.plz, member.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+  const addressLine = [member.address, [member.postal_code, member.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')
 
   return (
     <div className="space-y-5">
@@ -240,11 +240,11 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-bold tracking-tight text-foreground">{fullName(member)}</h2>
-        {member.sektion && (
-          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{member.sektion}</span>
+        {member.club_section && (
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{member.club_section}</span>
         )}
-        {member.beitragskategorie && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{member.beitragskategorie}</span>
+        {member.fee_category && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{member.fee_category}</span>
         )}
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${member.kscw_membership_active ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-muted text-muted-foreground'}`}>
           {member.kscw_membership_active ? t('membershipActive') : t('membershipInactive')}
@@ -268,8 +268,8 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
           </div>
           <div>
             <InfoRow always icon={<CreditCard className="h-3.5 w-3.5" />} label={t('fieldIban')} value={member.iban} />
-            <InfoRow always label={t('colCategory')} value={member.beitragskategorie} />
-            <InfoRow label={t('fieldAhv')} value={member.ahv_nummer} />
+            <InfoRow always label={t('colCategory')} value={member.fee_category} />
+            <InfoRow label={t('fieldAhv')} value={member.ahv_number} />
             <InfoRow label={t('fieldBirthdate')} value={member.birthdate ? formatDateCompactZurich(member.birthdate) : null} />
           </div>
         </div>
@@ -298,8 +298,8 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                 <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldEmail')}</span>{fieldInput({ type: 'email', value: draft.billing_email, onChange: (e) => set('billing_email', e.target.value) })}</label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldPhone')}</span>{fieldInput({ value: draft.billing_phone, onChange: (e) => set('billing_phone', e.target.value) })}</label>
                 <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldAddress')}</span>{fieldInput({ value: draft.billing_address, onChange: (e) => set('billing_address', e.target.value) })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldPlz')}</span>{fieldInput({ value: draft.billing_plz, onChange: (e) => set('billing_plz', e.target.value) })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldOrt')}</span>{fieldInput({ value: draft.billing_ort, onChange: (e) => set('billing_ort', e.target.value) })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldPlz')}</span>{fieldInput({ value: draft.billing_postal_code, onChange: (e) => set('billing_postal_code', e.target.value) })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldOrt')}</span>{fieldInput({ value: draft.billing_city, onChange: (e) => set('billing_city', e.target.value) })}</label>
                 <label className="block sm:col-span-2">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldBillingIban')}</span>
                   {fieldInput({ value: draft.billing_iban, onChange: (e) => set('billing_iban', e.target.value), placeholder: 'CH..' })}
@@ -321,7 +321,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
             <InfoRow label={t('fieldName')} value={member.billing_name} />
             <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label={t('fieldEmail')} value={member.billing_email} />
             <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label={t('fieldPhone')} value={member.billing_phone} />
-            <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} label={t('fieldAddress')} value={[member.billing_address, [member.billing_plz, member.billing_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null} />
+            <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} label={t('fieldAddress')} value={[member.billing_address, [member.billing_postal_code, member.billing_city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null} />
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">{t('billsToSelf')}</p>
@@ -462,7 +462,7 @@ export default function FinanceMemberExplorer() {
       return (
         fullName(m).toLowerCase().includes(q) ||
         (m.email ?? '').toLowerCase().includes(q) ||
-        (m.beitragskategorie ?? '').toLowerCase().includes(q) ||
+        (m.fee_category ?? '').toLowerCase().includes(q) ||
         String(m.number ?? '').includes(q)
       )
     })
@@ -553,10 +553,10 @@ export default function FinanceMemberExplorer() {
                       <TableCell className="min-h-[44px] whitespace-normal break-words">
                         <span className="font-medium text-foreground">{fullName(m)}</span>
                         {m.billing_different && <span className="ml-1.5 align-middle text-xs text-muted-foreground/80" title={t('billingSeparate')}>·  {t('billingSeparate')}</span>}
-                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{[m.sektion, m.beitragskategorie].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{[m.club_section, m.fee_category].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.sektion || '—'}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.beitragskategorie || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.club_section || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.fee_category || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {open > 0.005 ? <span className="font-semibold text-amber-700 dark:text-amber-400">{formatChf(open)}</span> : <span className="text-muted-foreground/80">—</span>}
                       </TableCell>

@@ -632,8 +632,8 @@ export function registerGameScheduling(router, { database, logger, services, get
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const member = await database('members').where('user', userId).select('is_spielplaner').first()
-    return member?.is_spielplaner === true
+    const member = await database('members').where('user', userId).select('is_scheduler').first()
+    return member?.is_scheduler === true
   }
 
   // Per-team scheduler authorisation (migration 031 design): a caller may manage a
@@ -646,11 +646,11 @@ export function registerGameScheduling(router, { database, logger, services, get
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const member = await database('members').where('user', userId).select('id', 'is_spielplaner').first()
+    const member = await database('members').where('user', userId).select('id', 'is_scheduler').first()
     if (!member) return false
     const assigns = await database('spielplaner_assignments').where('member', member.id).pluck('kscw_team')
     if (assigns.length > 0) return assigns.map(Number).includes(Number(teamId)) // scoped scheduler
-    return member.is_spielplaner === true // club-wide (documented design) — unrestricted
+    return member.is_scheduler === true // club-wide (documented design) — unrestricted
   }
 
   // Team ids where this Directus user is a coach or team responsible — resolved

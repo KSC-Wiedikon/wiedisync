@@ -58,7 +58,7 @@ export const DEPARTED_ORDERED: readonly string[] =
 /** The four `members` columns a departure writes. */
 export interface DepartPatch extends Record<string, unknown> {
   register_status: string
-  austritt: string
+  left_on: string
   kscw_membership_active: false
   wiedisync_active: false
 }
@@ -66,7 +66,7 @@ export interface DepartPatch extends Record<string, unknown> {
 export function buildDepartPatch(status: string, exitDate: string): DepartPatch {
   return {
     register_status: status,
-    austritt: exitDate,
+    left_on: exitDate,
     kscw_membership_active: false,
     wiedisync_active: false,
   }
@@ -96,7 +96,7 @@ function asBool(v: unknown): boolean {
  */
 export function alreadyDeparted(record: Record<string, unknown>, patch: DepartPatch): boolean {
   return record.register_status === patch.register_status
-    && String(record.austritt ?? '').slice(0, 10) === patch.austritt
+    && String(record.left_on ?? '').slice(0, 10) === patch.left_on
     && !asBool(record.kscw_membership_active)
     && !asBool(record.wiedisync_active)
 }

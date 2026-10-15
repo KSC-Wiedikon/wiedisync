@@ -20,9 +20,9 @@ const DE_CLEAN = 'DE89370400440532013000'
 
 const member = (over = {}) => ({
   first_name: 'Anna', last_name: 'Muster',
-  iban: CH, adresse: 'Weg 1', plz: '8003', ort: 'Zürich',
+  iban: CH, address: 'Weg 1', postal_code: '8003', city: 'Zürich',
   billing_different: false, billing_iban: null, billing_name: null,
-  billing_address: null, billing_plz: null, billing_ort: null,
+  billing_address: null, billing_postal_code: null, billing_city: null,
   ...over,
 })
 
@@ -57,7 +57,7 @@ describe('resolvePayee — precedence', () => {
   it('preferred IBAN wins over billing and profile — with the PROFILE address', () => {
     const r = resolvePayee(member({
       billing_different: true, billing_iban: LI, billing_name: 'Firma AG',
-      billing_address: 'Bahnhofstrasse 9', billing_plz: '8001', billing_ort: 'Zürich',
+      billing_address: 'Bahnhofstrasse 9', billing_postal_code: '8001', billing_city: 'Zürich',
     }), 'ch93 0076 2011 6238 5295 7')
     expect(r.iban).toBe(CH_CLEAN)
     expect(r.name).toBe('Anna Muster')
@@ -68,7 +68,7 @@ describe('resolvePayee — precedence', () => {
   it('a non-CH/LI preferred IBAN is ignored (falls through to billing)', () => {
     const r = resolvePayee(member({
       billing_different: true, billing_iban: LI, billing_name: 'Firma AG',
-      billing_address: 'Bahnhofstrasse 9', billing_plz: '8001', billing_ort: 'Zürich',
+      billing_address: 'Bahnhofstrasse 9', billing_postal_code: '8001', billing_city: 'Zürich',
     }), DE)
     expect(r.iban).toBe(LI_CLEAN)
     expect(r.name).toBe('Firma AG')
@@ -79,7 +79,7 @@ describe('resolvePayee — precedence', () => {
   it('billing IBAN + billing address when billing_different is set', () => {
     const r = resolvePayee(member({
       billing_different: true, billing_iban: LI, billing_name: 'Firma AG',
-      billing_address: 'Bahnhofstrasse 9', billing_plz: '8001', billing_ort: 'Zürich',
+      billing_address: 'Bahnhofstrasse 9', billing_postal_code: '8001', billing_city: 'Zürich',
     }))
     expect(r).toEqual({ iban: LI_CLEAN, name: 'Firma AG', street: 'Bahnhofstrasse 9', zip: '8001', city: 'Zürich', skip: null })
   })
@@ -87,7 +87,7 @@ describe('resolvePayee — precedence', () => {
   it('billing name blank → member name, billing address still wins', () => {
     const r = resolvePayee(member({
       billing_different: true, billing_iban: LI, billing_name: '  ',
-      billing_address: 'Bahnhofstrasse 9', billing_plz: '8001', billing_ort: 'Bern',
+      billing_address: 'Bahnhofstrasse 9', billing_postal_code: '8001', billing_city: 'Bern',
     }))
     expect(r.name).toBe('Anna Muster')
     expect(r.city).toBe('Bern')
@@ -96,7 +96,7 @@ describe('resolvePayee — precedence', () => {
   it('billing_different with an INVALID billing IBAN falls back to the profile IBAN + profile address', () => {
     const r = resolvePayee(member({
       billing_different: true, billing_iban: DE, billing_name: 'Firma AG',
-      billing_address: 'Bahnhofstrasse 9', billing_plz: '8001', billing_ort: 'Zürich',
+      billing_address: 'Bahnhofstrasse 9', billing_postal_code: '8001', billing_city: 'Zürich',
     }))
     expect(r.iban).toBe(CH_CLEAN)
     expect(r.name).toBe('Anna Muster')
@@ -116,17 +116,17 @@ describe('resolvePayee — skip codes', () => {
     expect(resolvePayee(member({ iban: 'garbage' }), 'more garbage').skip).toBe(PAYOUT_SKIP.NO_IBAN)
   })
   it('ADDRESS_INCOMPLETE when the IBAN is fine but zip / city / name is missing', () => {
-    expect(resolvePayee(member({ plz: null })).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
-    expect(resolvePayee(member({ ort: '' })).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
+    expect(resolvePayee(member({ postal_code: null })).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
+    expect(resolvePayee(member({ city: '' })).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
     expect(resolvePayee(member({ first_name: null, last_name: null })).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
   })
   it('a missing street is NOT a skip (the QR creditor block only needs name + zip + city)', () => {
-    const r = resolvePayee(member({ adresse: null }))
+    const r = resolvePayee(member({ address: null }))
     expect(r.skip).toBeNull()
     expect(r.street).toBeNull()
   })
   it('NO_IBAN beats ADDRESS_INCOMPLETE', () => {
-    expect(resolvePayee(member({ iban: null, plz: null })).skip).toBe(PAYOUT_SKIP.NO_IBAN)
+    expect(resolvePayee(member({ iban: null, postal_code: null })).skip).toBe(PAYOUT_SKIP.NO_IBAN)
   })
   it('tolerates a null payee', () => {
     expect(resolvePayee(null).skip).toBe(PAYOUT_SKIP.NO_IBAN)
@@ -162,7 +162,7 @@ describe('planRefereePayouts', () => {
   })
 
   it('carries the payee skip when currencies are all CHF', () => {
-    const plan = planRefereePayouts([row(1, 7, '60', { iban: null }), row(2, 8, '60', { plz: null })])
+    const plan = planRefereePayouts([row(1, 7, '60', { iban: null }), row(2, 8, '60', { postal_code: null })])
     expect(plan.find((p) => p.member === 7).skip).toBe(PAYOUT_SKIP.NO_IBAN)
     expect(plan.find((p) => p.member === 8).skip).toBe(PAYOUT_SKIP.ADDRESS_INCOMPLETE)
   })

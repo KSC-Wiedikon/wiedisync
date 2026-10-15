@@ -11,8 +11,8 @@ import {
 } from '../sport-scope-permissions.mjs';
 
 const CTX = {
-  memberReadFields: ['id', 'iban', 'ahv_nummer', 'sport_section'],
-  memberWriteFields: ['id', 'iban', 'ahv_nummer'],
+  memberReadFields: ['id', 'iban', 'ahv_number', 'permissions_section'],
+  memberWriteFields: ['id', 'iban', 'ahv_number'],
   eventWriteFields: ['id', 'title'],
   refereeUnpaid: { payout: { _null: true } },
 };
@@ -24,7 +24,7 @@ const BB = sportScopedPermissions('basketball', CTX);
 // silently empties a frontend query through the same junction (CLAUDE.md).
 const ALLOWED_KEYS = new Set([
   '_and', '_or', '_eq', '_in', '_nin', '_null',
-  'sport', 'sport_section', 'membership_type', 'anonymous', 'payout',
+  'sport', 'permissions_section', 'membership_type', 'anonymous', 'payout',
   'team', 'teams_id', 'kscw_team', 'claimed_by_team', 'game', 'member', 'event', 'events_id', 'poll',
 ]);
 function keysOf(node, out = new Set()) {
@@ -77,9 +77,9 @@ test('no filter walks an O2M/M2M alias', () => {
 
 test("'both' members and events are in either section", () => {
   const read = (c) => VB.find((r) => r.collection === c && r.action === 'read').permissions;
-  assert.deepEqual(read('members'), { sport_section: { _in: ['volleyball', 'both'] } });
-  assert.deepEqual(read('events'), { sport_section: { _in: ['volleyball', 'both'] } });
-  assert.deepEqual(read('absences'), { member: { sport_section: { _in: ['volleyball', 'both'] } } });
+  assert.deepEqual(read('members'), { permissions_section: { _in: ['volleyball', 'both'] } });
+  assert.deepEqual(read('events'), { permissions_section: { _in: ['volleyball', 'both'] } });
+  assert.deepEqual(read('absences'), { member: { permissions_section: { _in: ['volleyball', 'both'] } } });
 });
 
 test('members: read and update only, with the given field lists; no create or delete', () => {

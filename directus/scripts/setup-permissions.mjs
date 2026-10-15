@@ -737,8 +737,8 @@ const MEMBER_EDITABLE_FIELDS = [
   // picklist, so it is deliberately NOT here — a member write would be silently
   // overwritten and drift the two apart in the meantime. It stays own-readable
   // via MEMBER_DERIVED_READ_FIELDS below.
-  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet_codes', 'federation_of_origin',
-  'sex', 'ahv_nummer',
+  'salutation', 'address', 'postal_code', 'city', 'nationalitaet_codes', 'federation_of_origin',
+  'sex', 'ahv_number',
   // 2026-08-13 migration 315: which Zurich Kantonsschule the member attends.
   // Self-asserted BY DESIGN and self-service on purpose — ~681 of ~711 members
   // are blank because they joined before the signup form asked, and the only
@@ -751,7 +751,7 @@ const MEMBER_EDITABLE_FIELDS = [
   // profile field renders permanently empty ([[useauth-member-field-perms]]).
   // Deliberately absent from MEMBER_VISIBLE_FIELDS + LEADER_TEAM_MEMBER_FIELDS:
   // which school somebody attends is not shown to other members or to coaches.
-  'kantonsschule',
+  'cantonal_school',
   // 2026-06-19 migration 117: member IBAN for reimbursements. Sensitive PII —
   // own-member editable/readable + admin only, like ahv_nummer. Deliberately
   // NOT in MEMBER_VISIBLE_FIELDS or LEADER_TEAM_MEMBER_FIELDS (which excludes
@@ -801,7 +801,7 @@ const MEMBER_DERIVED_READ_FIELDS = [
   // and one member's fee category is not another member's business. It is also
   // deliberately not in MEMBER_EDITABLE_FIELDS — the member is the subject of
   // this fact, not its author.
-  'beitragskategorie',
+  'fee_category',
   // Club register status + the dates that bracket it (migration 302). Own-READ
   // for the same reason as the fee category above: a member is entitled to know
   // whether the club still counts them as a member and since when, and the
@@ -810,7 +810,7 @@ const MEMBER_DERIVED_READ_FIELDS = [
   //
   // ⚠ Here and NOT in MEMBER_VISIBLE_FIELDS: club-wide readable would publish
   // who is an Ehrenmitglied, who resigned and when, to all 700 members.
-  'register_status', 'eintritt', 'austritt',
+  'register_status', 'joined_on', 'left_on',
 ]
 
 /**
@@ -1134,18 +1134,18 @@ const MEMBER_INVOICE_FIELDS = [
  */
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
-  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
+  'salutation', 'address', 'postal_code', 'city', 'nationalitaet', 'sex', 'birthdate',
   // Coded nationality + federation of origin (migrations 223/224) — kept in
   // parity with the derived `nationalitaet` finance already reads.
   'nationalitaet_codes', 'federation_of_origin',
-  'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
+  'iban', 'ahv_number', 'fee_category', 'club_section', 'kscw_membership_active', 'wiedisync_active',
   // Club register status + entry/exit dates (migration 302). Read-only for
   // finance: whether somebody is a member, and for how much of the season, is
   // the first input to whether they owe a Mitgliederbeitrag at all.
-  'register_status', 'eintritt', 'austritt',
+  'register_status', 'joined_on', 'left_on',
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
   // Alternate billing contact (migrations 133/136).
-  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_phone', 'billing_iban',
   // Per-member fee overrides (migrations 299/300) — the treasurer's own numbers.
   'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
 ]
@@ -1160,7 +1160,7 @@ const FINANCE_MEMBER_FIELDS = [
  * should set them, and a coach or sport admin is exactly who should not.
  */
 const FINANCE_MEMBER_BILLING_FIELDS = [
-  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_phone', 'billing_iban',
   'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
 ]
 
@@ -2178,7 +2178,7 @@ async function main() {
   // can see their own scheduling flag — the frontend nav gates the Spielplanung /
   // Terminplanung links on it (useAuth) — but cannot self-grant it.
   const MEMBER_OWN_READABLE = [...new Set([
-    ...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner',
+    ...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_scheduler',
     // Trigger-derived, not member-writable (see MEMBER_DERIVED_READ_FIELDS).
     ...MEMBER_DERIVED_READ_FIELDS,
     // Licence workflow (migration 301) — the member reads where their own
@@ -2561,7 +2561,7 @@ async function main() {
   // this filter. `kantonsschule` (migration 315) is such a column: which school
   // somebody attends was not asked for on a coach's behalf, and ~40 coaches is
   // a real widening. One line to reverse if the club decides otherwise.
-  ].filter(f => !['ahv_nummer', 'iban', 'beitragskategorie', 'kantonsschule'].includes(f))
+  ].filter(f => !['ahv_number', 'iban', 'fee_category', 'cantonal_school'].includes(f))
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to
@@ -2742,7 +2742,7 @@ async function main() {
   // the third layer (audit 2026-09-28 F15). Reads are unaffected.
   const EVENT_ENDPOINT_OWNED_FIELDS = ['signup_form_slug']
   // Trigger-kept (migration 406): the trigger overwrites a sent value anyway.
-  const EVENT_DERIVED_FIELDS = ['sport_section']
+  const EVENT_DERIVED_FIELDS = ['permissions_section']
   // Hall booking (migration 409): an event with a hall trims or cancels EVERY
   // team's trainings in that hall for its time — volleyball and basketball
   // alike — so only a full admin (admin_access, bypasses these rows) may set it.
@@ -3586,7 +3586,7 @@ async function main() {
   // policy's club-public list. That also closes the `filter[ahv_nummer]` oracle
   // across sections this comment used to call open: Directus evaluates a filter
   // on a field only against the rows whose policy grants that field.
-  const MEMBER_DERIVED_FIELDS = ['sport_section']
+  const MEMBER_DERIVED_FIELDS = ['permissions_section']
   const SPORT_ADMIN_MEMBER_FIELDS = (await liveFieldNames('members'))
     .filter((f) => !MEMBER_SECRET_FIELDS.includes(f))
   const SPORT_ADMIN_MEMBER_WRITE_FIELDS = SPORT_ADMIN_MEMBER_FIELDS
@@ -4004,7 +4004,7 @@ async function main() {
 
   console.log('\n12. Backfilling user-level TERMINPLANUNG access for is_spielplaner members...')
 
-  const spielplanerMembers = await api('GET', '/items/members?filter[is_spielplaner][_eq]=true&fields=user&limit=-1')
+  const spielplanerMembers = await api('GET', '/items/members?filter[is_scheduler][_eq]=true&fields=user&limit=-1')
   const spielplanerUserIds = new Set(spielplanerMembers.map(m => m.user).filter(Boolean))
 
   const existingTp = await api('GET', `/access?filter[policy][_eq]=${TERMINPLANUNG_POLICY}&filter[user][_nnull]=true&fields=user&limit=-1`)
@@ -4118,7 +4118,7 @@ async function main() {
 
   console.log('\n14. Backfilling user-level SPIELPLANER access for spielplaner members...')
 
-  const spWideMembers = await api('GET', '/items/members?filter[is_spielplaner][_eq]=true&fields=user&limit=-1')
+  const spWideMembers = await api('GET', '/items/members?filter[is_scheduler][_eq]=true&fields=user&limit=-1')
   const spAssignRows = await api('GET', '/items/spielplaner_assignments?fields=member.user&limit=-1')
   const spielplanerPolicyUserIds = new Set([
     ...(spWideMembers || []).map(m => m.user),

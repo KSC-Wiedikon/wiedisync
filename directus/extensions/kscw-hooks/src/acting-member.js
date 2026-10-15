@@ -168,7 +168,7 @@ export function createActingMemberMiddleware(database, logger) {
       .leftJoin('members as gm', 'gm.user', 'mg.guardian_user')
       .first(
         'tm.id as target_member', 'tm.user as target_user',
-        'tm.role as target_member_roles', 'tm.is_spielplaner as target_is_spielplaner',
+        'tm.role as target_member_roles', 'tm.is_scheduler as target_is_spielplaner',
         'tu.role as target_role', 'tu.status as target_status', 'tu.email as target_email',
         database.raw('(tu.password IS NOT NULL) AS target_has_password'),
         'gm.id as guardian_member',

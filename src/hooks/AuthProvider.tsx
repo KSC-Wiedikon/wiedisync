@@ -290,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const member = await fetchMember()
         if (member) {
           setRealUser(member)
-          setIsSpielplaner(!!member.is_spielplaner)
+          setIsSpielplaner(!!member.is_scheduler)
           setCurrentMemberId(member.id)
           // Documents another member pre-loaded on this device, or past their window, go.
           void sweepCachedDocuments(Number(member.id))
@@ -380,7 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const member = await fetchMember()
     if (member) {
       setRealUser(member)
-      setIsSpielplaner(!!member.is_spielplaner)
+      setIsSpielplaner(!!member.is_scheduler)
       setCurrentMemberId(member.id)
       // A different member logging in on this device must not inherit the previous
       // one's pre-loaded squad (security audit 2026-10, M4). Same sweep as boot.
@@ -715,7 +715,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const filled = (v: unknown) => String(v ?? '').trim() !== ''
   const isProfileComplete = !!user?.language && filled(user?.first_name)
     && filled(user?.last_name) && filled(user?.phone) && filled(user?.birthdate)
-    && filled(user?.adresse) && filled(user?.plz) && filled(user?.ort)
+    && filled(user?.address) && filled(user?.postal_code) && filled(user?.city)
     && filled(user?.nationalitaet_codes)
   const isVorstand = roles.includes('vorstand') || isGlobalAdmin
   // 'finance' is an orthogonal role (treasurer / finance team). Global admins

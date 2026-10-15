@@ -297,9 +297,9 @@ describe('findDuplicateCandidatesBatch', () => {
 describe('merge diff + patch', () => {
   const member = {
     id: 195, first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
-    phone: '+41 76 824 60 21', adresse: null, plz: null, ort: null, birthdate: '2009-02-01',
-    nationalitaet_codes: 'CH', federation_of_origin: null, sex: 'm', anrede: null,
-    ahv_nummer: null, iban: null, beitragskategorie: null, scorer_vb: false, referee_vb: false,
+    phone: '+41 76 824 60 21', address: null, postal_code: null, city: null, birthdate: '2009-02-01',
+    nationalitaet_codes: 'CH', federation_of_origin: null, sex: 'm', salutation: null,
+    ahv_number: null, iban: null, fee_category: null, scorer_vb: false, referee_vb: false,
   }
   const reg = {
     first_name: 'Oskar', last_name: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
@@ -312,14 +312,14 @@ describe('merge diff + patch', () => {
   it('marks gap-fills and overwrites differently', async () => {
     const diff = await buildMergeDiff(db, reg, member)
     const by = Object.fromEntries(diff.map((d) => [d.key, d]))
-    expect(by.adresse).toMatchObject({ differs: true, member_empty: true })
+    expect(by.address).toMatchObject({ differs: true, member_empty: true })
     expect(by.phone).toMatchObject({ differs: true, member_empty: false })
     expect(by.birthdate).toMatchObject({ differs: false })
   })
 
   it('never proposes clearing a member column from a blank form field', async () => {
     const diff = await buildMergeDiff(db, { ...reg, address: null, iban: '' }, member)
-    expect(diff.find((d) => d.key === 'adresse')).toBeUndefined()
+    expect(diff.find((d) => d.key === 'address')).toBeUndefined()
     expect(diff.find((d) => d.key === 'iban')).toBeUndefined()
   })
 
@@ -333,8 +333,8 @@ describe('merge diff + patch', () => {
 
   it('writes only the ticked, actually-differing fields', async () => {
     const diff = await buildMergeDiff(db, reg, member)
-    const patch = buildMergePatch(diff, ['adresse', 'birthdate', 'scorer_vb', 'first_name'])
-    expect(patch).toEqual({ adresse: 'Birmensdorferstrasse 12', scorer_vb: true })
+    const patch = buildMergePatch(diff, ['address', 'birthdate', 'scorer_vb', 'first_name'])
+    expect(patch).toEqual({ address: 'Birmensdorferstrasse 12', scorer_vb: true })
   })
 
   it('ignores keys the diff never offered — the client sends keys, not values', async () => {

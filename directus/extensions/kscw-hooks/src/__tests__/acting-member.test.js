@@ -41,7 +41,7 @@ function makeDb() {
         const m = state.members[g.member] || {}
         return {
           target_member: g.member, target_user: u.id,
-          target_member_roles: m.role ?? '["user"]', target_is_spielplaner: m.is_spielplaner ?? false,
+          target_member_roles: m.role ?? '["user"]', target_is_spielplaner: m.is_scheduler ?? false,
           target_role: u.role, target_status: u.status, target_email: u.email,
           target_has_password: u.password != null, guardian_member: 50,
         }
@@ -153,7 +153,7 @@ describe('refusals', () => {
   // custom endpoints read them directly. Each must turn the switch off.
   it.each([
     ['an app role beyond user (finance)', () => { state.members[563] = { role: '["user","finance"]' } }],
-    ['is_spielplaner', () => { state.members[563] = { is_spielplaner: true } }],
+    ['is_scheduler', () => { state.members[563] = { is_scheduler: true } }],
     ['a coach seat', () => { state.coaches.push(563) }],
     ['a user-level directus_access row', () => { state.access.push('shadow-563') }],
   ])('a target with %s is refused, with the same opaque code', async (_label, arrange) => {

@@ -129,7 +129,7 @@ export function manageableReason({ member, user, isStaffLinked }) {
   if (!member) return 'member_not_found'
   // is_spielplaner is club-wide by design, not per-team — acting as a member who
   // holds it would hand the guardian scheduling powers over the whole club.
-  if (member.is_spielplaner) return 'member_is_staff'
+  if (member.is_scheduler) return 'member_is_staff'
   // A real, usable login. Never claimable — this is the consent guarantee.
   if (member.user && !isShadowUser(user)) return 'member_has_own_login'
   // ⚠ The baseline role in members.role is 'user', NOT 'member'. Anything
@@ -268,7 +268,7 @@ async function loadUsers(database, userIds) {
 
 async function assertTargetIsManageable(database, memberId) {
   const member = await database('members').where('id', memberId)
-    .first('id', 'user', 'role', 'is_spielplaner')
+    .first('id', 'user', 'role', 'is_scheduler')
   if (!member) return { ok: false, code: 'member_not_found' }
   const users = await loadUsers(database, [member.user])
   const staff = await loadStaffSet(database, [memberId])
@@ -432,7 +432,7 @@ export function registerHousehold(router, { database, logger, services, getSchem
             .andOnNull('hm.revoked_at')
         })
         .select('m.id', 'm.first_name', 'm.last_name', 'm.photo', 'hm.accent', 'mg.household',
-          'm.user', 'm.role', 'm.is_spielplaner',
+          'm.user', 'm.role', 'm.is_scheduler',
           'u.email as login_email', 'u.status as login_status', 'r.name as role_name')
         .orderBy('m.first_name')
       // ⚠ ...and the same staff re-check the middleware runs on every grant
@@ -504,7 +504,7 @@ export function registerHousehold(router, { database, logger, services, getSchem
           'hm.id', 'hm.household', 'hm.member', 'hm.role', 'hm.accent',
           'hm.linked_at', 'hm.revoked_at',
           'm.first_name', 'm.last_name', 'm.email', 'm.birthdate',
-          'm.user as member_user', 'm.role as member_roles', 'm.is_spielplaner',
+          'm.user as member_user', 'm.role as member_roles', 'm.is_scheduler',
           'u.status as user_status', 'u.email as login_email', 'dr.name as login_role',
           database.raw('(u.password IS NOT NULL) AS login_has_password'),
           'lb.first_name as linked_by_first', 'lb.last_name as linked_by_last',
@@ -522,7 +522,7 @@ export function registerHousehold(router, { database, logger, services, getSchem
           ...h,
           members: rows.filter((r) => r.household === h.id).map((raw) => {
             const {
-              login_has_password, member_user, member_roles, is_spielplaner, login_role, ...r
+              login_has_password, member_user, member_roles, is_scheduler, login_role, ...r
             } = raw
             const user = { email: r.login_email, status: r.user_status, has_password: login_has_password === true }
             // What the switcher and the middleware will accept — the same
@@ -532,7 +532,7 @@ export function registerHousehold(router, { database, logger, services, getSchem
             // after the link ('member_is_staff').
             const reason = r.role === 'managed'
               ? actableReason({
-                member: { id: r.member, user: member_user, role: member_roles, is_spielplaner },
+                member: { id: r.member, user: member_user, role: member_roles, is_scheduler },
                 user,
                 roleName: login_role,
                 isStaffLinked: staff.has(Number(r.member)),
@@ -579,7 +579,7 @@ export function registerHousehold(router, { database, logger, services, getSchem
 
       const q = database('members')
         .select('id', 'first_name', 'last_name', 'email', 'birthdate', 'register_status',
-          'kscw_membership_active', 'user', 'role', 'is_spielplaner')
+          'kscw_membership_active', 'user', 'role', 'is_scheduler')
         .orderBy(['last_name', 'first_name', 'id'])
       if (role === 'managed') q.where('kscw_membership_active', true)
       else q.where((b) => b.where('kscw_membership_active', true).orWhereNotNull('user'))

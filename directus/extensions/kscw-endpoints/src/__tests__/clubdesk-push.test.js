@@ -22,9 +22,9 @@ import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, 
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
-  phone: '+41 79 000 00 00', adresse: 'Weg 1', plz: '8003', ort: 'Zürich',
+  phone: '+41 79 000 00 00', address: 'Weg 1', postal_code: '8003', city: 'Zürich',
   birthdate: '1999-03-15', sex: 'm', clubdesk_id: '1001283',
-  beitragskategorie: 'VB Erwerbstätige', eintritt: '2026-06-27T18:22:00.000Z',
+  fee_category: 'VB Erwerbstätige', joined_on: '2026-06-27T18:22:00.000Z',
   gruppen: 'VB H1 (Spieler*in)', cd_status: 'Aktivmitglied',
 }
 
@@ -69,7 +69,7 @@ describe('buildPushCsv (update set)', () => {
   })
 
   it('carries the echo-protected fields + the Wiedisync ID (uuid, id fallback) after IBAN', () => {
-    const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', anrede: 'Herr', nationalitaet: 'Schweiz', ahv_nummer: '756.1.2.3' }])
+    const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', salutation: 'Herr', nationalitaet: 'Schweiz', ahv_number: '756.1.2.3' }])
       .trim().split('\n')[1].split(';')
     expect(row[8]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
     expect(row[9]).toBe('Herr')      // Anrede
@@ -136,7 +136,7 @@ describe('buildPushCsv (update set)', () => {
       email: ' K@Example.COM ',
       phone: '0791234567',
       iban: 'ch93 0076 2011 6238 5295 7',
-      ahv_nummer: '7561234567897',
+      ahv_number: '7561234567897',
     }]).trim().split('\n')[1].split(';')
     expect(row[1]).toBe('k@example.com')
     expect(row[2]).toBe('+41 79 123 45 67')
@@ -161,7 +161,7 @@ describe('buildPushCsv (update set)', () => {
   })
 
   it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
-    const cells = buildPushCsv([{ ...kacper, phone: '+41 79 000 00 00', adresse: '+HYPERLINK(1)' }])
+    const cells = buildPushCsv([{ ...kacper, phone: '+41 79 000 00 00', address: '+HYPERLINK(1)' }])
       .trim().split('\n')[1].split(';')
     expect(cells[2]).toBe('+41 79 000 00 00') // Telefon Privat
     expect(cells[3]).toBe("'+HYPERLINK(1)")   // Adresse
@@ -199,7 +199,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // The legacy form Kategorie is MAPPED to ClubDesk's wording exactly like
     // the create path; the fee still derives from the RAW category, under BB
     // rules (a VB scorer licence does not lift the BB officials surcharge).
-    const mapped = cellsOf({ beitragskategorie: 'BB Junior:innen', scorer_vb: true })
+    const mapped = cellsOf({ fee_category: 'BB Junior:innen', scorer_vb: true })
     expect(mapped[16]).toBe('BB Jugend Meisterschaft')
     expect(mapped[18]).toBe('420') // youth 320 + 100 (U16+ by birthdate, no BB officials licence)
     // A pure guest is billed the guest rate on the fill, same flag as the Gast cell.
@@ -213,7 +213,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
   // un-surcharged bases, 1.-Liga prices) to fix 11 stale basketball rows.
   it('a pending push that NAMES mitgliederbeitrag overwrites the register (migration 305)', () => {
     const cells = cellsOf({
-      beitragskategorie: 'BB Jugend Meisterschaft',
+      fee_category: 'BB Jugend Meisterschaft',
       birthdate: '2008-05-01', // U16+ → the officials surcharge applies
       scorer_vb: false, otr1_bb: false, otr2_bb: false,
       mitgliederbeitrag_cd: '410', // the register, stale by the +10 increase
@@ -234,7 +234,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
 
   it('naming the field cannot BLANK the register — an underivable fee still echoes', () => {
     const cells = cellsOf({
-      beitragskategorie: 'Sponsor', // outside the map → derives nothing
+      fee_category: 'Sponsor', // outside the map → derives nothing
       mitgliederbeitrag_cd: '250',
       clubdesk_push_changes: [{ field: 'mitgliederbeitrag', old_value: '250', new_value: '' }],
     })
@@ -249,19 +249,19 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
   // 'Kein Beitrag' (the terminal non-member bucket) onto 'Gratis'.
   it('a pending push that NAMES beitragskategorie overwrites the register category', () => {
     const cells = cellsOf({
-      beitragskategorie: 'Gratis',
+      fee_category: 'Gratis',
       beitragskategorie_cd: 'Kein Beitrag',
       mitgliederbeitrag_cd: '0',
-      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'Kein Beitrag', new_value: 'Gratis' }],
+      clubdesk_push_changes: [{ field: 'fee_category', old_value: 'Kein Beitrag', new_value: 'Gratis' }],
     })
     expect(cells[16]).toBe('Gratis')
   })
 
   it('sends the MAPPED ClubDesk name, not the signup-form spelling', () => {
     const cells = cellsOf({
-      beitragskategorie: 'BB Junior:innen',   // signup-form name
+      fee_category: 'BB Junior:innen',   // signup-form name
       beitragskategorie_cd: 'BB Minis Turnier',
-      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'BB Minis Turnier', new_value: 'BB Jugend Meisterschaft' }],
+      clubdesk_push_changes: [{ field: 'fee_category', old_value: 'BB Minis Turnier', new_value: 'BB Jugend Meisterschaft' }],
     })
     expect(cells[16]).toBe(mapKategorie('BB Junior:innen'))
     expect(cells[16]).toBe('BB Jugend Meisterschaft')
@@ -271,10 +271,10 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // The two are one decision. Sending only the category would leave the legal
     // register self-contradictory, the same trap Status/Austritt are paired for.
     const cells = cellsOf({
-      beitragskategorie: 'Gratis',
+      fee_category: 'Gratis',
       beitragskategorie_cd: 'VB Erwerbstätige',
       mitgliederbeitrag_cd: '440',            // what the register still says
-      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
+      clubdesk_push_changes: [{ field: 'fee_category', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
     })
     expect(cells[16]).toBe('Gratis')
     expect(cells[18]).toBe('0')               // NOT the echoed 440
@@ -284,11 +284,11 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // fee_base_override is migration 308's "the register wins" mechanism; a
     // category change must not silently undo 113 hand-set amounts.
     const cells = cellsOf({
-      beitragskategorie: 'Gratis',
+      fee_category: 'Gratis',
       beitragskategorie_cd: 'VB Erwerbstätige',
       mitgliederbeitrag_cd: '440',
       fee_base_override: 330, fee_surcharge_override: false,
-      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
+      clubdesk_push_changes: [{ field: 'fee_category', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
     })
     expect(cells[16]).toBe('Gratis')
     expect(cells[18]).toBe('330')             // the pin, not the category's 0
@@ -296,7 +296,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
 
   it('a push flagged for something ELSE leaves the register category alone', () => {
     const cells = cellsOf({
-      beitragskategorie: 'Gratis',
+      fee_category: 'Gratis',
       beitragskategorie_cd: 'VB Erwerbstätige',
       clubdesk_push_changes: [{ field: 'iban', old_value: null, new_value: 'CH…' }],
     })
@@ -305,9 +305,9 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
 
   it('naming beitragskategorie cannot BLANK the register — an empty wiedisync category echoes', () => {
     const cells = cellsOf({
-      beitragskategorie: '',
+      fee_category: '',
       beitragskategorie_cd: 'VB Erwerbstätige',
-      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: '' }],
+      clubdesk_push_changes: [{ field: 'fee_category', old_value: 'VB Erwerbstätige', new_value: '' }],
     })
     expect(cells[16]).toBe('VB Erwerbstätige')
   })
@@ -320,7 +320,7 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
   })
 
   it('ClubDesk empty + no wiedisync value → empty cells (a harmless no-op on import)', () => {
-    const cells = cellsOf({ beitragskategorie: null, eintritt: null })
+    const cells = cellsOf({ fee_category: null, joined_on: null })
     expect(cells[16]).toBe('')
     expect(cells[17]).toBe('')
     expect(cells[18]).toBe('') // unknown/empty category is never guessed at
@@ -375,12 +375,12 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     expect(coerceProposalValue('role', 'admin').ok).toBe(false)
     expect(coerceProposalValue('password', 'x').ok).toBe(false)
     expect(coerceProposalValue('id', '1').ok).toBe(false)
-    expect(coerceProposalValue('adresse; DROP TABLE members', 'x').ok).toBe(false)
+    expect(coerceProposalValue('address; DROP TABLE members', 'x').ok).toBe(false)
     expect(coerceProposalValue('', 'x').ok).toBe(false)
   })
 
   it('accepts the columns the register is allowed to influence', () => {
-    expect(coerceProposalValue('adresse', 'Sängglenstrasse 6')).toEqual({ ok: true, value: 'Sängglenstrasse 6' })
+    expect(coerceProposalValue('address', 'Sängglenstrasse 6')).toEqual({ ok: true, value: 'Sängglenstrasse 6' })
     expect(coerceProposalValue('register_status', 'Aktivmitglied')).toEqual({ ok: true, value: 'Aktivmitglied' })
   })
 
@@ -393,12 +393,12 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // definition and mm.dd never occurs here.
     expect(coerceProposalValue('birthdate', '2009-09-01')).toEqual({ ok: true, value: '2009-09-01' })
     expect(coerceProposalValue('birthdate', '01.09.2009')).toEqual({ ok: true, value: '2009-09-01' })
-    expect(coerceProposalValue('eintritt', '1.9.2009')).toEqual({ ok: true, value: '2009-09-01' })
+    expect(coerceProposalValue('joined_on', '1.9.2009')).toEqual({ ok: true, value: '2009-09-01' })
     // Right shape, not a date — the round-trip check is what catches it, and a
     // mis-parsed birthdate flips minor-protection.
     expect(coerceProposalValue('birthdate', '31.02.2026').ok).toBe(false)
-    expect(coerceProposalValue('austritt', 'yesterday').ok).toBe(false)
-    expect(coerceProposalValue('austritt', '09/01/2009').ok).toBe(false)
+    expect(coerceProposalValue('left_on', 'yesterday').ok).toBe(false)
+    expect(coerceProposalValue('left_on', '09/01/2009').ok).toBe(false)
   })
 
   it('inverts the DISPLAY value back to the stored one — the conflict rule stages what the admin reads (2026-08-29)', () => {
@@ -478,10 +478,10 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
   })
 
   it('an empty or missing value is never applied', () => {
-    expect(coerceProposalValue('adresse', '').ok).toBe(false)
-    expect(coerceProposalValue('adresse', '   ').ok).toBe(false)
-    expect(coerceProposalValue('adresse', null).ok).toBe(false)
-    expect(coerceProposalValue('adresse', undefined).ok).toBe(false)
+    expect(coerceProposalValue('address', '').ok).toBe(false)
+    expect(coerceProposalValue('address', '   ').ok).toBe(false)
+    expect(coerceProposalValue('address', null).ok).toBe(false)
+    expect(coerceProposalValue('address', undefined).ok).toBe(false)
   })
 
   it('every whitelisted column has a known type', () => {
@@ -578,23 +578,23 @@ describe('buildPushCsv (update set — Telefon Mobil / Land / Mittelschule ZH, f
   })
 
   it("Mittelschule ZH fills from members.kantonsschule when the register is empty", () => {
-    expect(cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: '' })[26]).toBe('KS Wiedikon')
+    expect(cellsOf({ cantonal_school: 'KS Wiedikon', mittelschule_zh_cd: '' })[26]).toBe('KS Wiedikon')
   })
 
   it("Mittelschule ZH echoes the register's own value VERBATIM — wiedisync never overwrites a school", () => {
-    expect(cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge' })[26]).toBe('KS Enge')
+    expect(cellsOf({ cantonal_school: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge' })[26]).toBe('KS Enge')
     // Legacy register spellings survive too — this is exactly what fill-only protects.
-    expect(cellsOf({ kantonsschule: 'KS Rämibühl (MN-Gymnasium)', mittelschule_zh_cd: 'MNG Rämibühl' })[26]).toBe('MNG Rämibühl')
+    expect(cellsOf({ cantonal_school: 'KS Rämibühl (MN-Gymnasium)', mittelschule_zh_cd: 'MNG Rämibühl' })[26]).toBe('MNG Rämibühl')
   })
 
   it("Mittelschule ZH: 'Nein' and never-asked both leave an empty register cell empty", () => {
-    expect(cellsOf({ kantonsschule: 'Nein', mittelschule_zh_cd: '' })[26]).toBe('')
-    expect(cellsOf({ kantonsschule: null, mittelschule_zh_cd: '' })[26]).toBe('')
+    expect(cellsOf({ cantonal_school: 'Nein', mittelschule_zh_cd: '' })[26]).toBe('')
+    expect(cellsOf({ cantonal_school: null, mittelschule_zh_cd: '' })[26]).toBe('')
   })
 
   it('all three are NOT gated on clubdesk_push_changes — naming a field changes nothing', () => {
-    const named = cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge', land_cd: 'Schweiz', telefon_mobil_cd: '+41 76 111 22 33',
-      clubdesk_push_changes: [{ field: 'kantonsschule', old_value: null, new_value: 'KS Wiedikon' }] })
+    const named = cellsOf({ cantonal_school: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge', land_cd: 'Schweiz', telefon_mobil_cd: '+41 76 111 22 33',
+      clubdesk_push_changes: [{ field: 'cantonal_school', old_value: null, new_value: 'KS Wiedikon' }] })
     expect(named[24]).toBe('+41 76 111 22 33')
     expect(named[25]).toBe('Schweiz')
     expect(named[26]).toBe('KS Enge')
@@ -636,7 +636,7 @@ describe('buildPushCsv (create set)', () => {
   })
 
   it('carries the Kantonsschule into Mittelschule ZH in the REGISTER\'S picklist spelling, and maps "Nein" to an empty cell', () => {
-    const cell = (kantonsschule) => buildPushCsv([{ ...kacper, kantonsschule }], { create: true }).trim().split('\n')[1].split(';')[30]
+    const cell = (cantonal_school) => buildPushCsv([{ ...kacper, cantonal_school }], { create: true }).trim().split('\n')[1].split(';')[30]
     expect(cell('KS Wiedikon')).toBe('KS Wiedikon')
     // ⚠ Picklist, not free text (live 2026-09-13): an unmatched value is
     // silently dropped by the import. The three Rämibühl gymnasia collapse to
@@ -663,7 +663,7 @@ describe('buildPushCsv (create set)', () => {
   })
 
   it('empty create-set optional cells stay empty (safe on a new contact)', () => {
-    const row = buildPushCsv([{ ...kacper, phone: '', beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
+    const row = buildPushCsv([{ ...kacper, phone: '', fee_category: null, joined_on: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
     // IBAN, Anrede, Nationalität, Federation of Origin, AHV, Wiedisync ID (no id),
@@ -675,7 +675,7 @@ describe('buildPushCsv (create set)', () => {
   })
 
   it('neutralises formula injection in the category cell', () => {
-    const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
+    const row = buildPushCsv([{ ...kacper, fee_category: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
     expect(row.split(';')[18]).toBe("'=SUM(A1)")
   })
@@ -1332,28 +1332,28 @@ describe('registerCell — what may overwrite the legal register', () => {
   it('never blanks the register — an empty wiedisync value falls back to ClubDesk', () => {
     // ClubDesk ignores empty cells on import anyway; this is the layer that
     // makes that a guarantee rather than a dependency on the vendor.
-    expect(registerCell('austritt', {
-      changed: new Set(['austritt']), wiedi: '', clubdesk: '31.05.2025',
+    expect(registerCell('left_on', {
+      changed: new Set(['left_on']), wiedi: '', clubdesk: '31.05.2025',
     })).toBe('31.05.2025')
-    expect(registerCell('austritt', {
-      changed: new Set(['austritt']), wiedi: null, clubdesk: null,
+    expect(registerCell('left_on', {
+      changed: new Set(['left_on']), wiedi: null, clubdesk: null,
     })).toBe('')
   })
 
   it('fills an empty register cell from wiedisync even without a pending change', () => {
     // The pre-302 fill behaviour, preserved: a contact created in ClubDesk and
     // linked afterwards still gets its entry date.
-    expect(registerCell('eintritt', {
+    expect(registerCell('joined_on', {
       changed: new Set(), wiedi: '27.06.2026', clubdesk: '',
     })).toBe('27.06.2026')
   })
 
   it('falls back to the derivation only when both sides are empty', () => {
-    expect(registerCell('eintritt', {
+    expect(registerCell('joined_on', {
       changed: new Set(), wiedi: '', clubdesk: '', fallback: '01.09.2026',
     })).toBe('01.09.2026')
     // ClubDesk's own value still beats the derivation.
-    expect(registerCell('eintritt', {
+    expect(registerCell('joined_on', {
       changed: new Set(), wiedi: '', clubdesk: '23.06.1992', fallback: '01.09.2026',
     })).toBe('23.06.1992')
   })
@@ -1381,7 +1381,7 @@ describe('changedPushFields', () => {
 })
 
 describe('buildPushCsv — the register triple end to end', () => {
-  const linked = { ...kacper, register_status: 'Ehemaliges Mitglied', austritt: '2026-08-10' }
+  const linked = { ...kacper, register_status: 'Ehemaliges Mitglied', left_on: '2026-08-10' }
 
   it('leaves Status and Austritt at ClubDesk values when nothing named them', () => {
     const cells = buildPushCsv([{ ...linked, register_status_cd: 'Aktivmitglied', austritt_cd: '' }])
@@ -1396,7 +1396,7 @@ describe('buildPushCsv — the register triple end to end', () => {
       register_status_cd: 'Aktivmitglied',
       clubdesk_push_changes: [
         { field: 'register_status', old_value: 'Aktivmitglied', new_value: 'Ehemaliges Mitglied' },
-        { field: 'austritt', old_value: null, new_value: '2026-08-10' },
+        { field: 'left_on', old_value: null, new_value: '2026-08-10' },
       ],
     }]).trim().split('\n')[1].split(';')
     expect(cells[21]).toBe('Ehemaliges Mitglied')
@@ -1411,31 +1411,31 @@ describe('registration fee preview (GET /registration/:id/fee) — same engine a
   // (a brand-new registrant cannot already be a roster guest), no baseOverride
   // (the push never consults finance_dues_rates either).
   it('derives the base + surcharge from category and licence flags, no discount', () => {
-    const reg = { beitragskategorie: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: false }
-    const derived = feeBreakdown(reg.beitragskategorie, { ...reg, fee_discount: null, fee_discount_pct: null }, { isGuest: false })
+    const reg = { fee_category: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: false }
+    const derived = feeBreakdown(reg.fee_category, { ...reg, fee_discount: null, fee_discount_pct: null }, { isGuest: false })
     expect(derived.base).toBe(440)
     expect(derived.surcharge).toBe(100) // adult category, no scorer licence → owed
     expect(derived.amount).toBe(540)
   })
 
   it('a scorer licence on the registration waives the surcharge', () => {
-    const reg = { beitragskategorie: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: true }
-    const derived = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    const reg = { fee_category: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: true }
+    const derived = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(derived.surcharge).toBe(0)
     expect(derived.amount).toBe(440)
   })
 
   it('applies the registration-level CHF discount, capped at what is owed', () => {
-    const reg = { beitragskategorie: 'Passivmitglied', fee_discount: 9999, fee_discount_pct: null }
-    const effective = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    const reg = { fee_category: 'Passivmitglied', fee_discount: 9999, fee_discount_pct: null }
+    const effective = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(effective.base).toBe(40)
     expect(effective.discount).toBe(40) // never below zero
     expect(effective.amount).toBe(0)
   })
 
   it('applies the registration-level percentage discount', () => {
-    const reg = { beitragskategorie: 'VB Turnier KWI', fee_discount: null, fee_discount_pct: 50 }
-    const effective = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    const reg = { fee_category: 'VB Turnier KWI', fee_discount: null, fee_discount_pct: 50 }
+    const effective = feeBreakdown(reg.fee_category, reg, { isGuest: false })
     expect(effective.base).toBe(110)
     expect(effective.discount).toBe(55)
     expect(effective.amount).toBe(55)
@@ -1455,19 +1455,19 @@ describe('buildPushCsv — Sektion + Lizenz bestellt', () => {
     return (name) => c[h.indexOf(name)]
   }
   it('fills an empty register cell from wiedisync on an UPDATE', () => {
-    const cell = updateCells({ sektion: 'KSCW', lizenz_bestellt: '12.09.2026', license_nr: '339816', licence_category: 'RLL' })
+    const cell = updateCells({ club_section: 'KSCW', lizenz_bestellt: '12.09.2026', license_nr: '339816', licence_category: 'RLL' })
     expect(cell('Sektion')).toBe('KSCW')
     expect(cell('Lizenz bestellt')).toBe('12.09.2026')
     expect(cell('Lizenznummer')).toBe('339816')
     expect(cell('Lizenzart')).toBe('RLL')
   })
   it("never overwrites the register's own cell on an UPDATE", () => {
-    const cell = updateCells({ sektion: 'KSCW', sektion_cd: 'Basketball', lizenz_bestellt: '12.09.2026', lizenz_bestellt_cd: '01.08.2025' })
+    const cell = updateCells({ club_section: 'KSCW', sektion_cd: 'Basketball', lizenz_bestellt: '12.09.2026', lizenz_bestellt_cd: '01.08.2025' })
     expect(cell('Sektion')).toBe('Basketball')
     expect(cell('Lizenz bestellt')).toBe('01.08.2025')
   })
   it('carries Lizenz bestellt on a CREATE, and falls back to members.sektion without a registration', () => {
-    const [header, row] = buildPushCsv([{ ...base, clubdesk_id: null, sektion: 'KSCW', lizenz_bestellt: '12.09.2026' }], { create: true }).trim().split('\n')
+    const [header, row] = buildPushCsv([{ ...base, clubdesk_id: null, club_section: 'KSCW', lizenz_bestellt: '12.09.2026' }], { create: true }).trim().split('\n')
     const h = header.split(';'); const c = row.split(';')
     expect(c[h.indexOf('Lizenz bestellt')]).toBe('12.09.2026')
     expect(c[h.indexOf('Sektion')]).toBe('KSCW')

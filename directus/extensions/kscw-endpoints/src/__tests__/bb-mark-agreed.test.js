@@ -69,8 +69,8 @@ const noopLogger = {
 /** The acting planner: a member with is_spielplaner, which is what canManageBb accepts. */
 const PLANNER_USER = 'user-planner'
 const baseMembers = () => ([
-  { id: 430, user: PLANNER_USER, role: '["user"]', is_spielplaner: true, first_name: 'Philip', last_name: 'Urech', email: 'p@example.invalid' },
-  { id: 9, user: 'user-nobody', role: '["user"]', is_spielplaner: false, first_name: 'No', last_name: 'Body', email: 'n@example.invalid' },
+  { id: 430, user: PLANNER_USER, role: '["user"]', is_scheduler: true, first_name: 'Philip', last_name: 'Urech', email: 'p@example.invalid' },
+  { id: 9, user: 'user-nobody', role: '["user"]', is_scheduler: false, first_name: 'No', last_name: 'Body', email: 'n@example.invalid' },
 ])
 
 /** One placed home game, addressed to a club, in whatever state the test needs. */

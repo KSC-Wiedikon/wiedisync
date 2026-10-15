@@ -173,7 +173,7 @@ const SPORT_CATEGORY_PREFIX: Partial<Record<Registration['membership_type'], str
 const SPORT_AGNOSTIC_CATEGORIES = new Set(['Passivmitglied', 'Gratis', 'Kein Beitrag'])
 function categoryChoicesForSport(membershipType: Registration['membership_type']): string[] {
   const prefix = SPORT_CATEGORY_PREFIX[membershipType]
-  return MEMBER_SELECT_FIELDS.beitragskategorie.options
+  return MEMBER_SELECT_FIELDS.fee_category.options
     .map((o) => o.value)
     .filter((v) => (prefix && v.startsWith(prefix)) || SPORT_AGNOSTIC_CATEGORIES.has(v))
 }

@@ -380,7 +380,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       // Submitter identity for the finance email + the persisted row.
       const member = await database('members')
         .where({ user: userId })
-        .first('id', 'first_name', 'last_name', 'email', 'sektion')
+        .first('id', 'first_name', 'last_name', 'email', 'club_section')
       const submitterName = member ? `${member.first_name || ''} ${member.last_name || ''}`.trim() : 'Unknown member'
       const submitterEmail = member?.email || null
 
@@ -410,7 +410,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
               pay_to_iban: payToIban || null,
               member_note: note || null,
               member_already_paid: memberAlreadyPaid,
-              section: sektionToSection(member.sektion),
+              section: sektionToSection(member.club_section),
               status: 'pending',
               user_created: userId,
             })
@@ -687,8 +687,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
           payee = await trx('members')
             .where({ id: expense.member })
             .first('id', 'first_name', 'last_name', 'email', 'language', 'iban',
-              'adresse', 'plz', 'ort', 'billing_different', 'billing_iban',
-              'billing_name', 'billing_address', 'billing_plz', 'billing_ort')
+              'address', 'postal_code', 'city', 'billing_different', 'billing_iban',
+              'billing_name', 'billing_address', 'billing_postal_code', 'billing_city')
         }
 
         // (a) Leaving 'paid' (mis-click correction) → cancel the auto-payout so the

@@ -254,19 +254,42 @@ UPDATE members SET vm_email = NULL WHERE vm_email IS NOT NULL;
 UPDATE members SET phone    = NULL WHERE phone IS NOT NULL;
 -- One statement for the rest: trg_pv_members refreshes participation
 -- visibility once per statement.
-UPDATE members SET
-  ahv_nummer            = NULL,
-  iban                  = pg_temp.kscw_iban(iban),
-  billing_iban          = pg_temp.kscw_iban(billing_iban),
-  adresse               = pg_temp.kscw_street(adresse),
-  billing_address       = pg_temp.kscw_street(billing_address),
-  billing_email         = CASE WHEN billing_email IS NOT NULL AND billing_email <> '' THEN 'billing_' || id || '@devsink.invalid' ELSE billing_email END,
-  billing_phone         = NULL,
-  birthdate             = pg_temp.kscw_shift_date(birthdate),
-  clubdesk_push_changes = pg_temp.kscw_strip(clubdesk_push_changes)
- WHERE ahv_nummer IS NOT NULL OR iban IS NOT NULL OR billing_iban IS NOT NULL
-    OR adresse IS NOT NULL OR billing_address IS NOT NULL OR billing_email IS NOT NULL
-    OR billing_phone IS NOT NULL OR birthdate IS NOT NULL OR clubdesk_push_changes IS NOT NULL;
+-- English column names since migration 414 (ahv_number, address); the clone
+-- comes from prod, which may still carry the German ones while 414 is
+-- dev-only — scrub whichever the table has.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'members' AND column_name = 'ahv_number') THEN
+    UPDATE members SET
+      ahv_number            = NULL,
+      iban                  = pg_temp.kscw_iban(iban),
+      billing_iban          = pg_temp.kscw_iban(billing_iban),
+      address               = pg_temp.kscw_street(address),
+      billing_address       = pg_temp.kscw_street(billing_address),
+      billing_email         = CASE WHEN billing_email IS NOT NULL AND billing_email <> '' THEN 'billing_' || id || '@devsink.invalid' ELSE billing_email END,
+      billing_phone         = NULL,
+      birthdate             = pg_temp.kscw_shift_date(birthdate),
+      clubdesk_push_changes = pg_temp.kscw_strip(clubdesk_push_changes)
+     WHERE ahv_number IS NOT NULL OR iban IS NOT NULL OR billing_iban IS NOT NULL
+        OR address IS NOT NULL OR billing_address IS NOT NULL OR billing_email IS NOT NULL
+        OR billing_phone IS NOT NULL OR birthdate IS NOT NULL OR clubdesk_push_changes IS NOT NULL;
+  ELSE
+    UPDATE members SET
+      ahv_nummer            = NULL,
+      iban                  = pg_temp.kscw_iban(iban),
+      billing_iban          = pg_temp.kscw_iban(billing_iban),
+      adresse               = pg_temp.kscw_street(adresse),
+      billing_address       = pg_temp.kscw_street(billing_address),
+      billing_email         = CASE WHEN billing_email IS NOT NULL AND billing_email <> '' THEN 'billing_' || id || '@devsink.invalid' ELSE billing_email END,
+      billing_phone         = NULL,
+      birthdate             = pg_temp.kscw_shift_date(birthdate),
+      clubdesk_push_changes = pg_temp.kscw_strip(clubdesk_push_changes)
+     WHERE ahv_nummer IS NOT NULL OR iban IS NOT NULL OR billing_iban IS NOT NULL
+        OR adresse IS NOT NULL OR billing_address IS NOT NULL OR billing_email IS NOT NULL
+        OR billing_phone IS NOT NULL OR birthdate IS NOT NULL OR clubdesk_push_changes IS NOT NULL;
+  END IF;
+END $$;
 
 -- ── Directus login accounts (keep admin/dev logins on the allowlist) ────────
 UPDATE directus_users

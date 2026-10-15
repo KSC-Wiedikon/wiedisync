@@ -368,15 +368,15 @@ export function registerFinance(router, { database, logger, services, getSchema 
       let recipientAddress = null, recipientZip = null, recipientCity = null
       if (recipientType === 'member') {
         memberId = Number(b.member)
-        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email', 'adresse', 'plz', 'ort') : null
+        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email', 'address', 'postal_code', 'city') : null
         if (!tgt) return res.status(400).json({ error: 'member not found' })
         recipientName = [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null
         recipientEmail = tgt.email || null
         // Same as the dues run: copied at issue time so the PDF has an addressee
         // and the QR bill can name the payer (migration 293).
-        recipientAddress = tgt.adresse || null
-        recipientZip = tgt.plz != null ? String(tgt.plz) : null
-        recipientCity = tgt.ort || null
+        recipientAddress = tgt.address || null
+        recipientZip = tgt.postal_code != null ? String(tgt.postal_code) : null
+        recipientCity = tgt.city || null
       } else if (recipientType === 'team') {
         teamId = Number(b.team)
         const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id', 'name') : null
@@ -479,8 +479,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // nothing" apart from "nothing has been billed yet". A Gratis member shown
       // a bare "You have no invoices." reads it as a fault and asks the
       // treasurer — which is exactly what happened.
-      const cat = await database('members').where('id', mem.id).first('beitragskategorie')
-      const feeCategory = (cat?.beitragskategorie || '').trim() || null
+      const cat = await database('members').where('id', mem.id).first('fee_category')
+      const feeCategory = (cat?.fee_category || '').trim() || null
       // Referee fees this member paid out of pocket (referee_expenses, written
       // from the game modal) — derived here, never mirrored into an invoice or
       // expense row. The payout link (migration 363) tells them whether the
@@ -952,8 +952,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
     const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
       .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
 
-    let mq = database('members').whereIn('beitragskategorie', categories)
-      .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie', 'sektion',
+    let mq = database('members').whereIn('fee_category', categories)
+      .select('id', 'first_name', 'last_name', 'email', 'fee_category', 'club_section',
         // The inputs feeBreakdown needs for the CHF 100 no-Schreiberlizenz
         // surcharge: birthdate gates the youth categories at U16+, the licence
         // flags say whether the duty is already covered. Omit them and every
@@ -965,9 +965,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
         ...FEE_OVERRIDE_FIELDS,
         // Copied onto the invoice at issue time so the document has an addressee
         // and the QR bill can pre-fill "Zahlbar durch" (migration 293).
-        'adresse', 'plz', 'ort')
+        'address', 'postal_code', 'city')
     if (onlyActive) mq = mq.where('kscw_membership_active', true)
-    if (sektion) mq = mq.where('sektion', sektion)
+    if (sektion) mq = mq.where('club_section', sektion)
     if (memberIds.length) mq = mq.whereIn('id', memberIds)
     const members = await mq.orderBy(['last_name', 'first_name'])
 
@@ -1022,7 +1022,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       .whereNot('status', 'Storniert').pluck('member')).map(Number))
 
     const rows = members.map((m) => {
-      const rate = pickRate(rates, m.beitragskategorie, m.sektion)
+      const rate = pickRate(rates, m.fee_category, m.club_section)
       // A 'Gratis' member owes nothing by CATEGORY. They are invoiced anyway, at
       // 0, and since 2026-08-15 the document shows what the membership would have
       // cost plus the exemption that cancels it — see finance-dues-reference.js.
@@ -1035,7 +1035,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // reads as a mistake. (`numeric` arrives as a STRING through pg; NULL, ''
       // and a non-numeric all coerce to "not pinned", which is the safe side.)
       const pinnedBase = Number(m.fee_base_override) > 0
-      const exempt = !!rate && isExemptCategory(m.beitragskategorie) && !pinnedBase
+      const exempt = !!rate && isExemptCategory(m.fee_category) && !pinnedBase
       const ref = exempt ? referenceBase(rates, m) : null
       const reference = exempt ? round2(ref.base) : 0
       const isGuest = guests.has(Number(m.id))
@@ -1048,8 +1048,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // real bill — a 'Gratis' member is not surcharged and owes no guest
         // reduction, and either line on a CHF 0 invoice is noise.
         : exempt
-        ? { category: m.beitragskategorie, base: reference, surcharge: 0, guest_discount: 0, discount: 0, amount: reference }
-        : feeBreakdown(m.beitragskategorie, m, {
+        ? { category: m.fee_category, base: reference, surcharge: 0, guest_discount: 0, discount: 0, amount: reference }
+        : feeBreakdown(m.fee_category, m, {
             baseOverride: rate.amount_chf,
             isGuest,
             // Capping lives in the fee model, where it is unit-tested.
@@ -1069,11 +1069,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         member: m.id,
         name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
         email: m.email || null,
-        category: m.beitragskategorie || null,
-        sektion: m.sektion || null,
-        adresse: m.adresse || null,
-        plz: m.plz != null ? String(m.plz) : null,
-        ort: m.ort || null,
+        // Response keys unchanged (dues preview UI); member columns are English since 414.
+        category: m.fee_category || null,
+        sektion: m.club_section || null,
+        adresse: m.address || null,
+        plz: m.postal_code != null ? String(m.postal_code) : null,
+        ort: m.city || null,
         base_amount: fee ? round2(fee.base) : null,
         /** Federation licence contained IN base_amount — a split, not an addition. */
         licence,
@@ -1114,21 +1115,21 @@ export function registerFinance(router, { database, logger, services, getSchema 
     let uncovered = { no_category: 0, category_not_selected: 0, members: [] }
     if (!memberIds.length) {
       let uq = database('members').where('kscw_membership_active', true)
-        .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie')
-      if (sektion) uq = uq.where('sektion', sektion)
+        .select('id', 'first_name', 'last_name', 'club_section', 'fee_category')
+      if (sektion) uq = uq.where('club_section', sektion)
       const all = await uq
       const selected = new Set(categories.map((c) => c.toLowerCase()))
-      const missing = all.filter((m) => !selected.has(String(m.beitragskategorie ?? '').trim().toLowerCase()))
+      const missing = all.filter((m) => !selected.has(String(m.fee_category ?? '').trim().toLowerCase()))
       uncovered = {
-        no_category: missing.filter((m) => !String(m.beitragskategorie ?? '').trim()).length,
-        category_not_selected: missing.filter((m) => String(m.beitragskategorie ?? '').trim()).length,
+        no_category: missing.filter((m) => !String(m.fee_category ?? '').trim()).length,
+        category_not_selected: missing.filter((m) => String(m.fee_category ?? '').trim()).length,
         // Named, not just counted — a count tells the treasurer a problem exists
         // but not who to fix. Capped so a mis-selected run cannot return the club.
         members: missing.slice(0, 50).map((m) => ({
           member: m.id,
           name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
-          sektion: m.sektion || null,
-          category: String(m.beitragskategorie ?? '').trim() || null,
+          sektion: m.club_section || null,
+          category: String(m.fee_category ?? '').trim() || null,
         })),
       }
     }
@@ -1197,10 +1198,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
             .select('id', 'fiscal_year', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
         : []
       // Free-text columns synced from ClubDesk — offer only real live values.
-      const categories = await database('members').whereNotNull('beitragskategorie')
-        .where('kscw_membership_active', true).distinct('beitragskategorie').orderBy('beitragskategorie').pluck('beitragskategorie')
-      const sektionen = await database('members').whereNotNull('sektion')
-        .where('kscw_membership_active', true).distinct('sektion').orderBy('sektion').pluck('sektion')
+      const categories = await database('members').whereNotNull('fee_category')
+        .where('kscw_membership_active', true).distinct('fee_category').orderBy('fee_category').pluck('fee_category')
+      const sektionen = await database('members').whereNotNull('club_section')
+        .where('kscw_membership_active', true).distinct('club_section').orderBy('club_section').pluck('club_section')
       return res.json({ rates, categories, sektionen })
     } catch (e) { return err(res, req, 'dues-rates', e) }
   })
@@ -1285,7 +1286,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!Number.isInteger(id)) return res.status(400).json({ error: 'id required' })
 
       const m = await database('members').where('id', id).first(
-        'id', 'beitragskategorie', 'sektion', 'birthdate',
+        'id', 'fee_category', 'club_section', 'birthdate',
         'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
         ...FEE_OVERRIDE_FIELDS)
       if (!m) return res.status(404).json({ error: 'not found' })
@@ -1299,7 +1300,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         ? await database('finance_dues_rates').where('fiscal_year', fy.id)
             .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'active')
         : []
-      const rate = pickRate(rates, m.beitragskategorie, m.sektion)
+      const rate = pickRate(rates, m.fee_category, m.club_section)
 
       // member_teams.season uses the fiscal-year label spelling ('2026/27').
       const isGuest = fy
@@ -1311,13 +1312,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // can show what the rules WOULD say, once as it actually bills.
       const bare = { ...m }
       for (const f of FEE_OVERRIDE_FIELDS) bare[f] = null
-      const derived = feeBreakdown(m.beitragskategorie, bare, opts)
-      const effective = feeBreakdown(m.beitragskategorie, m, opts)
+      const derived = feeBreakdown(m.fee_category, bare, opts)
+      const effective = feeBreakdown(m.fee_category, m, opts)
 
       return res.json({
         member: id,
-        category: m.beitragskategorie || null,
-        sektion: m.sektion || null,
+        category: m.fee_category || null,
+        sektion: m.club_section || null,
         fiscal_year: fy ? { id: fy.id, label: fy.label } : null,
         is_guest: isGuest,
         // Where the base comes from when no per-member override is set — the
@@ -1957,8 +1958,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
           .select(
             're.id as expense_id', 're.amount', 're.currency', 're.paid_by_member as member',
             're.team as expense_team', 'g.kscw_team as game_team', 'g.id as game_id',
-            'm.first_name', 'm.last_name', 'm.iban', 'm.adresse', 'm.plz', 'm.ort',
-            'm.billing_different', 'm.billing_iban', 'm.billing_name', 'm.billing_address', 'm.billing_plz', 'm.billing_ort',
+            'm.first_name', 'm.last_name', 'm.iban', 'm.address', 'm.postal_code', 'm.city',
+            'm.billing_different', 'm.billing_iban', 'm.billing_name', 'm.billing_address', 'm.billing_postal_code', 'm.billing_city',
           )
         // A fee is only reimbursed when it was filed by the team whose game it
         // is. The row is written through the items API, where a leader may pick

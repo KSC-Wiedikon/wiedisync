@@ -55,10 +55,10 @@ import { writeUserLog } from './activity-log.js'
 export const RETENTION_MONTHS = 12
 
 /** The fields an erasure clears. `null`, except where the column refuses it. */
-export const RETENTION_FIELDS = ['iban', 'ahv_nummer', 'phone', 'adresse', 'plz', 'ort', 'email']
+export const RETENTION_FIELDS = ['iban', 'ahv_number', 'phone', 'address', 'postal_code', 'city', 'email']
 
 /** Address parts the invoice snapshot copies, member column → invoice column. */
-const RECIPIENT_MAP = { adresse: 'recipient_address', plz: 'recipient_zip', ort: 'recipient_city' }
+const RECIPIENT_MAP = { address: 'recipient_address', postal_code: 'recipient_zip', city: 'recipient_city' }
 
 /** Non-deliverable stand-in for the NOT NULL email column (RFC 2606). */
 const erasedEmail = (id) => `erased-${id}@invalid`

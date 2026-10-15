@@ -185,7 +185,7 @@ function seed() {
       { id: 4, activity_type: 'event', activity_id: '6', member: 4, status: 'confirmed' },
     ],
     members: [
-      { id: 1, first_name: 'Anna', last_name: 'A', sex: 'weiblich', email: 'anna@x.ch', ahv_nummer: '756.x' },
+      { id: 1, first_name: 'Anna', last_name: 'A', sex: 'weiblich', email: 'anna@x.ch', ahv_number: '756.x' },
       { id: 2, first_name: 'Ben', last_name: 'B', sex: 'männlich' },
       { id: 3, first_name: 'Cara', last_name: 'C', sex: 'weiblich' },
       { id: 4, first_name: 'Dan', last_name: 'D', sex: 'männlich' },

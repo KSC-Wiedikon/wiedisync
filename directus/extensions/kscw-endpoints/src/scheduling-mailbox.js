@@ -688,10 +688,10 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const member = await database('members').where('user', userId).select('role', 'is_spielplaner').first()
+    const member = await database('members').where('user', userId).select('role', 'is_scheduler').first()
     if (!member) return false
     const roles = member.role ? (typeof member.role === 'string' ? JSON.parse(member.role) : member.role) : []
-    return mailboxAccountAllowed(key, roles, { isSpielplaner: member.is_spielplaner === true })
+    return mailboxAccountAllowed(key, roles, { isSpielplaner: member.is_scheduler === true })
   }
 
   /** members.id for the caller — the per-user read state keys on it. */
@@ -1316,7 +1316,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
 
     const [rows, teamRows, guests] = await Promise.all([
       database('members').whereIn('id', ids).select(
-        'id', 'beitragskategorie', 'birthdate',
+        'id', 'fee_category', 'birthdate',
         // The licence flags deriveMitgliederbeitrag reads for the
         // no-Schreiberlizenz surcharge. Passing the member row rather than null
         // is what makes the surcharge appear at all.
@@ -1349,7 +1349,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       const id = Number(r.id)
       const m = byId.get(id)
       if (!m) return r
-      const category = m.beitragskategorie || ''
+      const category = m.fee_category || ''
       return {
         ...r,
         fee_category: category,

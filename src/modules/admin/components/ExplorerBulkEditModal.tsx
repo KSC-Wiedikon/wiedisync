@@ -78,7 +78,7 @@ interface Props {
 const LIST_KINDS: ReadonlySet<MemberFieldKind> = new Set<MemberFieldKind>(['multiselect', 'teamMulti'])
 
 /** The one column reachable here that a sync-up writes into the legal register. */
-const REGISTER_PUSH_KEYS: ReadonlySet<string> = new Set(['eintritt'])
+const REGISTER_PUSH_KEYS: ReadonlySet<string> = new Set(['joined_on'])
 
 const GROUP_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
   MEMBER_FIELD_GROUPS.map((g) => [g.id, g.label]),

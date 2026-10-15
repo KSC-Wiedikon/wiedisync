@@ -425,8 +425,8 @@ export default function ExplorerMemberFields({
     () => resolveMemberSport(
       {
         id: memberId,
-        sektion: record?.sektion,
-        beitragskategorie: record?.beitragskategorie,
+        club_section: record?.club_section,
+        fee_category: record?.fee_category,
       },
       cache,
     ),
@@ -639,11 +639,11 @@ export default function ExplorerMemberFields({
       const next = { ...d, [key]: value }
       if (key === 'register_status') {
         if (isDepartedRegisterStatus(value)) {
-          if (!next.austritt) next.austritt = todayLocal()
+          if (!next.left_on) next.left_on = todayLocal()
         } else {
           // Includes clearing the status back to "—": an exit date with no
           // departed status is exactly what the CHECK constraint rejects.
-          next.austritt = null
+          next.left_on = null
         }
       }
       return next
@@ -703,7 +703,7 @@ export default function ExplorerMemberFields({
     // a member whose status is already active — every status change through
     // setField keeps the pair consistent on its own.
     const effectiveStatus = 'register_status' in patch ? patch.register_status : record.register_status
-    const effectiveAustritt = 'austritt' in patch ? patch.austritt : record.austritt
+    const effectiveAustritt = 'left_on' in patch ? patch.left_on : record.left_on
     if (effectiveAustritt && !isDepartedRegisterStatus(effectiveStatus)) {
       toast.error(t('explorerStatusAustrittNeedsDeparted'))
       return

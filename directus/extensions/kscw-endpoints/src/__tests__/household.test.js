@@ -149,7 +149,7 @@ describe('pure rules', () => {
   })
 
   it('never lets a member with her own real login be managed (the consent rule)', () => {
-    const member = { id: 5, user: 'u5', role: '["user"]', is_spielplaner: false }
+    const member = { id: 5, user: 'u5', role: '["user"]', is_scheduler: false }
     expect(manageableReason({ member, user: { email: 'kid@example.invalid', status: 'active' } })).toBe('member_has_own_login')
     // A real login that is merely inactive/invited is still a real login.
     expect(manageableReason({ member, user: { email: 'kid@example.invalid', status: 'invited' } })).toBe('member_has_own_login')
@@ -158,15 +158,15 @@ describe('pure rules', () => {
   })
 
   it('refuses staff as a managed target', () => {
-    const member = { id: 5, user: null, role: '["user"]', is_spielplaner: false }
-    expect(manageableReason({ member: { ...member, is_spielplaner: true } })).toBe('member_is_staff')
+    const member = { id: 5, user: null, role: '["user"]', is_scheduler: false }
+    expect(manageableReason({ member: { ...member, is_scheduler: true } })).toBe('member_is_staff')
     expect(manageableReason({ member: { ...member, role: '["user","vb_admin"]' } })).toBe('member_is_staff')
     expect(manageableReason({ member, isStaffLinked: true })).toBe('member_is_staff')
     expect(manageableReason({ member: null })).toBe('member_not_found')
   })
 
   it('says why a linked member is not switchable — the one predicate behind the switcher, the admin list and the middleware', () => {
-    const member = { id: 563, user: 'shadow-563', role: '["user"]', is_spielplaner: false }
+    const member = { id: 563, user: 'shadow-563', role: '["user"]', is_scheduler: false }
     const user = { email: managedEmailFor(563), status: 'draft', has_password: false }
     expect(actableReason({ member, user, roleName: 'Member' })).toBeNull()
     expect(actableReason({ member: { ...member, user: null }, user: null, roleName: null })).toBe('not_provisioned')
@@ -175,7 +175,7 @@ describe('pure rules', () => {
     expect(actableReason({ member, user, roleName: 'Member', hasUserAccess: true })).toBe('member_is_staff')
     expect(actableReason({ member, user, roleName: 'Member', isStaffLinked: true })).toBe('member_is_staff')
     expect(actableReason({ member: { ...member, role: '["user","finance"]' }, user, roleName: 'Member' })).toBe('member_is_staff')
-    expect(actableReason({ member: { ...member, is_spielplaner: true }, user, roleName: 'Member' })).toBe('member_is_staff')
+    expect(actableReason({ member: { ...member, is_scheduler: true }, user, roleName: 'Member' })).toBe('member_is_staff')
   })
 
   it('lets any real login be the main account — no age rule, a sibling may manage a sibling', () => {
@@ -280,7 +280,7 @@ describe('routes', () => {
   })
 
   it('provisions the shadow login in the same transaction as a managed link', async () => {
-    tables.members.push({ id: 763, user: null, role: '["user"]', is_spielplaner: false, first_name: 'Aliyah', last_name: 'Alexander', wiedisync_active: false })
+    tables.members.push({ id: 763, user: null, role: '["user"]', is_scheduler: false, first_name: 'Aliyah', last_name: 'Alexander', wiedisync_active: false })
     tables.directus_roles = [{ id: 'role-member', name: 'Member' }]
     tables.teams_coaches = []
     tables.teams_responsibles = []
@@ -321,7 +321,7 @@ describe('switcher source (GET /household/me)', () => {
     tables['member_guardians as mg'] = [563, 564].map((id) => ({
       'mg.guardian_user': 'u-elin', 'u.status': 'draft', 'u.password': null, 'r.name': 'Member',
       id, first_name: id === 563 ? 'Zoe' : 'Mila', last_name: 'B', photo: null, accent: null, household: 10,
-      user: `shadow-${id}`, role: '["user"]', is_spielplaner: false,
+      user: `shadow-${id}`, role: '["user"]', is_scheduler: false,
       login_email: managedEmailFor(id), login_status: 'draft', role_name: 'Member',
     }))
     tables['member_teams as mt'] = []
@@ -358,10 +358,10 @@ describe('admin list (GET /household)', () => {
   it('marks a linked member who became staff as not actable, with the reason', async () => {
     tables['household_members as hm'] = [
       { id: 101, household: 10, member: 563, role: 'managed', revoked_at: null,
-        member_user: 'shadow-563', member_roles: '["user"]', is_spielplaner: false,
+        member_user: 'shadow-563', member_roles: '["user"]', is_scheduler: false,
         login_email: managedEmailFor(563), user_status: 'draft', login_role: 'Member', login_has_password: false },
       { id: 102, household: 10, member: 564, role: 'managed', revoked_at: null,
-        member_user: 'shadow-564', member_roles: '["user"]', is_spielplaner: false,
+        member_user: 'shadow-564', member_roles: '["user"]', is_scheduler: false,
         login_email: managedEmailFor(564), user_status: 'draft', login_role: 'Member', login_has_password: false },
     ]
     tables.teams_responsibles = [{ teams_id: 1, members_id: 564 }]

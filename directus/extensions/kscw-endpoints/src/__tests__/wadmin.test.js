@@ -244,11 +244,11 @@ describe('wadmin assertScalarQuery — relational traversal guard (#4 + 2026-07-
     expect(isRel({ fields: ['id', 'title'], sort: ['-date_created'] })).toBe(false)
   })
   it('rejects relational filter traversal incl. _some / _none / _and-as-value', () => {
-    expect(isRel({ filter: { invited_members: { members_id: { ahv_nummer: { _eq: 'x' } } } } })).toBe(true)
-    expect(isRel({ filter: { invited_members: { _some: { members_id: { ahv_nummer: { _starts_with: '756' } } } } } })).toBe(true)
+    expect(isRel({ filter: { invited_members: { members_id: { ahv_number: { _eq: 'x' } } } } })).toBe(true)
+    expect(isRel({ filter: { invited_members: { _some: { members_id: { ahv_number: { _starts_with: '756' } } } } } })).toBe(true)
     expect(isRel({ filter: { invited_members: { _none: { members_id: { iban: { _nnull: true } } } } } })).toBe(true)
     expect(isRel({ filter: { invited_members: { _and: [{ members_id: { email: { _eq: 'a' } } }] } } })).toBe(true)
-    expect(isRel({ fields: ['invited_members.members_id.ahv_nummer'] })).toBe(true)
+    expect(isRel({ fields: ['invited_members.members_id.ahv_number'] })).toBe(true)
     expect(isRel({ sort: ['invited_members.members_id.email'] })).toBe(true)
   })
 })
@@ -441,7 +441,7 @@ describe('mixedParticipantRow (F-10)', () => {
   it('prefers the position columns and exposes only name/sex/positions', () => {
     const row = mixedParticipantRow(
       { member: 1, status: 'confirmed', position_1: 'Libero', note: 'A > B', date_created: '2026-05-01T08:00:00Z' },
-      { first_name: 'Anna', last_name: 'A', sex: 'weiblich', email: 'x@y', ahv_nummer: '756' },
+      { first_name: 'Anna', last_name: 'A', sex: 'weiblich', email: 'x@y', ahv_number: '756' },
     )
     expect(row).toEqual({ name: 'Anna A', sex: 'weiblich', positions: ['Libero'], status: 'confirmed', date: '2026-05-01', source: 'wiedisync' })
   })

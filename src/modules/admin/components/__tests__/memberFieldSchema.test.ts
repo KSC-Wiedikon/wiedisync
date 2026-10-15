@@ -233,8 +233,8 @@ describe('memberFieldSchema — invariants', () => {
     expect(MEMBER_FIELD_PROVENANCE.first_name).toBeUndefined()
     expect(MEMBER_FIELD_OVERWRITTEN_BY.first_name).toBeUndefined()
     // The sync-clobbered ones are documented but NOT locked.
-    expect(MEMBER_FIELD_OVERWRITTEN_BY.sektion).toContain('ClubDesk')
-    expect(MEMBER_FIELD_PROVENANCE.sektion).toBeUndefined()
+    expect(MEMBER_FIELD_OVERWRITTEN_BY.club_section).toContain('ClubDesk')
+    expect(MEMBER_FIELD_PROVENANCE.club_section).toBeUndefined()
   })
 
   it('never lets a machine-owned key into a PATCH', () => {
@@ -243,7 +243,7 @@ describe('memberFieldSchema — invariants', () => {
     }
     // Editable-but-synced fields ARE patchable — the amber chip is a warning,
     // not a lock (vis_player_no is hand-set on purpose).
-    for (const key of ['first_name', 'scorer_vb', 'vis_player_no', 'sektion']) {
+    for (const key of ['first_name', 'scorer_vb', 'vis_player_no', 'club_section']) {
       expect(NEVER_PATCH_KEYS.has(key), key).toBe(false)
     }
   })
@@ -261,7 +261,7 @@ describe('isFieldReadOnly', () => {
   })
 
   it('unlocks privileged fields only for a global admin', () => {
-    for (const key of ['role', 'is_spielplaner']) {
+    for (const key of ['role', 'is_scheduler']) {
       expect(isFieldReadOnly(MEMBER_FIELD_BY_KEY[key], asSportAdmin), key).toBe(true)
       expect(isFieldReadOnly(MEMBER_FIELD_BY_KEY[key], asAdmin), key).toBe(false)
     }
@@ -289,24 +289,24 @@ describe('isBulkEditable', () => {
    *  shared value across several different people can be correct. */
   const BULK_EDITABLE_FOR_ADMIN = [
     // identity
-    'anrede', 'sex', 'birthdate_visibility', 'nationalitaet_codes', 'language',
+    'salutation', 'sex', 'birthdate_visibility', 'nationalitaet_codes', 'language',
     // contact
-    'hide_email', 'hide_phone', 'adresse', 'plz', 'ort',
+    'hide_email', 'hide_phone', 'address', 'postal_code', 'city',
     // membership
-    'sektion', 'kantonsschule', TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY,
-    'requested_team', 'coach_approved_team', 'eintritt',
+    'club_section', 'cantonal_school', TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY,
+    'requested_team', 'coach_approved_team', 'joined_on',
     // playing
     'position', 'trainer_licences',
     // association
     'federation_of_origin', 'licence_status', 'scorer_vb', 'referee_vb',
     'referee_bb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
     // roles & access (global admin only — see the sport-admin case below)
-    'role', 'is_spielplaner',
+    'role', 'is_scheduler',
     // finance
-    'beitragskategorie', 'fee_base_override', 'fee_surcharge_override',
+    'fee_category', 'fee_base_override', 'fee_surcharge_override',
     'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
     'iban_confirmed', 'never_dun', 'billing_different', 'billing_name',
-    'billing_email', 'billing_address', 'billing_plz', 'billing_ort',
+    'billing_email', 'billing_address', 'billing_postal_code', 'billing_city',
     'billing_phone', 'billing_iban',
     // privacy
     'website_visible', 'website_name_private',
@@ -328,14 +328,14 @@ describe('isBulkEditable', () => {
   it('withholds the privileged fields from a sport admin', () => {
     const actual = new Set(bulkEditableFields(asSportAdmin).map((f) => f.key))
     expect(actual.has('role')).toBe(false)
-    expect(actual.has('is_spielplaner')).toBe(false)
-    expect(actual.has('beitragskategorie')).toBe(true)
+    expect(actual.has('is_scheduler')).toBe(false)
+    expect(actual.has('fee_category')).toBe(true)
   })
 
   it('refuses every field that identifies one person', () => {
     for (const key of [
       'first_name', 'last_name', 'nickname', 'photo', 'birthdate',
-      'email', 'phone', 'ahv_nummer', 'iban', 'number', 'js_id', 'vis_player_no',
+      'email', 'phone', 'ahv_number', 'iban', 'number', 'js_id', 'vis_player_no',
     ]) {
       expect(isBulkEditable(MEMBER_FIELD_BY_KEY[key], asAdmin), key).toBe(false)
       expect(MEMBER_FIELD_BY_KEY[key].bulkUnsafe, `${key} must say why`).toBeTruthy()
@@ -347,7 +347,7 @@ describe('isBulkEditable', () => {
     // without a departed status, so composing them as two independent field
     // writes fails on the database rather than on screen.
     expect(isBulkEditable(MEMBER_FIELD_BY_KEY.register_status, asAdmin)).toBe(false)
-    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.austritt, asAdmin)).toBe(false)
+    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.left_on, asAdmin)).toBe(false)
   })
 
   it('is never wider than the single-member gate', () => {
@@ -454,7 +454,7 @@ describe('relation aliases are not fields', () => {
   })
 
   it('does not mistake a real column for an alias', () => {
-    for (const key of ['first_name', 'requested_team', 'beitragskategorie', 'iban']) {
+    for (const key of ['first_name', 'requested_team', 'fee_category', 'iban']) {
       expect(isRelationAlias(key)).toBe(false)
     }
   })
@@ -633,7 +633,7 @@ describe('buildMemberFieldSections', () => {
     // ⚠ Not `phone` / `birthdate` / `email` here — those are privacy-governed
     // and deliberately survive the empty filter (own test below).
     const values: Record<string, unknown> = {
-      first_name: 'Aniisanth', last_name: '', number: 0, hide_email: false, ort: null,
+      first_name: 'Aniisanth', last_name: '', number: 0, hide_email: false, city: null,
     }
     const sections = buildMemberFieldSections({
       presentKeys: Object.keys(values),
@@ -654,7 +654,7 @@ describe('buildMemberFieldSections', () => {
   // The subject of a privacy switch stays on screen, blank, and fillable.
   it('keeps a privacy-governed field even when empty', () => {
     const sections = buildMemberFieldSections({
-      presentKeys: ['birthdate', 'birthdate_visibility', 'email', 'hide_email', 'phone', 'hide_phone', 'ort'],
+      presentKeys: ['birthdate', 'birthdate_visibility', 'email', 'hide_email', 'phone', 'hide_phone', 'city'],
       sport: 'both',
       revealedSports: none,
       hideEmpty: true,
@@ -665,7 +665,7 @@ describe('buildMemberFieldSections', () => {
     expect(keys).toContain('email')
     expect(keys).toContain('phone')
     // The exemption is the pair, not a blanket "keep empties".
-    expect(keys).not.toContain('ort')
+    expect(keys).not.toContain('city')
   })
 
   it('never filters an `alwaysShow` key — an unsaved edit cannot be swallowed', () => {
@@ -687,7 +687,7 @@ describe('buildMemberFieldSections', () => {
     const technical = MEMBER_FIELD_BY_KEY.nationalitaet
     // ⚠ `phone` no longer works as the "ordinary" field — it is governed by
     // `hide_phone` and is therefore exempt from the empty filter.
-    const ordinary = MEMBER_FIELD_BY_KEY.ort
+    const ordinary = MEMBER_FIELD_BY_KEY.city
     const governed = MEMBER_FIELD_BY_KEY.birthdate
 
     it('reports nothing filtered when both flags are off', () => {
@@ -721,7 +721,7 @@ describe('buildMemberFieldSections', () => {
     const identity = buildMemberFieldSections({ presentKeys: allKeys, sport: 'both', revealedSports: none })
       .find((s) => s.group.id === 'identity')!
     expect(identity.entries[0].fields.map((f) => f.key)).toEqual([
-      'first_name', 'last_name', 'nickname', 'anrede', 'photo', 'sex',
+      'first_name', 'last_name', 'nickname', 'salutation', 'photo', 'sex',
       'birthdate', 'birthdate_visibility', 'nationalitaet_codes', 'nationalitaet', 'language',
     ])
   })

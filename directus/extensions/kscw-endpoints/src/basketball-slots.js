@@ -762,9 +762,9 @@ export function registerBasketballSlots(router, { database, logger }) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const m = await database('members').where('user', userId).first('role', 'is_spielplaner')
+    const m = await database('members').where('user', userId).first('role', 'is_scheduler')
     if (!m) return false
-    if (m.is_spielplaner === true) return true
+    if (m.is_scheduler === true) return true
     const roles = Array.isArray(m.role) ? m.role : parseJsonColumn(m.role, [])
     return Array.isArray(roles)
       && (roles.includes('superuser') || roles.includes('admin') || roles.includes('bb_admin'))

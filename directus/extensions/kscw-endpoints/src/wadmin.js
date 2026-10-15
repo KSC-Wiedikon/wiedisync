@@ -1191,7 +1191,7 @@ export function registerWadmin(router, ctx) {
       // Fold case, accents and punctuation: "Léo" on a signup and "Leo" in ClubDesk are
       // the same person, and a list that misses them is a list that invents a town instead.
       const key = (f, l) => `${norm(f)}|${norm(l)}`
-      const rows = await database('members').select('first_name', 'last_name', 'plz', 'ort')
+      const rows = await database('members').select('first_name', 'last_name', 'postal_code', 'city')
       const byName = new Map()
       for (const m of rows) {
         // ClubDesk is human-entered and some of it is junk: one member carries postcode
@@ -1199,8 +1199,8 @@ export function registerWadmin(router, ctx) {
         // postcode either (they are four digits, 1000–9999). Forwarding that onto an
         // official SVRZ list is worse than leaving the cell blank, because it looks like
         // an answer. Implausible values are dropped here so they cannot reach the export.
-        const plz = plausiblePlz(m.plz) ? String(m.plz).trim() : ''
-        const ort = plausibleOrt(m.ort) ? String(m.ort).trim() : ''
+        const plz = plausiblePlz(m.postal_code) ? String(m.postal_code).trim() : ''
+        const ort = plausibleOrt(m.city) ? String(m.city).trim() : ''
         if (!ort && !plz) continue
         // First writer wins: two members sharing a name cannot be told apart from a
         // signup, so the ambiguous ones are dropped below rather than guessed at.

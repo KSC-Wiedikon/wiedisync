@@ -36,32 +36,32 @@ const getCurrentSeason = currentSeasonShort
 const FIELD_LABELS = {
   de: {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
-    birthdate: 'Geburtsdatum', anrede: 'Anrede', adresse: 'Adresse', plz: 'PLZ', ort: 'Ort',
-    nationalitaet: 'Nationalität', sex: 'Geschlecht', ahv_nummer: 'AHV-Nummer',
+    birthdate: 'Geburtsdatum', salutation: 'Anrede', address: 'Adresse', postal_code: 'PLZ', city: 'Ort',
+    nationalitaet: 'Nationalität', sex: 'Geschlecht', ahv_number: 'AHV-Nummer',
     federation_of_origin: 'Herkunftsverband', trainer_licences: 'Trainerausbildung', iban: 'IBAN',
   },
   gsw: {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
-    birthdate: 'Geburtsdatum', anrede: 'Aaräde', adresse: 'Adrässe', plz: 'PLZ', ort: 'Ort',
-    nationalitaet: 'Nationalität', sex: 'Gschlächt', ahv_nummer: 'AHV-Nummer',
+    birthdate: 'Geburtsdatum', salutation: 'Aaräde', address: 'Adrässe', postal_code: 'PLZ', city: 'Ort',
+    nationalitaet: 'Nationalität', sex: 'Gschlächt', ahv_number: 'AHV-Nummer',
     federation_of_origin: 'Herkunftsverband', trainer_licences: 'Trainerusbildig', iban: 'IBAN',
   },
   en: {
     first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
-    birthdate: 'Date of birth', anrede: 'Salutation', adresse: 'Address', plz: 'Zip', ort: 'City',
-    nationalitaet: 'Nationality', sex: 'Sex', ahv_nummer: 'AHV number',
+    birthdate: 'Date of birth', salutation: 'Salutation', address: 'Address', postal_code: 'Zip', city: 'City',
+    nationalitaet: 'Nationality', sex: 'Sex', ahv_number: 'AHV number',
     federation_of_origin: 'Federation of origin', trainer_licences: 'Coaching qualification', iban: 'IBAN',
   },
   fr: {
     first_name: 'Prénom', last_name: 'Nom', email: 'E-mail', phone: 'Téléphone',
-    birthdate: 'Date de naissance', anrede: 'Salutation', adresse: 'Adresse', plz: 'NPA', ort: 'Localité',
-    nationalitaet: 'Nationalité', sex: 'Sexe', ahv_nummer: "Numéro d'AVS",
+    birthdate: 'Date de naissance', salutation: 'Salutation', address: 'Adresse', postal_code: 'NPA', city: 'Localité',
+    nationalitaet: 'Nationalité', sex: 'Sexe', ahv_number: "Numéro d'AVS",
     federation_of_origin: "Fédération d'origine", trainer_licences: "Formation d'entraîneur", iban: 'IBAN',
   },
   it: {
     first_name: 'Nome', last_name: 'Cognome', email: 'E-mail', phone: 'Telefono',
-    birthdate: 'Data di nascita', anrede: 'Appellativo', adresse: 'Indirizzo', plz: 'CAP', ort: 'Località',
-    nationalitaet: 'Nazionalità', sex: 'Sesso', ahv_nummer: 'Numero AVS',
+    birthdate: 'Data di nascita', salutation: 'Appellativo', address: 'Indirizzo', postal_code: 'CAP', city: 'Località',
+    nationalitaet: 'Nazionalità', sex: 'Sesso', ahv_number: 'Numero AVS',
     federation_of_origin: 'Federazione di origine', trainer_licences: 'Formazione da allenatore', iban: 'IBAN',
   },
 }
@@ -325,7 +325,7 @@ const CD_PUSH_CONTACT_HEADERS = [
 // a value corrected in wiedisync was being discarded on every push AND reverted
 // by the next sync-down. Nothing iterates this list in code — it is the written
 // contract for which cells an UPDATE row may overwrite, and reviewers diff it.
-export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt', 'beitragskategorie']
+export const CD_REGISTER_FIELDS = ['register_status', 'joined_on', 'left_on', 'fee_category']
 
 /**
  * Register statuses that mean "no longer one of ours".
@@ -633,9 +633,9 @@ export function changedPushFields(raw) {
 // the whitelist itself is unit-tested rather than trusted.
 export const PROPOSAL_COLUMNS = {
   birthdate: 'date',
-  adresse: 'text',
-  plz: 'text',
-  ort: 'text',
+  address: 'text',
+  postal_code: 'text',
+  city: 'text',
   phone: 'text',
   js_id: 'text',
   // ⚠ NOT 'text'. members.sex stores 'm'/'f' and has NO CHECK constraint, while
@@ -643,13 +643,13 @@ export const PROPOSAL_COLUMNS = {
   // not fail loudly, it would quietly put 'männlich' in the column the whole
   // gender pipeline reads (fees, the join-team picker, the licence exports).
   sex: 'sex',
-  anrede: 'text',
+  salutation: 'text',
   // ⚠ Writing `nationalitaet` is correct despite the column being
   // trigger-derived: members_sync_nationality() resolves a written display name
   // back to nationalitaet_codes and re-canonicalises the name. Writing the CODE
   // column instead would be the mistake.
   nationalitaet: 'text',
-  ahv_nummer: 'text',
+  ahv_number: 'text',
   // ⚠⚠ `email` is the member's LOGIN identity, not just a contact cell.
   // Accepting ClubDesk's address changes where that person signs in, so it gets
   // its own coercion (a value that is not an address must never reach the
@@ -669,11 +669,11 @@ export const PROPOSAL_COLUMNS = {
   // writing it verbatim, which is what 500'd every federation accept.
   federation_of_origin: 'federation',
   trainer_licences: 'trainer_licences',
-  beitragskategorie: 'text',
-  sektion: 'text',
+  fee_category: 'text',
+  club_section: 'text',
   register_status: 'text',
-  eintritt: 'date',
-  austritt: 'date',
+  joined_on: 'date',
+  left_on: 'date',
   referee_vb: 'bool',
   referee_bb: 'bool',
   scorer_vb: 'bool',
@@ -1404,7 +1404,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
     // can't parse.
     const phoneOut = normVal(normalizePhone, m.phone)
     const ibanOut = normVal(normalizeIban, m.iban)
-    const ahvOut = normVal(normalizeAhv, m.ahv_nummer)
+    const ahvOut = normVal(normalizeAhv, m.ahv_number)
     const emailOut = normVal(normalizeEmail, m.email)
     // Shared contact cells — order mirrors CD_PUSH_CONTACT_HEADERS exactly.
     const contactCells = [
@@ -1412,7 +1412,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // when wiedisync holds no number — the same one-hop echo Federation of
       // Origin uses, and for the same reason (the normalizer must not reshape a
       // value we are only echoing). Creates never have a mirror to fall back to.
-      emailOut, phoneOut || String(m.phone_cd || '').trim(), m.adresse, m.plz, m.ort,
+      emailOut, phoneOut || String(m.phone_cd || '').trim(), m.address, m.postal_code, m.city,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
       // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
@@ -1420,7 +1420,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // CD_PUSH_CONTACT_HEADERS). Creates push their own values (a new contact
       // has no ClubDesk value to blank).
       ibanOut,
-      m.anrede || '', m.nationalitaet || '',
+      m.salutation || '', m.nationalitaet || '',
       // Federation of Origin. The echo can't ride on the field itself the way
       // anrede/nationalitaet do (those already hold ClubDesk's own German
       // string): wiedisync stores a CODE, so /up stashes ClubDesk's raw cell in
@@ -1455,20 +1455,20 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
     if (create) {
       cells.push(
         phoneOut, // Telefon Mobil = same as Privat (user: one number → both)
-        mapKategorie(m.beitragskategorie),
+        mapKategorie(m.fee_category),
         // wiedisync's own entry date when it has one (migration 302), else the
         // registration submission date /up resolved.
-        fmtBirthdateDDMMYYYY(m.eintritt || m.eintritt_registration),
+        fmtBirthdateDDMMYYYY(m.joined_on || m.eintritt_registration),
         m.gruppen || '',
         // An admin-set register status beats the derivation: deriveStatus can
         // only ever say Aktiv-/Passivmitglied, so a contact being created as an
         // Ehrenmitglied would otherwise land in the register as an ordinary one.
         String(m.register_status || '').trim() || m.cd_status || '',
         deriveOffiziellenLizenz(m),
-        deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+        deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true }),
         // Resolved by /up from the registration; a member with no approved
         // registration falls back to their own members.sektion.
-        m.cd_sektion || String(m.sektion || '').trim(),
+        m.cd_sektion || String(m.club_section || '').trim(),
         deriveSchiedsrichter(m),
         // Licence number + category from the issuing authority (Volleymanager /
         // Basketplan) — a brand-new contact has no register value to protect.
@@ -1476,12 +1476,12 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // Normally empty — a contact being created is joining, not leaving. It
         // is carried anyway so that creating an already-departed person (a
         // historical record being filed) does not silently lose the date.
-        fmtBirthdateDDMMYYYY(m.austritt),
+        fmtBirthdateDDMMYYYY(m.left_on),
         // Land + Mittelschule ZH (2026-09-13, see CD_PUSH_HEADERS). A new
         // contact has no register value to protect: the country is the
         // club's default, the school is the member's own answer.
         CD_LAND_DEFAULT,
-        kantonsschuleCell(m.kantonsschule),
+        kantonsschuleCell(m.cantonal_school),
         m.lizenz_bestellt || '', // resolved by /up (loadLizenzBestellt)
       )
     } else {
@@ -1504,11 +1504,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // (`beitragskategorie = COALESCE(cd.categ, …)` in import-clubdesk-csv.mjs).
       // Same narrow gate as the register triple: only a change that NAMES the
       // field wins, so every unrelated push still echoes the register verbatim.
-      const kategorieOut = registerCell('beitragskategorie', {
+      const kategorieOut = registerCell('fee_category', {
         changed,
         // The MAPPED name — that is the string ClubDesk actually holds
         // (CD_KATEGORIE_MAP), the same reason the drift check compares mapped.
-        wiedi: mapKategorie(m.beitragskategorie),
+        wiedi: mapKategorie(m.fee_category),
         clubdesk: m.beitragskategorie_cd,
       })
       // ⚠⚠ THE CATEGORY AND THE AMOUNT ARE ONE DECISION, exactly like Status and
@@ -1523,7 +1523,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // the new category, the pin wins and the override is what has to change —
       // deliberately, because "the register wins" is the standing rule and a
       // category edit is not authority to discard a treasurer's decision.
-      const feeChanged = changed.has('beitragskategorie')
+      const feeChanged = changed.has('fee_category')
         ? new Set([...changed, 'mitgliederbeitrag'])
         : changed
       const statusOut = registerCell('register_status', {
@@ -1542,8 +1542,8 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // from the wiedisync value. Then the register reads "active, left on
       // 10.08.2026". Both cells travel together or neither does.
       const austrittOut = DEPARTED_STATUSES.includes(statusOut)
-        ? registerCell('austritt', {
-          changed, wiedi: fmtBirthdateDDMMYYYY(m.austritt), clubdesk: m.austritt_cd,
+        ? registerCell('left_on', {
+          changed, wiedi: fmtBirthdateDDMMYYYY(m.left_on), clubdesk: m.austritt_cd,
         })
         // Not departed per the cell being sent → echo whatever the register has,
         // so this can still never blank an existing date.
@@ -1553,9 +1553,9 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // Eintritt: wiedisync's column when it is the thing that changed, else
         // ClubDesk's own cell, else the registration submission date /up
         // resolved (the pre-302 behaviour, unchanged for everybody else).
-        registerCell('eintritt', {
+        registerCell('joined_on', {
           changed,
-          wiedi: fmtBirthdateDDMMYYYY(m.eintritt),
+          wiedi: fmtBirthdateDDMMYYYY(m.joined_on),
           clubdesk: m.eintritt_cd,
           fallback: fmtBirthdateDDMMYYYY(m.eintritt_registration),
         }),
@@ -1574,7 +1574,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         registerCell('mitgliederbeitrag', {
           // `feeChanged`, not `changed` — a category change carries the amount.
           changed: feeChanged,
-          wiedi: deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+          wiedi: deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true }),
           clubdesk: m.mitgliederbeitrag_cd,
         }),
         // Lizenznummer / Lizenzart, same fill-only precedence: the register's
@@ -1599,9 +1599,9 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // empty rather than copying the register's Privat across.
         String(m.telefon_mobil_cd || '').trim() || phoneOut,
         String(m.land_cd || '').trim() || CD_LAND_DEFAULT,
-        String(m.mittelschule_zh_cd || '').trim() || kantonsschuleCell(m.kantonsschule),
+        String(m.mittelschule_zh_cd || '').trim() || kantonsschuleCell(m.cantonal_school),
         // Sektion / Lizenz bestellt (2026-09-24) — same fill-only regime.
-        String(m.sektion_cd || '').trim() || String(m.sektion || '').trim(),
+        String(m.sektion_cd || '').trim() || String(m.club_section || '').trim(),
         String(m.lizenz_bestellt_cd || '').trim() || m.lizenz_bestellt || '',
       )
     }
@@ -1619,22 +1619,22 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
 // (mapKategorie / deriveMitgliederbeitrag — exactly the inputs the CREATE path
 // already used); wiedisync_active stays CREATE-only (deriveStatus).
 const PUSH_FIELDS = [
-  'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
-  'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet',
-  'federation_of_origin', 'trainer_licences', 'ahv_nummer',
+  'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'address', 'postal_code',
+  'city', 'birthdate', 'sex', 'iban', 'salutation', 'nationalitaet',
+  'federation_of_origin', 'trainer_licences', 'ahv_number',
   'clubdesk_id', 'clubdesk_push_changes',
-  'beitragskategorie', 'wiedisync_active',
+  'fee_category', 'wiedisync_active',
   // Club register status + the dates that bracket it (migration 302). The push
   // sends these ONLY when the member's pending change actually names one of
   // them — see CD_REGISTER_FIELDS and registerCell() below.
-  'register_status', 'eintritt', 'austritt',
+  'register_status', 'joined_on', 'left_on',
   // Mittelschule ZH (2026-09-13) — fill-only on updates, verbatim on creates;
   // 'Nein' is mapped to an empty cell by kantonsschuleCell.
-  'kantonsschule',
+  'cantonal_school',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   'license_nr', 'licence_category',
   // Sektion (2026-09-24) — fill-only on updates, fallback on creates.
-  'sektion',
+  'club_section',
   // Per-member fee overrides (migration 299). deriveMitgliederbeitrag reads
   // them off the member row, so leaving them out of the SELECT would push the
   // derived amount for a member the treasurer had explicitly re-priced.
@@ -1736,11 +1736,11 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     params.push(memberIds)
   }
   const res = await database.raw(`
-    SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-           m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
+    SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.address, m.postal_code, m.city,
+           m.birthdate, m.sex, m.iban, m.salutation, m.nationalitaet, m.ahv_number,
            m.federation_of_origin, m.trainer_licences,
-           m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
-           m.license_nr, m.licence_category, m.sektion, m.kantonsschule,
+           m.register_status, m.joined_on, m.left_on, m.fee_category,
+           m.license_nr, m.licence_category, m.club_section, m.cantonal_school,
            TO_CHAR(${LIZENZ_BESTELLT_SQL}, 'DD.MM.YYYY') AS lizenz_bestellt,
            m.clubdesk_id, m.clubdesk_push_pending,
            cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
@@ -1889,9 +1889,9 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     } else if (ph) {
       fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
     }
-    cmpEcho('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
-    cmpEcho('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
-    cmpEcho('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
+    cmpEcho('address', r.address, r.cd_adresse, driftLower(r.address), driftLower(r.cd_adresse))
+    cmpEcho('postal_code', r.postal_code, r.cd_plz, driftNorm(r.postal_code), driftNorm(r.cd_plz))
+    cmpEcho('city', r.city, r.cd_ort, driftLower(r.city), driftLower(r.cd_ort))
     // Display both sides Swiss-style (dd.mm.yyyy); compare on ISO.
     const bdIso = driftDateMember(r.birthdate)
     const bdDisp = bdIso ? `${bdIso.slice(8, 10)}.${bdIso.slice(5, 7)}.${bdIso.slice(0, 4)}` : ''
@@ -1913,7 +1913,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     }
     // Anrede / Nationalität / AHV are echo-protected — see cmpEcho above.
     // AHV compares digits-only (dot formatting differs between the systems).
-    cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
+    cmpEcho('salutation', r.salutation, r.cd_anrede, driftLower(r.salutation), driftLower(r.cd_anrede))
     // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
     // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
     // into OUR display name, while ClubDesk holds its own picklist spelling —
@@ -1934,7 +1934,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     const fedCd = federationCell(r.federation_of_origin, countryNames)
     cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
     const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
-    cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
+    cmpEcho('ahv_number', r.ahv_number, r.cd_ahv_nummer, ahvDigits(r.ahv_number), ahvDigits(r.cd_ahv_nummer))
     // ── The register triple (migration 302) ──────────────────────────────
     // Echo-protected like the fields above → conflict-or-fill, never
     // blank_risk: registerCell sends ClubDesk's own cell back whenever
@@ -1954,15 +1954,15 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     // that is what the register holds. Echo-protected → conflict-or-fill,
     // never blank_risk. Measured on prod the day this shipped: 0 conflicts
     // across all 672 linked active members, so this adds no noise.
-    const katW = mapKategorie(r.beitragskategorie)
-    cmpEcho('beitragskategorie', katW, r.cd_kategorie,
+    const katW = mapKategorie(r.fee_category)
+    cmpEcho('fee_category', katW, r.cd_kategorie,
       driftLower(katW), driftLower(r.cd_kategorie))
     // Dates display Swiss-style and compare on ISO — the same split birthdate
     // uses above, because ClubDesk's cell is dd.mm.yyyy text and wiedisync's
     // is a real date column.
     for (const [field, memberVal, cdVal] of [
-      ['eintritt', r.eintritt, r.cd_eintritt],
-      ['austritt', r.austritt, r.cd_austritt],
+      ['joined_on', r.joined_on, r.cd_eintritt],
+      ['left_on', r.left_on, r.cd_austritt],
     ]) {
       const iso = driftDateMember(memberVal)
       const disp = iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : ''
@@ -1997,7 +1997,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     for (const [field, wRaw, cRaw] of [
       ['license_nr', r.license_nr, r.cd_lizenznummer],
       ['licence_category', lizenzartCell(r.licence_category), r.cd_lizenzart],
-      ['sektion', r.sektion, r.cd_sektion],
+      ['club_section', r.club_section, r.cd_sektion],
       ['lizenz_bestellt', r.lizenz_bestellt, r.cd_lizenz_bestellt],
       // Mittelschule ZH — already fill-only on the push since 2026-09-13; in
       // the drift set so an empty register cell is visible and auto-flagged.
@@ -2006,8 +2006,8 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
       // would flag a push that can never land — every day, via the 05:45
       // flagger. "Holds" = some contact carries it; the push still sends the
       // others verbatim, so they land once the club extends the picklist.
-      ['kantonsschule',
-        cdMittelschuleValues.has(kantonsschuleCell(r.kantonsschule)) ? kantonsschuleCell(r.kantonsschule) : '',
+      ['cantonal_school',
+        cdMittelschuleValues.has(kantonsschuleCell(r.cantonal_school)) ? kantonsschuleCell(r.cantonal_school) : '',
         r.cd_mittelschule_zh],
     ]) {
       if (driftNorm(wRaw) && !driftNorm(cRaw)) fills.push({ field, wiedisync: driftNorm(wRaw) })
@@ -2333,9 +2333,9 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
     for (const m of updates) {
       const cd = cdEcho.get(String(m.clubdesk_id).trim()) || {}
       if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
-      if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
+      if (!String(m.salutation || '').trim()) m.salutation = String(cd.anrede || '').trim()
       if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
-      if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
+      if (!String(m.ahv_number || '').trim()) m.ahv_number = String(cd.ahv_nummer || '').trim()
       // ⚠⚠ Address + phone joined the echo on 2026-08-30, which is what takes
       // them OUT of blank_risk (see computeClubdeskDrift). They were in the
       // push scope from day one and never echoed, so an empty wiedisync cell
@@ -2344,9 +2344,9 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
       // push-pending, and since migration 321 it would only PROPOSE the fill
       // anyway. Echoing ClubDesk's own value makes the cell a provable
       // no-op, exactly as it has always done for IBAN and Anrede.
-      if (!String(m.adresse || '').trim()) m.adresse = String(cd.adresse || '').trim()
-      if (!String(m.plz || '').trim()) m.plz = String(cd.plz || '').trim()
-      if (!String(m.ort || '').trim()) m.ort = String(cd.ort || '').trim()
+      if (!String(m.address || '').trim()) m.address = String(cd.adresse || '').trim()
+      if (!String(m.postal_code || '').trim()) m.postal_code = String(cd.plz || '').trim()
+      if (!String(m.city || '').trim()) m.city = String(cd.ort || '').trim()
       // ⚠ Phone echoes ONE HOP (like Federation of Origin), not back onto
       // m.phone: buildPushCsv runs m.phone through normalizePhone as an
       // outgoing repair, and canonicalising a number we are only handing
@@ -2688,7 +2688,7 @@ export async function drainClubdeskAutoSyncQueue(database, log) {
 
 // Fields whose fills flagClubdeskFillOnlyGaps may queue on its own.
 const CD_AUTO_FILL_HARMLESS_CONFLICTS = ['first_name', 'last_name', 'gast']
-export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'sektion', 'lizenz_bestellt', 'kantonsschule']
+export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'club_section', 'lizenz_bestellt', 'cantonal_school']
 
 // Daily (kscw-hooks, after the licence-status sweep): queue a push for linked
 // members whose register is missing a licence cell / Sektion that wiedisync
@@ -3051,7 +3051,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // reappears here only once a write-back sets its clubdesk_id (TODO: scrape the
       // new ClubDesk [Id] back — see clubdesk-member-up-dispatch.sh).
       const unlinkedRows = await pushableCreates()
-        .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
+        .select('id', 'first_name', 'last_name', 'email', 'fee_category',
           'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
           // `birthdate` gates the youth surcharge (isU16Plus). Without it the
           // preview reported the un-surcharged amount for every youth-category
@@ -3093,9 +3093,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // What the CREATE push will send as Beitragskategorie (post-mapping),
           // Offiziellen Lizenz and Mitgliederbeitrag — shown in the modal so
           // the superadmin sees them before approving.
-          beitragskategorie: mapKategorie(m.beitragskategorie) || null,
+          beitragskategorie: mapKategorie(m.fee_category) || null,
           offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
-          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: unlinkedGuests.has(Number(m.id)) }) || null,
+          mitgliederbeitrag: deriveMitgliederbeitrag(m.fee_category, m, { isGuest: unlinkedGuests.has(Number(m.id)) }) || null,
         }
       })
       return res.json({ changed, unlinked })
@@ -3350,7 +3350,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
          WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
          ORDER BY BTRIM(clubdesk_id), row_id
       )
-      SELECT m.id, m.first_name, m.last_name, m.register_status, m.beitragskategorie,
+      SELECT m.id, m.first_name, m.last_name, m.register_status, m.fee_category,
              m.birthdate, m.scorer_vb, m.otr1_bb, m.otr2_bb, m.otn1_bb, m.otn2_bb,
              m.fee_base_override, m.fee_surcharge_override, m.fee_discount,
              m.fee_discount_pct, m.fee_discount_reason, m.clubdesk_id,
@@ -3375,7 +3375,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     let notEvaluated = 0
     let checked = 0
     for (const r of res.rows) {
-      const kat = String(r.beitragskategorie || '').trim()
+      const kat = String(r.fee_category || '').trim()
       const registerAmount = feeCellNum(r.cd_betrag)
       const waiverReason = waivers.get(Number(r.id)) || null
       const isFree = waiverReason !== null
@@ -3824,7 +3824,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         // accepting a status the register no longer calls departed has to clear the
         // date in the same statement or the UPDATE aborts.
         if (p.field === 'register_status' && !DEPARTED_STATUSES.includes(coerced.value)) {
-          patch.austritt = null
+          patch.left_on = null
         }
         // The mirror image, and the one the UI can actually reach: accepting an
         // exit date on a member we still call active. Detection never raises an
@@ -3835,7 +3835,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         // "departed how". A NULL status is left alone: the constraint permits a
         // date under it, and NULL means "wiedisync has never been told".
         let sibling = null
-        if (p.field === 'austritt') {
+        if (p.field === 'left_on') {
           const held = (await database('members').where('id', p.member_id).first('register_status'))?.register_status ?? null
           if (held !== null && !DEPARTED_STATUSES.includes(String(held))) {
             sibling = await database('clubdesk_sync_proposals')
@@ -4165,7 +4165,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   async function computeMemberSyncStatuses() {
     const members = await database('members')
       .where('kscw_membership_active', true)
-      .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie',
+      .select('id', 'first_name', 'last_name', 'club_section', 'fee_category',
         'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude', 'clubdesk_pushed_at',
         // The recorded change set behind a `pending` verdict — resolved into a
         // per-field diff below so the worklist can print WHAT the push carries.
@@ -4597,7 +4597,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const rows = await database('members').where('kscw_membership_active', true)
-        .select('id', 'sektion', 'beitragskategorie')
+        .select('id', 'club_section', 'fee_category')
       const ids = rows.map((m) => m.id)
       const [bills, sports] = await Promise.all([
         lastBillsByMember(ids),
@@ -4868,7 +4868,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       ORDER BY BTRIM(clubdesk_id), row_id
     )
     SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-           COALESCE(NULLIF(BTRIM(m.beitragskategorie), ''), '') AS kat,
+           COALESCE(NULLIF(BTRIM(m.fee_category), ''), '') AS kat,
            COALESCE((
              SELECT string_agg(DISTINCT t.name, ', ')
              FROM member_teams mt JOIN teams t ON t.id = mt.team
@@ -4930,7 +4930,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // judgement call, not automatically an error.
   const feeNoRosterSql = `
     SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-           BTRIM(COALESCE(m.beitragskategorie, '')) AS kat,
+           BTRIM(COALESCE(m.fee_category, '')) AS kat,
            (SELECT MAX(mt.season) FROM member_teams mt
              WHERE mt.member = m.id AND COALESCE(mt.guest_level, 0) = 0) AS last_season,
            COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc
@@ -4940,8 +4940,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     FROM members m
     WHERE m.kscw_membership_active
       AND COALESCE(m.clubdesk_sync_exclude, false) = false
-      AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ''
-      AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
+      AND BTRIM(COALESCE(m.fee_category, '')) <> ''
+      AND BTRIM(COALESCE(m.fee_category, '')) <> ALL (:nonPlaying)
       AND NOT EXISTS (
         SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
         WHERE mt.member = m.id AND t2.active
@@ -4989,7 +4989,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
        ORDER BY btrim(clubdesk_id), row_id
     )
     SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-           m.register_status, m.beitragskategorie,
+           m.register_status, m.fee_category,
            -- An explicit CHF 0 base override is a waiver the treasurer
            -- entered by hand (migration 299) and, unlike the category, one
            -- ClubDesk cannot overwrite. Without this the check would report
@@ -5011,7 +5011,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
          OR (EXISTS (
            SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
             WHERE btrim(g) = 'Ehrenmitglieder')
-           AND COALESCE(NULLIF(btrim(m.beitragskategorie), ''), '') <> 'Gratis')
+           AND COALESCE(NULLIF(btrim(m.fee_category), ''), '') <> 'Gratis')
        )
      ORDER BY m.last_name, m.first_name`
 
@@ -5133,7 +5133,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
     clubdesk_id: r.clubdesk_id,
     register_status: r.register_status || '',
-    kat: r.beitragskategorie || '',
+    kat: r.fee_category || '',
     fee_waived: r.fee_waived === true,
     in_group: r.in_group === true,
     // 'status_only' → add them to the ClubDesk group (the honour list is
@@ -5559,7 +5559,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // (the sync-up push carries anrede/nationalitaet/ahv since 2026-07-07, but
       // echo-protected and superadmin-gated, not member-editable).
       const member = await database('members').where('user', userId)
-        .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex',
+        .first('id', 'first_name', 'last_name', 'email', 'phone', 'address', 'postal_code', 'city', 'birthdate', 'sex',
           // Member-editable since 2026-07-25 (migrations 223/228): nationality is
           // a derived German string over a code list, federation_of_origin an ISO
           // code. The email renders the CODES, so both columns are read here.
@@ -5592,7 +5592,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // to federation_of_origin on the day it shipped. Keep this set in step with
       // `clubdeskFields` in ProfileEditForm.tsx.
       const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate',
-        'adresse', 'plz', 'ort', 'sex', 'nationalitaet', 'federation_of_origin',
+        'address', 'postal_code', 'city', 'sex', 'nationalitaet', 'federation_of_origin',
         'trainer_licences'])
       const sexLabel = sexPushLabel(member.sex)
 
@@ -5673,8 +5673,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // beitragskategorie) blanked so they can never be forged or overwritten.
       const safeData = {
         anrede: '', first_name: member.first_name, last_name: member.last_name,
-        email: member.email, phone: member.phone, adresse: member.adresse,
-        plz: member.plz, ort: member.ort, birthdate: fmtBirthdateDDMMYYYY(member.birthdate),
+        email: member.email, phone: member.phone, adresse: member.address,
+        plz: member.postal_code, ort: member.city, birthdate: fmtBirthdateDDMMYYYY(member.birthdate),
         nationalitaet: '', sex: sexLabel, ahv_nummer: '', beitragskategorie: '',
       }
       const name = `${member.first_name} ${member.last_name}`

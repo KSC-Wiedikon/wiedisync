@@ -91,9 +91,9 @@ const emailKey = (raw) => String(raw ?? '').trim().toLowerCase()
 /** Members columns the flag/diff/merge surfaces read. */
 export const MEMBER_MATCH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'birthdate',
-  'adresse', 'plz', 'ort', 'nationalitaet', 'nationalitaet_codes',
-  'federation_of_origin', 'sex', 'anrede', 'ahv_nummer', 'iban', 'iban_confirmed',
-  'beitragskategorie', 'kscw_membership_active', 'wiedisync_active', 'shell',
+  'address', 'postal_code', 'city', 'nationalitaet', 'nationalitaet_codes',
+  'federation_of_origin', 'sex', 'salutation', 'ahv_number', 'iban', 'iban_confirmed',
+  'fee_category', 'kscw_membership_active', 'wiedisync_active', 'shell',
   'clubdesk_id', 'user', 'date_created',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
 ]
@@ -338,17 +338,17 @@ export async function buildMergeDiff(db, reg, member) {
     ['email', 'Email', reg.email],
     ['phone', 'Phone', reg.phone],
     // Left: members' (still German) column; right: the registration's (413).
-    ['adresse', 'Address', reg.address],
-    ['plz', 'Postcode', reg.postal_code],
-    ['ort', 'City', reg.city],
+    ['address', 'Address', reg.address],
+    ['postal_code', 'Postcode', reg.postal_code],
+    ['city', 'City', reg.city],
     ['birthdate', 'Date of birth', reg.birthdate ? dateKey(reg.birthdate) : null],
     ['nationalitaet_codes', 'Nationality', natCodes],
     ['federation_of_origin', 'Federation of origin', normFederation(reg.federation_of_origin)],
     ['sex', 'Sex', normalizeSex(reg.sex)],
-    ['anrede', 'Salutation', ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation : null],
-    ['ahv_nummer', 'AHV number', reg.ahv_number],
+    ['salutation', 'Salutation', ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation : null],
+    ['ahv_number', 'AHV number', reg.ahv_number],
     ['iban', 'IBAN', reg.iban],
-    ['beitragskategorie', 'Fee category', reg.fee_category],
+    ['fee_category', 'Fee category', reg.fee_category],
   ]
 
   const out = []

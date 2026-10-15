@@ -52,11 +52,11 @@ function normalizeSport(raw) {
  * @param {object} parts
  * @param {Iterable<string>} parts.teamSports raw `teams.sport` of EVERY team the
  *   member is attached to, in any capacity (player, coach, team responsible).
- * @param {string|null} parts.sektion
- * @param {string|null} parts.beitragskategorie
+ * @param {string|null} parts.club_section   members.club_section (ClubDesk Sektion)
+ * @param {string|null} parts.fee_category   members.fee_category
  * @returns {{sport: 'volleyball'|'basketball'|'both', source: 'teams'|'sektion'|'fee'|'unknown'}}
  */
-export function sportFromPartsDetailed({ teamSports = [], sektion = null, beitragskategorie = null } = {}) {
+export function sportFromPartsDetailed({ teamSports = [], club_section = null, fee_category = null } = {}) {
   const sports = new Set()
   for (const raw of teamSports) {
     const s = normalizeSport(raw)
@@ -65,12 +65,12 @@ export function sportFromPartsDetailed({ teamSports = [], sektion = null, beitra
   if (sports.size > 1) return { sport: 'both', source: 'teams' }
   if (sports.size === 1) return { sport: [...sports][0], source: 'teams' }
 
-  const sek = String(sektion || '').trim().toLowerCase()
+  const sek = String(club_section || '').trim().toLowerCase()
   if (sek === 'volleyball') return { sport: 'volleyball', source: 'sektion' }
   if (sek === 'basketball') return { sport: 'basketball', source: 'sektion' }
   // 'kscw' and everything else falls through.
 
-  const kat = String(beitragskategorie || '').trim().toLowerCase()
+  const kat = String(fee_category || '').trim().toLowerCase()
   if (kat.startsWith('vb ')) return { sport: 'volleyball', source: 'fee' }
   if (kat.startsWith('bb ')) return { sport: 'basketball', source: 'fee' }
 
@@ -138,7 +138,7 @@ export async function resolveMemberSportsDetailed(database, memberIds, opts = {}
   }
 
   const memberRows = opts.memberRows
-    ?? await database('members').whereIn('id', ids).select('id', 'sektion', 'beitragskategorie')
+    ?? await database('members').whereIn('id', ids).select('id', 'club_section', 'fee_category')
   const rowById = new Map(memberRows.map((m) => [String(m.id), m]))
 
   for (const id of ids) {
@@ -146,8 +146,8 @@ export async function resolveMemberSportsDetailed(database, memberIds, opts = {}
     const row = rowById.get(key)
     out.set(key, sportFromPartsDetailed({
       teamSports: (teamIdsByMember.get(key) ?? []).map((tid) => sportByTeam.get(String(tid))),
-      sektion: row?.sektion ?? null,
-      beitragskategorie: row?.beitragskategorie ?? null,
+      club_section: row?.club_section ?? null,
+      fee_category: row?.fee_category ?? null,
     }))
   }
   return out
@@ -173,11 +173,11 @@ export async function resolveMemberSports(database, memberIds, opts = {}) {
   const ids = [...new Set((memberIds || []).filter((v) => v !== null && v !== undefined).map(String))]
   const out = new Map()
   if (ids.length === 0) return out
-  const supplied = Array.isArray(opts.memberRows) && opts.memberRows.every((r) => r && 'sport_section' in r)
+  const supplied = Array.isArray(opts.memberRows) && opts.memberRows.every((r) => r && 'permissions_section' in r)
   const rows = supplied
     ? opts.memberRows
-    : await database('members').whereIn('id', ids).select('id', 'sport_section')
-  const byId = new Map(rows.map((r) => [String(r.id), r.sport_section]))
+    : await database('members').whereIn('id', ids).select('id', 'permissions_section')
+  const byId = new Map(rows.map((r) => [String(r.id), r.permissions_section]))
   for (const id of ids) {
     const v = byId.get(id)
     out.set(id, MEMBER_SPORTS.includes(v) ? v : 'both')

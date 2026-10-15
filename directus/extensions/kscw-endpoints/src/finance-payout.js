@@ -73,9 +73,9 @@ export function resolvePayee(payee, preferredIban = null) {
   const useBilling = !!p.billing_different && isChLiIban(cleanIban(p.billing_iban))
   let iban = null
   let name = memberName
-  let street = p.adresse
-  let zip = p.plz
-  let city = p.ort
+  let street = p.address
+  let zip = p.postal_code
+  let city = p.city
   const preferred = cleanIban(preferredIban)
   if (isChLiIban(preferred)) {
     iban = preferred
@@ -83,8 +83,8 @@ export function resolvePayee(payee, preferredIban = null) {
     iban = cleanIban(p.billing_iban)
     name = (p.billing_name || '').trim() || memberName
     street = p.billing_address
-    zip = p.billing_plz
-    city = p.billing_ort
+    zip = p.billing_postal_code
+    city = p.billing_city
   } else if (isChLiIban(cleanIban(p.iban))) {
     iban = cleanIban(p.iban)
   }

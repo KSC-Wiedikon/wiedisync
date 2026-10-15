@@ -51,10 +51,10 @@ const MAX_DATA_BYTES = 4096
 // keep the per-row leak small.
 const REDACTED_FIELDS = {
   members: new Set([
-    'ahv_nummer', 'birthdate', 'email', 'phone', 'license_nr',
+    'ahv_number', 'birthdate', 'email', 'phone', 'license_nr',
     // NB: the real column is `adresse` (German). `address` kept only as a
     // defensive alias in case a field is ever renamed.
-    'address', 'adresse', 'plz', 'ort', 'anrede', 'sex',
+    'address', 'address', 'postal_code', 'city', 'salutation', 'sex',
     // Nationality + federation of origin (migrations 223/224). `nationalitaet`
     // is the trigger-derived ClubDesk name; the other two are the authoritative
     // coded columns. All three are the same PII fact — redact all three.
@@ -64,8 +64,8 @@ const REDACTED_FIELDS = {
     // billing contact. Editable via items API (self-edit / finance policy), so
     // members.update payloads land in user_logs unless redacted here.
     'iban',
-    'billing_name', 'billing_email', 'billing_address', 'billing_plz',
-    'billing_ort', 'billing_phone', 'billing_iban',
+    'billing_name', 'billing_email', 'billing_address', 'billing_postal_code',
+    'billing_city', 'billing_phone', 'billing_iban',
     // Bearer token for the personal iCal feed.
     'ical_token',
   ]),

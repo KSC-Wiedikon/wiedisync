@@ -75,7 +75,7 @@ const SURCHARGE_YOUTH = [
 ]
 const sqlList = (arr) => arr.map((s) => `'${s.replace(/'/g, "''")}'`).join(', ')
 /** feeBreakdown()'s trimmed category key. */
-const FEE_CAT = `btrim(COALESCE(m.beitragskategorie, ''))`
+const FEE_CAT = `btrim(COALESCE(m.fee_category, ''))`
 /**
  * The rule branch of the CHF 100 surcharge, exactly as feeBreakdown() applies
  * it when fee_surcharge_override is NULL: category eligible (adult always,
@@ -130,8 +130,8 @@ const FY_ID = `(SELECT min(fy.id) FROM finance_fiscal_years fy WHERE fy.label = 
 const RATE_FOR_MEMBER = `EXISTS (
   SELECT 1 FROM finance_dues_rates r
    WHERE r.fiscal_year = ${FY_ID} AND r.active
-     AND lower(r.category) = lower(COALESCE(m.beitragskategorie, ''))
-     AND (NULLIF(r.sektion, '') IS NULL OR lower(r.sektion) = lower(COALESCE(m.sektion, '')))
+     AND lower(r.category) = lower(COALESCE(m.fee_category, ''))
+     AND (NULLIF(r.club_section, '') IS NULL OR lower(r.club_section) = lower(COALESCE(m.club_section, '')))
 )`
 
 /** Core roster row on an active team — "is this member a player this season". */
@@ -187,7 +187,7 @@ export const CHECKS = [
     sql: `
 SELECT ${MEMBER_COLS},
        string_agg(DISTINCT t.name, ', ' ORDER BY t.name) AS teams,
-       m.sektion, m.beitragskategorie, m.register_status,
+       m.club_section, m.fee_category, m.register_status,
        ${HAS_DUES_INVOICE} AS billed,
        COALESCE((SELECT sum(fi.open_amount) FROM finance_invoices fi
                   WHERE fi.member = m.id AND ${DUES_INVOICE} AND ${INVOICE_OPEN}), 0)::text AS open_chf
@@ -209,7 +209,7 @@ SELECT ${MEMBER_COLS},
     title: 'Active member with no dues invoice for the current season',
     description: 'A fee-owing active member with no non-cancelled invoice whose subject says Mitgliederbeitrag plus the current season. Upper bound: a ClubDesk invoice not linked to the member (own check) reads as unbilled — link it, otherwise bill through a dues run.',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie, m.register_status,
+SELECT ${MEMBER_COLS}, m.club_section, m.fee_category, m.register_status,
        ${ON_ROSTER} AS on_roster
   FROM members m
  WHERE ${FEE_PAYER}
@@ -226,7 +226,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie, m.register_status,
     title: 'Gap-year members whose dues are deliberately not evaluated',
     description: 'Members in register status Zwischenjahr are excluded from every unpaid/unbilled check because whether a gap year owes anything is still open with the treasurer. Listed for the count only; `billed` and `paid` show what ClubDesk did anyway.',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie,
+SELECT ${MEMBER_COLS}, m.club_section, m.fee_category,
        ${ON_ROSTER} AS on_roster,
        ${HAS_DUES_INVOICE} AS billed,
        ${HAS_PAID_DUES} AS paid
@@ -328,7 +328,7 @@ SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.amount::text AS amount_ch
     title: 'dues_paid flag still refers to a previous season',
     description: 'The derived flag survived the 1 June rollover without the ledger trigger firing — the nightly finance sync did not run. Expect 0 outside the Jun-1 → 04:00 window; otherwise run SELECT refresh_members_dues_paid() and check the local finance-sync cron.',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.dues_paid_season, {{season}} AS current_season,
+SELECT ${MEMBER_COLS}, m.club_section, m.dues_paid_season, {{season}} AS current_season,
        m.dues_paid_at::text AS dues_paid_at
   FROM members m
  WHERE m.dues_paid
@@ -345,7 +345,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.dues_paid_season, {{season}} AS current_seas
     title: 'dues_paid flag disagrees with the invoice ledger',
     description: 'members.dues_paid says one thing and the season\'s settled Mitgliederbeitrag invoices say the other — somebody wrote the derived column by hand or the statement trigger was bypassed. Never edit the flag; run SELECT refresh_members_dues_paid().',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.dues_paid, m.dues_paid_season,
+SELECT ${MEMBER_COLS}, m.club_section, m.dues_paid, m.dues_paid_season,
        ${HAS_PAID_DUES} AS ledger_paid
   FROM members m
  WHERE (m.dues_paid AND m.dues_paid_season IS NOT DISTINCT FROM {{season}} AND NOT ${HAS_PAID_DUES})
@@ -364,7 +364,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.dues_paid, m.dues_paid_season,
     title: 'Standing fee discount without a recorded reason',
     description: 'A per-member CHF or % discount that will print on the invoice as a bare "Rabatt" line. Add the reason on the member\'s finance tab so the treasurer of next season knows why.',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie,
+SELECT ${MEMBER_COLS}, m.club_section, m.fee_category,
        m.fee_discount::text AS discount_chf, m.fee_discount_pct::text AS discount_pct,
        m.fee_base_override::text AS base_override_chf
   FROM members m
@@ -384,7 +384,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie,
     title: 'Active member whose fee category has no rate this season',
     description: 'The native dues run would report missing_rate and skip this member: an empty beitragskategorie, a legacy spelling, or a category not seeded for the fiscal year. A per-member base override does not help (the run needs the rate row first), and Gratis needs its CHF 0 row for the free member\'s document. Fix the member\'s category or add the rate under Finance → Dues.',
     sql: `
-SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie, m.register_status,
+SELECT ${MEMBER_COLS}, m.club_section, m.fee_category, m.register_status,
        ${ON_ROSTER} AS on_roster, m.fee_base_override::text AS base_override_chf
   FROM members m
  WHERE m.kscw_membership_active
@@ -392,7 +392,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie, m.register_status,
    AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
    AND lower(${FEE_CAT}) <> 'kein beitrag'
    AND NOT ${RATE_FOR_MEMBER}
- ORDER BY m.beitragskategorie NULLS FIRST, m.last_name, m.first_name, m.id`,
+ ORDER BY m.fee_category NULLS FIRST, m.last_name, m.first_name, m.id`,
   },
   {
     key: 'dues_rates_missing_for_season',
@@ -403,7 +403,7 @@ SELECT ${MEMBER_COLS}, m.sektion, m.beitragskategorie, m.register_status,
     title: 'Fee categories in use with no rate this season',
     description: 'A category real active members hold that finance_dues_rates does not price for the current fiscal year (every category lists when the fiscal-year row itself is missing; Gratis needs a CHF 0 row so free members get their document). Add the rate under Finance → Dues.',
     sql: `
-SELECT m.beitragskategorie AS category, m.sektion, count(*)::int AS members,
+SELECT m.fee_category AS category, m.club_section, count(*)::int AS members,
        EXISTS (SELECT 1 FROM finance_fiscal_years fy WHERE fy.label = {{season}}) AS fiscal_year_exists
   FROM members m
  WHERE m.kscw_membership_active
@@ -412,8 +412,8 @@ SELECT m.beitragskategorie AS category, m.sektion, count(*)::int AS members,
    AND NULLIF(${FEE_CAT}, '') IS NOT NULL
    AND lower(${FEE_CAT}) <> 'kein beitrag'
    AND NOT ${RATE_FOR_MEMBER}
- GROUP BY m.beitragskategorie, m.sektion
- ORDER BY count(*) DESC, m.beitragskategorie, m.sektion NULLS FIRST`,
+ GROUP BY m.fee_category, m.club_section
+ ORDER BY count(*) DESC, m.fee_category, m.club_section NULLS FIRST`,
   },
   {
     key: 'fiscal_year_missing_for_season',
@@ -443,7 +443,7 @@ SELECT {{season}} AS season,
     title: 'Player who would owe the CHF 100 no-scorer-licence surcharge',
     description: 'Not a fault — the licence-vs-fee reconciliation list: core players in a surcharge category (adults always, youth from U16) with no scorer/table licence flag and no per-member waiver, exactly as the fee engine would bill them. A stale licence flag here costs the member CHF 100; the exact figure is on the member\'s fee endpoint.',
     sql: `
-SELECT ${MEMBER_COLS}, m.beitragskategorie,
+SELECT ${MEMBER_COLS}, m.fee_category,
        string_agg(DISTINCT t.name, ', ' ORDER BY t.name) AS teams,
        m.birthdate::text AS birthdate,
        m.fee_surcharge_override AS surcharge_override,
@@ -591,8 +591,8 @@ SELECT ${GAME_COLS}, t.name AS team, re.amount::text AS amount_chf, re.currency,
   CROSS JOIN LATERAL (
     SELECT CASE WHEN p.use_billing THEN COALESCE(NULLIF(btrim(m.billing_name), ''), NULLIF(btrim(concat_ws(' ', m.first_name, m.last_name)), ''))
                 ELSE NULLIF(btrim(concat_ws(' ', m.first_name, m.last_name)), '') END AS payee_name,
-           CASE WHEN p.use_billing THEN NULLIF(btrim(m.billing_plz), '') ELSE NULLIF(btrim(m.plz), '') END AS payee_zip,
-           CASE WHEN p.use_billing THEN NULLIF(btrim(m.billing_ort), '') ELSE NULLIF(btrim(m.ort), '') END AS payee_city
+           CASE WHEN p.use_billing THEN NULLIF(btrim(m.billing_postal_code), '') ELSE NULLIF(btrim(m.postal_code), '') END AS payee_zip,
+           CASE WHEN p.use_billing THEN NULLIF(btrim(m.billing_city), '') ELSE NULLIF(btrim(m.city), '') END AS payee_city
   ) a
  WHERE re.payout IS NULL
    AND COALESCE(re.amount, 0) > 0

@@ -51,17 +51,17 @@ const TABLES = {
     { members_id: 14, teams_id: 1 }, // TR only
   ],
   members: [
-    { id: 10, sektion: null, beitragskategorie: null },
-    { id: 11, sektion: null, beitragskategorie: null },
-    { id: 12, sektion: null, beitragskategorie: null },
-    { id: 13, sektion: null, beitragskategorie: null },
-    { id: 14, sektion: null, beitragskategorie: null },
-    { id: 15, sektion: 'Basketball', beitragskategorie: null },
-    { id: 20, sektion: 'Volleyball', beitragskategorie: null },
-    { id: 21, sektion: 'KSCW', beitragskategorie: 'BB Jugend Meisterschaft' },
-    { id: 22, sektion: null, beitragskategorie: 'VB Erwerbstätige' },
-    { id: 23, sektion: null, beitragskategorie: 'Gratis' },
-    { id: 24, sektion: null, beitragskategorie: null },
+    { id: 10, club_section: null, fee_category: null },
+    { id: 11, club_section: null, fee_category: null },
+    { id: 12, club_section: null, fee_category: null },
+    { id: 13, club_section: null, fee_category: null },
+    { id: 14, club_section: null, fee_category: null },
+    { id: 15, club_section: 'Basketball', fee_category: null },
+    { id: 20, club_section: 'Volleyball', fee_category: null },
+    { id: 21, club_section: 'KSCW', fee_category: 'BB Jugend Meisterschaft' },
+    { id: 22, club_section: null, fee_category: 'VB Erwerbstätige' },
+    { id: 23, club_section: null, fee_category: 'Gratis' },
+    { id: 24, club_section: null, fee_category: null },
   ],
 }
 
@@ -76,32 +76,32 @@ describe('sportFromParts', () => {
   })
 
   it('ignores a team whose sport is null and falls through', () => {
-    expect(sportFromParts({ teamSports: [null], sektion: 'Basketball' })).toBe('basketball')
+    expect(sportFromParts({ teamSports: [null], club_section: 'Basketball' })).toBe('basketball')
   })
 
-  it('teams outrank sektion — the team is the fact', () => {
-    expect(sportFromParts({ teamSports: ['basketball'], sektion: 'Volleyball' })).toBe('basketball')
+  it('teams outrank club_section — the team is the fact', () => {
+    expect(sportFromParts({ teamSports: ['basketball'], club_section: 'Volleyball' })).toBe('basketball')
   })
 
-  it('falls back to sektion, case-insensitively', () => {
-    expect(sportFromParts({ sektion: 'Volleyball' })).toBe('volleyball')
-    expect(sportFromParts({ sektion: '  basketball ' })).toBe('basketball')
+  it('falls back to club_section, case-insensitively', () => {
+    expect(sportFromParts({ club_section: 'Volleyball' })).toBe('volleyball')
+    expect(sportFromParts({ club_section: '  basketball ' })).toBe('basketball')
   })
 
-  it('falls back to the fee-category prefix when sektion is club-level', () => {
-    expect(sportFromParts({ sektion: 'KSCW', beitragskategorie: 'BB Jugend Meisterschaft' })).toBe('basketball')
-    expect(sportFromParts({ beitragskategorie: 'VB Erwerbstätige' })).toBe('volleyball')
+  it('falls back to the fee-category prefix when club_section is club-level', () => {
+    expect(sportFromParts({ club_section: 'KSCW', fee_category: 'BB Jugend Meisterschaft' })).toBe('basketball')
+    expect(sportFromParts({ fee_category: 'VB Erwerbstätige' })).toBe('volleyball')
   })
 
   it('is "both" when nothing resolves — permissive on purpose', () => {
     expect(sportFromParts({})).toBe('both')
-    expect(sportFromParts({ beitragskategorie: 'Gratis' })).toBe('both')
-    expect(sportFromParts({ sektion: 'KSCW' })).toBe('both')
+    expect(sportFromParts({ fee_category: 'Gratis' })).toBe('both')
+    expect(sportFromParts({ club_section: 'KSCW' })).toBe('both')
   })
 
   it('does not match a category that merely contains vb/bb', () => {
     // The rule is a PREFIX. 'Aktivmitglied VB' is not a volleyball marker.
-    expect(sportFromParts({ beitragskategorie: 'Aktivmitglied VB' })).toBe('both')
+    expect(sportFromParts({ fee_category: 'Aktivmitglied VB' })).toBe('both')
   })
 })
 
@@ -122,9 +122,9 @@ describe('sportFromPartsDetailed', () => {
 
   it('reports which input decided', () => {
     expect(sportFromPartsDetailed({ teamSports: ['volleyball'] }).source).toBe('teams')
-    expect(sportFromPartsDetailed({ sektion: 'Basketball' }).source).toBe('sektion')
-    expect(sportFromPartsDetailed({ beitragskategorie: 'VB Erwerbstätige' }).source).toBe('fee')
-    expect(sportFromPartsDetailed({ beitragskategorie: 'Gratis' }).source).toBe('unknown')
+    expect(sportFromPartsDetailed({ club_section: 'Basketball' }).source).toBe('sektion')
+    expect(sportFromPartsDetailed({ fee_category: 'VB Erwerbstätige' }).source).toBe('fee')
+    expect(sportFromPartsDetailed({ fee_category: 'Gratis' }).source).toBe('unknown')
   })
 
   it('never changes the answer the plain form gives', () => {
@@ -133,10 +133,10 @@ describe('sportFromPartsDetailed', () => {
     const cases = [
       { teamSports: ['volleyball'] },
       { teamSports: ['volleyball', 'basketball'] },
-      { teamSports: [null], sektion: 'Basketball' },
-      { teamSports: ['basketball'], sektion: 'Volleyball' },
-      { sektion: 'KSCW', beitragskategorie: 'BB Jugend Meisterschaft' },
-      { beitragskategorie: 'Aktivmitglied VB' },
+      { teamSports: [null], club_section: 'Basketball' },
+      { teamSports: ['basketball'], club_section: 'Volleyball' },
+      { club_section: 'KSCW', fee_category: 'BB Jugend Meisterschaft' },
+      { fee_category: 'Aktivmitglied VB' },
       {},
     ]
     for (const c of cases) {
@@ -215,10 +215,10 @@ describe('resolveMemberSports (the stored answer, migration 406)', () => {
   // KSCW Sport Admin VB / BB policy rows filter on — never the rule itself.
   const STORED = {
     members: [
-      { id: 10, sport_section: 'volleyball' },
-      { id: 11, sport_section: 'basketball' },
-      { id: 12, sport_section: 'both' },
-      { id: 13, sport_section: 'not-a-sport' },
+      { id: 10, permissions_section: 'volleyball' },
+      { id: 11, permissions_section: 'basketball' },
+      { id: 12, permissions_section: 'both' },
+      { id: 13, permissions_section: 'not-a-sport' },
     ],
   }
 
@@ -239,13 +239,13 @@ describe('resolveMemberSports (the stored answer, migration 406)', () => {
 
   it('uses supplied rows only when they carry sport_section', async () => {
     const withCol = fakeDb(STORED)
-    const map = await resolveMemberSports(withCol, [11], { memberRows: [{ id: 11, sport_section: 'basketball' }] })
+    const map = await resolveMemberSports(withCol, [11], { memberRows: [{ id: 11, permissions_section: 'basketball' }] })
     expect(map.get('11')).toBe('basketball')
     expect(withCol.calls).toHaveLength(0)
 
     // Rows fetched for something else (no sport_section) are not trusted.
     const without = fakeDb(STORED)
-    const again = await resolveMemberSports(without, [11], { memberRows: [{ id: 11, sektion: 'Volleyball' }] })
+    const again = await resolveMemberSports(without, [11], { memberRows: [{ id: 11, club_section: 'Volleyball' }] })
     expect(again.get('11')).toBe('basketball')
     expect(without.calls).toEqual(['members'])
   })

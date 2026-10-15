@@ -34,8 +34,8 @@ export interface MemberGroupNode {
 /** The member fields this module reads. A structural subset of `Member`. */
 export interface GroupMember {
   id: string | number
-  sektion?: unknown
-  beitragskategorie?: unknown
+  club_section?: unknown
+  fee_category?: unknown
   register_status?: unknown
   role?: unknown
   kscw_membership_active?: unknown
@@ -46,7 +46,7 @@ export interface GroupMember {
   otn1_bb?: unknown
   otn2_bb?: unknown
   referee_bb?: unknown
-  is_spielplaner?: unknown
+  is_scheduler?: unknown
   trainer_licences?: unknown
 }
 
@@ -328,7 +328,7 @@ export function buildMemberGroups(
     {
       key: 'club:spielplaner',
       labelKey: 'explorerGroupSpielplaner',
-      memberIds: ids(members.filter((m) => truthy(m.is_spielplaner))),
+      memberIds: ids(members.filter((m) => truthy(m.is_scheduler))),
     },
   ]
 

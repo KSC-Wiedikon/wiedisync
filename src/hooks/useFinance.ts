@@ -243,10 +243,10 @@ export interface FinanceMember {
   email?: string | null
   phone?: string | null
   number?: number | null
-  anrede?: string | null
-  adresse?: string | null
-  plz?: string | null
-  ort?: string | null
+  salutation?: string | null
+  address?: string | null
+  postal_code?: string | null
+  city?: string | null
   /** Derived from `nationalitaet_codes` by a DB trigger (migration 223) — read-only. */
   nationalitaet?: string | null
   /** Ordered ISO alpha-2 list, e.g. "CH,IT"; the first code is the primary one. */
@@ -257,26 +257,26 @@ export interface FinanceMember {
   birthdate?: string | null
   iban?: string | null
   iban_confirmed?: boolean
-  ahv_nummer?: string | null
-  beitragskategorie?: string | null
-  sektion?: string | null
+  ahv_number?: string | null
+  fee_category?: string | null
+  club_section?: string | null
   kscw_membership_active?: boolean
   wiedisync_active?: boolean
   billing_different?: boolean
   billing_name?: string | null
   billing_email?: string | null
   billing_address?: string | null
-  billing_plz?: string | null
-  billing_ort?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
   billing_phone?: string | null
   billing_iban?: string | null
 }
 
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
-  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'nationalitaet_codes', 'federation_of_origin', 'sex', 'birthdate',
-  'iban', 'iban_confirmed', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
-  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
+  'salutation', 'address', 'postal_code', 'city', 'nationalitaet', 'nationalitaet_codes', 'federation_of_origin', 'sex', 'birthdate',
+  'iban', 'iban_confirmed', 'ahv_number', 'fee_category', 'club_section', 'kscw_membership_active', 'wiedisync_active',
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_phone', 'billing_iban',
 ]
 
 /** All members with their finance/billing fields (finance + board; field-scoped by policy). */

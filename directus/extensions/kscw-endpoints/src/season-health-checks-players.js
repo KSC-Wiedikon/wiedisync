@@ -535,7 +535,7 @@ SELECT ${MEMBER_COLS}, ${TEAM_COLS},
        p.role,
        m.kscw_membership_active,
        m.register_status,
-       m.austritt::text AS austritt,
+       m.left_on::text AS left_on,
        ${zh('m.deactivated_at')} AS deactivated_at
   FROM teams t
   JOIN LATERAL (
@@ -550,7 +550,7 @@ SELECT ${MEMBER_COLS}, ${TEAM_COLS},
    AND ${REAL_PERSON}
    AND (m.kscw_membership_active = false
         OR m.register_status IN ${DEPARTED_STATUS}
-        OR m.austritt IS NOT NULL)
+        OR m.left_on IS NOT NULL)
  ORDER BY sport, t.name, p.role, m.last_name, m.first_name, m.id`,
   },
   {
@@ -565,7 +565,7 @@ SELECT ${MEMBER_COLS}, ${TEAM_COLS},
 SELECT ${MEMBER_COLS}, ${TEAM_COLS},
        CASE WHEN COALESCE(mt.guest_level, 0) > 0 THEN 'guest' ELSE 'player' END AS role,
        (COALESCE(t.clubdesk_group, 'x') = '') AS umbrella,
-       btrim(m.beitragskategorie) AS fee_category,
+       btrim(m.fee_category) AS fee_category,
        ${CLUB_LICENCE_STATUS} AS licence_status,
        m.wiedisync_active AS has_login
   FROM member_teams mt
@@ -609,19 +609,19 @@ HAVING count(*) > 1
     description: 'Billed to play (a VB/BB fee category) yet on no active-team roster, not even as a guest. Place them on a team or change the fee category. last_season says whether they ever played; a coach/TR on a playing fee is a judgement call (staff_of). Gap-year, passive and departed register statuses are skipped — for them the fee category, not the roster, is the question (data health).',
     sql: `
 SELECT ${MEMBER_COLS},
-       btrim(m.beitragskategorie) AS fee_category,
-       m.sektion,
+       btrim(m.fee_category) AS fee_category,
+       m.club_section,
        m.register_status,
        (SELECT max(t2.season) FROM member_teams mt2 JOIN teams t2 ON t2.id = mt2.team
          WHERE mt2.member = m.id AND COALESCE(mt2.guest_level, 0) = 0) AS last_season,
        ${STAFF_OF} AS staff_of,
-       m.eintritt::text AS eintritt,
+       m.joined_on::text AS joined_on,
        (m.requested_team IS NOT NULL AND m.coach_approved_team = false) AS join_request_open
   FROM members m
  WHERE m.kscw_membership_active = true
    AND ${REAL_PERSON}
    AND COALESCE(m.register_status, '') NOT IN ('Zwischenjahr', 'Passivmitglied', 'Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
-   AND btrim(COALESCE(m.beitragskategorie, '')) NOT IN ${NON_PLAYING_FEE}
+   AND btrim(COALESCE(m.fee_category, '')) NOT IN ${NON_PLAYING_FEE}
    AND NOT EXISTS (
      SELECT 1 FROM member_teams mt JOIN teams t ON t.id = mt.team AND ${ACTIVE_TEAM}
       WHERE mt.member = m.id

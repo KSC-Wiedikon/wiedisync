@@ -123,11 +123,11 @@ export function referenceBase(rates, member, refYear = new Date().getFullYear())
   // The treasurer's own figure, if they set one: a 'Gratis' rate row with a
   // non-zero amount is read as "this is what a free membership is worth",
   // because for an exempt category the row can never be a bill.
-  const own = split(pickRate(rates, 'Gratis', member?.sektion))
+  const own = split(pickRate(rates, 'Gratis', member?.club_section))
   if (own.base > 0) return own
 
-  const sport = String(member?.sektion ?? '').trim().toLowerCase()
+  const sport = String(member?.club_section ?? '').trim().toLowerCase()
   const category = REFERENCE_CATEGORY[sport]?.[feeAgeBand(member, refYear)]
   if (!category) return { base: 0, licence: 0 }
-  return split(pickRate(rates, category, member?.sektion))
+  return split(pickRate(rates, category, member?.club_section))
 }

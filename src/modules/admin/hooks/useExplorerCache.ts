@@ -103,7 +103,7 @@ export function useExplorerCache(scope: ExplorerScope) {
             // Coaching education (migration 274) — comma-separated JS/C/B/A.
             'trainer_licences',
             'birthdate_visibility',
-            'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
+            'requested_team', 'coach_approved_team', 'is_scheduler', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',
             'licence_activated', 'licence_validated', 'licence_category',
             // Club licence-ordering workflow (migration 301). Own-readable +
@@ -115,11 +115,11 @@ export function useExplorerCache(scope: ExplorerScope) {
             // omitted — admin-only field perms; including them 403s the whole
             // Promise.all batch for Vorstand/Coach/etc. on /admin/explore.
             'hide_phone', 'hide_email', 'website_visible', 'last_online_at',
-            'adresse', 'plz', 'ort', 'vm_email', 'ahv_nummer', 'beitragskategorie',
+            'address', 'postal_code', 'city', 'vm_email', 'ahv_number', 'fee_category',
             // Club register status + the dates that bracket it (migration 302).
             // In the same read lists as beitragskategorie above, so batching
             // them here cannot 403 an audience that already gets that column.
-            'register_status', 'eintritt', 'austritt',
+            'register_status', 'joined_on', 'left_on',
             // Coded nationality + federation of origin (migrations 223/224).
             // `nationalitaet` is the trigger-derived German name kept for the
             // ClubDesk push — read-only, but still fetched as the display
@@ -127,7 +127,7 @@ export function useExplorerCache(scope: ExplorerScope) {
             'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
             // Which Kantonsschule (migration 315). Same read audience as
             // sektion above — admin / sport admin fields='*'.
-            'kantonsschule', 'sektion',
+            'cantonal_school', 'club_section',
             // Season dues paid (migration 360) — trigger-derived from
             // finance_invoices; the "Dues paid" filter reads the boolean, the
             // detail view shows all three. Same read audience as sektion above.

@@ -48,8 +48,8 @@ export interface MemberSportCache {
 
 export interface MemberSportInput {
   id: string | number
-  sektion?: unknown
-  beitragskategorie?: unknown
+  club_section?: unknown
+  fee_category?: unknown
 }
 
 function asTrimmedLower(value: unknown): string {
@@ -137,10 +137,10 @@ export function resolveMemberSportDetailed(
     if (fromTeams) return { sport: fromTeams, source: 'teams' }
   }
 
-  const fromSektion = sportFromSektion(member.sektion)
+  const fromSektion = sportFromSektion(member.club_section)
   if (fromSektion) return { sport: fromSektion, source: 'sektion' }
 
-  const fromCategory = sportFromFeeCategory(member.beitragskategorie)
+  const fromCategory = sportFromFeeCategory(member.fee_category)
   if (fromCategory) return { sport: fromCategory, source: 'fee' }
 
   return { sport: 'both', source: 'unknown' }

@@ -686,7 +686,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //                   that row's role everywhere `members where user = …` is
   //                   resolved (security audit 2026-09-28: Sport Admin could
   //                   relink a superuser's row to their own login)
-  const PRIVILEGE_FLAGS = ['role', 'is_spielplaner', 'finance', 'user']
+  const PRIVILEGE_FLAGS = ['role', 'is_scheduler', 'finance', 'user']
 
   // Rank guard (security audit 2026-09-28): a non-full-admin (Sport Admin,
   // Vorstand, coach) must not rewrite the contact / login identity of a staff
@@ -984,9 +984,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
     // is_spielplaner flipped → attach/revoke the TERMINPLANUNG policy so the
     // backend game_scheduling_* API tracks the flag without a setup-perms re-run.
-    if (payload && 'is_spielplaner' in payload) {
+    if (payload && 'is_scheduler' in payload) {
       for (const id of keys) {
-        if (payload.is_spielplaner === true) await ensureTerminplanungAccess(id)
+        if (payload.is_scheduler === true) await ensureTerminplanungAccess(id)
         else await revokeTerminplanungAccessIfNotSpielplaner(id)
       }
     }
@@ -1033,9 +1033,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // cells are fill-only (the register's own value wins), so the entry only
     // queues the push. Raw-SQL writers (VM / Basketplan syncs) bypass this
     // hook — flagClubdeskFillOnlyGaps sweeps those daily.
-    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie',
+    for (const field of ['iban', 'ahv_number', 'register_status', 'joined_on', 'left_on', 'fee_category',
       'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
-      'license_nr', 'licence_category', 'sektion', 'licence_ordered_at', 'kantonsschule']) {
+      'license_nr', 'licence_category', 'club_section', 'licence_ordered_at', 'cantonal_school']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
@@ -1143,9 +1143,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   async function revokeTerminplanungAccessIfNotSpielplaner(memberId) {
     try {
-      const member = await database('members').where('id', memberId).select('user', 'is_spielplaner').first()
+      const member = await database('members').where('id', memberId).select('user', 'is_scheduler').first()
       if (!member?.user) return
-      if (member.is_spielplaner === true) return
+      if (member.is_scheduler === true) return
       const policyId = await getTerminplanungPolicyId()
       if (!policyId) return
       const deleted = await database('directus_access')
@@ -5574,7 +5574,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // from running its own `members` query over the same ids. The stored
           // section (migration 406) is what the Sport Admin VB/BB policy rows
           // filter on, so this hook and those rows agree on every member.
-          'sport_section')
+          'permissions_section')
       for (const row of gateRows) gateById.set(String(row.id), row)
     }
 
@@ -5648,7 +5648,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // section; all three `continue`d above. Everybody who reaches this line,
       // including coaches, team responsibles and a sport admin looking at the
       // OTHER section, gets null.
-      if ('ahv_nummer' in item) item.ahv_nummer = null
+      if ('ahv_number' in item) item.ahv_number = null
     }
   }
 
@@ -6157,9 +6157,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Registration columns are English since migration 413; members' stay
       // German until phase 2b — the left side of each line is the member.
       if (!existingMember.phone && reg.phone) updates.phone = reg.phone
-      if (!existingMember.adresse && reg.address) updates.adresse = reg.address
-      if (!existingMember.plz && reg.postal_code) updates.plz = reg.postal_code
-      if (!existingMember.ort && reg.city) updates.ort = reg.city
+      if (!existingMember.address && reg.address) updates.address = reg.address
+      if (!existingMember.postal_code && reg.postal_code) updates.postal_code = reg.postal_code
+      if (!existingMember.city && reg.city) updates.city = reg.city
       if (!existingMember.birthdate && reg.birthdate) updates.birthdate = reg.birthdate
       // Coded nationality — fill-only like the rest. The members trigger
       // derives the German `nationalitaet` name from the codes.
@@ -6177,15 +6177,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // derive rather than leave it for a human to answer later. Falls back
       // to whichever sex is already known (existing member or this
       // registration) when reg.salutation itself carries no usable value.
-      if (!existingMember.anrede) {
-        if (['Herr', 'Frau'].includes(reg.salutation)) updates.anrede = reg.salutation
+      if (!existingMember.salutation) {
+        if (['Herr', 'Frau'].includes(reg.salutation)) updates.salutation = reg.salutation
         else {
           const sexKnown = existingMember.sex || regSex
-          if (sexKnown === 'm') updates.anrede = 'Herr'
-          else if (sexKnown === 'f') updates.anrede = 'Frau'
+          if (sexKnown === 'm') updates.salutation = 'Herr'
+          else if (sexKnown === 'f') updates.salutation = 'Frau'
         }
       }
-      if (!existingMember.ahv_nummer && reg.ahv_number) updates.ahv_nummer = reg.ahv_number
+      if (!existingMember.ahv_number && reg.ahv_number) updates.ahv_number = reg.ahv_number
       // Payout IBAN from the signup form (migration 185) — fill-only, and
       // confirmed: the member typed it themselves. Registration values arrive
       // already mod-97-validated + normalized (registration.js).
@@ -6195,7 +6195,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // copying the answer afterwards, so every later registration's school
       // stopped at the registrations row (Kappeler/Krasser/Dietrich, Sep 2026).
       const regKantonsschule = String(reg.cantonal_school || '').trim() || null
-      if (!existingMember.kantonsschule && regKantonsschule) updates.kantonsschule = regKantonsschule
+      if (!existingMember.cantonal_school && regKantonsschule) updates.cantonal_school = regKantonsschule
       // Register triple (migration 302) — fill-only, same as the rest of this
       // block. Before this, a linked-but-unset member's register_status/
       // sektion/eintritt stayed NULL through approval and only got filled a
@@ -6206,8 +6206,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // a clubdesk_id exists) — filling our own column early only means the
       // next sync-down finds agreement instead of two empty-cell fills.
       if (!existingMember.register_status) updates.register_status = deriveStatus(reg, existingMember)
-      if (!existingMember.sektion) updates.sektion = deriveSektion(reg)
-      if (!existingMember.eintritt && reg.submitted_at) updates.eintritt = reg.submitted_at
+      if (!existingMember.club_section) updates.club_section = deriveSektion(reg)
+      if (!existingMember.joined_on && reg.submitted_at) updates.joined_on = reg.submitted_at
       // Beitragskategorie. Fill-only was the rule here until 2026-09-13, and it
       // silently threw away the one thing a RE-registration changes: a member
       // who joined as 'VB Schüler*in 1. Jahr' and signs up again for the next
@@ -6234,17 +6234,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (regKategorieRaw && !regKategorie) {
         log.warn({ msg: 'Registration fee category not in the allowlist for its sport — not copied onto the member', registrationId: reg.id, memberId, membershipType: reg.membership_type, beitragskategorie: regKategorieRaw })
       }
-      const curKategorie = String(existingMember.beitragskategorie || '').trim()
+      const curKategorie = String(existingMember.fee_category || '').trim()
       if (regKategorie && regKategorie !== curKategorie) {
-        updates.beitragskategorie = regKategorie
+        updates.fee_category = regKategorie
         if (curKategorie && existingMember.clubdesk_id) {
           let changes = []
           try {
             changes = Array.isArray(existingMember.clubdesk_push_changes) ? existingMember.clubdesk_push_changes
               : (existingMember.clubdesk_push_changes ? JSON.parse(existingMember.clubdesk_push_changes) : [])
           } catch { changes = [] }
-          changes = changes.filter((c) => c?.field !== 'beitragskategorie')
-          changes.push({ field: 'beitragskategorie', old_value: curKategorie, new_value: regKategorie })
+          changes = changes.filter((c) => c?.field !== 'fee_category')
+          changes.push({ field: 'fee_category', old_value: curKategorie, new_value: regKategorie })
           updates.clubdesk_push_changes = JSON.stringify(changes)
           log.info({ msg: 'Re-registration changes the fee category — recorded for the ClubDesk push', memberId, from: curKategorie, to: regKategorie })
         }
@@ -6277,9 +6277,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         last_name: reg.last_name,
         email,
         phone: reg.phone || null,
-        adresse: reg.address || null,
-        plz: reg.postal_code || null,
-        ort: reg.city || null,
+        address: reg.address || null,
+        postal_code: reg.postal_code || null,
+        city: reg.city || null,
         birthdate: reg.birthdate || null,
         nationalitaet_codes: natCodes,
         federation_of_origin: normalizeFederation(reg.federation_of_origin),
@@ -6287,16 +6287,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // Salutation — see the fill-only branch above for why this derives
         // from Geschlecht rather than waiting on a field the signup form
         // never asks.
-        anrede: ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation
+        salutation: ['Herr', 'Frau'].includes(reg.salutation) ? reg.salutation
           : sex === 'm' ? 'Herr' : sex === 'f' ? 'Frau' : null,
-        ahv_nummer: reg.ahv_number || null,
+        ahv_number: reg.ahv_number || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
         // (mod-97) + normalized by registration.js; confirmed since the member
         // typed it themselves.
         iban: reg.iban || null,
         iban_confirmed: !!reg.iban,
         // Allowlisted (audit F-32) — see the linked-member branch above.
-        beitragskategorie: approvedFeeCategory(reg.fee_category, reg.membership_type),
+        fee_category: approvedFeeCategory(reg.fee_category, reg.membership_type),
         // Discount granted at registration review (migration 367) — copied
         // onto the member ONLY here, on a brand-new shell. A re-registration
         // that links to an EXISTING member (the branch above) never touches
@@ -6308,7 +6308,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         fee_discount_reason: reg.fee_discount_reason ?? null,
         // Kantonsschule (migration 315) — verbatim, 'Nein' included: on the
         // member it means "asked, and not at one", distinct from NULL.
-        kantonsschule: String(reg.cantonal_school || '').trim() || null,
+        cantonal_school: String(reg.cantonal_school || '').trim() || null,
         // Register triple (migration 302) — seeded from the SAME registration
         // that clubdesk-update.js's create-push derives Status/Sektion/Eintritt
         // from (deriveStatus/deriveSektion, and the registration's own
@@ -6320,8 +6320,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // who had just been accepted and pushed (reported 2026-09-21, Lisa
         // Prader). Seeding here means the round-trip agrees on day one.
         register_status: deriveStatus(reg, null),
-        sektion: deriveSektion(reg),
-        eintritt: reg.submitted_at || null,
+        club_section: deriveSektion(reg),
+        joined_on: reg.submitted_at || null,
         // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
         scorer_vb: licences.includes('scorer_vb'),
         referee_vb: licences.includes('referee_vb'),
@@ -6985,9 +6985,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (accountability.admin) return payload
     if (payload?.source !== 'manual') return payload
 
-    const member = await db('members').where('user', accountability.user).first('id', 'is_spielplaner')
+    const member = await db('members').where('user', accountability.user).first('id', 'is_scheduler')
     if (!member) return payload // not a member — let Directus deny via its own check
-    if (member.is_spielplaner === true) return payload // club-wide scope
+    if (member.is_scheduler === true) return payload // club-wide scope
 
     const team = payload?.kscw_team
     if (team == null) {
@@ -7018,9 +7018,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!accountability?.user || accountability.admin) return
     if (!Array.isArray(gameIds) || !gameIds.length) return
     const member = await db('members')
-      .where('user', accountability.user).first('id', 'is_spielplaner')
+      .where('user', accountability.user).first('id', 'is_scheduler')
     if (!member) return
-    if (member.is_spielplaner === true) return // club-wide scope
+    if (member.is_scheduler === true) return // club-wide scope
     const assignments = (await db('spielplaner_assignments')
       .where('member', member.id).pluck('kscw_team')).filter(v => v != null)
     if (!assignments.length) return // not a spielplaner — policy filters gate
@@ -7083,7 +7083,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // (mirrors games.items.create). created_by is stamped from accountability.
   filter('scheduling_blocks.items.create', async (payload, _meta, { accountability, database: db }) => {
     if (!accountability?.user) return payload
-    const member = await db('members').where('user', accountability.user).first('id', 'is_spielplaner')
+    const member = await db('members').where('user', accountability.user).first('id', 'is_scheduler')
     // Stamped from the caller, never client-supplied (security audit
     // 2026-09-28) — only a full admin may record a block for someone else.
     const out = member?.id
@@ -7091,7 +7091,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       : payload
     if (accountability.admin) return out            // full admin — any team
     if (!member) return out                         // not a member — Directus denies via policy
-    if (member.is_spielplaner === true) return out  // club-wide Spielplaner — any team
+    if (member.is_scheduler === true) return out  // club-wide Spielplaner — any team
     const team = out.team
     if (team == null) {
       throw kscwScopeError('Team blocking requires a team', 400, 'INVALID_PAYLOAD')
@@ -8016,8 +8016,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   async function eventInScope(db, scope, eventId) {
     if (eventId == null) return true
-    const ev = await db('events').where('id', eventId).select('sport_section').first()
-    return !ev || ev.sport_section === 'both' || ev.sport_section === scope
+    const ev = await db('events').where('id', eventId).select('permissions_section').first()
+    return !ev || ev.permissions_section === 'both' || ev.permissions_section === scope
   }
 
   async function memberInScope(db, accountability, caller, memberId) {

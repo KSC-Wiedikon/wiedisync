@@ -80,7 +80,7 @@ function teamIs(sport, field, nullable) {
 }
 
 /** Rows of a member whose stored section is this sport or 'both'. */
-const memberIn = (sport, field = 'member') => ({ [field]: { sport_section: SECTION(sport) } })
+const memberIn = (sport, field = 'member') => ({ [field]: { permissions_section: SECTION(sport) } })
 
 /** A game of this sport's team, or a game with no club team (2 rows on prod). */
 const gameIs = (sport) => teamIs(sport, 'kscw_team', true)
@@ -113,12 +113,12 @@ export function sportScopedPermissions(sport, ctx) {
 
   // events: create/update field-scoped (endpoint-owned + derived columns out).
   add('events', 'create', null, ctx.eventWriteFields)
-  add('events', 'read', { sport_section: SECTION(sport) })
-  add('events', 'update', { sport_section: SECTION(sport) }, ctx.eventWriteFields)
-  add('events', 'delete', { sport_section: SECTION(sport) })
-  crud('event_sessions', { event: { sport_section: SECTION(sport) } })
+  add('events', 'read', { permissions_section: SECTION(sport) })
+  add('events', 'update', { permissions_section: SECTION(sport) }, ctx.eventWriteFields)
+  add('events', 'delete', { permissions_section: SECTION(sport) })
+  crud('event_sessions', { event: { permissions_section: SECTION(sport) } })
   crud('events_teams', teamIs(sport, 'teams_id', false))
-  crud('events_members', { events_id: { sport_section: SECTION(sport) } })
+  crud('events_members', { events_id: { permissions_section: SECTION(sport) } })
 
   crud('member_teams', teamIs(sport, 'team', false))
   crud('teams_coaches', teamIs(sport, 'teams_id', false))
@@ -135,7 +135,7 @@ export function sportScopedPermissions(sport, ctx) {
 
   // A member's RSVP to a game/training is theirs; an event RSVP also counts for
   // the event's section, so a club event's admin sees every answer to it.
-  crud('participations', { _or: [memberIn(sport), { event: { sport_section: SECTION(sport) } }] })
+  crud('participations', { _or: [memberIn(sport), { event: { permissions_section: SECTION(sport) } }] })
   crud('absences', memberIn(sport))
   crud('notifications', memberIn(sport))
   crud('push_subscriptions', memberIn(sport))
@@ -167,8 +167,8 @@ export function sportScopedPermissions(sport, ctx) {
   // other section is read through the Member policy's club-public field list.
   // No CREATE here — that stays on the shared policy (a new member has no section
   // yet). No DELETE anywhere (POST /kscw/admin/delete-member, sport-gated).
-  add('members', 'read', { sport_section: SECTION(sport) }, ctx.memberReadFields)
-  add('members', 'update', { sport_section: SECTION(sport) }, ctx.memberWriteFields)
+  add('members', 'read', { permissions_section: SECTION(sport) }, ctx.memberReadFields)
+  add('members', 'update', { permissions_section: SECTION(sport) }, ctx.memberWriteFields)
   // Teams: read and create stay shared; editing is the own sport's teams only.
   add('teams', 'update', { sport: { _eq: sport } })
 

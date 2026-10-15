@@ -777,7 +777,7 @@ async function checkFeeRules(issues: DataIssue[]): Promise<void> {
       issues.push({
         id: `fee-${f.kind}-${f.member_id}`,
         collection: 'members',
-        field: 'beitragskategorie',
+        field: 'fee_category',
         severity: f.kind === 'free_but_billed' ? 'error' : 'warning',
         issueKey: FEE_ISSUE_KEY[f.kind],
         detail,

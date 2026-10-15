@@ -145,12 +145,12 @@ type ColKey =
   | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
   // `nationalitaet_codes` replaces the old free-text `nationalitaet` column:
   // that one is now trigger-derived (migration 223) and must never be editable.
-  | 'adresse' | 'plz' | 'ort' | 'nationalitaet_codes'
+  | 'address' | 'postal_code' | 'city' | 'nationalitaet_codes'
   | 'federation_of_origin' | 'birthdate'
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
-  | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
+  | 'vm_email' | 'ahv_number' | 'fee_category' | 'role'
   // The club register's own membership facts (migration 302).
-  | 'register_status' | 'eintritt' | 'austritt' | 'kantonsschule'
+  | 'register_status' | 'joined_on' | 'left_on' | 'cantonal_school'
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
   | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
   | 'clubdesk_sync' | 'reg_files'
@@ -257,9 +257,9 @@ const COLUMNS: ColDef[] = [
   { key: 'sport', labelKey: 'explorerGridColSport', kind: 'ro', minW: 'min-w-28', groupable: true },
   { key: 'email', labelKey: 'explorerGridColEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'phone', labelKey: 'explorerGridColPhone', kind: 'text', minW: 'min-w-36' },
-  { key: 'adresse', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
-  { key: 'plz', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20', groupable: true },
-  { key: 'ort', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
+  { key: 'address', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
+  { key: 'postal_code', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20', groupable: true },
+  { key: 'city', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
   { key: 'nationalitaet_codes', labelKey: 'explorerGridColNationality', kind: 'countries', minW: 'min-w-40', groupable: true },
   { key: 'federation_of_origin', labelKey: 'explorerGridColFederation', kind: 'federation', minW: 'min-w-40', groupable: true },
   { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28', groupable: true },
@@ -272,7 +272,7 @@ const COLUMNS: ColDef[] = [
   { key: 'referee', labelKey: 'explorerGridColReferee', kind: 'ro', minW: 'min-w-24' },
   { key: 'officials', labelKey: 'explorerGridColOfficials', kind: 'ro', minW: 'min-w-36' },
   { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
-  { key: 'ahv_nummer', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
+  { key: 'ahv_number', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
   // Read-only here on purpose. Changing a status is never a one-cell edit: it
   // prefills or clears the exit date and switches off club membership + app
   // access behind a confirm, and the DB refuses the mismatched pair outright
@@ -280,12 +280,12 @@ const COLUMNS: ColDef[] = [
   // none of that and would fail a CHECK on the first typo, so both move
   // together in the member detail. `eintritt` stands alone and stays editable.
   { key: 'register_status', labelKey: 'explorerGridColRegisterStatus', kind: 'text', minW: 'min-w-40', groupable: true, readOnly: true },
-  { key: 'eintritt', labelKey: 'explorerGridColEintritt', kind: 'date', minW: 'min-w-28', groupable: true },
-  { key: 'austritt', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true, readOnly: true },
-  { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
+  { key: 'joined_on', labelKey: 'explorerGridColEintritt', kind: 'date', minW: 'min-w-28', groupable: true },
+  { key: 'left_on', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true, readOnly: true },
+  { key: 'fee_category', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
   // Groupable on purpose: "how many of ours are at KS Wiedikon" is the whole
   // reason the column exists (migration 315).
-  { key: 'kantonsschule', labelKey: 'explorerGridColKantonsschule', kind: 'text', minW: 'min-w-44', groupable: true },
+  { key: 'cantonal_school', labelKey: 'explorerGridColKantonsschule', kind: 'text', minW: 'min-w-44', groupable: true },
   { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'former', labelKey: 'explorerGridColFormer', kind: 'bool', minW: 'min-w-24', groupable: true },
@@ -310,7 +310,7 @@ const MEMBER_FIELD_KEYS: ReadonlySet<string> = new Set(MEMBER_FIELDS.map((f) => 
  */
 const DEFAULT_VISIBLE: ColKey[] = [
   'last_name', 'first_name', 'teams', 'email', 'phone',
-  'adresse', 'plz', 'ort', 'birthdate', 'register_status',
+  'address', 'postal_code', 'city', 'birthdate', 'register_status',
 ]
 const VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-cols-v2'
 
@@ -359,13 +359,21 @@ const OVERSCAN_PX = 600
  * against the hand-written map alone would silently drop every datapoint column
  * the operator had chosen, on every reload.
  */
+const LEGACY_COL_KEYS: Record<string, string> = {
+  adresse: 'address', plz: 'postal_code', ort: 'city', ahv_nummer: 'ahv_number',
+  beitragskategorie: 'fee_category', eintritt: 'joined_on', austritt: 'left_on',
+  kantonsschule: 'cantonal_school', anrede: 'salutation', sektion: 'club_section',
+}
+
 function loadVisible<K extends string>(lsKey: string, known: (k: string) => boolean, fallback: K[]): K[] {
   try {
     const raw = localStorage.getItem(lsKey)
     if (!raw) return fallback
     const arr = JSON.parse(raw) as unknown
     if (!Array.isArray(arr)) return fallback
-    const valid = (arr as K[]).filter((k) => known(k))
+    // Column keys saved before migration 414 carry the German member column names.
+    const renamed = (arr as string[]).map((k) => LEGACY_COL_KEYS[k] ?? k) as K[]
+    const valid = renamed.filter((k) => known(k))
     return valid.length > 0 ? valid : fallback
   } catch {
     return fallback
@@ -799,7 +807,7 @@ export default function ExplorerGrid({
         case 'passive': {
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
           const inGroup = /passiv/i.test(cd?.gruppen ?? '')
-          return inGroup || m.beitragskategorie === 'Passivmitglied' ? 'Yes' : ''
+          return inGroup || m.fee_category === 'Passivmitglied' ? 'Yes' : ''
         }
         case 'honorary': {
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined

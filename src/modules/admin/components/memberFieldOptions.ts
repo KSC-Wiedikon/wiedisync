@@ -103,7 +103,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
       { value: 'f', label: 'Female' },
     ],
   },
-  anrede: {
+  salutation: {
     nullable: true,
     options: [
       { value: 'Herr', label: 'Herr' },
@@ -117,7 +117,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
    * category to BOTH, or the explorer offers a category the fee engine cannot
    * price.
    */
-  beitragskategorie: {
+  fee_category: {
     nullable: true,
     options: [
       { value: 'VB Erwerbstätige', label: 'VB Erwerbstätige' },
@@ -228,7 +228,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
    * SelectEditor keeps an off-list value selected and selectable, so a future
    * ClubDesk section still renders and still saves.
    */
-  sektion: {
+  club_section: {
     nullable: true,
     options: [
       { value: 'Volleyball', label: 'Volleyball' },
@@ -251,7 +251,7 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
    * ⚠ 'Nein' is a real answer — "asked, and not at a Kantonsschule". Empty is
    * "never asked", which is most of the club.
    */
-  kantonsschule: {
+  cantonal_school: {
     nullable: true,
     options: [
       { value: KANTONSSCHULE_NONE, label: 'Nein — not at a Kantonsschule' },

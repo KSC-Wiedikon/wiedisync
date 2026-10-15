@@ -199,13 +199,13 @@ export function registerBasketballPortal(router, { database, logger }) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const m = await database('members').where('user', userId).first('role', 'is_spielplaner')
+    const m = await database('members').where('user', userId).first('role', 'is_scheduler')
     if (!m) return false
     const roles = Array.isArray(m.role)
       ? m.role
       : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
     if (roles.includes('admin') || roles.includes('superuser') || roles.includes('bb_admin')) return true
-    return m.is_spielplaner === true
+    return m.is_scheduler === true
   }
 
   const denyUnlessBb = async (req, res) => {

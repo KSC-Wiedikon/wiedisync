@@ -264,9 +264,9 @@ describe('F05: nested member reads are redacted like root reads', () => {
   })
 
   it('a coach reading member_teams?fields=member.* gets hidden phone / birthdate / AHV nulled', async () => {
-    const payload = [{ id: 1, member: { id: 40, phone: '079', email: 'a@b.ch', birthdate: '2010-01-01', ahv_nummer: '756.1' } }]
+    const payload = [{ id: 1, member: { id: 40, phone: '079', email: 'a@b.ch', birthdate: '2010-01-01', ahv_number: '756.1' } }]
     const out = await runFilters('items.read', payload, { collection: 'member_teams' }, { database: ctxDb(), schema, accountability: { user: 'coach', admin: false } })
-    expect(out[0].member).toMatchObject({ phone: null, email: 'a@b.ch', birthdate: null, ahv_nummer: null })
+    expect(out[0].member).toMatchObject({ phone: null, email: 'a@b.ch', birthdate: null, ahv_number: null })
   })
 
   it('own record, full admins and system reads are left alone', async () => {

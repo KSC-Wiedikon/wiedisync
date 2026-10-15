@@ -39,9 +39,9 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
   const useBilling = !!member.billing_different && !!cleanIban(member.billing_iban)
   const iban = cleanIban(useBilling ? member.billing_iban : member.iban)
   const name = useBilling ? (member.billing_name?.trim() || memberName) : memberName
-  const street = useBilling ? member.billing_address : member.adresse
-  const zip = useBilling ? member.billing_plz : member.plz
-  const city = useBilling ? member.billing_ort : member.ort
+  const street = useBilling ? member.billing_address : member.address
+  const zip = useBilling ? member.billing_postal_code : member.postal_code
+  const city = useBilling ? member.billing_city : member.city
   const hasAddress = !!zip && !!city
   const canRender = isChLiIban(iban) && !!name && hasAddress
   const unconfirmed = !useBilling && !!member.iban && !member.iban_confirmed

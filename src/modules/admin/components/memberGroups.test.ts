@@ -44,8 +44,8 @@ describe('sportsForMember', () => {
    * land in "Other" even with a section on record — three real members did.
    */
   it('falls back to sektion, then to the fee category', () => {
-    expect(sportsForMember({ id: 1, sektion: 'Volleyball' }, cacheOf())).toEqual(['volleyball'])
-    expect(sportsForMember({ id: 2, beitragskategorie: 'BB Jugend Meisterschaft' }, cacheOf())).toEqual(['basketball'])
+    expect(sportsForMember({ id: 1, club_section: 'Volleyball' }, cacheOf())).toEqual(['volleyball'])
+    expect(sportsForMember({ id: 2, fee_category: 'BB Jugend Meisterschaft' }, cacheOf())).toEqual(['basketball'])
   })
 
   it('counts a coach as their team, though coaches hold no roster row', () => {
@@ -58,7 +58,7 @@ describe('sportsForMember', () => {
       .toEqual(['volleyball', 'basketball'])
     // sektion KSCW resolves to 'both' as a FIELD GATE, but says nothing about
     // sport — it must not put a committee member on two sport rosters.
-    expect(sportsForMember({ id: 2, sektion: 'KSCW' }, cacheOf())).toEqual([])
+    expect(sportsForMember({ id: 2, club_section: 'KSCW' }, cacheOf())).toEqual([])
     expect(sportsForMember({ id: 3 }, cacheOf())).toEqual([])
   })
 })
@@ -66,7 +66,7 @@ describe('sportsForMember', () => {
 describe('buildMemberGroups', () => {
   it('files a member under every group they qualify for', () => {
     const cache = cacheOf({ players: { '1': ['1'] }, coaches: { '1': ['1'] } })
-    const m = { id: 1, sektion: 'Volleyball', role: ['user', 'vorstand'], scorer_vb: true }
+    const m = { id: 1, club_section: 'Volleyball', role: ['user', 'vorstand'], scorer_vb: true }
     const g = flatten(buildMemberGroups([m], [m], cache))
     expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:1']).toEqual(['1'])
     expect(g['sport:volleyball/officials:vb/officials:vb:scorers']).toEqual(['1'])
@@ -75,7 +75,7 @@ describe('buildMemberGroups', () => {
   })
 
   it('puts a section member with no roster row under the sport\'s "Other", not "Unassigned"', () => {
-    const m = { id: 7, sektion: 'Volleyball', beitragskategorie: 'Passivmitglied' }
+    const m = { id: 7, club_section: 'Volleyball', fee_category: 'Passivmitglied' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
     expect(g['sport:volleyball/sport:volleyball:other']).toEqual(['7'])
     expect(g['club:unassigned']).toBeUndefined()
@@ -88,7 +88,7 @@ describe('buildMemberGroups', () => {
    * group worth loading extra rows for.
    */
   it('builds register-status groups from all members, ignoring the page filters', () => {
-    const active = { id: 1, sektion: 'Volleyball' }
+    const active = { id: 1, club_section: 'Volleyball' }
     const departed = { id: 2, register_status: 'Ehemaliges Mitglied', kscw_membership_active: false }
     const g = flatten(buildMemberGroups([active], [active, departed], cacheOf()))
     expect(g['club:former']).toEqual(['2'])
@@ -97,7 +97,7 @@ describe('buildMemberGroups', () => {
   })
 
   it('keeps the OTR/OTN grades separate and lets one member hold several', () => {
-    const m = { id: 5, otr1_bb: true, otr2_bb: true, sektion: 'Basketball' }
+    const m = { id: 5, otr1_bb: true, otr2_bb: true, club_section: 'Basketball' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
     expect(g['sport:basketball/officials:bb/officials:bb:otr1']).toEqual(['5'])
     expect(g['sport:basketball/officials:bb/officials:bb:otr2']).toEqual(['5'])
@@ -127,7 +127,7 @@ describe('buildMemberGroups', () => {
     const lastD2 = { id: 5, sport: 'volleyball', name: 'D2', active: false, season: '2025/26' }
     const thisD2 = { ...TEAMS[1], season: '2026/27' }
     const stayed = { id: 1 }
-    const left = { id: 2, sektion: 'KSCW' }
+    const left = { id: 2, club_section: 'KSCW' }
     const cache = cacheOf({ players: { '1': ['2', '5'], '2': ['5'] } })
     const nodes = buildMemberGroups([stayed, left], [stayed, left], cache, { teams: [lastD2, thisD2] })
     const teams = nodes.find((n) => n.key === 'sport:volleyball')!
@@ -169,24 +169,24 @@ describe('buildMemberGroups', () => {
    * leftovers bucket.
    */
   it('lists a register status under the sport AND club-wide for the same member', () => {
-    const vbPassive = { id: 1, sektion: 'Volleyball', register_status: 'Passivmitglied' }
-    const clubPassive = { id: 2, sektion: 'KSCW', register_status: 'Passivmitglied' }
+    const vbPassive = { id: 1, club_section: 'Volleyball', register_status: 'Passivmitglied' }
+    const clubPassive = { id: 2, club_section: 'KSCW', register_status: 'Passivmitglied' }
     const g = flatten(buildMemberGroups([vbPassive, clubPassive], [vbPassive, clubPassive], cacheOf()))
     expect(g['sport:volleyball/sport:volleyball:passive']).toEqual(['1'])
     expect(g['club:passive']).toEqual(['1', '2'])
   })
 
   it('keeps a member with a register status out of the sport\'s "Other"', () => {
-    const m = { id: 1, sektion: 'Volleyball', register_status: 'Zwischenjahr' }
+    const m = { id: 1, club_section: 'Volleyball', register_status: 'Zwischenjahr' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
     expect(g['sport:volleyball/sport:volleyball:gapyear']).toEqual(['1'])
     expect(g['sport:volleyball/sport:volleyball:other']).toBeUndefined()
   })
 
   it('builds the per-sport register groups from all members, not the working set', () => {
-    const active = { id: 1, sektion: 'Volleyball' }
+    const active = { id: 1, club_section: 'Volleyball' }
     const departed = {
-      id: 2, sektion: 'Volleyball', register_status: 'Ehemaliges Mitglied', kscw_membership_active: false,
+      id: 2, club_section: 'Volleyball', register_status: 'Ehemaliges Mitglied', kscw_membership_active: false,
     }
     const g = flatten(buildMemberGroups([active], [active, departed], cacheOf()))
     expect(g['sport:volleyball/sport:volleyball:former']).toEqual(['2'])
@@ -210,8 +210,8 @@ describe('buildMemberGroups', () => {
    * list people scan for the unexplained.
    */
   it('keeps a member out of "Other" when another branch already accounts for them', () => {
-    const scorer = { id: 1, sektion: 'Volleyball', scorer_vb: true }
-    const plain = { id: 2, sektion: 'Volleyball' }
+    const scorer = { id: 1, club_section: 'Volleyball', scorer_vb: true }
+    const plain = { id: 2, club_section: 'Volleyball' }
     const g = flatten(buildMemberGroups([scorer, plain], [scorer, plain], cacheOf()))
     expect(g['sport:volleyball/officials:vb/officials:vb:scorers']).toEqual(['1'])
     expect(g['sport:volleyball/sport:volleyball:other']).toEqual(['2'])

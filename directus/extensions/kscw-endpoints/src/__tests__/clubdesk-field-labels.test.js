@@ -21,10 +21,10 @@ describe('ClubDesk field labels', () => {
     // vacuously true and the suite goes green while the screen fills with raw
     // identifiers. Silence is not success.
     expect(Object.keys(PROPOSAL_COLUMNS).length).toBeGreaterThan(20)
-    expect(PROPOSAL_COLUMNS.sektion).toBe('text')
+    expect(PROPOSAL_COLUMNS.club_section).toBe('text')
   })
 
-  it('every proposable column has a label — this is what `sektion` slipped through', () => {
+  it('every proposable column has a label — this is what `club_section` slipped through', () => {
     // A column reaches the decision table the moment it is added to
     // PROPOSAL_COLUMNS, and an unlabelled one renders as the bare database
     // identifier next to properly labelled rows for the same member. Nothing
@@ -51,8 +51,8 @@ describe('ClubDesk field labels', () => {
 
   it('falls back to a sentence-cased column name, never raw snake_case', () => {
     expect(cdFieldLabel(t, 'some_new_column')).toBe('Some new column')
-    expect(cdFieldLabel(t, 'eintritt')).toBe('Joined')
-    expect(cdFieldLabel(t, 'sektion')).toBe('Section')
+    expect(cdFieldLabel(t, 'joined_on')).toBe('Joined')
+    expect(cdFieldLabel(t, 'club_section')).toBe('Section')
     expect(cdFieldLabel(t, null)).toBe('—')
     expect(cdFieldLabel(t, '')).toBe('—')
   })

@@ -27,7 +27,11 @@ export const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
 // OTN people means ticking otn1_bb + otn2_bb. The coarse `otn_bb` flag they
 // replaced was dropped by migration 303 — every one of its 8 holders was
 // confirmed OTN 2 first, and no stored audience referenced it.
+// Audience TOKENS (stored in announcements.audience_roles as `qual:<token>`).
+// `is_spielplaner` stays the token; the column is `is_scheduler` since migration 414.
 export const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
+
+const QUAL_COLUMN = { is_spielplaner: 'is_scheduler' }
 
 // ClubDesk `status` values that mean "is a member of the club" — the register
 // the GV invitation goes to. Everything else ClubDesk carries ('Ehemaliges
@@ -114,7 +118,7 @@ export async function membersWithRoleTokens(database, log, tokens, opts = {}) {
   if (quals.length > 0) {
     const rows = await database('members')
       .where('kscw_membership_active', true)
-      .where(function () { for (const col of quals) this.orWhere(col, true) })
+      .where(function () { for (const q of quals) this.orWhere(QUAL_COLUMN[q] ?? q, true) })
       .select('id')
     rows.forEach(r => ids.add(r.id))
   }
@@ -430,7 +434,7 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
         .where('m.kscw_membership_active', true)
         .whereIn('cp.status', MEMBER_REGISTER_STATUSES)
-        .where('m.sektion', spec.audience_sektion)
+        .where('m.club_section', spec.audience_sektion)
         .distinct('m.id')
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)

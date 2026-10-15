@@ -615,24 +615,24 @@ const psqlInput =
   // ── fill: our cell is empty, the register has something ──
   "  SELECT id AS member_id, cdid, 'birthdate' AS field, NULL::text AS current_value, cd_dob::text AS proposed_value, 'fill' AS rule\n" +
   '    FROM mem WHERE birthdate IS NULL AND cd_dob IS NOT NULL\n' +
-  "  UNION ALL SELECT id, cdid, 'adresse', NULL, cd_adresse, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(adresse),'') IS NULL AND cd_adresse IS NOT NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'plz', NULL, cd_plz, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(plz),'') IS NULL AND cd_plz IS NOT NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'ort', NULL, cd_ort, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(ort),'') IS NULL AND cd_ort IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'address', NULL, cd_adresse, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(address),'') IS NULL AND cd_adresse IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'postal_code', NULL, cd_plz, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(postal_code),'') IS NULL AND cd_plz IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'city', NULL, cd_ort, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(city),'') IS NULL AND cd_ort IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'phone', NULL, cd_phone, 'fill'\n" +
   "    FROM mem WHERE NULLIF(btrim(phone),'') IS NULL AND cd_phone IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'js_id', NULL, cd_js_id, 'fill'\n" +
   "    FROM mem WHERE NULLIF(btrim(js_id),'') IS NULL AND cd_js_id IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'sex', NULL, cd_sex, 'fill'\n" +
   "    FROM mem WHERE (sex IS NULL OR btrim(sex) = '') AND cd_sex IS NOT NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'anrede', NULL, cd_anrede, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(anrede),'') IS NULL AND cd_anrede IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'salutation', NULL, cd_anrede, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(salutation),'') IS NULL AND cd_anrede IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'nationalitaet', NULL, cd_nationalitaet, 'fill'\n" +
   "    FROM mem WHERE NULLIF(btrim(nationalitaet),'') IS NULL AND cd_nationalitaet IS NOT NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'ahv_nummer', NULL, cd_ahv, 'fill'\n" +
-  "    FROM mem WHERE NULLIF(btrim(ahv_nummer),'') IS NULL AND cd_ahv IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'ahv_number', NULL, cd_ahv, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(ahv_number),'') IS NULL AND cd_ahv IS NOT NULL\n" +
   "  UNION ALL SELECT id, cdid, 'federation_of_origin', NULL, cd_fed, 'fill'\n" +
   '    FROM mem WHERE federation_of_origin IS NULL AND cd_fed IS NOT NULL\n' +
   "  UNION ALL SELECT id, cdid, 'trainer_licences', NULL, cd_trainer, 'fill'\n" +
@@ -652,35 +652,35 @@ const psqlInput =
   // The `rule` is the ONLY thing that differs between each pair: the accept path
   // writes the same value either way. It is a label for the human deciding, and
   // "ours is empty" and "we disagree" are not the same question.
-  "  UNION ALL SELECT id, cdid, 'beitragskategorie', beitragskategorie, cd_categ, 'overwrite'\n" +
-  "    FROM mem WHERE cd_categ IS NOT NULL AND NULLIF(btrim(beitragskategorie),'') IS NOT NULL\n" +
-  "      AND cd_categ IS DISTINCT FROM NULLIF(btrim(beitragskategorie),'')\n" +
-  "  UNION ALL SELECT id, cdid, 'beitragskategorie', NULL, cd_categ, 'fill'\n" +
-  "    FROM mem WHERE cd_categ IS NOT NULL AND NULLIF(btrim(beitragskategorie),'') IS NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'sektion', sektion, cd_sektion, 'overwrite'\n" +
-  "    FROM mem WHERE cd_sektion IS NOT NULL AND NULLIF(btrim(sektion),'') IS NOT NULL\n" +
-  "      AND cd_sektion IS DISTINCT FROM NULLIF(btrim(sektion),'')\n" +
-  "  UNION ALL SELECT id, cdid, 'sektion', NULL, cd_sektion, 'fill'\n" +
-  "    FROM mem WHERE cd_sektion IS NOT NULL AND NULLIF(btrim(sektion),'') IS NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'fee_category', fee_category, cd_categ, 'overwrite'\n" +
+  "    FROM mem WHERE cd_categ IS NOT NULL AND NULLIF(btrim(fee_category),'') IS NOT NULL\n" +
+  "      AND cd_categ IS DISTINCT FROM NULLIF(btrim(fee_category),'')\n" +
+  "  UNION ALL SELECT id, cdid, 'fee_category', NULL, cd_categ, 'fill'\n" +
+  "    FROM mem WHERE cd_categ IS NOT NULL AND NULLIF(btrim(fee_category),'') IS NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'club_section', club_section, cd_sektion, 'overwrite'\n" +
+  "    FROM mem WHERE cd_sektion IS NOT NULL AND NULLIF(btrim(club_section),'') IS NOT NULL\n" +
+  "      AND cd_sektion IS DISTINCT FROM NULLIF(btrim(club_section),'')\n" +
+  "  UNION ALL SELECT id, cdid, 'club_section', NULL, cd_sektion, 'fill'\n" +
+  "    FROM mem WHERE cd_sektion IS NOT NULL AND NULLIF(btrim(club_section),'') IS NULL\n" +
   "  UNION ALL SELECT id, cdid, 'register_status', register_status, cd_reg_status, 'overwrite'\n" +
   "    FROM mem WHERE cd_reg_status IS NOT NULL AND NULLIF(btrim(register_status),'') IS NOT NULL\n" +
   '      AND cd_reg_status IS DISTINCT FROM register_status\n' +
   "  UNION ALL SELECT id, cdid, 'register_status', NULL, cd_reg_status, 'fill'\n" +
   "    FROM mem WHERE cd_reg_status IS NOT NULL AND NULLIF(btrim(register_status),'') IS NULL\n" +
-  "  UNION ALL SELECT id, cdid, 'eintritt', eintritt::text, cd_eintritt::text, 'overwrite'\n" +
-  '    FROM mem WHERE cd_eintritt IS NOT NULL AND eintritt IS NOT NULL\n' +
-  '      AND cd_eintritt IS DISTINCT FROM eintritt\n' +
-  "  UNION ALL SELECT id, cdid, 'eintritt', NULL, cd_eintritt::text, 'fill'\n" +
-  '    FROM mem WHERE cd_eintritt IS NOT NULL AND eintritt IS NULL\n' +
+  "  UNION ALL SELECT id, cdid, 'joined_on', joined_on::text, cd_eintritt::text, 'overwrite'\n" +
+  '    FROM mem WHERE cd_eintritt IS NOT NULL AND joined_on IS NOT NULL\n' +
+  '      AND cd_eintritt IS DISTINCT FROM joined_on\n' +
+  "  UNION ALL SELECT id, cdid, 'joined_on', NULL, cd_eintritt::text, 'fill'\n" +
+  '    FROM mem WHERE cd_eintritt IS NOT NULL AND joined_on IS NULL\n' +
   // Austritt travels only with a departed status — see the ⚠ above. The departed
   // clause guards BOTH halves: an exit date under a still-active status aborts on
   // members_austritt_needs_departed_status, whether we hold one already or not.
-  "  UNION ALL SELECT id, cdid, 'austritt', austritt::text, cd_austritt::text, 'overwrite'\n" +
-  '    FROM mem WHERE cd_austritt IS NOT NULL AND austritt IS NOT NULL\n' +
-  '      AND cd_austritt IS DISTINCT FROM austritt\n' +
+  "  UNION ALL SELECT id, cdid, 'left_on', left_on::text, cd_austritt::text, 'overwrite'\n" +
+  '    FROM mem WHERE cd_austritt IS NOT NULL AND left_on IS NOT NULL\n' +
+  '      AND cd_austritt IS DISTINCT FROM left_on\n' +
   "      AND COALESCE(cd_reg_status, register_status) IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
-  "  UNION ALL SELECT id, cdid, 'austritt', NULL, cd_austritt::text, 'fill'\n" +
-  '    FROM mem WHERE cd_austritt IS NOT NULL AND austritt IS NULL\n' +
+  "  UNION ALL SELECT id, cdid, 'left_on', NULL, cd_austritt::text, 'fill'\n" +
+  '    FROM mem WHERE cd_austritt IS NOT NULL AND left_on IS NULL\n' +
   "      AND COALESCE(cd_reg_status, register_status) IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
   // ── set_true: the register asserts a qualification we do not hold ──
   // Never a clearing rule: ClubDesk holds ONE value per contact while a member can

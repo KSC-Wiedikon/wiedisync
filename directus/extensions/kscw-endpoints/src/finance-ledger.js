@@ -434,7 +434,7 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.read) return res.status(403).json({ error: 'Forbidden' })
       const map = await database('finance_income_account_map').select('fee_category', 'account')
-      const fromMembers = await database('members').whereNotNull('beitragskategorie').distinct('beitragskategorie').pluck('beitragskategorie')
+      const fromMembers = await database('members').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
       const fromInvoices = await database('finance_invoices').where('source', 'native').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
       const categories = [...new Set([...fromMembers, ...fromInvoices, ...map.map((m) => m.fee_category)])].filter(Boolean).sort()
       return res.json({ categories, map })
@@ -467,7 +467,7 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const income = await database('finance_accounts').where('type', 'income').andWhere('active', true).select('id', 'number', 'name')
-      const fromMembers = await database('members').whereNotNull('beitragskategorie').distinct('beitragskategorie').pluck('beitragskategorie')
+      const fromMembers = await database('members').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
       const fromInvoices = await database('finance_invoices').where('source', 'native').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
       const categories = [...new Set([...fromMembers, ...fromInvoices])].filter(Boolean)
       const existing = new Set((await database('finance_income_account_map').whereNotNull('account').pluck('fee_category')))

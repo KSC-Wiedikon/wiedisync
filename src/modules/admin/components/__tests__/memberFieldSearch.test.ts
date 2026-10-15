@@ -16,11 +16,11 @@ describe('rankMemberFields', () => {
   })
 
   it('finds the AHV number by its abbreviation', () => {
-    expect(top('ahv')).toContain('ahv_nummer')
+    expect(top('ahv')).toContain('ahv_number')
   })
 
   it('finds the AHV number by the two-word query the user actually types', () => {
-    expect(top('ahv number')).toContain('ahv_nummer')
+    expect(top('ahv number')).toContain('ahv_number')
   })
 
   it('finds the birthdate in German as well as English', () => {
@@ -71,7 +71,7 @@ describe('rankMemberFields', () => {
 
 describe('memberFieldLabel', () => {
   it('resolves a known key to its schema label', () => {
-    expect(memberFieldLabel('ahv_nummer')).toBe('AHV number')
+    expect(memberFieldLabel('ahv_number')).toBe('AHV number')
   })
 
   it('falls back to the key itself for an unknown column', () => {

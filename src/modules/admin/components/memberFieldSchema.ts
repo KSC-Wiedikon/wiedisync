@@ -284,7 +284,7 @@ const IDENTITY = block('identity', undefined, [
     bulkUnsafe: B_IDENTIFIES_PERSON,
   },
   {
-    key: 'anrede', label: 'Salutation', kind: 'select',
+    key: 'salutation', label: 'Salutation', kind: 'select',
     help: 'Used by ClubDesk letters and the dues mailing.',
   },
   { key: 'photo', label: 'Profile photo', kind: 'photo', bulkUnsafe: B_IDENTIFIES_PERSON },
@@ -333,11 +333,11 @@ const CONTACT = block('contact', undefined, [
   },
   { key: 'hide_phone', label: 'Hide phone from other members', kind: 'bool' },
   {
-    key: 'adresse', label: 'Street address', kind: 'text',
+    key: 'address', label: 'Street address', kind: 'text',
     help: 'Street and house number on one line — ClubDesk stores it as a single line.',
   },
-  { key: 'plz', label: 'Postal code', kind: 'postalcode' },
-  { key: 'ort', label: 'City', kind: 'text' },
+  { key: 'postal_code', label: 'Postal code', kind: 'postalcode' },
+  { key: 'city', label: 'City', kind: 'text' },
 ])
 
 // ── 1.c Membership (11 columns + 1 virtual) ─────────────────────────────────
@@ -358,17 +358,17 @@ const MEMBERSHIP = block('membership', undefined, [
       'Never one column on its own — a departed status also fills the exit date and switches off club membership and app access, and the database refuses the mismatched pair. Use "Mark as departed" in the selection bar, which writes all four together.',
   },
   {
-    key: 'eintritt', label: 'Entry date', kind: 'date',
+    key: 'joined_on', label: 'Entry date', kind: 'date',
     help: 'When they joined the club. For a member who signed up here, the date the registration was sent.',
   },
   {
-    key: 'austritt', label: 'Exit date', kind: 'date',
+    key: 'left_on', label: 'Exit date', kind: 'date',
     help: 'Only settable alongside a departed status — the database rejects an exit date on an active member.',
     bulkUnsafe:
       'Only ever travels with a departed status — on its own the database rejects it. Use "Mark as departed" in the selection bar.',
   },
   {
-    key: 'sektion', label: 'Section', kind: 'select',
+    key: 'club_section', label: 'Section', kind: 'select',
     help: 'Decides which association fields are shown below. KSCW is the club-level section — board, honorary members and staff without a sport.',
     overwrittenBy: O_CLUBDESK_WINS,
   },
@@ -376,7 +376,7 @@ const MEMBERSHIP = block('membership', undefined, [
     // ⚠ Not a ClubDesk column — the register has no field for it, so this is one
     // of the few member columns with no sync contract at all: nothing overwrites
     // it and nothing is pushed. See migration 315.
-    key: 'kantonsschule', label: 'Kantonsschule', kind: 'select',
+    key: 'cantonal_school', label: 'Kantonsschule', kind: 'select',
     help: '"Nein" means asked and not at one. Empty means nobody has ever asked — most members predate the signup form.',
   },
   {
@@ -578,7 +578,7 @@ const ROLES_ACCESS = block('roles_access', undefined, [
     privileged: true, provenance: P_GLOBAL_ADMIN_ONLY,
   },
   {
-    key: 'is_spielplaner', label: 'Spielplaner', kind: 'bool',
+    key: 'is_scheduler', label: 'Spielplaner', kind: 'bool',
     help: 'Club-wide game-scheduling rights. Only a global admin can change this.',
     privileged: true, provenance: P_GLOBAL_ADMIN_ONLY,
   },
@@ -595,7 +595,7 @@ const ROLES_ACCESS = block('roles_access', undefined, [
 // costs → the three per-person exceptions → where the money moves.
 const FINANCE = block('finance', undefined, [
   {
-    key: 'beitragskategorie', label: 'Membership fee category', kind: 'select',
+    key: 'fee_category', label: 'Membership fee category', kind: 'select',
     help: 'Drives the amount billed at the next ClubDesk push.',
     overwrittenBy: O_CLUBDESK_WINS,
   },
@@ -635,7 +635,7 @@ const FINANCE = block('finance', undefined, [
   },
   { key: 'iban_confirmed', label: 'IBAN confirmed', kind: 'bool' },
   {
-    key: 'ahv_nummer', label: 'AHV number', kind: 'ahv',
+    key: 'ahv_number', label: 'AHV number', kind: 'ahv',
     help: 'Formatted to 756.1234.5678.97; the check digit is verified.',
     bulkUnsafe: B_UNIQUE_ID,
   },
@@ -672,8 +672,8 @@ const FINANCE = block('finance', undefined, [
   { key: 'billing_name', label: 'Billing name', kind: 'text' },
   { key: 'billing_email', label: 'Billing email', kind: 'email' },
   { key: 'billing_address', label: 'Billing street address', kind: 'text' },
-  { key: 'billing_plz', label: 'Billing postal code', kind: 'postalcode' },
-  { key: 'billing_ort', label: 'Billing city', kind: 'text' },
+  { key: 'billing_postal_code', label: 'Billing postal code', kind: 'postalcode' },
+  { key: 'billing_city', label: 'Billing city', kind: 'text' },
   { key: 'billing_phone', label: 'Billing phone', kind: 'phone' },
   { key: 'billing_iban', label: 'Billing IBAN', kind: 'iban' },
 ])

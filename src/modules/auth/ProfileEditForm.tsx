@@ -152,15 +152,15 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       setResetSent(false)
       setResetLoading(false)
       // ClubDesk fields
-      setAnrede(user.anrede ?? '')
-      setAdresse(user.adresse ?? '')
-      setPlz(user.plz ?? '')
-      setOrt(user.ort ?? '')
+      setAnrede(user.salutation ?? '')
+      setAdresse(user.address ?? '')
+      setPlz(user.postal_code ?? '')
+      setOrt(user.city ?? '')
       setNationalitaetCodes(storedNationalityCodes())
       setFederationOfOrigin(user.federation_of_origin ?? '')
-      setKantonsschule(user.kantonsschule ?? '')
+      setKantonsschule(user.cantonal_school ?? '')
       setSex(user.sex ?? '')
-      setAhvNummer(user.ahv_nummer ?? '')
+      setAhvNummer(user.ahv_number ?? '')
       setIban(user.iban ?? '')
       setClubdeskOpen(false)
     }
@@ -196,10 +196,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       { value: 'Nein', label: t('kantonsschuleNo') },
       ...KANTONSSCHULEN.map((v) => ({ value: v, label: v })),
     ]
-    const stored = user?.kantonsschule
+    const stored = user?.cantonal_school
     if (stored && !base.some((o) => o.value === stored)) base.push({ value: stored, label: stored })
     return base
-  }, [t, user?.kantonsschule])
+  }, [t, user?.cantonal_school])
   /**
    * Coaching-qualification chips, narrowed to the member's own sport: the C/B/A
    * rungs are Swiss Volley's and T1/T2/T3 are Swiss Basketball's (migration 281),
@@ -422,10 +422,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       }
 
       // ClubDesk fields
-      payload.anrede = anrede
-      payload.adresse = adresse.trim()
-      payload.plz = plz.trim()
-      payload.ort = ort.trim()
+      payload.salutation = anrede
+      payload.address = adresse.trim()
+      payload.postal_code = plz.trim()
+      payload.city = ort.trim()
       // Codes only — a DB trigger derives `members.nationalitaet` (the German
       // string ClubDesk consumes) from the first code, so writing both here
       // would just be two sources of truth for one fact.
@@ -435,9 +435,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       // this block, the Kantonsschule is NOT a ClubDesk column (the register has
       // no field for it), so it must never join the /clubdesk-update diff below —
       // it would put a header in the push CSV that the register cannot receive.
-      payload.kantonsschule = kantonsschule || null
+      payload.cantonal_school = kantonsschule || null
       payload.sex = sex
-      payload.ahv_nummer = ahvCanonical
+      payload.ahv_number = ahvCanonical
       payload.iban = ibanCanonical
       // Typing your own IBAN in the profile counts as confirming it — clears the
       // Finance "please confirm your IBAN" prompt (the iban_confirmed flow from
@@ -468,10 +468,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         email: { old: user.email, new: em },
         phone: { old: user.phone, new: phoneCanonical },
         birthdate: { old: user.birthdate?.slice(0, 10) || '', new: birthdate },
-        anrede: { old: user.anrede || '', new: anrede },
-        adresse: { old: user.adresse || '', new: adresse },
-        plz: { old: user.plz || '', new: plz },
-        ort: { old: user.ort || '', new: ort },
+        salutation: { old: user.salutation || '', new: anrede },
+        address: { old: user.address || '', new: adresse },
+        postal_code: { old: user.postal_code || '', new: plz },
+        city: { old: user.city || '', new: ort },
         // The coded fields diff — and travel — as CODES, never as labels. The
         // admin email renders them server-side in the READER's language (an
         // English-speaking admin used to read "Schweiz"), and a label diff also
@@ -525,14 +525,14 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             member_id: user.id,
             changes,
             current_data: {
-              anrede, first_name: fn, last_name: ln,
-              email: em, phone, adresse, plz, ort,
-              birthdate, sex, ahv_nummer: ahvNummer,
+              salutation: anrede, first_name: fn, last_name: ln,
+              email: em, phone, address: adresse, postal_code: plz, city: ort,
+              birthdate, sex, ahv_number: ahvNummer,
               // ClubDesk's picklists take the German name, so send the derived
               // string rather than the codes we store.
               nationalitaet: countryNameDe(nationalitaetCodes[0]),
               federation_of_origin: federationOfOrigin,
-              kantonsschule: kantonsschule || null,
+              cantonal_school: kantonsschule || null,
             },
           },
         })
@@ -948,7 +948,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-xs text-muted-foreground">{t('beitragskategorie')}</span>
-                    <p className="text-foreground/85">{user.beitragskategorie || '—'}</p>
+                    <p className="text-foreground/85">{user.fee_category || '—'}</p>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">{tc('team')}</span>

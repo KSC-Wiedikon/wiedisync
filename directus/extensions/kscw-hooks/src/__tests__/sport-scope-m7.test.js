@@ -15,14 +15,14 @@ import registerHooks from '../index.js'
 // ── In-memory knex: where / whereIn / andWhere / first / select over TABLES ──
 const TABLES = {
   members: [
-    { id: 1, user: 'u-bb', role: ['vorstand', 'bb_admin'], sport_section: 'basketball' },
-    { id: 2, user: 'u-vb', role: ['vb_admin'], sport_section: 'volleyball' },
-    { id: 3, user: 'u-dual', role: ['vb_admin', 'bb_admin'], sport_section: 'both' },
-    { id: 4, user: 'u-coach', role: ['user'], sport_section: 'volleyball' },
-    { id: 5, user: 'u-bbcoach', role: ['bb_admin'], sport_section: 'both' }, // BB admin who coaches VB team 10
-    { id: 20, user: null, role: ['user'], sport_section: 'volleyball' },
-    { id: 21, user: null, role: ['user'], sport_section: 'basketball' },
-    { id: 22, user: null, role: ['user'], sport_section: 'both' },
+    { id: 1, user: 'u-bb', role: ['vorstand', 'bb_admin'], permissions_section: 'basketball' },
+    { id: 2, user: 'u-vb', role: ['vb_admin'], permissions_section: 'volleyball' },
+    { id: 3, user: 'u-dual', role: ['vb_admin', 'bb_admin'], permissions_section: 'both' },
+    { id: 4, user: 'u-coach', role: ['user'], permissions_section: 'volleyball' },
+    { id: 5, user: 'u-bbcoach', role: ['bb_admin'], permissions_section: 'both' }, // BB admin who coaches VB team 10
+    { id: 20, user: null, role: ['user'], permissions_section: 'volleyball' },
+    { id: 21, user: null, role: ['user'], permissions_section: 'basketball' },
+    { id: 22, user: null, role: ['user'], permissions_section: 'both' },
   ],
   teams: [
     { id: 10, sport: 'volleyball', active: true },
@@ -44,9 +44,9 @@ const TABLES = {
     { id: 201, team: 11 },
   ],
   events: [
-    { id: 300, sport_section: 'volleyball', created_by: 99 },
-    { id: 301, sport_section: 'basketball', created_by: 99 },
-    { id: 302, sport_section: 'both', created_by: 99 },
+    { id: 300, permissions_section: 'volleyball', created_by: 99 },
+    { id: 301, permissions_section: 'basketball', created_by: 99 },
+    { id: 302, permissions_section: 'both', created_by: 99 },
   ],
   events_teams: [],
 }

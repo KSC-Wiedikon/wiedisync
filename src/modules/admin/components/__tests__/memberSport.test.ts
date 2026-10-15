@@ -65,12 +65,12 @@ describe('resolveMemberSport — step 1, the three team relations', () => {
   it('ignores teams whose sport is neither, and falls through', () => {
     // Team 20 has sport 'other' → contributes nothing, so sektion decides.
     const c = cache({ players: { '4': ['20'] } })
-    expect(resolveMemberSport({ id: 4, sektion: 'Basketball' }, c)).toBe('basketball')
+    expect(resolveMemberSport({ id: 4, club_section: 'Basketball' }, c)).toBe('basketball')
   })
 
   it('ignores team ids that are not in the cache (out-of-scope / inactive teams)', () => {
     const c = cache({ players: { '4': ['999'] } })
-    expect(resolveMemberSport({ id: 4, sektion: 'Volleyball' }, c)).toBe('volleyball')
+    expect(resolveMemberSport({ id: 4, club_section: 'Volleyball' }, c)).toBe('volleyball')
   })
 
   it('accepts numeric member ids and numeric team ids', () => {
@@ -85,46 +85,46 @@ describe('resolveMemberSport — step 1, the three team relations', () => {
 
   it('lets teams win over a contradicting sektion', () => {
     const c = cache({ players: { '6': ['10'] } })
-    expect(resolveMemberSport({ id: 6, sektion: 'Volleyball' }, c)).toBe('basketball')
+    expect(resolveMemberSport({ id: 6, club_section: 'Volleyball' }, c)).toBe('basketball')
   })
 })
 
 describe('resolveMemberSport — step 2, sektion', () => {
   it('reads Volleyball / Basketball case- and whitespace-insensitively', () => {
-    expect(resolveMemberSport({ id: 1, sektion: ' volleyball ' }, cache())).toBe('volleyball')
-    expect(resolveMemberSport({ id: 1, sektion: 'BASKETBALL' }, cache())).toBe('basketball')
+    expect(resolveMemberSport({ id: 1, club_section: ' volleyball ' }, cache())).toBe('volleyball')
+    expect(resolveMemberSport({ id: 1, club_section: 'BASKETBALL' }, cache())).toBe('basketball')
   })
 
   it('treats sektion=KSCW as club-level and shows BOTH sports', () => {
-    expect(resolveMemberSport({ id: 1, sektion: 'KSCW' }, cache())).toBe('both')
+    expect(resolveMemberSport({ id: 1, club_section: 'KSCW' }, cache())).toBe('both')
   })
 
   it('falls through on an unrecognised sektion', () => {
-    expect(resolveMemberSport({ id: 1, sektion: 'Turnen', beitragskategorie: 'VB Erwerbstätige' }, cache()))
+    expect(resolveMemberSport({ id: 1, club_section: 'Turnen', fee_category: 'VB Erwerbstätige' }, cache()))
       .toBe('volleyball')
   })
 })
 
 describe('resolveMemberSport — step 3, the fee-category prefix', () => {
   it('reads a BB-prefixed category', () => {
-    expect(resolveMemberSport({ id: 1, beitragskategorie: 'BB Jugend Meisterschaft' }, cache()))
+    expect(resolveMemberSport({ id: 1, fee_category: 'BB Jugend Meisterschaft' }, cache()))
       .toBe('basketball')
   })
 
   it('reads a VB-prefixed category', () => {
-    expect(resolveMemberSport({ id: 1, beitragskategorie: 'VB Schüler*in Meisterschaft' }, cache()))
+    expect(resolveMemberSport({ id: 1, fee_category: 'VB Schüler*in Meisterschaft' }, cache()))
       .toBe('volleyball')
   })
 
   it('treats the sport-less categories as club-level', () => {
     for (const cat of ['Passivmitglied', 'Gratis', 'Kein Beitrag']) {
-      expect(resolveMemberSport({ id: 1, beitragskategorie: cat }, cache()), cat).toBe('both')
+      expect(resolveMemberSport({ id: 1, fee_category: cat }, cache()), cat).toBe('both')
     }
   })
 
   it('does not match a bare "VB" with no trailing space', () => {
     // 'VBC Zürich' must not be read as a volleyball fee category.
-    expect(resolveMemberSport({ id: 1, beitragskategorie: 'VBC something' }, cache())).toBe('both')
+    expect(resolveMemberSport({ id: 1, fee_category: 'VBC something' }, cache())).toBe('both')
   })
 })
 
@@ -139,12 +139,12 @@ describe('resolveMemberSport — the default', () => {
   })
 
   it('still reads sektion / category with no cache', () => {
-    expect(resolveMemberSport({ id: 1, sektion: 'Basketball' }, null)).toBe('basketball')
-    expect(resolveMemberSport({ id: 1, beitragskategorie: 'BB Minis Turnier' }, undefined)).toBe('basketball')
+    expect(resolveMemberSport({ id: 1, club_section: 'Basketball' }, null)).toBe('basketball')
+    expect(resolveMemberSport({ id: 1, fee_category: 'BB Minis Turnier' }, undefined)).toBe('basketball')
   })
 
   it('ignores non-string sektion / category values', () => {
-    expect(resolveMemberSport({ id: 1, sektion: 42, beitragskategorie: null }, cache())).toBe('both')
+    expect(resolveMemberSport({ id: 1, club_section: 42, fee_category: null }, cache())).toBe('both')
   })
 })
 

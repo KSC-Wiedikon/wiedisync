@@ -281,7 +281,7 @@ export function registerEventNotify(router, { services, database, getSchema, log
         // Boolean flags
         if (role === 'is_spielplaner') {
           const members = await db('members')
-            .where('is_spielplaner', true)
+            .where('is_scheduler', true)
             .select('id')
           for (const m of members) memberIds.add(String(m.id))
         }

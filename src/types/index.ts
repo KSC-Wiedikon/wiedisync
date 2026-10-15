@@ -207,7 +207,7 @@ export interface Member extends BaseRecord {
   // roster shows the surname as an initial only ("Anna M.") and hides the year
   // of birth. Internal app is unaffected. Enforced server-side.
   website_name_private: boolean
-  is_spielplaner: boolean
+  is_scheduler: boolean
   wiedisync_active: boolean
   shell: boolean
   shell_expires: string
@@ -216,9 +216,9 @@ export interface Member extends BaseRecord {
   // Stable global member key (migration 184) — pushed to ClubDesk as
   // "Wiedisync ID"; system-assigned, never edited.
   uuid?: string
-  adresse: string
-  plz: string
-  ort: string
+  address: string
+  postal_code: string
+  city: string
   // Nationality is CODED since migration 223/224. `nationalitaet_codes` is the
   // ordered, comma-separated ISO 3166-1 alpha-2 list ("CH,IT") and the FIRST
   // code is the primary one. `nationalitaet` is DERIVED from it by a DB trigger
@@ -232,7 +232,7 @@ export interface Member extends BaseRecord {
   // "none" answer (migration 342 retired the sentinel).
   federation_of_origin: string | null
   /** Zurich Kantonsschule (migration 315). 'Nein' = asked and not at one; null = never asked. */
-  kantonsschule?: string | null
+  cantonal_school?: string | null
   // Season dues, DERIVED (migration 360): recomputed from finance_invoices by
   // a statement trigger — true iff a paid "Mitgliederbeitrag … <current
   // season>" invoice is linked to this member. Never written by the app.
@@ -261,7 +261,7 @@ export interface Member extends BaseRecord {
   /** Display name of the staff member who marked it done. Cleared with the timestamp. */
   transfer_done_by_name?: string | null
   transfer_note?: string | null
-  anrede: string
+  salutation: string
   sex: string
   licence_category: string
   licence_activated: boolean
@@ -274,14 +274,14 @@ export interface Member extends BaseRecord {
   // licence_activation_date — sv_vm_check only
   // licence_validation_date — sv_vm_check only
   vm_email: string
-  ahv_nummer: string
+  ahv_number: string
   // Bank account IBAN for reimbursements (migration 117). Sensitive financial
   // PII — scoped own-member + admin only server-side, like ahv_nummer.
   iban: string | null
   // Member has verified their own reimbursement IBAN (migration 136). False for
   // ClubDesk-backfilled IBANs until the member confirms on the My-finances card.
   iban_confirmed?: boolean
-  beitragskategorie: string
+  fee_category: string
   // Alternate billing contact (migrations 133/136) — finance-managed. When
   // billing_different is true, invoices bill the billing_* contact (e.g. a
   // minor's parent/guardian or a paying company) instead of the member, and
@@ -290,8 +290,8 @@ export interface Member extends BaseRecord {
   billing_name?: string | null
   billing_email?: string | null
   billing_address?: string | null
-  billing_plz?: string | null
-  billing_ort?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
   billing_phone?: string | null
   billing_iban?: string | null
 
