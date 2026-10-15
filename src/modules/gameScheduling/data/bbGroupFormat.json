@@ -40,21 +40,21 @@
     "Keys are the BB_GROUPS keys in basketballGroups.ts, verbatim."
   ],
   "groups": {
-    "D1LRA": { "status": "championship", "gamesTotal": 18, "modus": "Hin- und Rückrunde" },
-    "D3LRA": { "status": "championship", "gamesTotal": 14, "modus": "Hin- und Rückrunde" },
-    "H1LRA": { "status": "championship", "gamesTotal": 18, "modus": "Hin- und Rückrunde" },
-    "H2LRA": { "status": "championship", "gamesTotal": 20, "modus": "Hin- und Rückrunde" },
-    "DU14 Regional": { "status": "championship", "gamesTotal": 6, "modus": "Hin- und Rückrunde", "note": "Group composition still the whole league; the game count is already fixed." },
-    "DU14/U16 Rookie": { "status": "championship", "gamesTotal": 8, "modus": "Hin- und Rückrunde" },
-    "DU18/U20 Rookie": { "status": "championship", "gamesTotal": 8, "modus": "Hin- und Rückrunde", "note": "Holds both DU18 A and DU18 B." },
-    "HU18 Regional": { "status": "championship", "gamesTotal": 8, "modus": "Hin- und Rückrunde" },
+    "D1LRA": { "status": "championship", "gamesTotal": 18, "mode": "Hin- und Rückrunde" },
+    "D3LRA": { "status": "championship", "gamesTotal": 14, "mode": "Hin- und Rückrunde" },
+    "H1LRA": { "status": "championship", "gamesTotal": 18, "mode": "Hin- und Rückrunde" },
+    "H2LRA": { "status": "championship", "gamesTotal": 20, "mode": "Hin- und Rückrunde" },
+    "DU14 Regional": { "status": "championship", "gamesTotal": 6, "mode": "Hin- und Rückrunde", "note": "Group composition still the whole league; the game count is already fixed." },
+    "DU14/U16 Rookie": { "status": "championship", "gamesTotal": 8, "mode": "Hin- und Rückrunde" },
+    "DU18/U20 Rookie": { "status": "championship", "gamesTotal": 8, "mode": "Hin- und Rückrunde", "note": "Holds both DU18 A and DU18 B." },
+    "HU18 Regional": { "status": "championship", "gamesTotal": 8, "mode": "Hin- und Rückrunde" },
     "H4LRA": { "status": "provisional", "note": "Workbook states no Modus and no Anzahl Spiele for this group." },
     "HU14 Regional": { "status": "provisional", "note": "Workbook states no Modus and no Anzahl Spiele for this group." },
     "HU16 Regional": { "status": "provisional", "note": "Workbook states no Modus and no Anzahl Spiele for this group." },
-    "DU10": { "status": "tournament", "modus": "Girs got Games - Turniere und Miniturniere" },
-    "DU12 TU": { "status": "tournament", "modus": "Girs got Games Turniere und Miniturniere" },
-    "MixU10": { "status": "tournament", "modus": "Miniturniere" },
-    "MixU12": { "status": "tournament", "modus": "Miniturniere" },
+    "DU10": { "status": "tournament", "mode": "Girs got Games - Turniere und Miniturniere" },
+    "DU12 TU": { "status": "tournament", "mode": "Girs got Games Turniere und Miniturniere" },
+    "MixU10": { "status": "tournament", "mode": "Miniturniere" },
+    "MixU12": { "status": "tournament", "mode": "Miniturniere" },
     "MixU8": { "status": "tournament", "note": "Not a group in the 29.07 workbook — see the MU8/DU10 discrepancy above." }
   }
 }

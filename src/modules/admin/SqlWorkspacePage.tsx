@@ -451,7 +451,7 @@ export default function SqlWorkspacePage() {
         className="mb-2 text-xs"
       />
       {/* `table-fixed` + the neutralised inner wrapper is what keeps this
-          honest: long identifiers (`svrz_spielplaner_contacts`) otherwise widen
+          honest: long identifiers (`svrz_scheduler_contacts`) otherwise widen
           the table past the pane, and everything right-aligned — the column
           count, the type, the SELECT button — scrolls out of sight. */}
       <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline bg-card [&>div]:overflow-visible">

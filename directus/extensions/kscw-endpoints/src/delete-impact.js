@@ -85,7 +85,7 @@ const FK_MAP = {
     { table: 'scorer_delegations', column: 'to_member', rule: 'CASCADE' },
     { table: 'signup_tokens', column: 'member', rule: 'CASCADE' },
     { table: 'slot_claims', column: 'claimed_by_member', rule: 'CASCADE' },
-    { table: 'spielplaner_assignments', column: 'member', rule: 'CASCADE' },
+    { table: 'scheduler_assignments', column: 'member', rule: 'CASCADE' },
     { table: 'team_requests', column: 'member', rule: 'CASCADE' },
     { table: 'teams_coaches', column: 'members_id', rule: 'CASCADE' },
     { table: 'teams_responsibles', column: 'members_id', rule: 'CASCADE' },

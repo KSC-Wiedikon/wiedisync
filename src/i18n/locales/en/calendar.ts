@@ -100,11 +100,11 @@ export default {
   cancelledGameDay: 'Cancelled — game day',
   moreCount: '+{{count}} more',
   absentCount: '{{count}} absent',
-  eventTypeVerein: 'Club',
+  eventTypeClub: 'Club',
   eventTypeSocial: 'Social',
   eventTypeMeeting: 'Meeting',
   eventTypeTournament: 'Tournament',
-  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeTrainingWeekend: 'Trainingsweekend',
   eventTypeFriendly: 'Friendly game',
   eventTypeOther: 'Other',
 } as const

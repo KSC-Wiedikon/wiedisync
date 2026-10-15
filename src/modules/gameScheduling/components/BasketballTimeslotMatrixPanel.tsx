@@ -31,19 +31,25 @@ export interface BbTimeslotRule {
   tolerate: BasketballRuleCategory[]
 }
 
-export type BbSpielsamstagStatus = 'given' | 'desired' | 'fraglich' | 'bei_bedarf'
+/** Stored as slugs since migration 420 (was fraglich / bei_bedarf). */
+export type BbGameSaturdayStatus = 'given' | 'desired' | 'uncertain' | 'if_needed'
 
-export interface BbSpielsamstag {
+export interface BbGameSaturday {
   /** 'YYYY-MM-DD'. */
   date: string
-  status: BbSpielsamstagStatus
+  status: BbGameSaturdayStatus
   note?: string
 }
 
 export interface BbSlotConfig {
   version?: number
   timeslots?: BbTimeslotRule[]
-  spielsamstage?: BbSpielsamstag[]
+  /** The club's Spielsamstage (key `spielsamstage` before migration 420). */
+  game_saturdays?: BbGameSaturday[]
+  /** The list is a hard filter for every team (key `spielsamstage_hard` before 420). */
+  game_saturdays_hard?: boolean
+  max_weekends?: number
+  max_weekends_crisis?: number
 }
 
 interface Props {
@@ -54,7 +60,7 @@ interface Props {
 type CellState = 'allow' | 'tolerate' | 'off'
 
 const CATEGORIES: BasketballRuleCategory[] = ['seniors', 'u18', 'youth']
-const STATUSES: BbSpielsamstagStatus[] = ['given', 'desired', 'fraglich', 'bei_bedarf']
+const STATUSES: BbGameSaturdayStatus[] = ['given', 'desired', 'uncertain', 'if_needed']
 
 /** Every fixed pitch, in calendar order — the rows of the matrix. */
 const GRID: { dow: number; time: string }[] = [
@@ -77,11 +83,11 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
   const { t } = useTranslation('basketballScheduling')
   const [busy, setBusy] = useState(false)
   const [newDate, setNewDate] = useState('')
-  const [newStatus, setNewStatus] = useState<BbSpielsamstagStatus>('desired')
+  const [newStatus, setNewStatus] = useState<BbGameSaturdayStatus>('desired')
 
   const timeslots = useMemo(() => config?.timeslots ?? [], [config])
-  const spielsamstage = useMemo(
-    () => [...(config?.spielsamstage ?? [])].sort((a, b) => a.date.localeCompare(b.date)),
+  const gameSaturdays = useMemo(
+    () => [...(config?.game_saturdays ?? [])].sort((a, b) => a.date.localeCompare(b.date)),
     [config],
   )
 
@@ -102,7 +108,9 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
   async function save(next: BbSlotConfig) {
     setBusy(true)
     try {
-      await onUpdate({ version: config?.version ?? 1, ...next })
+      // Spread the stored config first: the panel edits two keys, and saving only
+      // those dropped game_saturdays_hard / max_weekends from the row.
+      await onUpdate({ ...config, version: config?.version ?? 1, ...next })
     } catch {
       toast.error(t('saveError'))
     } finally {
@@ -122,11 +130,11 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
       (a, b) => GRID.findIndex((g) => g.dow === a.dow && g.time === a.time)
         - GRID.findIndex((g) => g.dow === b.dow && g.time === b.time),
     )
-    void save({ timeslots: nextSlots, spielsamstage })
+    void save({ timeslots: nextSlots, game_saturdays: gameSaturdays })
   }
 
-  function patchSpielsamstage(next: BbSpielsamstag[]) {
-    void save({ timeslots, spielsamstage: next })
+  function patchGameSaturdays(next: BbGameSaturday[]) {
+    void save({ timeslots, game_saturdays: next })
   }
 
   const cellClass = (state: CellState) =>
@@ -186,7 +194,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
         <h3 className="text-base font-semibold text-foreground">{t('spielsamstage')}</h3>
         <p className="mt-1 mb-3 max-w-3xl text-xs text-muted-foreground">{t('spielsamstageHint')}</p>
 
-        {spielsamstage.length === 0 ? (
+        {gameSaturdays.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground/80">{t('spielsamstageEmpty')}</p>
         ) : (
           <Table>
@@ -199,7 +207,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
               </TableRow>
             </TableHeader>
             <TableBody>
-              {spielsamstage.map((s, i) => (
+              {gameSaturdays.map((s, i) => (
                 <TableRow key={`${s.date}-${i}`}>
                   <TableCell className="whitespace-normal break-words font-medium tabular-nums">
                     {formatDateZurich(s.date)}
@@ -211,9 +219,9 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
                       disabled={busy}
                       aria-label={t('colStatus')}
                       onChange={(e) =>
-                        patchSpielsamstage(
-                          spielsamstage.map((row, idx) =>
-                            idx === i ? { ...row, status: e.target.value as BbSpielsamstagStatus } : row,
+                        patchGameSaturdays(
+                          gameSaturdays.map((row, idx) =>
+                            idx === i ? { ...row, status: e.target.value as BbGameSaturdayStatus } : row,
                           ),
                         )
                       }
@@ -235,7 +243,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
                       className="h-11 w-11 p-0 text-rose-600"
                       aria-label={t('removeEntry')}
                       disabled={busy}
-                      onClick={() => patchSpielsamstage(spielsamstage.filter((_, idx) => idx !== i))}
+                      onClick={() => patchGameSaturdays(gameSaturdays.filter((_, idx) => idx !== i))}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -259,7 +267,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
               className={selectClass}
               value={newStatus}
               disabled={busy}
-              onChange={(e) => setNewStatus(e.target.value as BbSpielsamstagStatus)}
+              onChange={(e) => setNewStatus(e.target.value as BbGameSaturdayStatus)}
             >
               {STATUSES.map((st) => (
                 <option key={st} value={st}>
@@ -270,9 +278,9 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
           </label>
           <Button
             variant="outline"
-            disabled={busy || !newDate || spielsamstage.some((s) => s.date === newDate)}
+            disabled={busy || !newDate || gameSaturdays.some((s) => s.date === newDate)}
             onClick={() => {
-              patchSpielsamstage([...spielsamstage, { date: newDate, status: newStatus }])
+              patchGameSaturdays([...gameSaturdays, { date: newDate, status: newStatus }])
               setNewDate('')
             }}
           >

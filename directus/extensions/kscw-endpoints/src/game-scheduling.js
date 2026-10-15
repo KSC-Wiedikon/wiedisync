@@ -638,7 +638,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // Per-team scheduler authorisation (migration 031 design): a caller may manage a
   // given team's scheduling if they are (a) a full admin, (b) a per-team scheduler
-  // (`spielplaner_assignments` row for that team), or (c) a CLUB-WIDE Spielplaner
+  // (`scheduler_assignments` row for that team), or (c) a CLUB-WIDE Spielplaner
   // (`members.is_spielplaner = true`) with NO assignment rows — the documented
   // unrestricted role. A scoped scheduler (≥1 assignment) is limited to their
   // assigned teams; a club-wide scheduler keeps full access (never locked out).
@@ -648,7 +648,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     if (!userId) return false
     const member = await database('members').where('user', userId).select('id', 'is_scheduler').first()
     if (!member) return false
-    const assigns = await database('spielplaner_assignments').where('member', member.id).pluck('kscw_team')
+    const assigns = await database('scheduler_assignments').where('member', member.id).pluck('kscw_team')
     if (assigns.length > 0) return assigns.map(Number).includes(Number(teamId)) // scoped scheduler
     return member.is_scheduler === true // club-wide (documented design) — unrestricted
   }
@@ -1569,7 +1569,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!Number.isFinite(teamId)) return res.status(400).json({ error: 'Invalid team' })
 
       const seasons = await database('game_scheduling_seasons')
-        .select('id', 'season', 'status', 'spielsamstage')
+        .select('id', 'season', 'status', 'game_saturdays')
         .orderBy('date_created', 'desc')
       const season = seasons.find((s) => s.status === 'open') || seasons[0] || null
       if (!season) return res.json({ season: null, slots: [], bookings: [] })
@@ -1797,9 +1797,9 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
     const isJr = isJuniorTeam(teamRow.name)
     const spielsamstagDates = new Set(
-      (Array.isArray(seasonRow?.spielsamstage)
-        ? seasonRow.spielsamstage
-        : (() => { try { return JSON.parse(seasonRow?.spielsamstage || '[]') } catch { return [] } })())
+      (Array.isArray(seasonRow?.game_saturdays)
+        ? seasonRow.game_saturdays
+        : (() => { try { return JSON.parse(seasonRow?.game_saturdays || '[]') } catch { return [] } })())
         .map((x) => String(x?.date || '').slice(0, 10)).filter(Boolean),
     )
     const isSpielsamstagWeekendSunday = (date) => {
@@ -1847,7 +1847,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           hall_id: s.hall,
           hall_name: hallNameById[s.hall] || '',
           abs_count: absCount,
-          strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'spielhalle')),
+          strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'game_hall')),
         }
       })
       .filter(Boolean)
@@ -1868,7 +1868,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           }
         }
       }
-      if (strictDates.size < 2) promote((s) => s.source === 'spielhalle' && !isSunday(s.date))
+      if (strictDates.size < 2) promote((s) => s.source === 'game_hall' && !isSunday(s.date))
       promote((s) => isSunday(s.date) && usedJuniorSundays.has(s.date))
       if (strictDates.size < 2) promote((s) => isSunday(s.date))
     }
@@ -2474,9 +2474,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // standalone Sunday. seasonRow (fetched above for the derby clamp) holds the
       // Spielsamstag dates that tell them apart.
       const spielsamstagDates = new Set(
-        (Array.isArray(seasonRow?.spielsamstage)
-          ? seasonRow.spielsamstage
-          : (() => { try { return JSON.parse(seasonRow?.spielsamstage || '[]') } catch { return [] } })())
+        (Array.isArray(seasonRow?.game_saturdays)
+          ? seasonRow.game_saturdays
+          : (() => { try { return JSON.parse(seasonRow?.game_saturdays || '[]') } catch { return [] } })())
           .map((x) => String(x?.date || '').slice(0, 10)).filter(Boolean),
       )
       const isSpielsamstagWeekendSunday = (date) => {
@@ -2543,7 +2543,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             // never strict, so they can only be the 3rd (lenient) home pick.
             // Picks 1 & 2 take the own slot / Spielsamstag / Döltschi; pick 3
             // then prefers Friday Spielhalle, then Sundays (front-end tiering).
-            strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'spielhalle')),
+            strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'game_hall')),
           }
         })
         .filter(Boolean)
@@ -2570,7 +2570,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             }
           }
         }
-        if (strictDates.size < 2) promote((s) => s.source === 'spielhalle' && !isSunday(s.date)) // Friday
+        if (strictDates.size < 2) promote((s) => s.source === 'game_hall' && !isSunday(s.date)) // Friday
         promote((s) => isSunday(s.date) && usedJuniorSundays.has(s.date))                        // cluster Sundays
         if (strictDates.size < 2) promote((s) => isSunday(s.date))                               // fallback: any Sunday
       }
@@ -2724,7 +2724,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         // usedJuniorSundays already computed above for the strict-cluster promotion.
         slotsOut = slots.map((s) => ({
           ...s,
-          preferred: s.source === 'spielsonntag' && (isSpielsamstagWeekendSunday(s.date) || usedJuniorSundays.has(s.date)),
+          preferred: s.source === 'game_sunday' && (isSpielsamstagWeekendSunday(s.date) || usedJuniorSundays.has(s.date)),
         }))
       }
 
@@ -2920,7 +2920,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (blockedDates.has(d)) continue
           if (derbyDateBlocked(d, homeDerbyAnchors, homeRueckStart)) continue
           if (isSunday(d)) { if (homeJuniorSundays.has(d)) clusterSunDates.add(d); continue }
-          if (r.source === 'spielhalle') { friDates.add(d); continue }
+          if (r.source === 'game_hall') { friDates.add(d); continue }
           if (dHallIds.includes(r.hall) && (doltschiFull || doltschiTaken.has(d))) continue
           if (isSaturday(d) && !satDatesHome.has(d) && satDatesHome.size >= satCapHome) continue
           tier1Dates.add(d)
@@ -2963,7 +2963,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         // U-teams) OR when the blanket fallback fired. Mirrors GET slots/:token.
         if (homeIsJr && i < 2 && ids.length === 3 && (
           (isSunday(day) && !homeJuniorSundays.has(day) && !homeSundayBlanket) ||
-          (slot.source === 'spielhalle' && !homeFridayPromoted)
+          (slot.source === 'game_hall' && !homeFridayPromoted)
         )) {
           return res.status(400).json({ error: `Slot ${i + 1} must be the own slot, Spielsamstag or Döltschi — Friday Spielhalle and Sundays are only allowed as your 3rd choice.` })
         }
@@ -3937,7 +3937,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // a season from its Spielsamstage + per-team slot config. Body: { season_id }.
   // Idempotent: clears existing *available* slots for the season (booked/blocked
   // survive), then regenerates for each team with an explicit team_slot_config
-  // entry ('spielsamstag' → Game-Saturday pool; 'hall_slot' → the team's weekly
+  // entry ('game_saturday' → Game-Saturday pool; 'hall_slot' → the team's weekly
   // hall slots expanded across the picked-Saturday span; 'manual' → skipped).
   router.post('/terminplanung/admin/generate-slots', async (req, res) => {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
@@ -3954,7 +3954,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (typeof v === 'string') { try { return JSON.parse(v) } catch { return fallback } }
         return v
       }
-      const spielsamstage = parseJson(season.spielsamstage, [])
+      const gameSaturdays = parseJson(season.game_saturdays, [])
       const teamConfig = parseJson(season.team_slot_config, {})
       const seasonKey = Number(season_id)
 
@@ -4142,7 +4142,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             : (b1.total < b0.total ? 1 : 0) // worst-team tie → fewer absences overall; full tie → 0 (default)
           vbFridaySet = new Set(fridays.filter((_, i) => i % 2 === vbParity))
         }
-        // Should a Friday `spielhalle` slot be generated for volleyball on `date`?
+        // Should a Friday `game_hall` slot be generated for volleyball on `date`?
         const fridayIsVolleyball = (date) => {
           if (!herbstStart || !firstPostHerbstFriday) return true // no Herbst data → all Fridays
           if (date < herbstStart) return true                    // before vacation → every Friday
@@ -4159,20 +4159,20 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (Array.isArray(cfg?.sources)) sources = cfg.sources
           else if (cfg?.source === 'manual') sources = []
           else if (cfg?.source) sources = [cfg.source]
-          else sources = ['hall_slot', 'spielsamstag']
+          else sources = ['hall_slot', 'game_saturday']
           if (sources.length === 0) continue
 
           const candidates = []
 
           // Game-Saturday pool: every picked Saturday × its configured slots.
-          if (sources.includes('spielsamstag')) {
-            for (const sat of (Array.isArray(spielsamstage) ? spielsamstage : [])) {
+          if (sources.includes('game_saturday')) {
+            for (const sat of (Array.isArray(gameSaturdays) ? gameSaturdays : [])) {
               if (!sat?.date || !Array.isArray(sat.slots)) continue
               for (const s of sat.slots) {
                 if (!s?.time || !s?.hall_id) continue
                 candidates.push({
                   date: sat.date, start_time: s.time, end_time: addHours(s.time, 2),
-                  hall: parseInt(s.hall_id, 10) || null, source: 'spielsamstag',
+                  hall: parseInt(s.hall_id, 10) || null, source: 'game_saturday',
                 })
               }
             }
@@ -4189,7 +4189,7 @@ export function registerGameScheduling(router, { database, logger, services, get
                     for (const h of kwiHalls) {
                       candidates.push({
                         date, start_time: time, end_time: addHours(time, 2),
-                        hall: h.id, source: 'spielsonntag',
+                        hall: h.id, source: 'game_sunday',
                       })
                     }
                   }
@@ -4232,9 +4232,9 @@ export function registerGameScheduling(router, { database, logger, services, get
               for (const hs of doltschiVbPool) stdEntries.push({ hs, tag: 'hall_slot' })
             }
             if (isJr) {
-              for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'spielhalle' })
+              for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'game_hall' })
             } else if (stdEntries.length === 0) {
-              for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'spielhalle' })
+              for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'game_hall' })
             }
             for (const { hs, tag } of stdEntries) {
               const targetJsDay = (hs.day_of_week + 1) % 7
@@ -4244,7 +4244,7 @@ export function registerGameScheduling(router, { database, logger, services, get
                   const dateStr = d.toISOString().slice(0, 10)
                   // B1/B2 — the shared Friday Spielhalle pool alternates with
                   // basketball after the October vacation. Skip VB-off Fridays.
-                  const isFridaySpielhalle = tag === 'spielhalle' && targetJsDay === 5
+                  const isFridaySpielhalle = tag === 'game_hall' && targetJsDay === 5
                   if (slotLiveOn(hs, dateStr) && (!isFridaySpielhalle || fridayIsVolleyball(d))) {
                     candidates.push({
                       date: dateStr, start_time: hs.start_time,
@@ -5220,7 +5220,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           // only carry forward blocks that still end in the future.
           const startIsoRoll = now.toISOString().slice(0, 10)
           const fineRules = await cloneTeamTable('fine_rules', 'team')
-          const spielplanerAssignments = await cloneTeamTable('spielplaner_assignments', 'kscw_team')
+          const spielplanerAssignments = await cloneTeamTable('scheduler_assignments', 'kscw_team')
           const schedulingBlocks = await cloneTeamTable('scheduling_blocks', 'team', (q) => q.where('end_date', '>=', startIsoRoll))
 
           // Hall-plan links MOVE to the new team (re-point), they do NOT
@@ -5373,7 +5373,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             hall_slots: hallSlots,
             member_teams: memberTeams,
             fine_rules: fineRules,
-            spielplaner_assignments: spielplanerAssignments,
+            scheduler_assignments: spielplanerAssignments,
             scheduling_blocks: schedulingBlocks,
             teams_archived: teamsArchived,
             events_relinked: eventsRelinked,
@@ -5557,7 +5557,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const now = new Date()
       const startYear = seasonStartYear(now)
       const defaultSeasonName = `${startYear}/${startYear + 1}`
-      const known = await database('svrz_spielplaner_contacts')
+      const known = await database('svrz_scheduler_contacts')
         .where('season_name', defaultSeasonName).whereNotNull('season_uuid').first()
       const defaultSeasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'
 
@@ -5838,7 +5838,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   router.get('/admin/terminplanung/svrz-available-seasons', async (req, res) => {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
-      const rows = await database('svrz_spielplaner_contacts')
+      const rows = await database('svrz_scheduler_contacts')
         .distinct('season_uuid', 'season_name')
         .whereNotNull('season_uuid')
         .orderBy('season_name', 'desc')
@@ -6216,7 +6216,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // GET /admin/terminplanung/invites/import-from-svrz?kscw_team=&season= — preview
   // Lists opponent clubs from synced svrz_games plus per-game Spielplanverantwortlicher
-  // contacts, with fallback to the bulk svrz_spielplaner_contacts feed.
+  // contacts, with fallback to the bulk svrz_scheduler_contacts feed.
   router.get('/admin/terminplanung/invites/import-from-svrz', async (req, res) => {
     // The live per-game contact lookup logs into the SHARED Volleymanager
     // account, so it claims it first (audit 2026-09-28 F39) and hands it back
@@ -6367,7 +6367,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         // club_league_categories is a JSON array of league codes like
         // ["2L","5L","U23"]; if none match, use ALL the club's contacts. Every
         // match is returned — the invite is one link emailed to all of them.
-        const synced = await database('svrz_spielplaner_contacts')
+        const synced = await database('svrz_scheduler_contacts')
           .where('club_id', String(group.club_id))
           .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
           .whereNotNull('contact_email')
@@ -6453,7 +6453,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   })
 
   // Resolve a KSCW team's external opponents for a season from ALREADY-SYNCED
-  // SVRZ data (svrz_games + bulk svrz_spielplaner_contacts) — no live login.
+  // SVRZ data (svrz_games + bulk svrz_scheduler_contacts) — no live login.
   // Shared by svrz-clubs (auto-fill drafts) and ensure-from-svrz (auto-create
   // invites). Returns [{ club_id, club_name, team_name, game_count, games[],
   // suggested_contacts[] }] sorted by club name.
@@ -6539,7 +6539,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     const trByTeam = new Map()   // team_identifier -> Map(email -> contact)
     const trByClub = new Map()   // club_id -> Map(email -> contact)  (legacy/club-wide tr rows)
     if (svrzSeasonName && clubIds.length) {
-      const bulk = await database('svrz_spielplaner_contacts')
+      const bulk = await database('svrz_scheduler_contacts')
         .whereIn('club_id', clubIds)
         .where('season_name', 'like', `${svrzSeasonName}%`)
       const add = (map, mapKey, c) => {
@@ -7016,7 +7016,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // import-from-svrz this does NO live SVRZ login: the club list comes straight
   // from synced svrz_games (KSCW-scoped, league-filtered → in a round-robin league
   // that's every other club) and contacts are only *suggestions* from the bulk
-  // svrz_spielplaner_contacts feed. The admin fills in / confirms each contact.
+  // svrz_scheduler_contacts feed. The admin fills in / confirms each contact.
   router.get('/admin/terminplanung/invites/svrz-clubs', async (req, res) => {
     try {
       const { kscw_team, season } = req.query

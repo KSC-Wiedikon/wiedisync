@@ -25,7 +25,7 @@ import InvitesPanel from '../components/InvitesPanel'
 import ClubPortalsPanel from '../components/ClubPortalsPanel'
 import TeamLinksEditor from '../components/TeamLinksEditor'
 import { useTeamLinks } from '../hooks/useTeamLinks'
-import type { SpielsamstagConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
+import type { GameSaturdayConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
 
 interface RolloverResult {
   from_season: string
@@ -69,9 +69,9 @@ export default function AdminSetupPage() {
     await createSeason(name)
   }
 
-  const handleUpdateSpielsamstage = async (spielsamstage: SpielsamstagConfig[]) => {
+  const handleUpdateSpielsamstage = async (gameSaturdays: GameSaturdayConfig[]) => {
     if (!season) return
-    await updateSeason(season.id, { spielsamstage } as Record<string, unknown>)
+    await updateSeason(season.id, { game_saturdays: gameSaturdays } as Record<string, unknown>)
   }
 
   const handleUpdateTeamConfig = async (config: TeamSlotConfig) => {
@@ -186,7 +186,7 @@ export default function AdminSetupPage() {
         {/* Spielsamstage Editor */}
         {season && (
           <SpielsamstageEditor
-            spielsamstage={season.spielsamstage || []}
+            spielsamstage={season.game_saturdays || []}
             onUpdate={handleUpdateSpielsamstage}
             season={season.season}
           />

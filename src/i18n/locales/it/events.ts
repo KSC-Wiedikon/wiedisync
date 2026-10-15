@@ -61,7 +61,7 @@ export default {
   social: 'Sociale',
   meeting: 'Riunione',
   tournament: 'Torneo',
-  trainingsweekend: 'Weekend di allenamento',
+  trainingWeekend: 'Weekend di allenamento',
   friendly: 'Partita amichevole',
   other: 'Altro',
   respondBy: 'Rispondi entro',

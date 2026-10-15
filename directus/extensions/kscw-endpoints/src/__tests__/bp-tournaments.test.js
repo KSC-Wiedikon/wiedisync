@@ -66,9 +66,13 @@ describe('basketplan tournaments', () => {
     expect(planTournamentRows([t], ['5104', '5287'])).toEqual([{
       id: 438, date: '2026-11-01', end_date: null, host_club: 'Phönix Basket', hall: 'Sportanlage Wisacher',
       time_from: '08:00', time_to: '18:00', leagues: ['DU12Tu', 'MixU 8M'], deadline: '2026-10-25',
-      registration_open: true, list_status: 'Anmelden', registered_count: 2, kscw_bp_team_ids: ['5104'],
+      registration_open: true, list_status: 'open', registered_count: 2, kscw_bp_team_ids: ['5104'],
     }])
-    expect(planTournamentRows([{ ...t, status: 'Anmeldefrist abgelaufen' }], [])[0].registration_open).toBe(false)
+    const closed = planTournamentRows([{ ...t, status: 'Anmeldefrist abgelaufen' }], [])[0]
+    expect(closed.registration_open).toBe(false)
+    expect(closed.list_status).toBe('closed')
+    // An action text we do not know is not "closed": NULL keeps the tournament pickable.
+    expect(planTournamentRows([{ ...t, status: 'Demnächst' }], [])[0].list_status).toBeNull()
   })
   it('tells a missing registrations table from an empty one', () => {
     const gone = DETAIL.slice(0, DETAIL.indexOf('<!-- registrations'))

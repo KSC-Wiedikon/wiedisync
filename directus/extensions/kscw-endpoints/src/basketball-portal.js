@@ -192,7 +192,7 @@ export function registerBasketballPortal(router, { database, logger }) {
   // admin/superuser, a basketball sport admin (bb_admin), or a club-wide
   // Spielplaner (members.is_spielplaner) — the Spielplaner role is club-wide, not
   // per-sport, so a Spielplaner plans the basketball hall too. Per-team
-  // spielplaner_assignments alone grant nothing here (same caveat as volleyball).
+  // scheduler_assignments alone grant nothing here (same caveat as volleyball).
   // Deliberately WIDER than the basketball MAILBOX gate (bb_admin only): reading
   // the club's inbox and agreeing a fixture are different privileges.
   async function canManageBb(req) {

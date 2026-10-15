@@ -284,7 +284,7 @@ describe('routes', () => {
     tables.directus_roles = [{ id: 'role-member', name: 'Member' }]
     tables.teams_coaches = []
     tables.teams_responsibles = []
-    tables.spielplaner_assignments = []
+    tables.scheduler_assignments = []
     tables.household_members = tables.household_members.filter((r) => r.id !== 101)
     const created = []
     class UsersService {

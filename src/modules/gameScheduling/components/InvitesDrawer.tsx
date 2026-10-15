@@ -114,7 +114,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
   }
 
   // Load every opponent in the team's league from the ALREADY-SYNCED SVRZ data
-  // (svrz_games + the bulk svrz_spielplaner_contacts feed) — instant, no live
+  // (svrz_games + the bulk svrz_scheduler_contacts feed) — instant, no live
   // login. All of a club's known contacts are joined into one shared-invite row
   // (parseRecipients splits them when sending). This is what auto-fills the
   // drawer on open; the live "Refresh" below re-fetches the freshest contacts.

@@ -40,7 +40,7 @@ export interface BasketballTeamRule {
   enabled: boolean
   category: BasketballRuleCategory
   league: string
-  ferien_hard: boolean
+  school_holidays_hard: boolean
   /** HARD allow-list of JS getDay values (5=Fri, 6=Sat, 0=Sun). */
   allowed_dows: number[]
   /** SOFT weekday preference (scored, never filtered). */
@@ -62,7 +62,7 @@ export const PLAY_DOWS = [5, 6, 0] as const
 /**
  * The ProBasket Ferien windows bind "alle interregionalen Ligen, sowie die 1. / 2.
  * Seniorenligen" and nobody else (Spiel- und Sperrdaten 2026/2027). Used ONLY to seed a
- * brand-new rules row — never to re-derive `ferien_hard` on an existing one, which is an
+ * brand-new rules row — never to re-derive `school_holidays_hard` on an existing one, which is an
  * explicit, hand-checkable column precisely so a stale league guess cannot flip it.
  */
 export const FERIEN_HARD_LEAGUES: ReadonlySet<string> = new Set<ProbasketLeagueCode>([
@@ -152,7 +152,7 @@ export function normalizeRule(row: Record<string, unknown>): BasketballTeamRule 
     enabled: row.enabled !== false,
     category: (row.category as BasketballRuleCategory) || 'seniors',
     league: String(row.league || 'JUN_REG'),
-    ferien_hard: row.ferien_hard === true,
+    school_holidays_hard: row.school_holidays_hard === true,
     allowed_dows: parseJson<number[]>(row.allowed_dows, [5, 6, 0]).map(Number),
     preferred_dows: parseJson<number[]>(row.preferred_dows, []).map(Number),
     start_min: (row.start_min as string) || null,
@@ -234,7 +234,7 @@ export function defaultRulePayload(team: Team): Record<string, unknown> {
     enabled: false,
     category: guessCategory(team.name || ''),
     league,
-    ferien_hard: FERIEN_HARD_LEAGUES.has(league),
+    school_holidays_hard: FERIEN_HARD_LEAGUES.has(league),
     allowed_dows: [5, 6, 0],
     preferred_dows: [],
     start_min: null,

@@ -1396,7 +1396,7 @@ export default {
         if (refuseExternalOnDev(res)) return
         // Resolve the current season's SVRZ uuid the same way the cron does.
         const seasonName = currentSeasonLong()
-        const known = await database('svrz_spielplaner_contacts')
+        const known = await database('svrz_scheduler_contacts')
           .where('season_name', seasonName).whereNotNull('season_uuid').first()
         const seasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'
         const r = await triggerChildSync('svrz_sync', '/directus/scripts/svrz-scheduling-sync.mjs', {

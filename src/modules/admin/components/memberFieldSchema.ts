@@ -930,7 +930,7 @@ export function looksSecret(key: string): boolean {
  *
  * ⚠ They are the opposite of dead. `member_teams` IS the club roster (1313 rows
  * on prod — every player↔team assignment); `game_guests` holds the called-up
- * players. Dropping either empties a core feature. `spielplaner_assignments` is
+ * players. Dropping either empties a core feature. `scheduler_assignments` is
  * legitimately empty (Spielplaner scope is club-wide unless narrowed), which is
  * exactly what made it look disposable. `coach_of` / `team_responsible_of` are
  * the reverse of `teams.coach` / `teams.team_responsible`; dropping either
@@ -953,7 +953,7 @@ export function looksSecret(key: string): boolean {
 const MEMBER_RELATION_ALIASES: ReadonlySet<string> = new Set([
   'member_teams',
   'game_guests',
-  'spielplaner_assignments',
+  'scheduler_assignments',
   // Migration 331 — the member side of the two STAFF junctions
   // (`teams_coaches` / `teams_responsibles`). Metadata only: the migration
   // filled in `one_field` so `setup-permissions.mjs` could scope a coach's

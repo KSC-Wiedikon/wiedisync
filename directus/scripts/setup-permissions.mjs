@@ -1412,7 +1412,7 @@ async function main() {
   // Spielplaner manual-game writes (create/update/delete on `games`) for the
   // Spielplanung planner (ManualGameModal / SpielplanungPage via the items
   // API). Attached per-user (§14) to the directus users of members with
-  // is_spielplaner=true OR at least one spielplaner_assignments row — NOT to
+  // is_spielplaner=true OR at least one scheduler_assignments row — NOT to
   // a Directus role. Every grant is scoped to source='manual' rows (VM-synced
   // league games stay Sport-Admin-only); per-team row/team scope is enforced
   // server-side by the kscw-hooks Spielplaner scope guard on
@@ -1913,7 +1913,7 @@ async function main() {
   const EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
-      { event_type: { _in: ['verein', 'tournament'] } },
+      { event_type: { _in: ['club', 'tournament'] } },
       // active: true for the same reason as MY_TEAMS_FILTER — an archived team's
       // roster row would otherwise keep granting event reads indefinitely. The
       // invited-members branch is per-event and needs no team gate.
@@ -2309,7 +2309,7 @@ async function main() {
   })
 
   // Spielplaner assignments — self-scoped (migrations 034, 042).
-  await setPermRead(MEMBER_POLICY, 'spielplaner_assignments', OWN_MEMBER)
+  await setPermRead(MEMBER_POLICY, 'scheduler_assignments', OWN_MEMBER)
 
   // Scorer delegations — read/create/update own. 2026-05-31 security audit:
   // create was unfiltered, letting a member fabricate a delegation FROM a
@@ -2755,7 +2755,7 @@ async function main() {
   const LEADER_EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
-      { event_type: { _in: ['verein', 'tournament'] } },
+      { event_type: { _in: ['club', 'tournament'] } },
       { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
       { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
       // Player branch: same active gate as the Member policy's copy above.
@@ -3819,14 +3819,14 @@ async function main() {
   //      (source != 'manual') stay Sport-Admin-only even via the raw API.
   //   2. TEAM scope at the hook layer — the policy is attached only to
   //      spielplaner users (section 14): club-wide (is_spielplaner=true) or
-  //      per-team (spielplaner_assignments), so holding it is the items-layer
+  //      per-team (scheduler_assignments), so holding it is the items-layer
   //      gate (same "holding the policy IS the gate" model as Terminplanung
   //      §9b). Per-team row/team scope can't be a policy filter (unenforceable
   //      on CREATE + a kscw_team filter would lock out club-wide
   //      spielplaners); it's enforced by the kscw-hooks Spielplaner scope
   //      guard on games.items.create/update/delete
   //      (directus/extensions/kscw-hooks/src/index.js — "Spielplaner scope
-  //      guard"), which checks kscw_team ∈ caller's spielplaner_assignments
+  //      guard"), which checks kscw_team ∈ caller's scheduler_assignments
   //      and lets is_spielplaner=true members through club-wide.
   // (games READ is already club-wide via the Member policy — not repeated here.)
 
@@ -4109,7 +4109,7 @@ async function main() {
   //
   // Attach the Spielplaner policy directly to the directus user of every
   // member who is a spielplaner — club-wide (is_spielplaner=true) OR per-team
-  // (at least one spielplaner_assignments row; assignment.member → members.user).
+  // (at least one scheduler_assignments row; assignment.member → members.user).
   // Same idempotent sync + stale-cleanup pattern as LEADER (§10) /
   // TERMINPLANUNG (§12) / FINANCE (§13). Holding the policy is the items-layer
   // gate for manual-game create/update/delete (§9d); per-team row scope is the
@@ -4119,7 +4119,7 @@ async function main() {
   console.log('\n14. Backfilling user-level SPIELPLANER access for spielplaner members...')
 
   const spWideMembers = await api('GET', '/items/members?filter[is_scheduler][_eq]=true&fields=user&limit=-1')
-  const spAssignRows = await api('GET', '/items/spielplaner_assignments?fields=member.user&limit=-1')
+  const spAssignRows = await api('GET', '/items/scheduler_assignments?fields=member.user&limit=-1')
   const spielplanerPolicyUserIds = new Set([
     ...(spWideMembers || []).map(m => m.user),
     ...(spAssignRows || []).map(a => a?.member?.user),

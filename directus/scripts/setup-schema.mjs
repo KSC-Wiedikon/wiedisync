@@ -327,7 +327,7 @@ const COLLECTIONS = [
     fields: [
       string('title', { schema: { is_nullable: false } }),
       text('description'),
-      select('event_type', ['verein', 'social', 'meeting', 'tournament', 'trainingsweekend', 'friendly', 'other']),
+      select('event_type', ['club', 'social', 'meeting', 'tournament', 'training_weekend', 'friendly', 'other']),
       datetime('start_date'),
       datetime('end_date'),
       boolean('all_day'),
@@ -550,7 +550,7 @@ const COLLECTIONS = [
     fields: [
       string('season'),
       select('status', ['setup', 'open', 'closed']),
-      json('spielsamstage'),
+      json('game_saturdays'),
       json('team_slot_config'),
       json('gap_config'),
       text('notes'),
@@ -565,7 +565,7 @@ const COLLECTIONS = [
       date('date'),
       time('start_time'),
       time('end_time'),
-      select('source', ['hall_slot', 'spielsamstag', 'spielhalle', 'manual']),
+      select('source', ['hall_slot', 'game_saturday', 'game_hall', 'game_sunday', 'manual', 'derby']),
       select('status', ['available', 'booked', 'blocked']),
       // booking, game are m2o relations
     ],

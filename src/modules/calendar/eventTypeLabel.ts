@@ -19,11 +19,11 @@ import type { Event } from '../../types'
  * entry for any type added to the enum.
  */
 const EVENT_TYPE_LABEL_KEYS: Record<Event['event_type'], string> = {
-  verein: 'eventTypeVerein',
+  club: 'eventTypeClub',
   social: 'eventTypeSocial',
   meeting: 'eventTypeMeeting',
   tournament: 'eventTypeTournament',
-  trainingsweekend: 'eventTypeTrainingsweekend',
+  training_weekend: 'eventTypeTrainingWeekend',
   friendly: 'eventTypeFriendly',
   other: 'eventTypeOther',
 }

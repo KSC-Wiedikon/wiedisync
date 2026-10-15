@@ -43,6 +43,7 @@
 
 import crypto from 'crypto'
 import { writeUserLog } from './activity-log.js'
+import { normalizeBbSlotConfig } from './scheduling-values.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // Mirrored constants (see the header warning)
@@ -158,7 +159,7 @@ export const DEFAULT_LEAGUE = 'JUN_REG'
 /**
  * ProBasket blackouts 2026/27, canton-scoped where the document scopes them.
  * 'ferien' binds ONLY interregional + 1./2. Seniorenliga teams (basketball_team_rules
- * .ferien_hard); 'sperr' binds every league. Mirrors PROBASKET_BLACKOUTS_2026_27.
+ * .school_holidays_hard); 'sperr' binds every league. Mirrors PROBASKET_BLACKOUTS_2026_27.
  */
 export const PROBASKET_BLACKOUTS_2026_27 = [
   { start: '2026-10-05', end: '2026-10-11', label: 'Herbstferien', kind: 'ferien' },
@@ -423,14 +424,16 @@ export function weekendKey(ymd) {
 /** Soft-score terms. Every delta is a constant so a re-run reproduces the score exactly. */
 export const SCORE = {
   PREFERRED_DAY: 30,
-  SPIELSAMSTAG: { given: 20, desired: 12, fraglich: 4, bei_bedarf: 2 },
+  // Keyed by bb_slot_config.game_saturdays[].status (migration 420: fraglich → uncertain,
+  // bei_bedarf → if_needed). The score code is `game_saturday_<status>`.
+  GAME_SATURDAY: { given: 20, desired: 12, uncertain: 4, if_needed: 2 },
   CATEGORY_ALLOW: 15,
   HALL_RANK1: 10,
   HALL_RANK2: 5,
   HALL_LAST_RESORT: -10,
   ADJACENT_PARTNER: 8,
   OWN_BACK_TO_BACK: -8,
-  FERIEN_SOFT: -5,
+  SCHOOL_HOLIDAYS_SOFT: -5,
   VB_SAME_DAY: -6,
   VB_SAME_DAY_FLOOR: -12,
   BUSY_DATE: -4,
@@ -488,8 +491,8 @@ export function hardReject(cand, team, ctx) {
   //    Opt-in: only enforced when the season config says so, so a season that has not
   //    fixed its Spielsamstage yet keeps the old open behaviour instead of generating
   //    nothing at all. ──
-  if (ctx.spielsamstagHard) {
-    if (!ctx.spielsamstagStatus.has(weekendKey(date))) return REJECT_CODES.NOT_A_SPIELSAMSTAG
+  if (ctx.gameSaturdayHard) {
+    if (!ctx.gameSaturdayStatus.has(weekendKey(date))) return REJECT_CODES.NOT_A_SPIELSAMSTAG
   }
 
   // ── ProBasket blackouts. 'sperr' binds everyone; 'ferien' only the interregional +
@@ -499,7 +502,7 @@ export function hardReject(cand, team, ctx) {
   const blackouts = blackoutsOn(date, ctx.blackouts)
   for (const b of blackouts) {
     if (b.kind === 'sperr') return REJECT_CODES.BLACKOUT_SPERR
-    if (b.kind === 'ferien' && team.ferien_hard) return REJECT_CODES.BLACKOUT_FERIEN
+    if (b.kind === 'ferien' && team.school_holidays_hard) return REJECT_CODES.BLACKOUT_FERIEN
   }
 
   // ── Superadmin blackout (scheduling_global_blocks). The set is already filtered to
@@ -629,8 +632,8 @@ export function scoreSlot(cand, team, ctx) {
 
   if (team.preferred_dows.includes(dow)) add('preferred_day', SCORE.PREFERRED_DAY)
 
-  const sam = ctx.spielsamstagStatus.get(date)
-  if (sam && SCORE.SPIELSAMSTAG[sam]) add(`spielsamstag_${sam}`, SCORE.SPIELSAMSTAG[sam])
+  const sam = ctx.gameSaturdayStatus.get(date)
+  if (sam && SCORE.GAME_SATURDAY[sam]) add(`game_saturday_${sam}`, SCORE.GAME_SATURDAY[sam])
 
   const slot = ctx.timeslotByKey.get(`${dow}|${time}`)
   if (slot && slot.allow.includes(team.category)) add('category_allow', SCORE.CATEGORY_ALLOW)
@@ -668,8 +671,8 @@ export function scoreSlot(cand, team, ctx) {
   }
 
   // A Ferien week that is not hard for this team is still a week the association avoids.
-  if (!team.ferien_hard && blackoutsOn(date, ctx.blackouts).some((b) => b.kind === 'ferien')) {
-    add('ferien_soft', SCORE.FERIEN_SOFT)
+  if (!team.school_holidays_hard && blackoutsOn(date, ctx.blackouts).some((b) => b.kind === 'ferien')) {
+    add('school_holidays_soft', SCORE.SCHOOL_HOLIDAYS_SOFT)
   }
 
   // Volleyball elsewhere in KWI the same day: legal, but a busy hall day for everyone.
@@ -776,7 +779,9 @@ export function registerBasketballSlots(router, { database, logger }) {
    */
   async function loadGeneratorContext(season) {
     const seasonId = Number(season.id)
-    const cfg = parseJsonColumn(season.bb_slot_config, {}) || {}
+    // normalizeBbSlotConfig: a config saved before migration 420 (spielsamstage /
+    // fraglich / bei_bedarf) still reads right.
+    const cfg = normalizeBbSlotConfig(parseJsonColumn(season.bb_slot_config, {}) || {}) || {}
 
     const timeslots = Array.isArray(cfg.timeslots) && cfg.timeslots.length ? cfg.timeslots : DEFAULT_TIMESLOT_MATRIX
     const timeslotByKey = new Map()
@@ -788,9 +793,9 @@ export function registerBasketballSlots(router, { database, logger }) {
       })
     }
 
-    const spielsamstagStatus = new Map()
-    for (const s of Array.isArray(cfg.spielsamstage) ? cfg.spielsamstage : []) {
-      if (s?.date) spielsamstagStatus.set(String(s.date).slice(0, 10), String(s.status || 'desired'))
+    const gameSaturdayStatus = new Map()
+    for (const s of Array.isArray(cfg.game_saturdays) ? cfg.game_saturdays : []) {
+      if (s?.date) gameSaturdayStatus.set(String(s.date).slice(0, 10), String(s.status || 'desired'))
     }
 
     const baseGrids = PROBASKET_GRIDS_BY_SEASON[season.season] || PROBASKET_GRIDS_BY_SEASON['2026/27']
@@ -970,13 +975,13 @@ export function registerBasketballSlots(router, { database, logger }) {
       ownPlacementPitches.add(`${p.kscw_team}|${d}|${p.time}|${p.hall}`)
     }
 
-    // Club-wide weekend cap. `spielsamstage_hard` makes the Spielsamstag list a HARD
+    // Club-wide weekend cap. `game_saturdays_hard` makes the Spielsamstag list a HARD
     // filter for every team (see hardReject); `max_weekends` is carried for reporting
     // so a mismatch between the agreed cap and the configured list is visible rather
     // than silent.
-    const spielsamstagHard = cfg.spielsamstage_hard === true && spielsamstagStatus.size > 0
+    const gameSaturdayHard = cfg.game_saturdays_hard === true && gameSaturdayStatus.size > 0
     return {
-      timeslotByKey, spielsamstagStatus, spielsamstagHard,
+      timeslotByKey, gameSaturdayStatus, gameSaturdayHard,
       maxWeekends: Number.isFinite(Number(cfg.max_weekends)) ? Number(cfg.max_weekends) : null,
       gridsByLeague, blackouts,
       closedHallsByDate, holidayRanges, clubBlockedDates, vbBusyByDate,
@@ -1002,7 +1007,7 @@ export function registerBasketballSlots(router, { database, logger }) {
       league: OPEN_LEAGUE,
       category: null,
       open: true,
-      ferien_hard: false,        // 'ferien' binds only interregional + 1./2. Liga; unknown ⇒ soft
+      school_holidays_hard: false, // 'ferien' binds only interregional + 1./2. Liga; unknown ⇒ soft
       allowed_dows: [...PLAY_DOW],
       preferred_dows: [],
       start_min: null,
@@ -1031,7 +1036,7 @@ export function registerBasketballSlots(router, { database, logger }) {
       // `category` is the club's own junior/senior axis. One column if it ever needs a
       // per-team override.
       rest_gap: restGapApplies(category),
-      ferien_hard: row.ferien_hard === true,
+      school_holidays_hard: row.school_holidays_hard === true,
       allowed_dows: (parseJsonColumn(row.allowed_dows, [5, 6, 0]) || []).map(Number),
       preferred_dows: (parseJsonColumn(row.preferred_dows, []) || []).map(Number),
       start_min: row.start_min || null,

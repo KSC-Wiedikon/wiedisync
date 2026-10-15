@@ -110,7 +110,7 @@ export async function targetIsStaff(database, row) {
   const [coach, tr, planner, access] = await Promise.all([
     database('teams_coaches').where('members_id', row.target_member).first('members_id'),
     database('teams_responsibles').where('members_id', row.target_member).first('members_id'),
-    database('spielplaner_assignments').where('member', row.target_member).first('member'),
+    database('scheduler_assignments').where('member', row.target_member).first('member'),
     database('directus_access').where('user', row.target_user).first('id'),
   ])
   return !!(coach || tr || planner || access)

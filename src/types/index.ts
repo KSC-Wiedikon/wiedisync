@@ -761,7 +761,7 @@ export interface Event extends BaseRecord {
    */
   meeting_time?: string | null
   description: string
-  event_type: 'verein' | 'social' | 'meeting' | 'tournament' | 'trainingsweekend' | 'friendly' | 'other'
+  event_type: 'club' | 'social' | 'meeting' | 'tournament' | 'training_weekend' | 'friendly' | 'other'
   start_date: string
   end_date: string
   all_day: boolean
@@ -923,7 +923,8 @@ export type ParticipationWithMember = ParticipationBase & {
 export interface GameSchedulingSeason extends BaseRecord {
   season: string
   status: 'setup' | 'open' | 'closed'
-  spielsamstage: SpielsamstagConfig[]
+  /** The volleyball Spielsamstage (column `spielsamstage` before migration 420). */
+  game_saturdays: GameSaturdayConfig[]
   team_slot_config: TeamSlotConfig | null
   /** Per-season game-spacing gaps in days. Null/missing → defaults {4,4,2}. */
   gap_config: GameSchedulingGapConfig | null
@@ -948,7 +949,7 @@ export interface GameSchedulingGapConfig {
   proposal3: number
 }
 
-export interface SpielsamstagConfig {
+export interface GameSaturdayConfig {
   date: string
   slots: { time: string; hall_id: string }[]
 }
@@ -988,10 +989,11 @@ export interface TeamSlotConfig {
   [teamId: string]: {
     /** Additive home-slot sources. Empty/absent = manual (no slots generated).
      *  'hall_slot' = the team's latest Doltschi/KWI evening slots (end 21:30);
-     *  'spielsamstag' = the central Game-Saturday pool. Both may be active. */
-    sources?: ('hall_slot' | 'spielsamstag')[]
+     *  'game_saturday' = the central Game-Saturday pool. Both may be active.
+     *  (Migration 420 renamed 'spielsamstag' → 'game_saturday'.) */
+    sources?: ('hall_slot' | 'game_saturday')[]
     /** @deprecated legacy single-select — still read for back-compat. */
-    source?: 'hall_slot' | 'spielsamstag' | 'manual'
+    source?: 'hall_slot' | 'game_saturday' | 'manual'
     hall_slot_id?: string
   }
 }
@@ -1004,7 +1006,8 @@ export interface GameSchedulingSlot extends BaseRecord {
   start_time: string
   end_time: string
   hall: string
-  source: 'hall_slot' | 'spielsamstag' | 'spielhalle' | 'manual'
+  /** Slugs since migration 420 (were spielsamstag / spielhalle / spielsonntag). */
+  source: 'hall_slot' | 'game_saturday' | 'game_hall' | 'game_sunday' | 'manual' | 'derby'
   status: 'available' | 'booked' | 'blocked'
 
 }

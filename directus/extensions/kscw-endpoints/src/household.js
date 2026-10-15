@@ -244,7 +244,7 @@ async function loadStaffSet(database, memberIds) {
     // ⚠ No .catch() here: this also runs inside the link transaction, where a
     // swallowed Postgres error leaves the transaction aborted and the NEXT
     // statement fails with a misleading message.
-    database('spielplaner_assignments').whereIn('member', ids).pluck('member'),
+    database('scheduler_assignments').whereIn('member', ids).pluck('member'),
   ])
   return new Set([...coach, ...tr, ...planner].map(Number))
 }

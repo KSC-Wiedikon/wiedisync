@@ -110,7 +110,7 @@ describe('normalizeRule', () => {
       team: 86,
       category: 'seniors',
       league: 'D1LI',
-      ferien_hard: true,
+      school_holidays_hard: true,
       allowed_dows: '[6,0]',
       preferred_dows: '[5]',
       halls: SEEDED_HALLS.abHard,
@@ -127,11 +127,11 @@ describe('normalizeRule', () => {
 
   it('defaults the three boolean columns the way the DB does', () => {
     const rule = normalizeRule({ id: 1, season: 1, team: 2 })
-    // enabled / start_hard / own_back_to_back default TRUE, ferien_hard FALSE.
+    // enabled / start_hard / own_back_to_back default TRUE, school_holidays_hard FALSE.
     expect(rule.enabled).toBe(true)
     expect(rule.start_hard).toBe(true)
     expect(rule.own_back_to_back).toBe(true)
-    expect(rule.ferien_hard).toBe(false)
+    expect(rule.school_holidays_hard).toBe(false)
     expect(rule.allowed_dows).toEqual([5, 6, 0])
     expect(rule.blocked).toEqual([])
     expect(rule.note).toBeNull()
@@ -153,16 +153,16 @@ describe('defaultRulePayload', () => {
     // windows are hard for it. Reading the name would have said 3rd league (soft).
     const h2 = defaultRulePayload(team(76, 'Herren 2 H3', '4829'))
     expect(h2.league).toBe('H2LR')
-    expect(h2.ferien_hard).toBe(true)
+    expect(h2.school_holidays_hard).toBe(true)
     expect(h2.category).toBe('seniors')
 
     const lions = defaultRulePayload(team(86, 'Lions D1', '4445'))
     expect(lions.league).toBe('D1LI')
-    expect(lions.ferien_hard).toBe(true)
+    expect(lions.school_holidays_hard).toBe(true)
 
     const du14 = defaultRulePayload(team(71, 'DU14', '5441'))
     expect(du14.league).toBe('JUN_REG')
-    expect(du14.ferien_hard).toBe(false)
+    expect(du14.school_holidays_hard).toBe(false)
     expect(du14.category).toBe('youth')
   })
 

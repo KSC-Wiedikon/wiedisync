@@ -104,16 +104,16 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
     if (Array.isArray(tc?.sources)) return new Set(tc.sources)
     if (tc?.source === 'manual') return new Set()
     if (tc?.source) return new Set([tc.source])
-    return new Set(['hall_slot', 'spielsamstag'])
+    return new Set(['hall_slot', 'game_saturday'])
   }
 
-  const handleToggle = (teamId: string, source: 'hall_slot' | 'spielsamstag') => {
+  const handleToggle = (teamId: string, source: 'hall_slot' | 'game_saturday') => {
     const next = resolveSources(config[teamId])
     if (next.has(source)) next.delete(source)
     else next.add(source)
     const updated: TeamSlotConfig = {
       ...config,
-      [teamId]: { sources: Array.from(next) as ('hall_slot' | 'spielsamstag')[] },
+      [teamId]: { sources: Array.from(next) as ('hall_slot' | 'game_saturday')[] },
     }
     onUpdate(updated)
   }
@@ -127,7 +127,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
           const active = resolveSources(config[team.id])
           const std = resolveStandard(team)
           const standardOn = active.has('hall_slot')
-          const saturdayOn = active.has('spielsamstag')
+          const saturdayOn = active.has('game_saturday')
           return (
             <div
               key={team.id}
@@ -158,7 +158,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
 
               <div className="mt-2.5">
                 <div className="grid max-w-[14rem] grid-cols-2 gap-1">
-                  {(['hall_slot', 'spielsamstag'] as const).map((source) => {
+                  {(['hall_slot', 'game_saturday'] as const).map((source) => {
                     const selected = active.has(source)
                     return (
                       <Button

@@ -169,14 +169,14 @@ const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString()
 /** Prod-shaped fixture: club-wide events 10+12, team-scoped 11, member-scoped 13; 12 is cancelled. */
 const fixtures = () => ({
   events: [
-    { id: 10, title: 'Sommerfest', event_type: 'verein', invited_roles: null, start_date: inDays(20), end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', cancelled: false, cancel_reason: null },
+    { id: 10, title: 'Sommerfest', event_type: 'club', invited_roles: null, start_date: inDays(20), end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', cancelled: false, cancel_reason: null },
     { id: 11, title: 'H3 Turnier', event_type: 'tournament', invited_roles: null, start_date: inDays(27), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
-    { id: 12, title: 'Herbstfest', event_type: 'verein', invited_roles: null, start_date: inDays(55), end_date: null, all_day: false, location: null, description: null, cancelled: true, cancel_reason: 'Halle gesperrt' },
+    { id: 12, title: 'Herbstfest', event_type: 'club', invited_roles: null, start_date: inDays(55), end_date: null, all_day: false, location: null, description: null, cancelled: true, cancel_reason: 'Halle gesperrt' },
     { id: 13, title: 'Einzeltermin', event_type: 'tournament', invited_roles: null, start_date: inDays(62), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
     // Unscoped in both junctions — the old query syndicated both into every
     // subscribed calendar (finding 6).
     { id: 15, title: 'Vorstandssitzung', event_type: 'meeting', invited_roles: null, start_date: inDays(85), end_date: null, all_day: false, location: 'Klublokal', description: 'Intern', cancelled: false, cancel_reason: null },
-    { id: 16, title: 'Trainerhöck', event_type: 'verein', invited_roles: ['coach'], start_date: inDays(89), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
+    { id: 16, title: 'Trainerhöck', event_type: 'club', invited_roles: ['coach'], start_date: inDays(89), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
   ],
   // Junction rows as they really looked on prod (EVT-01): NULL-events_id
   // leftovers from before the 021 cascade, next to genuine scoping rows.

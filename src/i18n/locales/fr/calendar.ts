@@ -94,11 +94,11 @@ export default {
   cancelledGameDay: 'Annulé — jour de match',
   moreCount: '+{{count}} de plus',
   absentCount: '{{count}} absent(s)',
-  eventTypeVerein: 'Club',
+  eventTypeClub: 'Club',
   eventTypeSocial: 'Social',
   eventTypeMeeting: 'Reunion',
   eventTypeTournament: 'Tournoi',
-  eventTypeTrainingsweekend: "Week-end d'entraînement",
+  eventTypeTrainingWeekend: "Week-end d'entraînement",
   eventTypeFriendly: 'Match amical',
   eventTypeOther: 'Autre',
 

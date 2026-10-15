@@ -25,7 +25,7 @@ describe('bb tournament picks', () => {
   })
   it('closed after the deadline or when Basketplan no longer offers sign-up', () => {
     expect(pickState(MU8, T, null, '2026-10-26').canPick).toBe(false)
-    expect(pickState(MU8, { ...T, registration_open: false, list_status: 'Anmeldefrist abgelaufen' }, null, '2026-10-04').canPick).toBe(false)
+    expect(pickState(MU8, { ...T, registration_open: false, list_status: 'closed' }, null, '2026-10-04').canPick).toBe(false)
   })
   it('a tournament listed but not open yet can be picked in advance', () => {
     expect(pickState(MU8, { ...T, registration_open: false, list_status: null }, null, '2026-10-04').canPick).toBe(true)

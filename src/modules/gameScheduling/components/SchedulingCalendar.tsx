@@ -932,12 +932,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // Highlight configured game-Saturdays (Spielsamstage) like the other calendars.
   const highlightedDates = useMemo(() => {
     const s = new Set<string>()
-    for (const sat of season.spielsamstage || []) {
+    for (const sat of season.game_saturdays || []) {
       const d = parseYmd(sat?.date)
       if (d) s.add(toDateKey(d))
     }
     return s
-  }, [season.spielsamstage])
+  }, [season.game_saturdays])
 
   const legend: { kind: EntryKind; label: string }[] = [
     { kind: 'home_confirmed', label: t('legendHomeConfirmed') },

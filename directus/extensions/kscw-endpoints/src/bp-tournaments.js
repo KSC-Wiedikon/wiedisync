@@ -31,6 +31,7 @@
 import { createHash } from 'node:crypto'
 import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
 import { logCronRun } from './error-log.js'
+import { bbTournamentListStatus } from './scheduling-values.js'
 
 const BP_BASE = 'https://www.basketplan.ch'
 export const SOURCE = 'basketplan_tournament'
@@ -160,7 +161,8 @@ export function planTournamentGames(tournaments, teamsByBpId) {
 /**
  * bb_tournaments rows (migration 398) from the parsed tournaments. Pure.
  * `open` comes from the list's action column ("Anmelden") or, failing that,
- * the detail page's own Anmelden link.
+ * the detail page's own Anmelden link. `list_status` stores that column as a
+ * slug (migration 420): 'open' | 'closed' | NULL (bbTournamentListStatus).
  */
 export function planTournamentRows(tournaments, kscwBpIds) {
   const ours = new Set([...kscwBpIds].map(String))
@@ -177,7 +179,7 @@ export function planTournamentRows(tournaments, kscwBpIds) {
       leagues: t.leagues || [],
       deadline: t.deadline || null,
       registration_open: t.status ? /^Anmelden$/i.test(t.status) : !!t.open,
-      list_status: t.status ? String(t.status).slice(0, 60) : null,
+      list_status: bbTournamentListStatus(t.status),
       registered_count: (t.teamIds || []).length,
       kscw_bp_team_ids: (t.teamIds || []).filter((id) => ours.has(String(id))),
     }

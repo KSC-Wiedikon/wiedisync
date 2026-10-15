@@ -1,7 +1,7 @@
 /**
  * SVRZ game-scheduling sync — bulk fetch of games + Spielplaner contacts
  * from volleymanager.volleyball.ch into Directus `svrz_games` and
- * `svrz_spielplaner_contacts` collections.
+ * `svrz_scheduler_contacts` collections.
  *
  * See docs/superpowers/specs/2026-04-22-game-scheduling-per-verein-invites-design.md
  */
@@ -225,7 +225,7 @@ function rawSideStaticId(rawGame, side) {
 /**
  * Harvest the "Teamverantwortlicher" (team responsible) for EVERY KSCW opponent
  * team from the live per-game contact feed, returning rows shaped like
- * svrz_spielplaner_contacts. Unlike the bulk Spielplanverantwortliche (club-level
+ * svrz_scheduler_contacts. Unlike the bulk Spielplanverantwortliche (club-level
  * calendar responsibles) these are per TEAM, so they are keyed by the opponent
  * team's staticTeamIdentifier (synthetic persistence id `tr:t<staticId>:<email>`,
  * and `team_identifier` set to that id). When a game's raw lacks the id we fall
@@ -539,7 +539,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     if (contactRows.length === 0) {
       console.warn('[svrz-sync] ⚠ contacts returned 0 rows — check the VM role (expected ~130)');
     }
-    const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
+    const upserted = await upsert('svrz_scheduler_contacts', contactRows);
     console.log(`[svrz-sync]   contacts upsert: created=${upserted.created} updated=${upserted.updated}`);
     contactsResult = { ...upserted, total_fetched: contacts.items.length };
   } catch (err) {
@@ -560,7 +560,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     console.log('[svrz-sync] Team responsibles (per opponent team)...');
     const trRows = await fetchTeamResponsibles(jar, gamesCtx, { gameRows, seasonUuid, seasonName, getContacts: getGameContacts });
     if (trRows.length) {
-      const up = await upsert('svrz_spielplaner_contacts', trRows);
+      const up = await upsert('svrz_scheduler_contacts', trRows);
       console.log(`[svrz-sync]   team responsibles: ${trRows.length} found, created=${up.created} updated=${up.updated}`);
       teamResponsibleResult = { ...up, total_fetched: trRows.length };
     } else {

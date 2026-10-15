@@ -23,7 +23,7 @@ const SKIP_COLLECTIONS = new Set([
   'error_logs', 'sync_runs', 'kscw_migrations',
   // High-volume normal traffic:
   'notifications',
-  'spielplaner_assignments',
+  'scheduler_assignments',
   // Machine-synced from Volleymanager nightly, and the sync PATCHes one row at a
   // time (`upsertByPersistenceId`: "Updates must go one-by-one"), so this hook
   // fired once per fixture and wrote one audit row per fixture. Measured on prod
@@ -39,7 +39,7 @@ const SKIP_COLLECTIONS = new Set([
   //   gave. Keep the two in step — dropping the summary write would leave the
   //   nightly sync genuinely untracked.
   'svrz_games',
-  'svrz_spielplaner_contacts',
+  'svrz_scheduler_contacts',   // svrz_spielplaner_contacts until migration 420
 ])
 
 const MAX_DATA_BYTES = 4096

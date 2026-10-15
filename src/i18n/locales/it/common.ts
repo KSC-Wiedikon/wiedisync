@@ -184,11 +184,11 @@ export default {
     website_admin: 'Admin sito web',
     finance: 'Finanze',
     revisor: 'Revisore dei conti',
-    verein: 'Club',
+    club: 'Club',
     social: 'Sociale',
     meeting: 'Riunione',
     tournament: 'Torneo',
-    trainingsweekend: 'Trainingsweekend',
+    training_weekend: 'Trainingsweekend',
     friendly: 'Amichevole',
   },
 

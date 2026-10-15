@@ -38,7 +38,7 @@ export function useGameSchedulingSeason() {
     const record = await createRecord<GameSchedulingSeason>('game_scheduling_seasons', {
       season: seasonName,
       status: 'setup',
-      spielsamstage: [],
+      game_saturdays: [],
       team_slot_config: {},
       notes: '',
     })

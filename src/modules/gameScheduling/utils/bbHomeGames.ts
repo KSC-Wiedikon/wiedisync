@@ -51,7 +51,7 @@ export interface BbHomeGames {
 }
 
 const VALID_STATUSES: readonly string[] = ['championship', 'provisional', 'tournament']
-const RAW: Record<string, { status: string; note?: string; gamesTotal?: number; modus?: string }> =
+const RAW: Record<string, { status: string; note?: string; gamesTotal?: number; mode?: string }> =
   groupFormat.groups
 
 /**

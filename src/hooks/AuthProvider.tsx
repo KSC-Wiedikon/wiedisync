@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           filter: { captain: { _eq: memberId }, active: { _eq: true } },
           fields: ['id'],
         }),
-        fetchAllItems<{ kscw_team: number }>('spielplaner_assignments', {
+        fetchAllItems<{ kscw_team: number }>('scheduler_assignments', {
           filter: { member: { _eq: memberId } },
           fields: ['kscw_team'],
         }),
@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const memberTeams = pick<{ team: number; guest_level: number }>(2, 'member_teams')
       const allTeams = pick<Pick<Team, 'id' | 'name' | 'sport'>>(3, 'teams')
       const captainTeams = pick<{ id: number }>(4, 'teams (captain)')
-      const spielplanerRows = pick<{ kscw_team: number }>(5, 'spielplaner_assignments')
+      const spielplanerRows = pick<{ kscw_team: number }>(5, 'scheduler_assignments')
 
       const teamMap = new Map(allTeams.map(t => [String(t.id), t]))
       // Skip rows with null team FKs — they shouldn't exist, but if a coach/TR/member_teams row
@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Intersect EVERY team list with the ACTIVE team map. The captain query
       // scopes itself (:110) and member_teams now walks team.active, but
-      // teams_coaches / teams_responsibles / spielplaner_assignments have no
+      // teams_coaches / teams_responsibles / scheduler_assignments have no
       // season column and are CLONED (not moved) on rollover — so after an
       // archive/rollover these junctions still point at the archived team.
       // teamMap holds only active teams; dropping ids not in it keeps these

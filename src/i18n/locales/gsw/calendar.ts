@@ -86,11 +86,11 @@ export default {
   cancelledGameDay: 'Abgseit — Spieltag',
   moreCount: '+{{count}} meh',
   absentCount: '{{count}} abwäsend',
-  eventTypeVerein: 'Verein',
+  eventTypeClub: 'Verein',
   eventTypeSocial: 'Social',
   eventTypeMeeting: 'Sitzig',
   eventTypeTournament: 'Turnier',
-  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeTrainingWeekend: 'Trainingsweekend',
   eventTypeFriendly: 'Fründschaftsspiel',
   eventTypeOther: 'Anderi',
 } as const

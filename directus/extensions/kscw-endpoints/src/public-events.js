@@ -15,20 +15,24 @@
  * context and filters server-side.
  *
  * Response shape mirrors Directus: { data: [...] } with snake_case fields.
+ *
+ * ⚠ `event_type` is answered in the PRE-420 vocabulary ('verein', 'trainingsweekend'):
+ * the website's event chip switches on 'verein' (kscw-website index.astro), and the
+ * website is this feed's only consumer. Drop eventTypeToLegacy once the website
+ * reads the slugs ('club', 'training_weekend').
  */
+
+import { PUBLIC_EVENT_TYPES, eventTypeToLegacy } from './scheduling-values.js'
 
 const PUBLIC_EVENT_FIELDS = [
   'id', 'title', 'event_type', 'start_date', 'end_date',
   'all_day', 'location', 'description', 'signup_url',
 ]
 
-/**
- * The event types the PUBLIC policy is allowed to read
- * (`setup-permissions.mjs` → Public `/items/events` read). Keep the two in step:
- * this endpoint exists to be a server-side equivalent of that policy, so being
- * WIDER than it defeats the purpose.
- */
-const PUBLIC_EVENT_TYPES = ['verein', 'tournament']
+// PUBLIC_EVENT_TYPES (scheduling-values.js) = the event types the PUBLIC policy is
+// allowed to read (`setup-permissions.mjs` → Public `/items/events` read). Keep the
+// two in step: this endpoint exists to be a server-side equivalent of that policy,
+// so being WIDER than it defeats the purpose.
 
 /**
  * The single definition of "publicly visible event", used by both
@@ -43,7 +47,7 @@ const PUBLIC_EVENT_TYPES = ['verein', 'tournament']
  *      junction. A role-targeted event has zero rows in both junctions, so it
  *      passed both NOT EXISTS checks and was published.
  * …plus the `event_type` axis, which the Public policy enforces and this did not,
- * so `meeting` / `social` / `friendly` / `trainingsweekend` / `other` were all
+ * so `meeting` / `social` / `friendly` / `training_weekend` / `other` were all
  * served anonymously.
  *
  * The combination was strictly worse than it sounds: `MEMBER_POLICY`'s
@@ -101,7 +105,7 @@ export function registerPublicEvents(router, { database, logger }) {
       const rows = await q
 
       res.set('Cache-Control', 'public, max-age=300')
-      res.json({ data: rows })
+      res.json({ data: rows.map((r) => ({ ...r, event_type: eventTypeToLegacy(r.event_type) })) })
     } catch (err) {
       log.error({
         msg: `public-events: ${err.message}`,

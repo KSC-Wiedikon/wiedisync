@@ -10,7 +10,7 @@ import itIT from '../../../i18n/locales/it/calendar'
 
 /** Every value the column's CHECK admits. Keep in step with `Event['event_type']`. */
 const ALL_TYPES: Event['event_type'][] = [
-  'verein', 'social', 'meeting', 'tournament', 'trainingsweekend', 'friendly', 'other',
+  'club', 'social', 'meeting', 'tournament', 'training_weekend', 'friendly', 'other',
 ]
 
 describe('eventTypeLabelKey', () => {

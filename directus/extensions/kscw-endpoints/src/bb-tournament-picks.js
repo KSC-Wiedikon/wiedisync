@@ -70,7 +70,7 @@ export function pickState(team, tournament, pick, today, attempt = null) {
   // Closed = past the deadline, or Basketplan says so. A tournament listed but
   // not open YET stays pickable — the worker registers it the moment it opens.
   const closed = (deadline != null && deadline < today)
-    || (!tournament.registration_open && /abgelaufen|geschlossen|voll/i.test(tournament.list_status || ''))
+    || (!tournament.registration_open && tournament.list_status === 'closed')
   return {
     team: Number(team.id),
     status: registered ? 'registered' : pick ? 'picked' : 'none',

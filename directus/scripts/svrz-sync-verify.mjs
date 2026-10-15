@@ -9,7 +9,7 @@
  *      sync must stop writing `directus_revisions`. If Directus's schema cache is
  *      ever stale (a raw-SQL `directus_collections` write does NOT bust it), the
  *      revisions come back and nothing says so — the table just grows again.
- *   2. The audit hook now SKIPS `svrz_games` / `svrz_spielplaner_contacts`, and
+ *   2. The audit hook now SKIPS `svrz_games` / `svrz_scheduler_contacts` (pre-420: svrz_spielplaner_contacts), and
  *      `svrz-scheduling-sync.mjs` writes ONE summary row per run instead. If that
  *      summary write fails it is deliberately swallowed (a failed audit row must
  *      never fail the sync), so the nightly sync would become genuinely
@@ -102,7 +102,7 @@ const raw = psql(`
     -- entry and FAILS every successful night. Caught by executing the pass path.
     -- 'create'/'update'/'delete' is exactly what the audit hook writes.
     (SELECT count(*) FROM user_logs u, w
-       WHERE u.collection_name IN ('svrz_games','svrz_spielplaner_contacts')
+       WHERE u.collection_name IN ('svrz_games','svrz_scheduler_contacts','svrz_spielplaner_contacts')
          AND u.action IN ('create','update','delete')
          AND u.date_created >= w.win_start)::text,
     (SELECT count(*) FROM directus_revisions rv
@@ -141,7 +141,7 @@ if (n(summaryRows) !== 1) {
     (n(summaryRows) === 0 ? ' — writeSyncSummary is swallowing a failure, the nightly sync is now UNTRACKED' : ''))
 }
 if (n(perRowRows) !== 0) {
-  failures.push(`expected 0 per-row user_logs rows for svrz_games/svrz_spielplaner_contacts, found ${perRowRows}` +
+  failures.push(`expected 0 per-row user_logs rows for svrz_games/svrz_scheduler_contacts, found ${perRowRows}` +
     ' — the audit hook SKIP_COLLECTIONS change is not in effect (stale extension deploy?)')
 }
 if (n(revisionRows) !== 0) {

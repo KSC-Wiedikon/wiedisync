@@ -25,7 +25,7 @@
  *     "no roles" (HAS_ROLES); publicEventsScope is stricter and publishes
  *     only NULL or [] (PUBLIC_SCOPE). Each check uses the reading of the
  *     code path it describes.
- *   - event_type has no DB CHECK. Every type predicate is NULL-safe: a bare
+ *   - event_type has a DB CHECK since migration 420, but NULL passes it. Every type predicate is NULL-safe: a bare
  *     `NOT (e.event_type IN (…))` is NULL for a NULL type and silently drops
  *     exactly the rows that are unreadable AND unpublished.
  *   - Sport is events_teams → teams.sport. An event whose teams span both
@@ -79,10 +79,10 @@ const ROLES_TEXT = `CASE WHEN e.invited_roles IS NOT NULL AND jsonb_typeof(e.inv
  * Types every member (and kscw.ch) may read regardless of team scope.
  * COALESCE so `NOT ${PUBLIC_TYPE}` is TRUE, not NULL, for a NULL type.
  */
-const PUBLIC_TYPE = `COALESCE(e.event_type, '') IN ('verein', 'tournament')`
+const PUBLIC_TYPE = `COALESCE(e.event_type, '') IN ('club', 'tournament')`
 
-/** The 7 values EventForm can write. No DB CHECK backs them. */
-const KNOWN_TYPES = `('verein', 'social', 'meeting', 'tournament', 'trainingsweekend', 'friendly', 'other')`
+/** The 7 values EventForm can write — events_event_type_values (migration 420) admits them and NULL. */
+const KNOWN_TYPES = `('club', 'social', 'meeting', 'tournament', 'training_weekend', 'friendly', 'other')`
 
 /**
  * Published on kscw.ch / the iCal feed — publicEventsScope (public-events.js)
@@ -584,7 +584,7 @@ SELECT ${EVENT_COLS}, es.sport, e.max_players, t.confirmed_players, t.plus_ones,
     severity: 'warn',
     grain: 'event',
     title: 'Event type or RSVP mode outside the vocabulary the app knows',
-    description: 'Neither column has a DB CHECK. An event_type the form cannot write (or NULL) has no type chip, no public branch and no i18n label; a participation_mode outside whole / per_day / per_session (legacy opt_in, empty string) is skipped by auto-confirm and the absence sweep but not by the sessions logic. Re-save the event with a valid type and mode.',
+    description: 'event_type has a DB CHECK since migration 420 but admits NULL; participation_mode has none. An event_type that is NULL has no type chip, no public branch and no i18n label; a participation_mode outside whole / per_day / per_session (legacy opt_in, empty string) is skipped by auto-confirm and the absence sweep but not by the sessions logic. Re-save the event with a valid type and mode.',
     sql: `
 WITH ${EVENT_SPORT_CTE}
 SELECT ${EVENT_COLS}, es.sport, e.event_type, e.participation_mode,

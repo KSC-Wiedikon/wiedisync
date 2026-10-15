@@ -481,13 +481,13 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
         <div className="flex flex-col gap-1 text-xs">
           <span className="font-medium text-foreground/85">{t('ferienLabel')}</span>
           <Button
-            variant={rule.ferien_hard ? 'default' : 'outline'}
-            aria-pressed={rule.ferien_hard}
+            variant={rule.school_holidays_hard ? 'default' : 'outline'}
+            aria-pressed={rule.school_holidays_hard}
             disabled={disabled}
             className="max-w-sm text-xs"
-            onClick={() => onPatch({ ferien_hard: !rule.ferien_hard })}
+            onClick={() => onPatch({ school_holidays_hard: !rule.school_holidays_hard })}
           >
-            {rule.ferien_hard ? t('ferienHard') : t('ferienSoft')}
+            {rule.school_holidays_hard ? t('ferienHard') : t('ferienSoft')}
           </Button>
           <span className="text-muted-foreground">{t('ferienHint')}</span>
         </div>

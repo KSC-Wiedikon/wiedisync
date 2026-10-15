@@ -28,6 +28,7 @@ import { bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode } from '../../k
 import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endpoints/src/registration-duplicates.js'
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
 import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus, normalizeFeeCategory } from '../../kscw-endpoints/src/member-values.js'
+import { normalizeSchedulingPayload } from '../../kscw-endpoints/src/scheduling-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -5309,7 +5310,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const now = new Date()
       const startYear = seasonStartYear(now)
       const seasonName = `${startYear}/${startYear + 1}`
-      const known = await database('svrz_spielplaner_contacts')
+      const known = await database('svrz_scheduler_contacts')
         .where('season_name', seasonName).whereNotNull('season_uuid').first()
       const seasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'
       const env = {
@@ -6049,6 +6050,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (payload && payload.fee_category) payload.fee_category = normalizeFeeCategory(payload.fee_category) ?? payload.fee_category
     return payload
   })
+
+  // ── Scheduling / events / basketball after migration 420 ───────────────
+  // event_type 'verein'/'trainingsweekend', slot sources 'spielsamstag'/…, the
+  // bb_slot_config keys + statuses and the renamed columns (spielsamstage,
+  // ferien_hard, modus). A cached pre-420 bundle and the kscw-website admin
+  // (events via /kscw/wadmin → ItemsService) still send the old ones.
+  for (const collection of ['events', 'game_scheduling_slots', 'game_scheduling_seasons', 'basketball_team_rules', 'basketball_groups']) {
+    filter(`${collection}.items.create`, (payload) => normalizeSchedulingPayload(collection, payload))
+    filter(`${collection}.items.update`, (payload) => normalizeSchedulingPayload(collection, payload))
+  }
 
   // ── Create or link member from approved registration ───────────
   // Symmetric first-name-prefix match (same rule the ClubDesk linker uses):
@@ -6979,7 +6990,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Directus permission filters on the CREATE action don't evaluate relational
   // conditions against the incoming payload (only scalar fields work, e.g.
   // "source == manual"). The KSCW Spielplaner policy relies on a relational
-  // filter (kscw_team ∈ caller's spielplaner_assignments) which Directus
+  // filter (kscw_team ∈ caller's scheduler_assignments) which Directus
   // silently treats as satisfied at CREATE time. This hook enforces that check
   // server-side for non-admin callers creating manual games.
   //
@@ -7017,7 +7028,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       throw kscwScopeError('Manual game requires kscw_team', 400, 'INVALID_PAYLOAD')
     }
 
-    const assigned = await db('spielplaner_assignments')
+    const assigned = await db('scheduler_assignments')
       .where('member', member.id)
       .andWhere('kscw_team', team)
       .first('id')
@@ -7044,7 +7055,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       .where('user', accountability.user).first('id', 'is_scheduler')
     if (!member) return
     if (member.is_scheduler === true) return // club-wide scope
-    const assignments = (await db('spielplaner_assignments')
+    const assignments = (await db('scheduler_assignments')
       .where('member', member.id).pluck('kscw_team')).filter(v => v != null)
     if (!assignments.length) return // not a spielplaner — policy filters gate
     // Dual-role: a coach/TR keeps their LEADER-policy write on manual games of

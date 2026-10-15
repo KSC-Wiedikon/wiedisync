@@ -48,7 +48,7 @@ function makeDb() {
       }
       if (table === 'teams_coaches') return state.coaches.includes(q.conds.members_id) ? { members_id: q.conds.members_id } : undefined
       if (table === 'teams_responsibles') return undefined
-      if (table === 'spielplaner_assignments') return undefined
+      if (table === 'scheduler_assignments') return undefined
       if (table === 'directus_access') return state.access.includes(q.conds.user) ? { id: 'a1' } : undefined
       return undefined
     }

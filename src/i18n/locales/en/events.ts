@@ -65,7 +65,7 @@ export default {
   social: 'Social',
   meeting: 'Meeting',
   tournament: 'Tournament',
-  trainingsweekend: 'Trainingsweekend',
+  trainingWeekend: 'Trainingsweekend',
   friendly: 'Friendly game',
   other: 'Other',
   respondBy: 'Respond by',

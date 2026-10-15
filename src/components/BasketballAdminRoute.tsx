@@ -7,7 +7,7 @@ import RoleGuard from './RoleGuard'
  * already covers both — OR club-wide Spielplaner members
  * (members.is_spielplaner = true). Same shape as AdminOrSpielplanerRoute: the
  * Spielplaner role is club-wide, not per-sport, so a Spielplaner plans the
- * basketball hall availability too. Per-team spielplaner_assignments alone do
+ * basketball hall availability too. Per-team scheduler_assignments alone do
  * NOT grant access here (same caveat as volleyball).
  *
  * A denied user lands on `/?denied=basketball` so SchedulingHome shows the

@@ -245,7 +245,7 @@ test('runSync still syncs games when the contacts-page GET itself 403s (decouple
   const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
   assert.equal(result.games.created, 1, 'games must still upsert despite a contacts-page GET failure');
   assert.ok(upserted.includes('svrz_games'));
-  assert.ok(!upserted.includes('svrz_spielplaner_contacts'));
+  assert.ok(!upserted.includes('svrz_scheduler_contacts'));
   assert.equal(result.contacts.skipped, true);
   assert.match(result.contacts.error, /403/);
 });
@@ -264,7 +264,7 @@ test('runSync still syncs games when the contacts fetch fails (decoupled)', asyn
   const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
   assert.equal(result.games.created, 1, 'games must still upsert despite a contacts failure');
   assert.ok(upserted.includes('svrz_games'));
-  assert.ok(!upserted.includes('svrz_spielplaner_contacts'), 'contacts must not upsert when its fetch fails');
+  assert.ok(!upserted.includes('svrz_scheduler_contacts'), 'contacts must not upsert when its fetch fails');
   assert.equal(result.contacts.skipped, true);
   assert.match(result.contacts.error, /403/);
 });
@@ -382,7 +382,7 @@ test('fetchTeamResponsibles ignores non-responsible roles and skips KSCW + missi
 
 // ── One summary audit row per run ──────────────────────────────────────
 //
-// The audit hook no longer logs `svrz_games` / `svrz_spielplaner_contacts`
+// The audit hook no longer logs `svrz_games` / `svrz_scheduler_contacts`
 // (SKIP_COLLECTIONS in kscw-hooks/src/audit.js), because `upsertByPersistenceId`
 // PATCHes one row at a time and so produced one audit row per fixture — 388,901
 // of them on prod, 584 MB. `writeSyncSummary` is what replaces that, so these

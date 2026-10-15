@@ -139,7 +139,7 @@ async function main() {
   await check('participations (own)', () => api('GET', `/items/participations?filter[member][_eq]=${memberId}&limit=10`))
   await check('absences (own)', () => api('GET', `/items/absences?filter[member][_eq]=${memberId}&limit=10`))
   await check('notifications (own)', () => api('GET', `/items/notifications?filter[member][_eq]=${memberId}&limit=10`))
-  await check('spielplaner_assignments (own)', () => api('GET', `/items/spielplaner_assignments?filter[member][_eq]=${memberId}&limit=10`))
+  await check('scheduler_assignments (own)', () => api('GET', `/items/scheduler_assignments?filter[member][_eq]=${memberId}&limit=10`))
   // HomePage / Layout reads. A lost read row on any of these silently empties a
   // home surface (the same class as the 2026-06-07 fine_rules incident, where a
   // bad fine_rules.read filter `Invalid query`'d every member's home + roster

@@ -188,11 +188,11 @@ export default {
     website_admin: 'Website admin',
     finance: 'Finance',
     revisor: 'Auditor',
-    verein: 'Club',
+    club: 'Club',
     social: 'Social',
     meeting: 'Meeting',
     tournament: 'Tournament',
-    trainingsweekend: 'Trainingsweekend',
+    training_weekend: 'Trainingsweekend',
     friendly: 'Friendly',
   },
 

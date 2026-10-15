@@ -47,8 +47,9 @@ case "$ENV" in
 esac
 
 # Machine-written collections. Keep this list in sync with migration 336, plus the
-# system collections that migration cannot reach.
-COLLECTIONS="'svrz_games','svrz_spielplaner_contacts','sv_vm_check','public_stats','rankings','user_logs','directus_permissions','directus_flows','directus_operations'"
+# system collections that migration cannot reach. svrz_spielplaner_contacts is the
+# pre-420 name of svrz_scheduler_contacts: revisions keep the name they were written under.
+COLLECTIONS="'svrz_games','svrz_scheduler_contacts','svrz_spielplaner_contacts','sv_vm_check','public_stats','rankings','user_logs','directus_permissions','directus_flows','directus_operations'"
 
 psql() { ssh hetzner "sudo docker exec -i kscw-postgres psql -U supabase_admin -d $DB -v ON_ERROR_STOP=1" ; }
 

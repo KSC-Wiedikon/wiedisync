@@ -91,14 +91,14 @@ const SAME_LINEAGE = (a, b) => `((NULLIF(btrim(${a}.team_id), '') IS NOT NULL AN
 
 /**
  * Club-wide Spielplaner as game-scheduling.js spielplanerCanManageTeam()
- * resolves it: `is_spielplaner` AND *no* spielplaner_assignments rows (an
+ * resolves it: `is_spielplaner` AND *no* scheduler_assignments rows (an
  * assignment turns the flag holder into a SCOPED scheduler limited to the
  * assigned teams), resolved through `members.user`, so a flag on a member
  * without a login owns nothing. Alias members as `m`.
  */
 const CLUB_WIDE_SPIELPLANER = `m.is_scheduler AND m."user" IS NOT NULL AND m.kscw_membership_active
       AND ${REAL_PERSON}
-      AND NOT EXISTS (SELECT 1 FROM spielplaner_assignments sa2 WHERE sa2.member = m.id)`
+      AND NOT EXISTS (SELECT 1 FROM scheduler_assignments sa2 WHERE sa2.member = m.id)`
 
 /** Minimum core roster to field a side — new constants, nothing in the repo defines one. */
 const MIN_ROSTER = `CASE WHEN ${TEAM_SPORT} = 'volleyball' THEN 6 ELSE 5 END`
@@ -525,15 +525,15 @@ ORDER BY t.season DESC, sport, t.name, t.id`,
     severity: 'info',
     grain: 'team',
     title: 'Volleyball team with nobody owning its home-game scheduling',
-    description: 'Home-game scheduling is owned by a per-team spielplaner_assignments row or by a club-wide Spielplaner (members.is_spielplaner with NO assignment rows — an assignment turns the flag holder into a scoped scheduler, spielplanerCanManageTeam). Only members with a login and active membership count. Rows appear when the club has no unrestricted club-wide Spielplaner and the team has no usable assignment. Assign one under Spielplanung.',
+    description: 'Home-game scheduling is owned by a per-team scheduler_assignments row or by a club-wide Spielplaner (members.is_spielplaner with NO assignment rows — an assignment turns the flag holder into a scoped scheduler, spielplanerCanManageTeam). Only members with a login and active membership count. Rows appear when the club has no unrestricted club-wide Spielplaner and the team has no usable assignment. Assign one under Spielplanung.',
     sql: `
 SELECT ${TEAM_COLS}, t.league,
        (SELECT count(*) FROM teams_coaches tc WHERE tc.teams_id = t.id)::int AS coaches,
-       (SELECT count(*) FROM spielplaner_assignments sa WHERE sa.kscw_team = t.id)::int AS assignments,
+       (SELECT count(*) FROM scheduler_assignments sa WHERE sa.kscw_team = t.id)::int AS assignments,
        (SELECT count(*) FROM members m WHERE m.is_scheduler)::int AS spielplaner_flags
 FROM teams t
 WHERE ${ACTIVE_TEAM} AND ${SQUAD_TEAM} AND ${TEAM_SPORT} = 'volleyball'
-  AND NOT EXISTS (SELECT 1 FROM spielplaner_assignments sa
+  AND NOT EXISTS (SELECT 1 FROM scheduler_assignments sa
                   JOIN members m ON m.id = sa.member
                   WHERE sa.kscw_team = t.id AND m."user" IS NOT NULL AND m.kscw_membership_active AND ${REAL_PERSON})
   AND NOT EXISTS (SELECT 1 FROM members m WHERE ${CLUB_WIDE_SPIELPLANER})

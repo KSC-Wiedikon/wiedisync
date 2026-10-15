@@ -49,6 +49,7 @@
 import { READ_PATHS, bpClient, parseTournamentDetail, parseTournamentList, planTournamentRows, syncBpTournaments } from './bp-tournaments.js'
 import { addDays, matchWishes, waitingWishes, zurichHour } from './bb-tournament-wishes.js'
 import { externalAccountsEnabled, EXTERNAL_DISABLED_CODE } from './external-accounts.js'
+import { bbTournamentListStatus } from './scheduling-values.js'
 
 export const FORM_PATH = '/selectTeamForClubRegistration.do'
 export const REGISTER_PATH = '/registerTeamForTournament.do'
@@ -319,7 +320,7 @@ export function createBbTournamentWorker({ database, log, fetchImpl = fetch, env
       if (known.has(t.id)) {
         await database('bb_tournaments').where('id', t.id).update({
           registration_open: isOpen,
-          list_status: t.status ? String(t.status).slice(0, 60) : null,
+          list_status: bbTournamentListStatus(t.status),
           last_seen_at: now,
         })
       } else {

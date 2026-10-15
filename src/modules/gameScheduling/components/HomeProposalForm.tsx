@@ -102,7 +102,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
     //   →  3 Spielsamstag-weekend Sundays  →  4 other Sundays
     const isSun = (s: SlotData) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 0
     const tier = (s: SlotData) =>
-      isSun(s) ? (s.preferred ? 3 : 4) : s.source === 'spielhalle' ? 2 : 1
+      isSun(s) ? (s.preferred ? 3 : 4) : s.source === 'game_hall' ? 2 : 1
     const best = avail.reduce((m, s) => Math.min(m, tier(s)), 5)
     return avail.filter((s) => tier(s) === best)
   }, [slots, activeRow, picks, slotById, availableDays])
@@ -143,7 +143,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   const availableDates = useMemo(() => new Set(byDate.keys()), [byDate])
   const sortedDates = useMemo(() => [...byDate.keys()].sort(), [byDate])
   const spielsamstagDates = useMemo(
-    () => [...new Set(poolSlots.filter((s) => s.source === 'spielsamstag').map((s) => s.date))].sort(),
+    () => [...new Set(poolSlots.filter((s) => s.source === 'game_saturday').map((s) => s.date))].sort(),
     [poolSlots],
   )
   const spielsamstagSet = useMemo(() => new Set(spielsamstagDates), [spielsamstagDates])

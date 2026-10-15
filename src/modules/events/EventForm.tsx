@@ -131,7 +131,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   }, [availableTeams, coachTeamIds, memberTeamIds])
 
   const [title, setTitle] = useState('')
-  const [eventType, setEventType] = useState<Event['event_type']>(effectiveIsAdmin ? 'verein' : 'social')
+  const [eventType, setEventType] = useState<Event['event_type']>(effectiveIsAdmin ? 'club' : 'social')
   // Dates are always kept date-only (YYYY-MM-DD); the clock time lives in
   // startTime/endTime and is only used when the event is not all-day. This lets
   // Start/End render the same branded DatePicker as Respond-by (plus a time
@@ -270,7 +270,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setSignupUrl(event.signup_url ?? '')
     } else {
       setTitle('')
-      setEventType(effectiveIsAdmin ? 'verein' : 'social')
+      setEventType(effectiveIsAdmin ? 'club' : 'social')
       setStartDate('')
       setEndDate('')
       setStartTime('')
@@ -663,11 +663,11 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {effectiveIsAdmin && <SelectItem value="verein">{t('club')}</SelectItem>}
+              {effectiveIsAdmin && <SelectItem value="club">{t('club')}</SelectItem>}
               <SelectItem value="social">{t('social')}</SelectItem>
               <SelectItem value="meeting">{t('meeting')}</SelectItem>
               <SelectItem value="tournament">{t('tournament')}</SelectItem>
-              <SelectItem value="trainingsweekend">{t('trainingsweekend')}</SelectItem>
+              <SelectItem value="training_weekend">{t('trainingWeekend')}</SelectItem>
               <SelectItem value="friendly">{t('friendly')}</SelectItem>
               <SelectItem value="other">{t('other')}</SelectItem>
             </SelectContent>
@@ -950,7 +950,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           </div>
         )}
 
-        {['tournament', 'trainingsweekend', 'friendly'].includes(eventType) && (
+        {['tournament', 'training_weekend', 'friendly'].includes(eventType) && (
           <>
             <div className="grid grid-cols-2 gap-4">
               <FormInput

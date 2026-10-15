@@ -8,7 +8,7 @@ import { Calendar as CalendarIcon, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
-import type { SpielsamstagConfig } from '../../../types'
+import type { GameSaturdayConfig } from '../../../types'
 import { useHalls } from '../../../hooks/useData'
 import { useCollection } from '../../../lib/query'
 import { toDateKey, formatDateLocale } from '../../../utils/dateUtils'
@@ -19,8 +19,8 @@ import { toDateKey, formatDateLocale } from '../../../utils/dateUtils'
 const DEFAULT_TIMES = ['11:00', '13:30', '16:00', '18:30']
 
 interface Props {
-  spielsamstage: SpielsamstagConfig[]
-  onUpdate: (spielsamstage: SpielsamstagConfig[]) => Promise<void>
+  spielsamstage: GameSaturdayConfig[]
+  onUpdate: (spielsamstage: GameSaturdayConfig[]) => Promise<void>
   /** Season string ("YYYY/YYYY") — bounds the picker to Sep 1 → Mar 31. */
   season: string
 }
@@ -114,7 +114,7 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
   const handleSave = async () => {
     setSaving(true)
     try {
-      const payload: SpielsamstagConfig[] = [...dates]
+      const payload: GameSaturdayConfig[] = [...dates]
         .sort()
         .map(date => ({
           date,

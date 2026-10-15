@@ -112,16 +112,16 @@ function makeRes() {
 /** Prod-shaped fixture: club-wide events 10+14, team-scoped 11, member-scoped 13, cancelled 12. */
 const fixtures = () => ({
   events: [
-    { id: 10, title: 'Sommerfest', event_type: 'verein', start_date: '2026-08-01T16:00:00Z', end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
+    { id: 10, title: 'Sommerfest', event_type: 'club', start_date: '2026-08-01T16:00:00Z', end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
     { id: 11, title: 'H3 Turnier', event_type: 'tournament', start_date: '2026-08-08T10:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
-    { id: 12, title: 'Herbstfest', event_type: 'verein', start_date: '2026-09-05T14:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: true, cancel_reason: 'Halle gesperrt', invited_roles: null },
+    { id: 12, title: 'Herbstfest', event_type: 'club', start_date: '2026-09-05T14:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: true, cancel_reason: 'Halle gesperrt', invited_roles: null },
     { id: 13, title: 'Einzeltermin', event_type: 'tournament', start_date: '2026-09-12T09:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
-    { id: 14, title: 'Generalversammlung', event_type: 'verein', start_date: '2026-10-01T18:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
+    { id: 14, title: 'Generalversammlung', event_type: 'club', start_date: '2026-10-01T18:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
     // Unscoped in both junctions, so the OLD query published all three. Each is
     // excluded by exactly one of the rules finding 6 added.
     { id: 15, title: 'Vorstandssitzung', event_type: 'meeting', start_date: '2026-10-05T19:00:00Z', end_date: null, all_day: false, location: 'Klublokal', description: 'Intern', signup_url: null, cancelled: false, cancel_reason: null, invited_roles: null },
-    { id: 16, title: 'Trainerhöck', event_type: 'verein', start_date: '2026-10-09T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: ['coach'] },
-    { id: 17, title: 'Leeres Rollen-Array', event_type: 'verein', start_date: '2026-10-11T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: [] },
+    { id: 16, title: 'Trainerhöck', event_type: 'club', start_date: '2026-10-09T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: ['coach'] },
+    { id: 17, title: 'Leeres Rollen-Array', event_type: 'club', start_date: '2026-10-11T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: [] },
   ],
   // Junction rows as they really looked on prod (EVT-01): NULL-events_id
   // leftovers from before the 021 cascade, next to genuine scoping rows.
@@ -168,7 +168,7 @@ describe('GET /public/events', () => {
 
   it('withholds an invited_roles shape it does not understand (fail-closed)', async () => {
     const f = fixtures()
-    f.events.push({ id: 18, title: 'Objekt statt Array', event_type: 'verein', start_date: '2026-10-20T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: { coach: true } })
+    f.events.push({ id: 18, title: 'Objekt statt Array', event_type: 'club', start_date: '2026-10-20T19:00:00Z', end_date: null, all_day: false, location: null, description: null, signup_url: null, cancelled: false, cancel_reason: null, invited_roles: { coach: true } })
     const res = makeRes()
     await makeHandler(f)({ query: {} }, res)
     expect(res.body.data.map((e) => e.id)).not.toContain(18)
@@ -203,6 +203,13 @@ describe('GET /public/events', () => {
       'all_day', 'description', 'end_date', 'event_type', 'id',
       'location', 'signup_url', 'start_date', 'title',
     ])
+  })
+
+  it('answers event_type in the pre-420 vocabulary the website switches on', async () => {
+    // kscw-website index.astro labels `'verein'` as Club; 'club' would fall to "Other".
+    const res = makeRes()
+    await makeHandler(fixtures())({ query: {} }, res)
+    expect(res.body.data.map((e) => e.event_type)).toEqual(['verein', 'verein', 'verein'])
   })
 
   it('from/limit still narrow the result', async () => {

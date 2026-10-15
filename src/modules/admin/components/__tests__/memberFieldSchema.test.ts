@@ -440,7 +440,7 @@ describe('relation aliases are not fields', () => {
   // ⚠ `coach_of` / `team_responsible_of` (migration 331) reached the amber group
   // on 2026-08-23 rendering a comma-joined list of junction ids ("11,25").
   const ALIASES = [
-    'member_teams', 'game_guests', 'spielplaner_assignments',
+    'member_teams', 'game_guests', 'scheduler_assignments',
     'coach_of', 'team_responsible_of',
   ]
 
@@ -465,7 +465,7 @@ describe('relation aliases are not fields', () => {
       first_name: 'Ada',
       member_teams: [2199],
       game_guests: [],
-      spielplaner_assignments: [],
+      scheduler_assignments: [],
       coach_of: [21],
       team_responsible_of: [11, 25],
       grp_identity: null,

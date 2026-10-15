@@ -38,7 +38,7 @@ function ctx(over = {}) {
   }
   return {
     timeslotByKey,
-    spielsamstagStatus: new Map(),
+    gameSaturdayStatus: new Map(),
     gridsByLeague: PROBASKET_LEAGUE_GRIDS_2026_27,
     blackouts: blackoutsForCanton(PROBASKET_BLACKOUTS_2026_27),
     closedHallsByDate: new Map(),
@@ -65,7 +65,7 @@ function team(over = {}) {
     team: 86,
     league: 'D1LI',
     category: 'seniors',
-    ferien_hard: false,
+    school_holidays_hard: false,
     allowed_dows: [5, 6, 0],
     preferred_dows: [],
     start_min: null,
@@ -310,16 +310,16 @@ describe('hardReject', () => {
     expect(hardReject(cand, t, ctx())).toBeNull()
   })
 
-  it('a sperr blocks every team; a ferien blocks ONLY the ferien_hard ones', () => {
+  it('a sperr blocks every team; a ferien blocks ONLY the school_holidays_hard ones', () => {
     // Herbstferien 05.–11.10.2026 is a 'ferien'. 2026-10-10 is a Saturday inside it.
     const inFerien = { date: '2026-10-10', dow: 6, time: '13:30', hall: HALL_A }
-    expect(hardReject(inFerien, team({ ferien_hard: true }), ctx())).toBe(REJECT_CODES.BLACKOUT_FERIEN)
-    expect(hardReject(inFerien, team({ ferien_hard: false }), ctx())).toBeNull()
+    expect(hardReject(inFerien, team({ school_holidays_hard: true }), ctx())).toBe(REJECT_CODES.BLACKOUT_FERIEN)
+    expect(hardReject(inFerien, team({ school_holidays_hard: false }), ctx())).toBeNull()
 
     // Weihnachtsferien 21.12.26–04.01.27 is a 'sperr'. 2026-12-26 is a Saturday inside it.
     const inSperr = { date: '2026-12-26', dow: 6, time: '13:30', hall: HALL_A }
-    expect(hardReject(inSperr, team({ ferien_hard: false }), ctx())).toBe(REJECT_CODES.BLACKOUT_SPERR)
-    expect(hardReject(inSperr, team({ ferien_hard: true }), ctx())).toBe(REJECT_CODES.BLACKOUT_SPERR)
+    expect(hardReject(inSperr, team({ school_holidays_hard: false }), ctx())).toBe(REJECT_CODES.BLACKOUT_SPERR)
+    expect(hardReject(inSperr, team({ school_holidays_hard: true }), ctx())).toBe(REJECT_CODES.BLACKOUT_SPERR)
   })
 
   it('a club-wide blackout blocks everyone', () => {
@@ -510,12 +510,12 @@ describe('scoreSlot', () => {
     expect(s.reasons).toContainEqual({ code: 'preferred_day', delta: SCORE.PREFERRED_DAY })
   })
 
-  it('ranks the Spielsamstag statuses given > desired > fraglich > bei_bedarf', () => {
+  it('ranks the Spielsamstag statuses given > desired > uncertain > if_needed', () => {
     const score = (status) =>
-      scoreSlot(cand, team(), ctx({ spielsamstagStatus: new Map([[SAT, status]]) })).score
+      scoreSlot(cand, team(), ctx({ gameSaturdayStatus: new Map([[SAT, status]]) })).score
     expect(score('given')).toBeGreaterThan(score('desired'))
-    expect(score('desired')).toBeGreaterThan(score('fraglich'))
-    expect(score('fraglich')).toBeGreaterThan(score('bei_bedarf'))
+    expect(score('desired')).toBeGreaterThan(score('uncertain'))
+    expect(score('uncertain')).toBeGreaterThan(score('if_needed'))
     expect(score('unknown_status')).toBe(scoreSlot(cand, team(), ctx()).score)
   })
 
@@ -560,9 +560,9 @@ describe('scoreSlot', () => {
 
   it('a Ferien week a team is not bound by is a soft penalty, not a rejection', () => {
     const inFerien = { date: '2026-10-10', dow: 6, time: '13:30', hall: HALL_A }
-    const t = team({ ferien_hard: false })
+    const t = team({ school_holidays_hard: false })
     expect(hardReject(inFerien, t, ctx())).toBeNull()
-    expect(scoreSlot(inFerien, t, ctx()).reasons).toContainEqual({ code: 'ferien_soft', delta: SCORE.FERIEN_SOFT })
+    expect(scoreSlot(inFerien, t, ctx()).reasons).toContainEqual({ code: 'school_holidays_soft', delta: SCORE.SCHOOL_HOLIDAYS_SOFT })
   })
 
   it('caps the volleyball-busy-day penalty', () => {
@@ -572,7 +572,7 @@ describe('scoreSlot', () => {
   })
 
   it('score always equals the sum of its reasons', () => {
-    const c = ctx({ spielsamstagStatus: new Map([[SAT, 'given']]) })
+    const c = ctx({ gameSaturdayStatus: new Map([[SAT, 'given']]) })
     const r = scoreSlot(cand, team({ preferred_dows: [6] }), c)
     expect(r.score).toBe(r.reasons.reduce((s, x) => s + x.delta, 0))
   })

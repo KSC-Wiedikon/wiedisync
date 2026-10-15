@@ -110,8 +110,8 @@ async function login(page) {
  * The category label is LOCALE-DEPENDENT — the same session that renders
  * players as "Senior"/"U 14" renders officials as "Ufficiale" (seen live
  * 2026-07-27; the memory of "Offizielle/r" was a German session) — so the
- * officials variants are normalized to the 'Offizielle/r' the members
- * taxonomy (migration 208) uses, and "U8"/"U 8" spacing is unified.
+ * officials variants are normalized to the slug 'official' (migration 415; the members
+ * taxonomy of migration 208 spelled it 'Offizielle/r'), and "U8"/"U 8" spacing is unified.
  * Returns Map<personId, {nr, category}>.
  */
 async function harvestLicenceList(page) {
