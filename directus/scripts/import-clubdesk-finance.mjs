@@ -17,10 +17,17 @@
  *   3. finance_accounts — upsert the Kontenplan (distinct Soll/Haben), type from
  *      number range (1 asset / 2 liability+equity / 3 income / 4 expense / 9 close),
  *      division (vb/bb/club) from the account name.
+ *   3c. Vocabulary guard — every ClubDesk invoice Status and booking Typ must
+ *      have a clubdesk_value_map row (migration 419: the mirror stores English
+ *      slugs, and a CHECK refuses anything else). An unknown one aborts BEFORE
+ *      the mirror is touched; an unknown Zahlungsart only warns (kept verbatim).
  *   4. finance_transactions — DELETE source='clubdesk' then re-insert the ledger,
- *      resolving debit/credit account FKs by number + fiscal_year by date.
+ *      resolving debit/credit account FKs by number + fiscal_year by date;
+ *      Typ → entry_type slug (cd_to_app 'booking_type').
  *   5. finance_invoices — DELETE source='clubdesk' then re-insert, matching member
- *      by email (recipient E-Mail → members.email), fiscal_year by date.
+ *      by email (recipient E-Mail → members.email), fiscal_year by date;
+ *      Status → slug ('invoice_status'), Mahnstatus '2. Mahnung' → dunning_level 2,
+ *      Zahlungsart → slug ('payment_method') when known.
  *   5b. Re-apply finance_invoice_member_overrides (migration 129) so treasurer
  *      member-links survive the delete+reinsert.
  *   5b2. Re-point finance_payments.clubdesk_guess (migration 254) from the
@@ -114,6 +121,13 @@ function datetime(v) {
   const m = clean(v).match(/^(\d{2})\.(\d{2})\.(\d{4})(?:[ ,]+(\d{2}):(\d{2}))?/)
   if (!m) return null
   return `${m[3]}-${m[2]}-${m[1]}` + (m[4] ? ` ${m[4]}:${m[5]}` : ' 00:00')
+}
+/** ClubDesk Mahnstatus ('1. Mahnung') → dunning level; '' → 0. Twin of
+ *  finance-values.js dunningLevelFromText (this script runs in a bare node
+ *  container and cannot import the extension source). */
+function dunningLevel(v) {
+  const m = clean(v).match(/(\d+)/)
+  return m ? Number(m[1]) : 0
 }
 function accountType(number) {
   const d = clean(number)[0]
@@ -214,13 +228,39 @@ const invoiceValues = invRows.map(r => {
   // cd_contact_id (migration 288) — see the dedupe note above.
   return `(${sql(clean(v('Nummer')))}, ${sql(clean(v('Nummer')) || null)}, ${sql(date(v('Rechnungsdatum')))}, ` +
     `${sql(clean(v('Betreff')))}, ${sql(amount(v('Betrag')))}, ${sql(clean(v('Status')))}, ` +
-    `${sql(clean(v('Mahnstatus')))}, ${sql(date(v('Fällig am')))}, ${sql(amount(v('Betrag Bezahlt')))}, ` +
+    `${dunningLevel(v('Mahnstatus'))}, ${sql(date(v('Fällig am')))}, ${sql(amount(v('Betrag Bezahlt')))}, ` +
     `${sql(amount(v('Offener Betrag')))}, ${sql(amount(v('Überbezahlt Betrag')))}, ${sql(amount(v('Abgeschrieben Betrag')))}, ` +
     `${sql(clean(v('Zahlungsart')))}, ${sql(clean(v('Referenznummer')))}, ${sql(clean(v('Beitragskategorie')))}, ` +
     `${sql(date(v('Abgeschlossen am')))}, ${sql(datetime(v('Erstellt am')))}, ${sql(datetime(v('Geändert am')))}, ` +
     `${sql(clean(v('Empfänger')))}, ${sql(recipientEmail(clean(v('E-Mail'))))}, ${sql(clean(v('Benutzer-Id')))}, ` +
     `${sql(clean(v('[Id]')))})`
 }).join(',\n  ')
+
+// ClubDesk wording seen in this export, for the step-3c vocabulary guard.
+const distinct = (csv, rows, name) => [...new Set(rows.map((r) => clean(g(csv, r, name))).filter(Boolean))].sort()
+const textArray = (vals) => `ARRAY[${vals.map(sql).join(', ')}]::text[]`
+const vocabularyGuard = `
+-- 3c. Vocabulary guard (migration 419): the mirror stores slugs, so every
+-- ClubDesk Status / Typ needs a clubdesk_value_map row. Abort before the
+-- mirror is touched; add the row and re-run. Zahlungsart only warns.
+DO $$ DECLARE bad text; BEGIN
+  SELECT string_agg(x, ', ' ORDER BY x) INTO bad FROM unnest(${textArray(distinct(inv, invRows, 'Status'))}) x
+   WHERE cd_to_app('invoice_status', x) IS NULL;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'ClubDesk invoice status % has no clubdesk_value_map row (domain invoice_status) — not replacing the mirror', bad;
+  END IF;
+  SELECT string_agg(x, ', ' ORDER BY x) INTO bad FROM unnest(${textArray(distinct(bk, bk.rows, 'Typ'))}) x
+   WHERE cd_to_app('booking_type', x) IS NULL;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'ClubDesk booking type % has no clubdesk_value_map row (domain booking_type) — not replacing the mirror', bad;
+  END IF;
+  SELECT string_agg(x, ', ' ORDER BY x) INTO bad FROM unnest(${textArray(distinct(inv, invRows, 'Zahlungsart'))}) x
+   WHERE cd_to_app('payment_method', x) IS NULL;
+  IF bad IS NOT NULL THEN
+    RAISE WARNING 'ClubDesk payment method % has no clubdesk_value_map row (domain payment_method) — imported verbatim', bad;
+  END IF;
+END $$;
+`
 
 const accountValues = [...accounts.entries()].map(([num, nm]) =>
   `(${sql(num)}, ${sql(nm)}, ${sql(accountType(num))}, ${sql(accountDivision(nm))})`).join(',\n  ')
@@ -305,14 +345,14 @@ FROM (VALUES
   ${accountValues}
 ) AS v(number, name, type, division)
 ON CONFLICT (number) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type, division = EXCLUDED.division;
-${shrinkGuard}
+${shrinkGuard}${vocabularyGuard}
 -- 4. ledger (full refresh of the clubdesk mirror)
 DELETE FROM finance_transactions WHERE source = 'clubdesk';
 INSERT INTO finance_transactions
-  (clubdesk_id, typ, beleg, booking_date, text,
+  (clubdesk_id, entry_type, voucher_no, booking_date, text,
    debit_account_number, debit_account_name, credit_account_number, credit_account_name,
    debit_account, credit_account, amount_chf, fiscal_year, import_batch, source)
-SELECT v.clubdesk_id, v.typ, v.beleg, v.booking_date::date, v.text,
+SELECT v.clubdesk_id, cd_to_app('booking_type', v.typ), v.beleg, v.booking_date::date, v.text,
    v.dno, v.dname, v.cno, v.cname,
    (SELECT id FROM finance_accounts WHERE number = v.dno),
    (SELECT id FROM finance_accounts WHERE number = v.cno),
@@ -326,18 +366,21 @@ FROM (VALUES
 -- 5. invoices (full refresh of the clubdesk mirror; member matched by email)
 DELETE FROM finance_invoices WHERE source = 'clubdesk';
 INSERT INTO finance_invoices
-  (clubdesk_id, number, invoice_date, subject, amount, status, dunning_status, due_date,
+  (clubdesk_id, number, invoice_date, subject, amount, status, dunning_level, due_date,
    amount_paid, open_amount, overpaid_amount, written_off_amount, payment_method, reference,
    fee_category, closed_on, cd_created_at, cd_changed_at, recipient_name, recipient_email,
-   cd_benutzer_id, cd_contact_id, member, fiscal_year, import_batch, source)
-SELECT v.clubdesk_id, v.number, v.invoice_date::date, v.subject, v.amount::numeric(12,2), v.status,
-   v.dunning_status, v.due_date::date, v.amount_paid::numeric(12,2), v.open_amount::numeric(12,2),
-   v.overpaid::numeric(12,2), v.written_off::numeric(12,2), v.payment_method, v.reference,
+   cd_user_id, cd_contact_id, member, fiscal_year, import_batch, source)
+SELECT v.clubdesk_id, v.number, v.invoice_date::date, v.subject, v.amount::numeric(12,2),
+   -- Slugs since migration 419 (step 3c refused any unmapped status).
+   cd_to_app('invoice_status', v.status),
+   v.dunning_level::smallint, v.due_date::date, v.amount_paid::numeric(12,2), v.open_amount::numeric(12,2),
+   v.overpaid::numeric(12,2), v.written_off::numeric(12,2),
+   COALESCE(cd_to_app('payment_method', v.payment_method), v.payment_method), v.reference,
    -- Slug since migration 417 when the label is known; an unknown label is kept.
    COALESCE(cd_to_app('fee_category', v.fee_category), v.fee_category), v.closed_on::date,
    (v.cd_created::timestamp AT TIME ZONE 'Europe/Zurich'),
    (v.cd_changed::timestamp AT TIME ZONE 'Europe/Zurich'),
-   v.recipient_name, v.recipient_email, v.cd_benutzer_id, v.cd_contact_id,
+   v.recipient_name, v.recipient_email, v.cd_user_id, v.cd_contact_id,
    -- Match the member by email, else by the recipient's ClubDesk contact id
    -- (migration 288). The id fallback catches the invoices whose recipient has no
    -- e-mail in ClubDesk — a large share of the rows the [Id] dedupe used to drop.
@@ -348,9 +391,9 @@ SELECT v.clubdesk_id, v.number, v.invoice_date::date, v.subject, v.amount::numer
    :invoices_imp, 'clubdesk'
 FROM (VALUES
   ${invoiceValues}
-) AS v(clubdesk_id, number, invoice_date, subject, amount, status, dunning_status, due_date,
+) AS v(clubdesk_id, number, invoice_date, subject, amount, status, dunning_level, due_date,
        amount_paid, open_amount, overpaid, written_off, payment_method, reference, fee_category,
-       closed_on, cd_created, cd_changed, recipient_name, recipient_email, cd_benutzer_id,
+       closed_on, cd_created, cd_changed, recipient_name, recipient_email, cd_user_id,
        cd_contact_id);
 
 -- 5b. Re-apply treasurer member-link overrides (migration 129). The delete+
@@ -416,7 +459,7 @@ END $$;
 -- balance they saw — would come back as an open bill the next morning.
 --
 -- Settled invoices are dropped from the side table FIRST: once ClubDesk says
--- 'Bezahlt' (or the open amount is gone) the mirror is the truth and the row no
+-- 'Bezahlt' / slug 'paid' (or the open amount is gone) the mirror is the truth and the row no
 -- longer needs a self-report to explain itself. Guarded so the import still
 -- works before migration 297 ships.
 DO $$ BEGIN
@@ -424,8 +467,7 @@ DO $$ BEGIN
     DELETE FROM finance_invoice_self_reports s
       USING finance_invoices fi
       WHERE fi.source = 'clubdesk' AND fi.clubdesk_id = s.match_clubdesk_id
-        AND (lower(btrim(coalesce(fi.status, ''))) = 'bezahlt'
-             OR lower(btrim(coalesce(fi.status, ''))) LIKE 'storn%'
+        AND (fi.status IN ('paid', 'cancelled')
              OR coalesce(fi.open_amount, fi.amount, 0) <= 0);
     UPDATE finance_invoices fi SET
         reported_paid_at = s.reported_at,
@@ -439,7 +481,7 @@ END $$;
 -- 5c. Phase 2: auto-confirm native invoices whose ClubDesk counterpart is paid.
 -- ClubDesk is the source of truth for payment. A native invoice carries a number
 -- (N-YYYY-NNNN) the treasurer reuses as the ClubDesk invoice Nummer or
--- Referenznummer; when that ClubDesk row imports as settled (Status 'Bezahlt' or
+-- Referenznummer; when that ClubDesk row imports as settled (Status 'Bezahlt' → 'paid', or
 -- open_amount 0), flip the native invoice pending_confirmation/open -> paid
 -- (confirmed_via='sync'). Match STRICTLY on number — never amount alone, which
 -- would risk confirming the wrong invoice. Unmatched native invoices stay
@@ -459,7 +501,7 @@ DO $$ BEGIN
     JOIN finance_invoices cd ON cd.source = 'clubdesk' AND (n.number = cd.number OR n.number = cd.reference)
     WHERE n.source = 'native' AND n.status IN ('pending_confirmation', 'open')
       AND nullif(btrim(n.number), '') IS NOT NULL
-      AND (lower(btrim(coalesce(cd.status, ''))) = 'bezahlt' OR coalesce(cd.open_amount, cd.amount, 0) <= 0)
+      AND (cd.status = 'paid' OR coalesce(cd.open_amount, cd.amount, 0) <= 0)
       AND NOT EXISTS (SELECT 1 FROM finance_payments p WHERE p.invoice = n.id AND p.method = 'sync');
   END IF;
 END $$;
@@ -474,7 +516,7 @@ WHERE n.source = 'native'
   AND nullif(btrim(n.number), '') IS NOT NULL
   AND cd.source = 'clubdesk'
   AND (n.number = cd.number OR n.number = cd.reference)
-  AND (lower(btrim(coalesce(cd.status, ''))) = 'bezahlt' OR coalesce(cd.open_amount, cd.amount, 0) <= 0);
+  AND (cd.status = 'paid' OR coalesce(cd.open_amount, cd.amount, 0) <= 0);
 
 COMMIT;
 

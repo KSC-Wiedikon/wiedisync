@@ -128,7 +128,7 @@ export default function BankTab({ fiscalYearId }: { fiscalYearId?: string | numb
         <span className="text-xs text-muted-foreground">{l.proposed_account_number ? `${l.proposed_account_number} ${l.proposed_account_name}` : t('bkNoProposal')}{proposalChip(l)}</span>
       )
     ) : l.status === 'posted' ? (
-      <span className="text-xs text-muted-foreground"><span className="text-foreground">{l.entry_beleg}</span> · {l.entry_debit} → {l.entry_credit}</span>
+      <span className="text-xs text-muted-foreground"><span className="text-foreground">{l.entry_voucher_no}</span> · {l.entry_debit} → {l.entry_credit}</span>
     ) : (
       <span className="text-xs italic text-muted-foreground">{t('bkIgnored')}{l.note ? `: ${l.note}` : ''}</span>
     )

@@ -20,6 +20,7 @@ import type { Member, Team } from '../../types'
 import { memberDisplayName } from '../../utils/relations'
 import PaymentLedgerModal from './PaymentLedgerModal'
 import { normalizeFeeCategory } from '@member-values'
+import { invoiceStatusToClubdesk } from '@finance-values'
 
 /** Searchable single-member picker (mirrors MemberMultiSelect's dropdown). */
 function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m: Member | null) => void }) {
@@ -436,19 +437,27 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
     try { await fn(id); await refetch() } finally { setBusyId(null) }
   }
 
-  const statusLabel = (s: string | null) => {
-    const map: Record<string, string> = {
-      open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), partial: t('statusPartial'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
-      // ClubDesk mirror rows carry the German status verbatim from the export.
-      Gestellt: t('statusIssued'), Bezahlt: t('statusPaid'), Storniert: t('statusCancelled'),
-      Abgeschrieben: t('statusWrittenOff'), 'Bezahlt (teilw. abgeschrieben)': t('statusPaidPartlyWrittenOff'),
+  const statusLabel = (inv: FinanceInvoice) => {
+    const s = inv.status ?? ''
+    if (isNativeInvoice(inv)) {
+      const native: Record<string, string> = {
+        open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), partial: t('statusPartial'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
+      }
+      return native[s] ?? (s || '–')
     }
-    return map[s ?? ''] ?? s ?? '–'
+    // ClubDesk mirror rows: the same slugs since migration 419, labelled as
+    // ClubDesk words them ('Gestellt' = issued, not "open"); a state without a
+    // translation shows ClubDesk's own word, as before.
+    const mirror: Record<string, string> = {
+      open: t('statusIssued'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
+      written_off: t('statusWrittenOff'), paid_partially_written_off: t('statusPaidPartlyWrittenOff'),
+    }
+    return mirror[s] ?? (invoiceStatusToClubdesk(s) || '–')
   }
 
   /**
    * Who created the invoice. Native rows carry the author; ClubDesk's export has
-   * no author column at all (cd_benutzer_id is the *recipient's* ClubDesk login),
+   * no author column at all (cd_user_id is the *recipient's* ClubDesk login),
    * so a mirror row can only honestly say "ClubDesk".
    */
   const createdBy = (inv: FinanceInvoice) =>
@@ -541,12 +550,12 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                           {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
                           {!nativeRow && !inv.member && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('notLinked')}</span>}
                           {/* Phones: number and status under the name — their columns are hidden. */}
-                          <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{inv.number || '–'} · {statusLabel(inv.status)}</span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{inv.number || '–'} · {statusLabel(inv)}</span>
                         </TableCell>
                         <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject}</TableCell>
                         <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
                         <TableCell className="text-right tabular-nums text-foreground whitespace-nowrap">{formatChf(inv.amount)}</TableCell>
-                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{statusLabel(inv.status)}</TableCell>
+                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{statusLabel(inv)}</TableCell>
                         <TableCell className="hidden lg:table-cell whitespace-normal break-words text-xs">
                           <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${nativeRow
                             ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'

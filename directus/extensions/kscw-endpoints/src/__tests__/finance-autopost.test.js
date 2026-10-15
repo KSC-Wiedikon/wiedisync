@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { planSettlementLegs } from '../finance-autopost.js'
 
 // Account ids for the test chart.
-const ACC = { debitoren: 1, bank: 2, income: 3, prepay: 4, badDebt: 5 }
+const ACC = { receivables: 1, bank: 2, income: 3, prepay: 4, badDebt: 5 }
 // Normalize -0 → 0 so `.toBe(0)` (Object.is) doesn't trip on IEEE negative zero.
 const round2 = (n) => { const r = Math.round((Number(n) || 0) * 100) / 100; return r === 0 ? 0 : r }
 const pay = (id, amount, entry_type = 'payment') => ({ id, amount, entry_type, date: '2026-07-01' })
@@ -16,7 +16,7 @@ const pay = (id, amount, entry_type = 'payment') => ({ id, amount, entry_type, d
 function balances(total, legs, accounts = ACC) {
   const bal = {}
   const add = (acct, amt) => { if (acct != null) bal[acct] = round2((bal[acct] || 0) + amt) }
-  add(accounts.debitoren, total)
+  add(accounts.receivables, total)
   add(accounts.income, -total)
   for (const l of legs) { add(l.debit, l.amount); add(l.credit, -l.amount) }
   return bal
@@ -31,7 +31,7 @@ function assertReconciled(total, payments, accounts = ACC) {
   expect(sumAll(bal)).toBe(0)
   // Debitoren (A/R control) == the residual open receivable — the core invariant
   // the 2026-07-02 audit found broken on the refund path.
-  expect(round2(bal[accounts.debitoren] || 0)).toBe(round2(open))
+  expect(round2(bal[accounts.receivables] || 0)).toBe(round2(open))
   // Prepayment liability == the running prepaid excess (when a prepay account is set).
   if (accounts.prepay) expect(round2(-(bal[accounts.prepay] || 0))).toBe(round2(prepaid))
   return { legs, open, prepaid, bal }
@@ -42,13 +42,13 @@ describe('planSettlementLegs — ledger reconciles to the sub-ledger', () => {
     const { open, bal } = assertReconciled(100, [pay(1, 100)])
     expect(open).toBe(0)
     expect(bal[ACC.bank]).toBe(100) // cash received
-    expect(bal[ACC.debitoren]).toBeFalsy()
+    expect(bal[ACC.receivables]).toBeFalsy()
   })
 
   it('partial payment leaves the remainder open', () => {
     const { open, bal } = assertReconciled(100, [pay(1, 40)])
     expect(open).toBe(60)
-    expect(bal[ACC.debitoren]).toBe(60)
+    expect(bal[ACC.receivables]).toBe(60)
     expect(bal[ACC.bank]).toBe(40)
   })
 
@@ -66,7 +66,7 @@ describe('planSettlementLegs — ledger reconciles to the sub-ledger', () => {
     const { open, prepaid, bal } = assertReconciled(100, [pay(1, 150), pay(2, 50, 'refund')])
     expect(open).toBe(0)
     expect(prepaid).toBe(0)
-    expect(bal[ACC.debitoren]).toBeFalsy() // NOT 50
+    expect(bal[ACC.receivables]).toBeFalsy() // NOT 50
     expect(round2(-(bal[ACC.prepay] || 0))).toBe(0)
     expect(bal[ACC.bank]).toBe(100) // 150 in − 50 out
   })
@@ -77,14 +77,14 @@ describe('planSettlementLegs — ledger reconciles to the sub-ledger', () => {
     const acc = { ...ACC, prepay: null }
     const { open, bal } = assertReconciled(100, [pay(1, 150), pay(2, 50, 'refund')], acc)
     expect(open).toBe(0)
-    expect(bal[ACC.debitoren]).toBeFalsy()
+    expect(bal[ACC.receivables]).toBeFalsy()
     expect(bal[ACC.bank]).toBe(100)
   })
 
   it('refund of an actual payment re-opens the receivable', () => {
     const { open, bal } = assertReconciled(100, [pay(1, 100), pay(2, 30, 'refund')])
     expect(open).toBe(30)
-    expect(bal[ACC.debitoren]).toBe(30)
+    expect(bal[ACC.receivables]).toBe(30)
     expect(bal[ACC.bank]).toBe(70) // 100 in − 30 out
   })
 
@@ -109,7 +109,7 @@ describe('planSettlementLegs — ledger reconciles to the sub-ledger', () => {
   it('1-rappen short-pay is cleared via a rounding leg', () => {
     const { legs, open, bal } = assertReconciled(100, [pay(1, 99.99)])
     expect(open).toBe(0)
-    expect(bal[ACC.debitoren]).toBeFalsy()
+    expect(bal[ACC.receivables]).toBeFalsy()
     expect(legs.some((l) => l.kind === 'round')).toBe(true)
   })
 

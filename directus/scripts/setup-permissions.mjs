@@ -1119,7 +1119,7 @@ const PUBLIC_NEWS_FIELDS = [
  */
 const MEMBER_INVOICE_FIELDS = [
   'id', 'number', 'invoice_date', 'subject', 'amount', 'status',
-  'dunning_status', 'due_date', 'amount_paid', 'open_amount',
+  'dunning_level', 'due_date', 'amount_paid', 'open_amount',
   'overpaid_amount', 'written_off_amount', 'payment_method', 'reference',
   'fee_category', 'closed_on', 'member',
 ]

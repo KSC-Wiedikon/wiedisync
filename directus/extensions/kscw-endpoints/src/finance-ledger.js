@@ -115,8 +115,8 @@ export function registerFinanceLedger(router, { database, logger }) {
       // ?book=native|clubdesk picks one explicitly (the parallel run shows both).
       let q = database('finance_transactions').whereIn('source', await ledgerSources(fyId, req.query.book))
         .orderBy([{ column: 'booking_date', order: 'desc' }, { column: 'id', order: 'desc' }])
-        .select('id', 'beleg', 'booking_date', 'text', 'debit_account', 'debit_account_number', 'debit_account_name',
-          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name', 'source', 'ref_kind', 'ref_id')
+        .select('id', 'voucher_no', 'booking_date', 'text', 'debit_account', 'debit_account_number', 'debit_account_name',
+          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'entry_type', 'reversal_of', 'created_by_name', 'source', 'ref_kind', 'ref_id')
       if (Number.isInteger(fyId)) q = q.where('fiscal_year', fyId)
       return res.json({ entries: await q.limit(2000) })
     } catch (e) { return err(res, req, 'entries', e) }
@@ -144,15 +144,15 @@ export function registerFinanceLedger(router, { database, logger }) {
 
       const seqRow = await database.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
       const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
-      const beleg = `J-${bookingDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
+      const voucherNo = `J-${bookingDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
       const ins = await database('finance_transactions').insert({
-        source: 'native', typ: 'Standard', beleg, booking_date: bookingDate, text,
+        source: 'native', entry_type: 'standard', voucher_no: voucherNo, booking_date: bookingDate, text,
         debit_account: debitId, debit_account_number: dr.number, debit_account_name: dr.name,
         credit_account: creditId, credit_account_number: cr.number, credit_account_name: cr.name,
         amount_chf: amount, fiscal_year: fy.id, created_by_name: a.name, created_by_email: a.email,
       }).returning('*')
       const row = ins[0]
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_entry', beleg, debit: dr.number, credit: cr.number, amount } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_entry', voucher_no: voucherNo, debit: dr.number, credit: cr.number, amount } })
       return res.json({ entry: row })
     } catch (e) { return err(res, req, 'entry-create', e) }
   })
@@ -170,20 +170,20 @@ export function registerFinanceLedger(router, { database, logger }) {
       // the trial balance still ties). Reject reversing a reversal, or an entry
       // that already has one. Migration 165 adds a partial UNIQUE(reversal_of)
       // backstop for the concurrent-request race.
-      if (o.typ === 'Storno' || o.reversal_of != null) return res.status(409).json({ error: 'Cannot reverse a reversal entry' })
+      if (o.entry_type === 'reversal' || o.reversal_of != null) return res.status(409).json({ error: 'Cannot reverse a reversal entry' })
       const already = await database('finance_transactions').where({ reversal_of: o.id, source: 'native' }).first('id')
       if (already) return res.status(409).json({ error: 'Entry already reversed' })
       const bookingDate = todayISO()
       const seqRow = await database.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
       const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
-      const beleg = `J-${bookingDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
+      const voucherNo = `J-${bookingDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
       // Reversal swaps debit ⇄ credit, same amount. Wrap the insert so a
       // concurrent double-reverse that loses the migration-165 UNIQUE(reversal_of)
       // race returns 409 (not a 500) — the read-check above is not race-proof.
       let ins
       try {
         ins = await database('finance_transactions').insert({
-          source: 'native', typ: 'Storno', beleg, booking_date: bookingDate, text: `Storno: ${o.text || o.beleg || ''}`.slice(0, 250),
+          source: 'native', entry_type: 'reversal', voucher_no: voucherNo, booking_date: bookingDate, text: `Storno: ${o.text || o.voucher_no || ''}`.slice(0, 250),
           debit_account: o.credit_account, debit_account_number: o.credit_account_number, debit_account_name: o.credit_account_name,
           credit_account: o.debit_account, credit_account_number: o.debit_account_number, credit_account_name: o.debit_account_name,
           amount_chf: o.amount_chf, fiscal_year: o.fiscal_year, reversal_of: o.id, created_by_name: a.name, created_by_email: a.email,
@@ -196,7 +196,7 @@ export function registerFinanceLedger(router, { database, logger }) {
       // A reversed bank posting gives its statement line back, so it can be booked again.
       await database('finance_bank_lines').where('entry', o.id)
         .update({ status: 'open', entry: null, posted_by_name: null, posted_by_email: null, posted_at: null })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_reversal', reversal_of: o.id, beleg } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_reversal', reversal_of: o.id, voucher_no: voucherNo } })
       return res.json({ entry: row })
     } catch (e) { return err(res, req, 'entry-reverse', e) }
   })
@@ -295,7 +295,7 @@ export function registerFinanceLedger(router, { database, logger }) {
         const nextFy = await trx('finance_fiscal_years').where('starts_on', '>', fy.ends_on).orderBy('starts_on').first('id', 'label', 'starts_on', 'status')
         if (!nextFy) return { code: 400, msg: 'Create the next fiscal year before closing this one' }
         if (nextFy.status === 'closed') return { code: 409, msg: 'The next fiscal year is already closed — cannot carry opening balances into it' }
-        const existingOpen = await trx('finance_transactions').where({ source: 'native', fiscal_year: nextFy.id, typ: 'Eroeffnung' }).first('id')
+        const existingOpen = await trx('finance_transactions').where({ source: 'native', fiscal_year: nextFy.id, entry_type: 'opening' }).first('id')
         if (existingOpen) return { code: 409, msg: 'The next fiscal year already has opening (Eröffnung) entries' }
 
         const txns = await trx('finance_transactions').where('source', 'native').andWhere('fiscal_year', id).select('debit_account', 'credit_account', 'amount_chf')
@@ -323,16 +323,16 @@ export function registerFinanceLedger(router, { database, logger }) {
         }
         if (dryRun) return { dryRun: true, summary }
 
-        const mkBeleg = async (prefix, dateISO) => {
+        const mkVoucherNo = async (prefix, dateISO) => {
           const r = await trx.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
           const n = (r.rows ? r.rows[0] : r[0]).n
           return `${prefix}-${dateISO.slice(0, 4)}-${String(n).padStart(4, '0')}`
         }
-        const insLegs = async (legs, fyId, typ, dateISO, prefix, text) => {
+        const insLegs = async (legs, fyId, entryType, dateISO, prefix, text) => {
           for (const l of legs) {
             const dr = acctById.get(Number(l.debit)), cr = acctById.get(Number(l.credit))
             await trx('finance_transactions').insert({
-              source: 'native', typ, booking_date: dateISO, fiscal_year: fyId, beleg: await mkBeleg(prefix, dateISO), text,
+              source: 'native', entry_type: entryType, booking_date: dateISO, fiscal_year: fyId, voucher_no: await mkVoucherNo(prefix, dateISO), text,
               debit_account: Number(l.debit), debit_account_number: dr?.number || null, debit_account_name: dr?.name || null,
               credit_account: Number(l.credit), credit_account_number: cr?.number || null, credit_account_name: cr?.name || null,
               amount_chf: round2(l.amount), created_by_name: a.name, created_by_email: a.email,
@@ -341,8 +341,8 @@ export function registerFinanceLedger(router, { database, logger }) {
         }
         // Abschluss legs go into the year being closed WHILE it's still open (the INSERT
         // trigger only blocks once status flips), then the status flip locks them.
-        await insLegs(plan.closing, id, 'Abschluss', isoDate(fy.ends_on), 'A', `Abschluss ${fy.label || id}`)
-        await insLegs(plan.opening, nextFy.id, 'Eroeffnung', isoDate(nextFy.starts_on), 'E', `Eröffnung ${nextFy.label || nextFy.id}`)
+        await insLegs(plan.closing, id, 'closing', isoDate(fy.ends_on), 'A', `Abschluss ${fy.label || id}`)
+        await insLegs(plan.opening, nextFy.id, 'opening', isoDate(nextFy.starts_on), 'E', `Eröffnung ${nextFy.label || nextFy.id}`)
         await trx('finance_fiscal_years').where('id', id).update({ status: 'closed', closed_on: todayISO(), closed_by_name: a.name, closed_by_email: a.email })
         return { summary }
       })
@@ -355,7 +355,7 @@ export function registerFinanceLedger(router, { database, logger }) {
   })
 
   // ── Auto-posting: settings, chart mirror, reconcile ─────────────────────
-  const SETTINGS_ACCT_FIELDS = ['debitoren_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account', 'prepayment_account']
+  const SETTINGS_ACCT_FIELDS = ['receivables_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account', 'prepayment_account']
   // Infer an account type from the Swiss Verein chart number range when ClubDesk left it null.
   // 28xx + 29xx → equity, matching import-clubdesk-finance.mjs accountType() so the
   // seed-chart fallback and the importer can't disagree (e.g. close picker eligibility).
@@ -372,7 +372,9 @@ export function registerFinanceLedger(router, { database, logger }) {
   router.patch('/finance/ledger/settings', async (req, res) => {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
-      const b = req.body || {}
+      const b = { ...(req.body || {}) }
+      // A bundle cached before migration 419 still sends debitoren_account.
+      if (b.receivables_account === undefined && b.debitoren_account !== undefined) b.receivables_account = b.debitoren_account
       const patch = { date_updated: new Date(), updated_by_name: a.name }
       patch.autopost_enabled = b.autopost_enabled === true
       // Validate every supplied account id exists; allow null to unset.
@@ -383,7 +385,7 @@ export function registerFinanceLedger(router, { database, logger }) {
         if (!known.has(Number(b[f]))) return res.status(400).json({ error: `${f}: account not found` })
         patch[f] = Number(b[f])
       }
-      if (patch.autopost_enabled && (!patch.debitoren_account || !patch.bank_account || !patch.income_account))
+      if (patch.autopost_enabled && (!patch.receivables_account || !patch.bank_account || !patch.income_account))
         return res.status(400).json({ error: 'Debitoren, Bank and Income accounts must be set before enabling auto-posting' })
       await database('finance_ledger_settings').where('id', 1).update(patch)
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_ledger_settings', recordId: 1, data: { kind: 'ledger_settings', autopost_enabled: patch.autopost_enabled } })
@@ -421,7 +423,7 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const settings = await loadLedgerSettings(database)
-      if (!settings.debitoren_account || !settings.bank_account || !settings.income_account)
+      if (!settings.receivables_account || !settings.bank_account || !settings.income_account)
         return res.status(400).json({ error: 'Map the Debitoren, Bank and Income accounts in settings first' })
       const fiscalYear = Number(req.body?.fiscal_year) || null
       const summary = await reconcileAllLedger(database, settings, { fiscalYear })

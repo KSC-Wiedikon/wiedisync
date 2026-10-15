@@ -8,6 +8,7 @@ export default defineConfig({
       '@bb-docs': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/bb-docs.js'),
       '@registration-values': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
       '@member-values': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/member-values.js'),
+      '@finance-values': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/finance-values.js'),
     },
   },
   test: {

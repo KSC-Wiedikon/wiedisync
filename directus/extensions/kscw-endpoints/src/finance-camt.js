@@ -45,7 +45,7 @@ export function registerFinanceCamt(router, { database, logger }) {
   async function fuzzyClubdesk(c) {
     const rows = await database('finance_invoices').where('source', 'clubdesk')
       .andWhere((qb) => qb.where('amount', c.amount).orWhere('open_amount', c.amount))
-      .whereNotIn('status', ['Storniert', 'Abgeschrieben'])
+      .whereNotIn('status', ['cancelled', 'written_off'])
       .orderByRaw('CASE WHEN open_amount > 0 THEN 0 ELSE 1 END')
       .limit(30).select('id', 'clubdesk_id', 'number', 'recipient_name', 'amount', 'open_amount', 'status')
     if (!rows.length) return null

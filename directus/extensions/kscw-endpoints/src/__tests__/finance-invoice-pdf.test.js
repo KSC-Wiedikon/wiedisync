@@ -58,7 +58,7 @@ describe('invoiceLines', () => {
 })
 
 describe('debtorFrom', () => {
-  const full = { recipient_name: 'A B', recipient_address: 'Weg 1', recipient_zip: '8003', recipient_city: 'Zürich' }
+  const full = { recipient_name: 'A B', recipient_address: 'Weg 1', recipient_postal_code: '8003', recipient_city: 'Zürich' }
 
   it('names the payer when the address is complete', () => {
     expect(debtorFrom(full)).toEqual({ name: 'A B', address: 'Weg 1', zip: '8003', city: 'Zürich', country: 'CH' })
@@ -67,7 +67,7 @@ describe('debtorFrom', () => {
   it('returns null on ANY missing part — swissqrbill throws on a partial debtor', () => {
     // A throw here means the member gets an email promising an attachment that
     // is not attached, which is how the Mahnung path already misbehaves.
-    for (const k of ['recipient_name', 'recipient_address', 'recipient_zip', 'recipient_city']) {
+    for (const k of ['recipient_name', 'recipient_address', 'recipient_postal_code', 'recipient_city']) {
       expect(debtorFrom({ ...full, [k]: null })).toBeNull()
       expect(debtorFrom({ ...full, [k]: '   ' })).toBeNull()
     }
@@ -112,7 +112,7 @@ describe('INVOICE_PDF_COLUMNS ↔ the dues-run SELECT', () => {
   })
 
   it('includes the six columns whose absence produced a blank invoice', () => {
-    for (const col of ['lines', 'invoice_date', 'due_date', 'recipient_address', 'recipient_zip', 'recipient_city']) {
+    for (const col of ['lines', 'invoice_date', 'due_date', 'recipient_address', 'recipient_postal_code', 'recipient_city']) {
       expect(INVOICE_PDF_COLUMNS).toContain(col)
     }
   })

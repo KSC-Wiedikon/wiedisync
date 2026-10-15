@@ -10,6 +10,7 @@ import {
   normalizeClubSection, clubSectionToClubdesk, normalizeRegisterStatus, registerStatusToClubdesk, DEPARTED_REGISTER_STATUSES,
   normalizeFeeCategory, feeCategoryLabel, feeCategorySport,
 } from './member-values.js'
+import { invoiceStatusToClubdesk } from './finance-values.js'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
@@ -4608,7 +4609,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     for (const r of rows) {
       out.set(String(r.member), {
         date: r.invoice_date || null,
-        status: r.status || null,
+        // Mirror rows store slugs since migration 419; the bill column keeps
+        // showing ClubDesk's wording ('Bezahlt'), native rows their slug as before.
+        status: (r.source === 'clubdesk' ? invoiceStatusToClubdesk(r.status) : r.status) || null,
         amount: r.amount === null || r.amount === undefined ? null : Number(r.amount),
         open: r.open_amount === null || r.open_amount === undefined ? null : Number(r.open_amount),
         source: r.source || null,

@@ -70,7 +70,7 @@ export function invoiceLines({ lines, amount, subject }) {
 export function debtorFrom(inv) {
   const name = String(inv?.recipient_name ?? '').trim()
   const address = String(inv?.recipient_address ?? '').trim()
-  const zip = String(inv?.recipient_zip ?? '').trim()
+  const zip = String(inv?.recipient_postal_code ?? '').trim()
   const city = String(inv?.recipient_city ?? '').trim()
   if (!name || !address || !zip || !city) return null
   return { name, address, zip, city, country: 'CH' }
@@ -100,7 +100,7 @@ export const INVOICE_PDF_COLUMNS = [
   'lines',
   'invoice_date', 'due_date',
   'reference', 'reference_type',
-  'recipient_name', 'recipient_address', 'recipient_zip', 'recipient_city',
+  'recipient_name', 'recipient_address', 'recipient_postal_code', 'recipient_city',
 ]
 
 export function renderInvoicePdf(inv) {
@@ -124,7 +124,7 @@ export function renderInvoicePdf(inv) {
       const addr = [
         inv.recipient_name,
         inv.recipient_address,
-        [inv.recipient_zip, inv.recipient_city].filter(Boolean).join(' '),
+        [inv.recipient_postal_code, inv.recipient_city].filter(Boolean).join(' '),
       ].filter((s) => s && String(s).trim())
       doc.fontSize(11).fillColor('#000')
       addr.forEach((l, i) => doc.text(String(l), 120 * MM, (47 + i * 5) * MM, { width: 70 * MM }))

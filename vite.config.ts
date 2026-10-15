@@ -55,6 +55,7 @@ export default defineConfig({
       // same arrangement as @bb-docs. Types: registration-values.d.ts.
       '@registration-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
       '@member-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/member-values.js'),
+      '@finance-values': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/finance-values.js'),
     },
   },
   server: {

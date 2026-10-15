@@ -8,8 +8,9 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { toNum, formatChf, isPayableInvoice, isReportedPaid, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import InvoiceQrBill from './InvoiceQrBill'
+import { invoiceStatusToClubdesk } from '@finance-values'
 
-/** Status pill: native invoices use the lifecycle labels; ClubDesk rows show the raw status. */
+/** Status pill: native invoices use the lifecycle labels; ClubDesk rows show ClubDesk's own wording. */
 export function StatusBadge({ inv }: { inv: FinanceInvoice }) {
   const { t } = useTranslation('finance')
   const base = 'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium'
@@ -34,7 +35,7 @@ export function StatusBadge({ inv }: { inv: FinanceInvoice }) {
   const payable = isPayableInvoice(inv)
   return (
     <span className={`${base} ${payable ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'}`}>
-      {inv.status}
+      {invoiceStatusToClubdesk(inv.status)}
     </span>
   )
 }

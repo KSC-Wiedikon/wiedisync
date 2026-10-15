@@ -12,7 +12,8 @@
       "@/*": ["./src/*"],
       "@bb-docs": ["./directus/extensions/kscw-endpoints/src/bb-docs"],
       "@registration-values": ["./directus/extensions/kscw-endpoints/src/registration-values"],
-      "@member-values": ["./directus/extensions/kscw-endpoints/src/member-values"]
+      "@member-values": ["./directus/extensions/kscw-endpoints/src/member-values"],
+      "@finance-values": ["./directus/extensions/kscw-endpoints/src/finance-values"]
     },
 
     /* Bundler mode */

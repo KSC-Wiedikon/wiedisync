@@ -62,7 +62,7 @@ export default function AccountLedger({ account, transactions, nameByNum }: {
               <TableCell className="whitespace-normal break-words text-foreground/85">
                 <span className="block text-xs text-muted-foreground sm:hidden">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</span>
                 {r.tx.text || '–'}
-                {r.tx.beleg && <span className="ml-1 text-xs text-muted-foreground/80">({r.tx.beleg})</span>}
+                {r.tx.voucher_no && <span className="ml-1 text-xs text-muted-foreground/80">({r.tx.voucher_no})</span>}
                 <span className="mt-0.5 block text-xs text-muted-foreground/80 md:hidden">{r.gegen} {nameByNum.get(r.gegen ?? '') ?? ''}</span>
               </TableCell>
               <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">

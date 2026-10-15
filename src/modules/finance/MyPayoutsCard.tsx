@@ -37,7 +37,7 @@ export default function MyPayoutsCard() {
     try {
       await downloadQrBillPdf({
         account: cleanIban(p.iban), name: p.payee_name || '', address: p.payee_address,
-        zip: (p.payee_zip ?? '') as string, city: (p.payee_ort ?? '') as string,
+        zip: (p.payee_postal_code ?? '') as string, city: (p.payee_city ?? '') as string,
         amount: p.amount != null ? Number(p.amount) : undefined, message: p.message,
         title: t('payoutPdfTitle'), filename: 'reimbursement.pdf',
       })

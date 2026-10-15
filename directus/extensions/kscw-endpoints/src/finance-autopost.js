@@ -38,8 +38,8 @@ export const FISCAL_YEAR_LOCK_NS = 20260703
  * caller posts each returned leg idempotently. Also returns the final `open`
  * receivable and `prepaid` excess for assertions.
  *
- *   accounts: { debitoren, bank, income, prepay, badDebt } — account ids;
- *             prepay/badDebt may be null (fall back to debitoren/income).
+ *   accounts: { receivables, bank, income, prepay, badDebt } — account ids;
+ *             prepay/badDebt may be null (fall back to receivables/income).
  *   payments: [{ id, amount, entry_type, date }] in ('asc') order.
  */
 export function planSettlementLegs({ total, payments, invoiceId, issueDate, accounts }) {
@@ -58,8 +58,8 @@ export function planSettlementLegs({ total, payments, invoiceId, issueDate, acco
       sawPayment = true
       const applied = round2(Math.min(amt, Math.max(0, open))); const excess = round2(amt - applied)
       open = round2(open - applied); prepaid = round2(prepaid + excess)
-      push('settle', accounts.bank, accounts.debitoren, applied, 'payment')
-      push('settle_over', accounts.bank, accounts.prepay || accounts.debitoren, excess, 'overpayment')
+      push('settle', accounts.bank, accounts.receivables, applied, 'payment')
+      push('settle_over', accounts.bank, accounts.prepay || accounts.receivables, excess, 'overpayment')
     } else if (et === 'refund') {
       // Draw prepaid excess down FIRST (Debit Prepayment / Credit Bank), then
       // re-open the receivable for the part that was settled by real payments
@@ -72,8 +72,8 @@ export function planSettlementLegs({ total, payments, invoiceId, issueDate, acco
       const reopened = round2(Math.min(round2(amt - fromPrepay), Math.max(0, round2(total - open)))); open = round2(open + reopened)
       const overRefund = round2(amt - fromPrepay - reopened) // beyond prepaid + receivable room
       prepaid = round2(prepaid - overRefund)
-      push('settle_over', accounts.prepay || accounts.debitoren, accounts.bank, round2(fromPrepay + overRefund), 'refund')
-      push('settle', accounts.debitoren, accounts.bank, reopened, 'refund')
+      push('settle_over', accounts.prepay || accounts.receivables, accounts.bank, round2(fromPrepay + overRefund), 'refund')
+      push('settle', accounts.receivables, accounts.bank, reopened, 'refund')
     } else if (et === 'credit_note') {
       // Reduce the open receivable by what's still open (Debit Income / Credit Debitoren).
       // Any excess beyond the open bill is money the club now owes back (the invoice was
@@ -82,23 +82,23 @@ export function planSettlementLegs({ total, payments, invoiceId, issueDate, acco
       // the full non-cash amount toward coverage/overpaid (#18, 2026-07-03 review).
       const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
       const excess = round2(amt - applied); prepaid = round2(prepaid + excess)
-      push('settle', accounts.income, accounts.debitoren, applied, 'credit note')
-      push('settle_over', accounts.income, accounts.prepay || accounts.debitoren, excess, 'credit note')
+      push('settle', accounts.income, accounts.receivables, applied, 'credit note')
+      push('settle_over', accounts.income, accounts.prepay || accounts.receivables, excess, 'credit note')
     } else if (et === 'writeoff') {
       // Same as credit_note but the debit is the bad-debt expense. Excess beyond the open
       // bill → prepayment, so the write-off's full amount hits the GL and agrees with
       // deriveSettlement's non-cash coverage (#18, 2026-07-03 review).
       const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
       const excess = round2(amt - applied); prepaid = round2(prepaid + excess)
-      push('settle', accounts.badDebt, accounts.debitoren, applied, 'write-off')
-      push('settle_over', accounts.badDebt, accounts.prepay || accounts.debitoren, excess, 'write-off')
+      push('settle', accounts.badDebt, accounts.receivables, applied, 'write-off')
+      push('settle_over', accounts.badDebt, accounts.prepay || accounts.receivables, excess, 'write-off')
     }
   }
   // Rounding residual (#23): forgive a ≤1-rappen short-pay to match deriveSettlement.
   if (open > 0 && open <= 0.01 && sawPayment) {
     const roundAcct = accounts.badDebt || accounts.income
     if (roundAcct != null) {
-      legs.push({ kind: 'round', refId: invoiceId, debit: roundAcct, credit: accounts.debitoren, amount: open, label: 'Rundung', date: issueDate })
+      legs.push({ kind: 'round', refId: invoiceId, debit: roundAcct, credit: accounts.receivables, amount: open, label: 'Rundung', date: issueDate })
       open = 0
     }
   }
@@ -144,9 +144,9 @@ async function postAutoEntry(db, { kind, refId, dateISO, text, debitId, creditId
   if (!dr || !cr) return { skipped: 'account-missing' }
   const r = await db.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
   const n = (r.rows ? r.rows[0] : r[0]).n
-  const beleg = `AP-${dateISO.slice(0, 4)}-${String(n).padStart(4, '0')}`
+  const voucherNo = `AP-${dateISO.slice(0, 4)}-${String(n).padStart(4, '0')}`
   const ins = await db('finance_transactions').insert({
-    source: 'native', typ: 'Standard', auto: true, ref_kind: kind, ref_id: refId, beleg, booking_date: dateISO, fiscal_year: fy.id,
+    source: 'native', entry_type: 'standard', auto: true, ref_kind: kind, ref_id: refId, voucher_no: voucherNo, booking_date: dateISO, fiscal_year: fy.id,
     text: (text || '').slice(0, 250),
     debit_account: Number(debitId), debit_account_number: dr.number, debit_account_name: dr.name,
     credit_account: Number(creditId), credit_account_number: cr.number, credit_account_name: cr.name,
@@ -190,7 +190,7 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
     // 1. Issue posting — create, or self-heal the amount if the invoice changed.
     const existingIssue = await trx('finance_transactions').where({ source: 'native', auto: true, ref_kind: 'issue', ref_id: inv.id }).first('id', 'amount_chf', 'fiscal_year')
     if (!existingIssue) {
-      results.push(await postAutoEntry(trx, { kind: 'issue', refId: inv.id, dateISO: issueDate, text: `Rechnung ${inv.number || inv.id}`, debitId: settings.debitoren_account, creditId: incomeAcct, amount: total, acctById }))
+      results.push(await postAutoEntry(trx, { kind: 'issue', refId: inv.id, dateISO: issueDate, text: `Rechnung ${inv.number || inv.id}`, debitId: settings.receivables_account, creditId: incomeAcct, amount: total, acctById }))
     } else if (round2(existingIssue.amount_chf) !== total) {
       const fy = await trx('finance_fiscal_years').where('id', existingIssue.fiscal_year).first('status')
       if (fy?.status !== 'closed') { await trx('finance_transactions').where('id', existingIssue.id).update({ amount_chf: total, date_updated: new Date() }); results.push({ healed: existingIssue.id, to: total }) }
@@ -214,7 +214,7 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
     const paysForPlan = pays.map((p) => ({ id: p.id, amount: p.amount, entry_type: p.entry_type, date: isoDate(p.payment_date || inv.invoice_date || inv.date_created) }))
     const { legs } = planSettlementLegs({
       total, payments: paysForPlan, invoiceId: inv.id, issueDate,
-      accounts: { debitoren: settings.debitoren_account, bank: settings.bank_account, income: incomeAcct, prepay, badDebt: settings.bad_debt_account },
+      accounts: { receivables: settings.receivables_account, bank: settings.bank_account, income: incomeAcct, prepay, badDebt: settings.bad_debt_account },
     })
     for (const leg of legs) {
       results.push(await postAutoEntry(trx, { kind: leg.kind, refId: leg.refId, dateISO: leg.date, text: `${leg.label} ${inv.number || inv.id}`, debitId: leg.debit, creditId: leg.credit, amount: leg.amount, acctById }))

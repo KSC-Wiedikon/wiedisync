@@ -110,9 +110,10 @@ describe('opening balance', () => {
 
 describe('receipts and readiness', () => {
   it('exempts close and Storno entries from needing a receipt', () => {
-    expect(needsReceipt({ typ: 'Standard' })).toBe(true)
-    expect(needsReceipt({ typ: 'Eroeffnung' })).toBe(false)
-    expect(needsReceipt({ typ: 'Storno' })).toBe(false)
+    expect(needsReceipt({ entry_type: 'standard' })).toBe(true)
+    expect(needsReceipt({ entry_type: 'opening' })).toBe(false)
+    expect(needsReceipt({ entry_type: 'closing' })).toBe(false)
+    expect(needsReceipt({ entry_type: 'reversal' })).toBe(false)
   })
   it('is ready only when every check passes', () => {
     const facts = {

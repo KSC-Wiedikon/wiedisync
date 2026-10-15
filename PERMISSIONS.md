@@ -211,7 +211,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | forms | `FORMS_VISIBLE` — `status _in {open, closed}` AND (`audience = club_wide` OR an attached **active** team I'm a member of — `active` since 2026-09-28, F44). Frontend resolves visibility via the two-step junction fetch (`useUserVisibleFormIds`); the policy walk of `forms.teams` is why the frontend must NOT also deep-filter it (M2M-deep-filter + policy-walk silent-`[]` landmine) | `*` | **086 / 087** |
 | forms_teams | none | `*` — junction read for the forms M2M | **086 / 087** |
 | form_submissions | `member.user = $CURRENT_USER` (own only) | `*` | **086 / 087** |
-| finance_invoices | `member.user = $CURRENT_USER` (own dues only) | `MEMBER_INVOICE_FIELDS` (16 dues cols + `member`; no `source`/`import_batch`/`cd_*`/`recipient_*` mirror plumbing) | **114** |
+| finance_invoices | `member.user = $CURRENT_USER` (own dues only) | `MEMBER_INVOICE_FIELDS` (16 dues cols + `member`; no `source`/`import_batch`/`cd_*`/`recipient_*` mirror plumbing; `dunning_level` replaced the dropped `dunning_status` in 419) | **114**, 419 |
 | finance_expenses | `OWN_MEMBER` (own submissions only) | `*` | **177** — read-only; submit via `POST /kscw/expenses/submit`, status/detail writes via finance-gated `PATCH /kscw/expenses/:id` |
 
 ### Reads (intentionally cross-club)

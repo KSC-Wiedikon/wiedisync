@@ -24,7 +24,7 @@ export interface BankLine {
   proposed_by: string | null
   matched_invoice_number: string | null
   entry: number | null
-  entry_beleg: string | null
+  entry_voucher_no: string | null
   entry_debit: string | null
   entry_credit: string | null
   note: string | null
@@ -137,7 +137,7 @@ export function useBankLines(status: BankLineStatus | 'all', fiscalYearId: strin
 export const importStatement = (xml: string) =>
   kscwApi<StatementImportResult>('/finance/bank/import', { method: 'POST', body: { xml } })
 export const postBankLine = (id: number, input: { account?: number; text?: string } = {}) =>
-  kscwApi<{ entry: { id: number; beleg: string } }>(`/finance/bank/lines/${id}/post`, { method: 'POST', body: input })
+  kscwApi<{ entry: { id: number; voucher_no: string } }>(`/finance/bank/lines/${id}/post`, { method: 'POST', body: input })
 export const postProposedLines = (ids?: number[]) =>
   kscwApi<{ posted: number; failed: Array<{ id: number; error: string }> }>('/finance/bank/post-proposed', { method: 'POST', body: ids ? { ids } : {} })
 export const ignoreBankLine = (id: number, note: string) =>

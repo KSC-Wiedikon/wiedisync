@@ -29,6 +29,7 @@ import { isValidIban, normalizeIban } from '../../utils/iban'
 import MemberPayoutQrBill from './MemberPayoutQrBill'
 import type { FinanceInvoice } from './types'
 import { feeCategoryLabel } from '@member-values'
+import { invoiceStatusToClubdesk } from '@finance-values'
 
 const MAX_DOC_MB = 15
 
@@ -78,12 +79,14 @@ function useStatusPill() {
       if (s === 'cancelled') return { label: t('statusCancelled'), cls: gray }
       return { label: s || '—', cls: gray }
     }
-    const s = (inv.status ?? '').toLowerCase()
-    if (s.includes('bezahl')) return { label: inv.status || t('statusPaid'), cls: green }
-    if (s.includes('mahn')) return { label: inv.status || '—', cls: red }
-    if (s.includes('storn') || s.includes('abgeschr')) return { label: inv.status || '—', cls: gray }
-    if (isOpenInvoice(inv)) return { label: inv.status || t('statusOpen'), cls: amber }
-    return { label: inv.status || '—', cls: gray }
+    // Mirror rows store slugs since migration 419 but keep ClubDesk's wording here.
+    const label = invoiceStatusToClubdesk(inv.status)
+    const s = label.toLowerCase()
+    if (s.includes('bezahl')) return { label: label || t('statusPaid'), cls: green }
+    if (s.includes('mahn')) return { label: label || '—', cls: red }
+    if (s.includes('storn') || s.includes('abgeschr')) return { label: label || '—', cls: gray }
+    if (isOpenInvoice(inv)) return { label: label || t('statusOpen'), cls: amber }
+    return { label: label || '—', cls: gray }
   }
 }
 

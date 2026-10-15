@@ -21,9 +21,9 @@ const bkFixture = join(tmpdir(), `clubdesk-finance-bk-${process.pid}.csv`);
 // ClubDesk id, not an invoice id. Deduping on it dropped 63% of the register
 // (see migration 288) — these two rows must both survive.
 const invBytes = Buffer.from([
-  '[Id];Nummer;Rechnungsdatum;Betreff;Betrag;Status;Empfänger;E-Mail',
-  'CD-1;R-1;01.07.2025;Beitrag;210;Bezahlt;Petra Müller;petra@example.ch',
-  'CD-1;R-2;01.07.2026;Beitrag;230;Gestellt;Petra Müller;petra@example.ch',
+  '[Id];Nummer;Rechnungsdatum;Betreff;Betrag;Status;Mahnstatus;Zahlungsart;Empfänger;E-Mail',
+  'CD-1;R-1;01.07.2025;Beitrag;210;Bezahlt;;QR-Rechnung ohne Referenz;Petra Müller;petra@example.ch',
+  'CD-1;R-2;01.07.2026;Beitrag;230;Gestellt;2. Mahnung;QR-Rechnung ohne Referenz;Petra Müller;petra@example.ch',
 ].join('\r\n') + '\r\n', 'latin1');
 const bkBytes = Buffer.from([
   'Datum;Soll (Nummer);Soll (Bezeichnung);Haben (Nummer);Haben (Bezeichnung);Betrag (CHF);Typ;Beleg;Text;ID',
@@ -113,4 +113,29 @@ test('--allow-shrink drops the guard (deliberate rebuild)', () => {
   assert.equal(r2.status, 0, r2.stderr);
   assert.ok(!r2.stdout.includes('-- 3b. Shrink guard'), 'guard still emitted with --allow-shrink');
   assert.ok(r2.stdout.includes("DELETE FROM finance_transactions WHERE source = 'clubdesk';"));
+});
+
+test('mirror values land as slugs (migration 419) behind a vocabulary guard', () => {
+  const guard = sql.indexOf('-- 3c. Vocabulary guard');
+  const deleteBookings = sql.indexOf("DELETE FROM finance_transactions WHERE source = 'clubdesk';");
+  assert.ok(guard > 0 && guard < deleteBookings, 'vocabulary guard missing or after the mirror DELETE');
+  const block = sql.slice(guard, deleteBookings);
+  assert.ok(block.includes("ARRAY['Bezahlt', 'Gestellt']::text[]"), 'export statuses not checked');
+  assert.ok(block.includes("ARRAY['Standard']::text[]"), 'export booking types not checked');
+  assert.ok(/RAISE EXCEPTION 'ClubDesk invoice status/.test(block), 'unknown status must abort');
+  assert.ok(/RAISE WARNING 'ClubDesk payment method/.test(block), 'unknown payment method only warns');
+  const ledger = sql.slice(sql.indexOf('-- 4. ledger'), sql.indexOf('-- 5. invoices'));
+  assert.ok(ledger.includes("cd_to_app('booking_type', v.typ)"), 'Typ not translated');
+  assert.ok(ledger.includes('entry_type, voucher_no'), 'English ledger columns not written');
+  const invoices = sql.slice(sql.indexOf('-- 5. invoices'), sql.indexOf('-- 5b.'));
+  assert.ok(invoices.includes("cd_to_app('invoice_status', v.status)"), 'Status not translated');
+  assert.ok(invoices.includes("cd_to_app('payment_method', v.payment_method)"), 'Zahlungsart not translated');
+  assert.ok(invoices.includes('cd_user_id'), 'cd_user_id not written');
+  assert.ok(!invoices.includes('dunning_status'), 'dropped column still written');
+  // Mahnstatus '2. Mahnung' → level 2, an empty one → 0.
+  assert.ok(/'Gestellt', 2, /.test(invoices), 'Mahnstatus not parsed into dunning_level');
+  assert.ok(/'Bezahlt', 0, /.test(invoices), 'empty Mahnstatus is not level 0');
+  // Settled tests use the slugs, not the German words.
+  assert.ok(!/'bezahlt'|'storn%'/.test(sql), 'German status test left in the emitted SQL');
+  assert.ok(sql.includes("fi.status IN ('paid', 'cancelled')"), 'self-report cleanup not on slugs');
 });

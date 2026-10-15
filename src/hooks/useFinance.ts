@@ -170,7 +170,7 @@ export const importCamt = (xml: string) =>
 // NOTE: FinanceInvoice.team_name is NOT a column — /finance/my-invoices computes it
 // (t.name AS team_name); requesting it here 403s the whole items-API query.
 const INVOICE_FIELDS = [
-  'id', 'clubdesk_id', 'number', 'invoice_date', 'subject', 'amount', 'status', 'dunning_status',
+  'id', 'clubdesk_id', 'number', 'invoice_date', 'subject', 'amount', 'status', 'dunning_level',
   'due_date', 'amount_paid', 'open_amount', 'overpaid_amount', 'written_off_amount', 'payment_method',
   'reference', 'fee_category', 'closed_on', 'recipient_name', 'recipient_email', 'member', 'fiscal_year',
   'source', 'reference_type', 'team', 'reported_paid_at', 'reported_paid_method',
@@ -181,7 +181,7 @@ const INVOICE_FIELDS = [
   'created_by_name', 'created_by_email', 'date_created', 'cd_created_at',
 ]
 const TRANSACTION_FIELDS = [
-  'id', 'clubdesk_id', 'typ', 'beleg', 'booking_date', 'text', 'debit_account_number', 'debit_account_name',
+  'id', 'clubdesk_id', 'entry_type', 'voucher_no', 'booking_date', 'text', 'debit_account_number', 'debit_account_name',
   'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year',
 ]
 const ACCOUNT_FIELDS = ['id', 'number', 'name', 'type', 'division', 'active']
@@ -327,13 +327,13 @@ export interface FinancePayout {
   iban?: string | null
   payee_name?: string | null
   payee_address?: string | null
-  payee_zip?: string | null
-  payee_ort?: string | null
+  payee_postal_code?: string | null
+  payee_city?: string | null
   status?: string | null
   created_by_name?: string | null
   date_created?: string | null
 }
-const PAYOUT_FIELDS = ['id', 'member', 'amount', 'currency', 'message', 'iban', 'payee_name', 'payee_address', 'payee_zip', 'payee_ort', 'status', 'created_by_name', 'date_created']
+const PAYOUT_FIELDS = ['id', 'member', 'amount', 'currency', 'message', 'iban', 'payee_name', 'payee_address', 'payee_postal_code', 'payee_city', 'status', 'created_by_name', 'date_created']
 
 /** Pay-outs for one member (finance/board — explorer). */
 export function useMemberPayouts(memberId: string | number | null | undefined, enabled = true) {
@@ -496,8 +496,7 @@ export function isOpenInvoice(inv: FinanceInvoice): boolean {
     const s = inv.status ?? ''
     return s !== 'paid' && s !== 'cancelled' && toNum(inv.open_amount) > 0
   }
-  const status = (inv.status ?? '').toLowerCase()
-  if (status.includes('storn') || status.includes('cancel')) return false
+  if (inv.status === 'cancelled') return false
   return toNum(inv.open_amount) > 0
 }
 
@@ -915,8 +914,8 @@ export interface BillingContact {
   name: string
   email: string | null
   address: string | null
-  plz: string | null
-  ort: string | null
+  postal_code: string | null
+  city: string | null
   billing_iban: string | null
   notes: string | null
 }
@@ -936,10 +935,10 @@ export const deleteBillingContact = (id: number) =>
 
 // ── Native ledger (book of record) ──────────────────────────────────────
 export interface LedgerAccount { id: number; number: string; name: string; type: string | null; division: string | null; active: boolean; source: string }
-export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null; source: string; ref_kind?: string | null; ref_id?: number | null }
+export interface LedgerEntry { id: number; voucher_no: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; entry_type: string | null; reversal_of: number | null; created_by_name: string | null; source: string; ref_kind?: string | null; ref_id?: number | null }
 export interface TrialBalanceRow { account: number; number: string; name: string; type: string | null; division: string | null; nominal: boolean; debit: number; credit: number; balance: number }
 export interface LedgerFiscalYear { id: number; label: string | null; starts_on: string; ends_on: string; status: string; closed_on: string | null; closed_by_name: string | null }
-export interface LedgerSettings { id: number; autopost_enabled: boolean; debitoren_account: number | null; bank_account: number | null; income_account: number | null; sponsoring_account: number | null; bad_debt_account: number | null; expense_account: number | null; prepayment_account: number | null }
+export interface LedgerSettings { id: number; autopost_enabled: boolean; receivables_account: number | null; bank_account: number | null; income_account: number | null; sponsoring_account: number | null; bad_debt_account: number | null; expense_account: number | null; prepayment_account: number | null }
 export const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close'] as const
 
 export function useLedgerAccounts(enabled = true, all = false) {

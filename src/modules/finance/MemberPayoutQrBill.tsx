@@ -77,7 +77,7 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
     try {
       await createRecord('finance_payouts', {
         member: member.id, amount, currency: 'CHF', message: message.trim() || null,
-        iban, payee_name: name, payee_address: street || null, payee_zip: zip || null, payee_ort: city || null,
+        iban, payee_name: name, payee_address: street || null, payee_postal_code: zip || null, payee_city: city || null,
         created_by_name: [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || null,
         created_by_email: user?.email ?? null,
       })
@@ -100,7 +100,7 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
     try {
       await downloadQrBillPdf({
         account: cleanIban(p.iban), name: p.payee_name || memberName, address: p.payee_address,
-        zip: (p.payee_zip ?? '') as string, city: (p.payee_ort ?? '') as string,
+        zip: (p.payee_postal_code ?? '') as string, city: (p.payee_city ?? '') as string,
         amount: p.amount != null ? Number(p.amount) : undefined, message: p.message,
         title: `${t('payoutPdfTitle')} — ${p.payee_name || memberName}`,
         filename: `payout-${(p.payee_name || memberName).replace(/\s+/g, '-')}.pdf`,

@@ -11,8 +11,11 @@ export interface FinanceInvoice {
   invoice_date: string | null
   subject: string | null
   amount: Money
+  /** Status slug (migration 419): the native lifecycle, plus ClubDesk-only
+   *  paid_partially_written_off / written_off / draft on mirror rows. Display
+   *  ClubDesk's wording for mirror rows via invoiceStatusToClubdesk (@finance-values). */
   status: string | null
-  dunning_status: string | null
+  dunning_level?: number | null
   due_date: string | null
   amount_paid: Money
   open_amount: Money
@@ -58,8 +61,9 @@ export type NativeStatus = 'open' | 'pending_confirmation' | 'paid' | 'cancelled
 export interface FinanceTransaction {
   id: string
   clubdesk_id: string | null
-  typ: string | null
-  beleg: string | null
+  /** Booking-type slug (migration 419) — label via entryTypeLabel (@finance-values). */
+  entry_type: string | null
+  voucher_no: string | null
   booking_date: string
   text: string | null
   debit_account_number: string | null

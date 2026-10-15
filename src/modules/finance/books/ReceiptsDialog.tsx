@@ -22,7 +22,7 @@ const KINDS: EntryDocument['kind'][] = ['receipt', 'invoice', 'contract', 'other
 const selectCls = 'h-11 rounded-lg border border-input bg-card px-3 text-sm sm:h-9 dark:bg-gray-800 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export default function ReceiptsDialog({ entry, closedYear, onClose }: {
-  entry: { id: number; beleg: string | null; text: string | null } | null
+  entry: { id: number; voucher_no: string | null; text: string | null } | null
   closedYear?: boolean
   onClose: () => void
 }) {
@@ -59,7 +59,7 @@ export default function ReceiptsDialog({ entry, closedYear, onClose }: {
 
   const kindLabel = (k: EntryDocument['kind']) => t(`bkKind_${k}`)
   return (
-    <Modal open={!!entry} onClose={onClose} title={`${t('bkReceipts')} · ${entry?.beleg ?? ''}`} size="lg">
+    <Modal open={!!entry} onClose={onClose} title={`${t('bkReceipts')} · ${entry?.voucher_no ?? ''}`} size="lg">
       <div className="space-y-4">
         {entry?.text && <p className="text-sm text-muted-foreground">{entry.text}</p>}
         {isLoading ? (

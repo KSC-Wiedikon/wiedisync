@@ -54,6 +54,7 @@ import { feeBreakdown, guestMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS,
 // What a FREE member's membership would have cost — printed, never billed.
 import { pickRate, isExemptCategory, referenceBase } from './finance-dues-reference.js'
 import { normalizeFeeCategory, feeCategoryLabel } from './member-values.js'
+import { invoiceStatusToClubdesk } from './finance-values.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -273,7 +274,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
    *  email / address, no import plumbing. */
   const MEMBER_FACING_INVOICE_COLS = [
     'fi.id', 'fi.clubdesk_id', 'fi.number', 'fi.invoice_date', 'fi.subject', 'fi.amount',
-    'fi.status', 'fi.dunning_status', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
+    'fi.status', 'fi.dunning_level', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
     'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference', 'fi.reference_type',
     // The positions ride along because a CHF 0 invoice's total says nothing
     // on its own: a free member's document is the entitlement plus the
@@ -411,7 +412,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         recipient_name: recipientName,
         recipient_email: recipientEmail,
         recipient_address: recipientAddress,
-        recipient_zip: recipientZip,
+        recipient_postal_code: recipientZip,
         recipient_city: recipientCity,
         member: memberId,
         team: teamId,
@@ -674,9 +675,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       }
 
       // ── ClubDesk mirror row ──────────────────────────────────────────────
-      const cdStatus = String(r.inv.status || '').trim().toLowerCase()
-      if (cdStatus === 'bezahlt' || cdStatus.startsWith('storn') || round2(r.inv.open_amount ?? r.inv.amount) <= 0) {
-        return res.status(409).json({ error: `Invoice is ${r.inv.status || 'settled'}, not open` })
+      // 'paid' / 'cancelled' are ClubDesk's Bezahlt / Storniert (migration 419).
+      if (r.inv.status === 'paid' || r.inv.status === 'cancelled' || round2(r.inv.open_amount ?? r.inv.amount) <= 0) {
+        return res.status(409).json({ error: `Invoice is ${invoiceStatusToClubdesk(r.inv.status) || 'settled'}, not open` })
       }
       // No clubdesk_id means the row can't be re-found after the next sync, so
       // the report would silently evaporate — refuse rather than pretend.
@@ -951,7 +952,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // the document while every amount stays correct, which is the failure mode
     // that is hardest to notice.
     const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
-      .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
+      .select('id', 'category', 'club_section as sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
 
     let mq = database('members').whereIn('fee_category', categories)
       .select('id', 'first_name', 'last_name', 'email', 'fee_category', 'club_section',
@@ -1013,14 +1014,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // CHF 160 'Kosten Trainingscamp BB' invoice. All 2365 genuine dues invoices
     // say 'Mitgliederbeitrag'; nothing else does.
     //
-    // Mirror statuses are ClubDesk's German vocabulary — only 'Storniert'
-    // (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
-    // 'Abgeschrieben' (written off — the member WAS billed) still count as
-    // ClubDesk-handled.
+    // Only a cancelled mirror invoice (ClubDesk 'Storniert') unblocks; 'draft'
+    // (Entwurf, about to be sent) and 'written_off' (Abgeschrieben — the member
+    // WAS billed) still count as ClubDesk-handled.
     const clubdeskBilled = new Set((await database('finance_invoices')
       .where('fiscal_year', fy.id).where('source', 'clubdesk').whereNotNull('member')
       .whereRaw(DUES_SUBJECT_SQL)
-      .whereNot('status', 'Storniert').pluck('member')).map(Number))
+      .whereNot('status', 'cancelled').pluck('member')).map(Number))
 
     const rows = members.map((m) => {
       const rate = pickRate(rates, m.fee_category, m.club_section)
@@ -1195,8 +1195,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
       const rates = Number.isInteger(fyId)
-        ? await database('finance_dues_rates').where('fiscal_year', fyId).orderBy(['category', 'sektion'])
-            .select('id', 'fiscal_year', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
+        ? await database('finance_dues_rates').where('fiscal_year', fyId).orderBy(['category', 'club_section'])
+            // API key `sektion` kept (DuesRunManager); the column is club_section since 419.
+            .select('id', 'fiscal_year', 'category', 'club_section as sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
         : []
       // Free-text columns synced from ClubDesk — offer only real live values.
       const categories = await database('members').whereNotNull('fee_category')
@@ -1234,23 +1235,23 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const existing = await database('finance_dues_rates').where('fiscal_year', fiscalYear)
         .whereRaw('lower(category) = lower(?)', [category])
-        .whereRaw("coalesce(sektion, '') = coalesce(?, '')", [sektion])
+        .whereRaw("coalesce(club_section, '') = coalesce(?, '')", [sektion])
         .first('id')
       let row
       if (existing) {
         const upd = await database('finance_dues_rates').where('id', existing.id)
-          .update({ category, sektion, amount_chf: amount, ...(licenceGiven ? { licence_chf: licence } : {}), subject_template: subjectTemplate, active, date_updated: new Date() }).returning('*')
+          .update({ category, club_section: sektion, amount_chf: amount, ...(licenceGiven ? { licence_chf: licence } : {}), subject_template: subjectTemplate, active, date_updated: new Date() }).returning('*')
         row = upd[0]
       } else {
         const ins = await database('finance_dues_rates').insert({
-          fiscal_year: fiscalYear, category, sektion, amount_chf: amount, licence_chf: licence ?? 0,
+          fiscal_year: fiscalYear, category, club_section: sektion, amount_chf: amount, licence_chf: licence ?? 0,
           subject_template: subjectTemplate, active,
           created_by_name: mem?.name || null, created_by_email: mem?.email || null,
         }).returning('*')
         row = ins[0]
       }
-      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_dues_rates', recordId: row.id, data: { fiscal_year: fiscalYear, category, sektion, amount, ...(licenceGiven ? { licence_chf: licence } : {}) } })
-      return res.json({ rate: row })
+      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_dues_rates', recordId: row.id, data: { fiscal_year: fiscalYear, category, club_section: sektion, amount, ...(licenceGiven ? { licence_chf: licence } : {}) } })
+      return res.json({ rate: { ...row, sektion: row.club_section ?? null } })
     } catch (e) { return err(res, req, 'dues-rate-save', e) }
   })
 
@@ -1299,7 +1300,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const fy = fyId ? await database('finance_fiscal_years').where('id', fyId).first('id', 'label') : null
       const rates = fy
         ? await database('finance_dues_rates').where('fiscal_year', fy.id)
-            .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'active')
+            .select('id', 'category', 'club_section as sektion', 'amount_chf', 'licence_chf', 'active')
         : []
       const rate = pickRate(rates, m.fee_category, m.club_section)
 
@@ -1407,7 +1408,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const clubdeskNow = new Set((await trx('finance_invoices')
           .where('fiscal_year', r.fy.id).where('source', 'clubdesk').whereNotNull('member')
           .whereRaw(DUES_SUBJECT_SQL)
-          .whereNot('status', 'Storniert').pluck('member')).map(Number))
+          .whereNot('status', 'cancelled').pluck('member')).map(Number))
         const toBill = billable.filter((x) => !billedNow.has(Number(x.member)) && !clubdeskNow.has(Number(x.member)))
         if (!toBill.length) return { runId: null, created: [], total: 0 }
 
@@ -1440,7 +1441,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
             due_date: dueDate,
             amount_paid: 0, open_amount: x.amount, fee_category: x.category,
             recipient_name: x.name, recipient_email: x.email,
-            recipient_address: x.adresse, recipient_zip: x.plz, recipient_city: x.ort,
+            recipient_address: x.adresse, recipient_postal_code: x.plz, recipient_city: x.ort,
             // Positions, so the invoice answers "why 540 and not 440?" on the page
             // instead of in a mail to the treasurer. Stored, not recomputed at
             // render time: a licence granted in March must not silently restate
@@ -1574,7 +1575,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // Same columns as the send loop below, so what the reviewer checks in
         // the dues-run table is what the PDF will actually contain.
         .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type',
-          'invoice_date', 'due_date', 'recipient_address', 'recipient_zip', 'recipient_city')
+          'invoice_date', 'due_date', 'recipient_address', 'recipient_postal_code', 'recipient_city')
       return res.json({ run, invoices })
     } catch (e) { return err(res, req, 'dues-run-invoices', e) }
   })
@@ -2136,7 +2137,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
             invoice: id, level, reminder_fee: fee, channel: 'manual', recipient_email: inv.recipient_email || null,
             sent_at: null, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
           }).returning('id')
-          await trx('finance_invoices').where('id', id).update({ dunning_level: level, dunning_status: `Mahnung ${level}`, date_updated: new Date() })
+          await trx('finance_invoices').where('id', id).update({ dunning_level: level, date_updated: new Date() })
           return { noticeId: ins[0]?.id ?? ins[0] }
         })
       } catch (e) {
@@ -2217,7 +2218,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const mem = await actingMember(req)
       if (!canReadFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const contacts = await database('finance_billing_contacts').where('active', true)
-        .orderBy('name').select('id', 'kind', 'name', 'email', 'address', 'plz', 'ort', 'billing_iban', 'notes').limit(1000)
+        .orderBy('name').select('id', 'kind', 'name', 'email', 'address', 'postal_code', 'city', 'billing_iban', 'notes').limit(1000)
       return res.json({ contacts })
     } catch (e) { return err(res, req, 'contacts', e) }
   })
@@ -2236,8 +2237,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
         kind, name,
         email: (b.email || '').toString().trim() || null,
         address: (b.address || '').toString().trim() || null,
-        plz: (b.plz || '').toString().trim() || null,
-        ort: (b.ort || '').toString().trim() || null,
+        // plz / ort: what a bundle cached before migration 419 still sends.
+        postal_code: (b.postal_code ?? b.plz ?? '').toString().trim() || null,
+        city: (b.city ?? b.ort ?? '').toString().trim() || null,
         billing_iban: (b.billing_iban || '').toString().replace(/\s+/g, '').toUpperCase() || null,
         notes: (b.notes || '').toString().trim().slice(0, 255) || null,
         source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,

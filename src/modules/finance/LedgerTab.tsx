@@ -1,4 +1,5 @@
 import { feeCategoryLabel } from '@member-values'
+import { entryTypeLabel, RECEIPT_EXEMPT_ENTRY_TYPES, type EntryType } from '@finance-values'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -65,7 +66,7 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
   const { data: coverage } = useReceiptCoverage(fyId || null, !!fyId)
   const { canAccessFinance } = useAuth()
   const canWrite = canAccessFinance
-  const [receiptsFor, setReceiptsFor] = useState<{ id: number; beleg: string | null; text: string | null } | null>(null)
+  const [receiptsFor, setReceiptsFor] = useState<{ id: number; voucher_no: string | null; text: string | null } | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<number | null>(null)
   const refresh = () => qc.invalidateQueries({ queryKey: ['finance'] })
@@ -124,10 +125,10 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
               {rows.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
-                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-muted px-1 text-[10px]">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.voucher_no || '–'}{e.entry_type && e.entry_type !== 'standard' ? <span className="ml-1 rounded bg-muted px-1 text-[10px]">{entryTypeLabel(e.entry_type)}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
                   <TableCell className="whitespace-normal break-words text-foreground">{e.text || '–'}
                     {/* Phones: date, receipt no. and accounts under the text — the columns are hidden. */}
-                    <span className="block text-[11px] text-muted-foreground/80 sm:hidden">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}{e.beleg ? ` · ${e.beleg}` : ''} · {e.debit_account_number} → {e.credit_account_number}</span></TableCell>
+                    <span className="block text-[11px] text-muted-foreground/80 sm:hidden">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}{e.voucher_no ? ` · ${e.voucher_no}` : ''} · {e.debit_account_number} → {e.credit_account_number}</span></TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.debit_account_number} {e.debit_account_name}</TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.credit_account_number} {e.credit_account_name}</TableCell>
                   <TableCell className="text-right tabular-nums text-foreground whitespace-nowrap">{formatChf(toNum(e.amount_chf))}</TableCell>
@@ -136,16 +137,16 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
                         {(() => {
                           const n = coverage?.counts?.[String(e.id)] ?? 0
-                          const missing = n === 0 && !['Eroeffnung', 'Abschluss', 'Storno'].includes(e.typ || '')
+                          const missing = n === 0 && !RECEIPT_EXEMPT_ENTRY_TYPES.includes(e.entry_type as EntryType)
                           return (
-                            <IconButton size="sm" variant="outline" label={`${t('bkReceipts')} (${n})`} onClick={() => setReceiptsFor({ id: e.id, beleg: e.beleg, text: e.text })}
+                            <IconButton size="sm" variant="outline" label={`${t('bkReceipts')} (${n})`} onClick={() => setReceiptsFor({ id: e.id, voucher_no: e.voucher_no, text: e.text })}
                               className={missing ? 'text-amber-600 dark:text-amber-400' : n ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
                               <Paperclip />
                             </IconButton>
                           )
                         })()}
                         {canWrite && !fyClosed && <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-muted-foreground">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>}
-                        {canWrite && !fyClosed && !e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
+                        {canWrite && !fyClosed && !e.voucher_no?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
                       </div>
                     )}
                   </TableCell>
@@ -405,7 +406,7 @@ function CloseYear({ fy, fyLoading }: { fy?: { id: number; label: string | null;
 
 /* ── Auto-posting settings ───────────────────────────────────────────── */
 const MAP_FIELDS: { key: keyof LedgerSettings; label: string; types: string[] }[] = [
-  { key: 'debitoren_account', label: 'ledMapDebitoren', types: ['asset'] },
+  { key: 'receivables_account', label: 'ledMapDebitoren', types: ['asset'] },
   { key: 'bank_account', label: 'ledMapBank', types: ['asset'] },
   { key: 'income_account', label: 'ledMapIncome', types: ['income'] },
   { key: 'sponsoring_account', label: 'ledMapSponsoring', types: ['income'] },
@@ -483,7 +484,7 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
   const [map, setMap] = useState<Record<string, string>>(() => Object.fromEntries(MAP_FIELDS.map((f) => [f.key, settings[f.key] ? String(settings[f.key]) : ''])))
   const [busy, setBusy] = useState(''); const [error, setError] = useState(''); const [msg, setMsg] = useState('')
   const optsFor = (types: string[]) => accounts.filter((a) => a.type && types.includes(a.type)).map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)
-  const ready = !!map.debitoren_account && !!map.bank_account && !!map.income_account // required for auto-posting
+  const ready = !!map.receivables_account && !!map.bank_account && !!map.income_account // required for auto-posting
 
   async function save() {
     setBusy('save'); setError(''); setMsg('')

@@ -34,6 +34,7 @@ import { writeUserLog } from './activity-log.js'
 import { financeActor, parseRoles } from './finance-access.js'
 import { parseStatement, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { loadLedgerSettings, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
+import { entryTypeLabel, YEAR_END_ENTRY_TYPES } from './finance-values.js'
 import {
   round2, bankLineText, bankPostingLegs, proposeForLine, statementBalanceCheck,
   compareBooks, monthlyComparison, monthsOfYear, monthEnd, openingLegsFromClubdesk, openingEntries,
@@ -88,7 +89,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
   async function fiscalYearFor(trx, dateISO) {
     return trx('finance_fiscal_years').where('starts_on', '<=', dateISO).andWhere('ends_on', '>=', dateISO).orderBy('id').first('id', 'status', 'label')
   }
-  async function nextBeleg(trx, prefix, dateISO) {
+  async function nextVoucherNo(trx, prefix, dateISO) {
     const r = await trx.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
     const n = (r.rows ? r.rows[0] : r[0]).n
     return `${prefix}-${dateISO.slice(0, 4)}-${String(n).padStart(4, '0')}`
@@ -115,7 +116,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
     const nums = invoiceNumbersFromMessage(line.remittance).slice(0, 12)
     if (nums.length) {
       const cands = await database('finance_invoices').whereIn('number', nums)
-        .whereNotIn('status', ['Storniert', 'cancelled']).select(sel)
+        .whereNot('status', 'cancelled').select(sel)
       const amt = Number(line.amount)
       return cands.find((c) => Math.abs(Number(c.amount) - amt) < 0.005)
         || cands.find((c) => Math.abs(Number(c.open_amount) - amt) < 0.005)
@@ -138,7 +139,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const invoice = Number(line.amount) > 0 ? await findInvoice(line) : null
       const p = proposeForLine(line, {
         invoice, rules, incomeAccountFor,
-        arAccountId: settings.debitoren_account ? Number(settings.debitoren_account) : null,
+        arAccountId: settings.receivables_account ? Number(settings.receivables_account) : null,
         autopost: !!settings.autopost_enabled,
       })
       await database('finance_bank_lines').where({ id: line.id, status: 'open' }).update({
@@ -219,7 +220,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
           'l.reference', 'l.remittance', 'l.status', 'l.proposed_account', 'l.proposed_text', 'l.proposed_by', 'l.matched_invoice_number',
           'l.entry', 'l.note', 'l.posted_by_name', 'l.posted_at', 'l.fiscal_year', 'l.account_iban', 'l.statement_id',
           'pa.number as proposed_account_number', 'pa.name as proposed_account_name',
-          't.beleg as entry_beleg', 't.debit_account_number as entry_debit', 't.credit_account_number as entry_credit')
+          't.voucher_no as entry_voucher_no', 't.debit_account_number as entry_debit', 't.credit_account_number as entry_credit')
         .orderBy([{ column: 'l.booking_date', order: 'desc' }, { column: 'l.id', order: 'desc' }])
         .limit(3000)
       if (status) q.where('l.status', status)
@@ -255,7 +256,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const dr = byId.get(legs.debit), cr = byId.get(legs.credit)
       const body = String(text ?? line.proposed_text ?? bankLineText(line)).trim().slice(0, 250) || bankLineText(line)
       const [entry] = await trx('finance_transactions').insert({
-        source: 'native', typ: 'Standard', beleg: await nextBeleg(trx, 'J', date), booking_date: date, text: body,
+        source: 'native', entry_type: 'standard', voucher_no: await nextVoucherNo(trx, 'J', date), booking_date: date, text: body,
         debit_account: dr.id, debit_account_number: dr.number, debit_account_name: dr.name,
         credit_account: cr.id, credit_account_number: cr.number, credit_account_name: cr.name,
         // The link lives on finance_bank_lines.entry — ref_kind is CHECK-limited to
@@ -282,7 +283,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const a = await gate(req); if (!a.write) return forbidden(res)
       const out = await postBankLine(Number(req.params.id), { account: req.body?.account, text: req.body?.text }, a)
       if (out.code) return res.status(out.code).json({ error: out.error })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: out.entry.id, data: { kind: 'bank_line_post', line: Number(req.params.id), beleg: out.entry.beleg, amount: out.entry.amount_chf } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: out.entry.id, data: { kind: 'bank_line_post', line: Number(req.params.id), voucher_no: out.entry.voucher_no, amount: out.entry.amount_chf } })
       return res.json({ entry: out.entry })
     } catch (e) { return fail(res, req, 'bank-post', e) }
   })
@@ -438,7 +439,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
     try {
       const a = await gate(req); if (!a.write) return forbidden(res)
       const entryId = Number(req.params.id)
-      const entry = await database('finance_transactions').where({ id: entryId, source: 'native' }).first('id', 'beleg')
+      const entry = await database('finance_transactions').where({ id: entryId, source: 'native' }).first('id', 'voucher_no')
       if (!entry) return res.status(404).json({ error: 'Native journal entry not found' })
       if (Number(req.headers['content-length'] || 0) > RECEIPT_MAX_BYTES) return res.status(413).json({ error: 'File too large (max 15 MB).' })
       const kind = DOC_KINDS.includes(req.query.kind) ? req.query.kind : 'receipt'
@@ -489,7 +490,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const [doc] = await database('finance_transaction_documents').insert({
         entry: entryId, file: fileId, sha256: hash.digest('hex'), kind, note, uploaded_by_name: a.name, uploaded_by_email: a.email,
       }).returning('*')
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transaction_documents', recordId: doc.id, data: { kind: 'receipt', entry: entryId, beleg: entry.beleg, bytes } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transaction_documents', recordId: doc.id, data: { kind: 'receipt', entry: entryId, voucher_no: entry.voucher_no, bytes } })
       return res.json({ document: doc })
     } catch (e) { return fail(res, req, 'document-upload', e) }
   })
@@ -530,7 +531,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const a = await gate(req); if (!a.read) return forbidden(res)
       const fyId = Number(req.query.fiscal_year)
       if (!Number.isInteger(fyId)) return res.status(400).json({ error: 'fiscal_year required' })
-      const entries = await database('finance_transactions').where({ source: 'native', fiscal_year: fyId }).select('id', 'typ')
+      const entries = await database('finance_transactions').where({ source: 'native', fiscal_year: fyId }).select('id', 'entry_type')
       const counts = new Map((await database('finance_transaction_documents as d').join('finance_transactions as t', 't.id', 'd.entry')
         .where({ 't.source': 'native', 't.fiscal_year': fyId }).groupBy('d.entry').select('d.entry').count('* as n'))
         .map((r) => [Number(r.entry), Number(r.n)]))
@@ -552,12 +553,12 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
     const fy = await database('finance_fiscal_years').where('id', fyId).first('id', 'label', 'starts_on', 'ends_on', 'status')
     if (!fy) return null
     const rows = await database('finance_transactions').where({ source: 'clubdesk', fiscal_year: fyId })
-      .whereRaw("typ ILIKE 'Er_ffnung'").select('debit_account', 'credit_account', 'amount_chf')
+      .where('entry_type', 'opening').select('debit_account', 'credit_account', 'amount_chf')
     const plan = openingLegsFromClubdesk(rows)
     const ids = plan.legs.map((l) => l.account)
     const accts = ids.length ? await database('finance_accounts').whereIn('id', ids).select('id', 'number', 'name', 'type') : []
     const byId = new Map(accts.map((x) => [Number(x.id), x]))
-    const native = await database('finance_transactions').where({ source: 'native', fiscal_year: fyId, typ: 'Eroeffnung' }).count('* as n').first()
+    const native = await database('finance_transactions').where({ source: 'native', fiscal_year: fyId, entry_type: 'opening' }).count('* as n').first()
     return { fy, plan: { ...plan, legs: plan.legs.map((l) => ({ ...l, number: byId.get(l.account)?.number, name: byId.get(l.account)?.name })) }, nativeOpenings: Number(native?.n || 0) }
   }
 
@@ -596,7 +597,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
         for (const e of entries) {
           const dr = byId.get(Number(e.debit)), cr = byId.get(Number(e.credit))
           await trx('finance_transactions').insert({
-            source: 'native', typ: 'Eroeffnung', beleg: await nextBeleg(trx, 'E', date), booking_date: date,
+            source: 'native', entry_type: 'opening', voucher_no: await nextVoucherNo(trx, 'E', date), booking_date: date,
             text: `Eröffnung ${f.fy.label} (aus ClubDesk)`, fiscal_year: fyId,
             debit_account: dr.id, debit_account_number: dr.number, debit_account_name: dr.name,
             credit_account: cr.id, credit_account_number: cr.number, credit_account_name: cr.name,
@@ -688,7 +689,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
   // ════════════════════════════════════════════════════════════════════════
 
   async function trialBalance(fyId, book) {
-    const rows = await database('finance_transactions').where({ source: book, fiscal_year: fyId }).select('debit_account', 'credit_account', 'amount_chf', 'typ')
+    const rows = await database('finance_transactions').where({ source: book, fiscal_year: fyId }).select('debit_account', 'credit_account', 'amount_chf', 'entry_type')
     const accts = await database('finance_accounts').select('id', 'number', 'name', 'type')
     const byId = new Map(accts.map((x) => [Number(x.id), x]))
     const sums = new Map()
@@ -702,7 +703,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
     for (const r of rows) {
       const amt = Number(r.amount_chf) || 0
       // The income statement leaves out the year-end close, or a closed year reads 0.
-      const pl = r.typ !== 'Abschluss' && r.typ !== 'Eroeffnung' && !/^Er.ffnung$/.test(r.typ || '')
+      const pl = !YEAR_END_ENTRY_TYPES.includes(r.entry_type)
       bump(r.debit_account, 'debit', amt, pl)
       bump(r.credit_account, 'credit', amt, pl)
     }
@@ -741,7 +742,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const label = asciiName(fy.label)
       const files = []
       const contents = {}
-      const journalCols = ['beleg', 'booking_date', 'typ', 'text', 'debit_account_number', 'debit_account_name', 'credit_account_number', 'credit_account_name', 'amount_chf', 'created_by_name']
+      const journalCols = ['voucher_no', 'booking_date', 'entry_type', 'text', 'debit_account_number', 'debit_account_name', 'credit_account_number', 'credit_account_name', 'amount_chf', 'created_by_name']
       const accounts = await database('finance_accounts').orderBy('number').select('number', 'name', 'type', 'division', 'active', 'source')
       files.push({ name: 'konten.csv', data: csv(['Nummer', 'Name', 'Typ', 'Bereich', 'Aktiv', 'Quelle'], accounts.map((x) => [x.number, x.name, x.type, x.division, x.active ? 'ja' : 'nein', x.source])) })
       for (const book of ['native', 'clubdesk']) {
@@ -749,16 +750,16 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
           .orderBy([{ column: 'booking_date' }, { column: 'id' }]).select(['id', ...journalCols])
         contents[book] = rows.length
         if (!rows.length) continue
-        files.push({ name: `${book}/journal.csv`, data: csv(['ID', 'Beleg', 'Datum', 'Typ', 'Text', 'Soll', 'Soll Name', 'Haben', 'Haben Name', 'Betrag CHF', 'Erfasst von'], rows.map((r) => [r.id, r.beleg, iso(r.booking_date), r.typ, r.text, r.debit_account_number, r.debit_account_name, r.credit_account_number, r.credit_account_name, r.amount_chf, r.created_by_name])) })
+        files.push({ name: `${book}/journal.csv`, data: csv(['ID', 'Beleg', 'Datum', 'Typ', 'Text', 'Soll', 'Soll Name', 'Haben', 'Haben Name', 'Betrag CHF', 'Erfasst von'], rows.map((r) => [r.id, r.voucher_no, iso(r.booking_date), entryTypeLabel(r.entry_type), r.text, r.debit_account_number, r.debit_account_name, r.credit_account_number, r.credit_account_name, r.amount_chf, r.created_by_name])) })
         const tb = await trialBalance(fyId, book)
         files.push({ name: `${book}/kontensalden.csv`, data: csv(['Konto', 'Name', 'Typ', 'Soll', 'Haben', 'Saldo'], tb.map((r) => [r.number, r.name, r.type, r.debit, r.credit, r.balance])) })
         files.push({ name: `${book}/jahresrechnung.pdf`, data: await renderAnnualAccountsPdf({ fyLabel: fy.label, startsOn: iso(fy.starts_on), endsOn: iso(fy.ends_on), book: book === 'native' ? 'Wiedisync' : 'ClubDesk (Spiegel)', rows: tb }) })
       }
       const lines = await database('finance_bank_lines as l').leftJoin('finance_transactions as t', 't.id', 'l.entry').where('l.fiscal_year', fyId)
         .orderBy([{ column: 'l.booking_date' }, { column: 'l.id' }])
-        .select('l.booking_date', 'l.amount', 'l.counterparty_name', 'l.counterparty_iban', 'l.reference', 'l.remittance', 'l.status', 't.beleg', 'l.note', 'l.statement_file', 'l.statement_sha256')
+        .select('l.booking_date', 'l.amount', 'l.counterparty_name', 'l.counterparty_iban', 'l.reference', 'l.remittance', 'l.status', 't.voucher_no', 'l.note', 'l.statement_file', 'l.statement_sha256')
       contents.bank_lines = lines.length
-      if (lines.length) files.push({ name: 'bank/bankbewegungen.csv', data: csv(['Datum', 'Betrag CHF', 'Gegenpartei', 'IBAN', 'Referenz', 'Mitteilung', 'Status', 'Beleg', 'Notiz'], lines.map((l) => [iso(l.booking_date), l.amount, l.counterparty_name, l.counterparty_iban, l.reference, l.remittance, l.status, l.beleg, l.note])) })
+      if (lines.length) files.push({ name: 'bank/bankbewegungen.csv', data: csv(['Datum', 'Betrag CHF', 'Gegenpartei', 'IBAN', 'Referenz', 'Mitteilung', 'Status', 'Beleg', 'Notiz'], lines.map((l) => [iso(l.booking_date), l.amount, l.counterparty_name, l.counterparty_iban, l.reference, l.remittance, l.status, l.voucher_no, l.note])) })
       const signoffs = await database('finance_parallel_signoffs').where('fiscal_year', fyId).orderBy('month').select('month', 'difference_total', 'accounts_compared', 'accounts_different', 'note', 'signed_by_name', 'signed_at', 'snapshot')
       contents.signoffs = signoffs.length
       if (signoffs.length) files.push({ name: 'parallel/monatsabschluesse.json', data: JSON.stringify(signoffs, null, 2) })
@@ -766,13 +767,13 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       // Receipts of the year's native entries + every statement file, each once.
       const docs = await database('finance_transaction_documents as d').join('finance_transactions as t', 't.id', 'd.entry')
         .join('directus_files as f', 'f.id', 'd.file').where({ 't.fiscal_year': fyId, 't.source': 'native' })
-        .select('d.id', 'd.file', 'd.kind', 'd.sha256', 't.beleg', 'f.filename_download')
+        .select('d.id', 'd.file', 'd.kind', 'd.sha256', 't.voucher_no', 'f.filename_download')
       const stmtFiles = [...new Set(lines.map((l) => l.statement_file).filter(Boolean))]
       const wanted = new Map()
       for (const d of docs) {
         if (wanted.has(d.file)) continue
         const dir = d.kind === 'statement' ? 'bank/auszuege' : 'belege'
-        wanted.set(d.file, { name: `${dir}/${d.kind === 'statement' ? '' : `${asciiName(d.beleg)}_`}${d.id}_${asciiName(d.filename_download)}`, sha256: d.sha256 })
+        wanted.set(d.file, { name: `${dir}/${d.kind === 'statement' ? '' : `${asciiName(d.voucher_no)}_`}${d.id}_${asciiName(d.filename_download)}`, sha256: d.sha256 })
       }
       const stmtNames = stmtFiles.length ? await database('directus_files').whereIn('id', stmtFiles).select('id', 'filename_download') : []
       for (const f of stmtNames) if (!wanted.has(f.id)) wanted.set(f.id, { name: `bank/auszuege/${asciiName(f.filename_download)}`, sha256: lines.find((l) => l.statement_file === f.id)?.statement_sha256 || null })
@@ -852,7 +853,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
       const clubdeskYears = years.filter((y) => iso(y.starts_on) <= today).length
       const hb = await database('sync_runs').where('source', 'clubdesk_finance').first('status', 'last_run_at')
       const syncHealthy = !!hb && hb.status === 'ok' && (Date.now() - new Date(hb.last_run_at).getTime()) < 30 * 3600 * 1000
-      const openingPosted = !!(start && await database('finance_transactions').where({ source: 'native', fiscal_year: start.id, typ: 'Eroeffnung' }).first('id'))
+      const openingPosted = !!(start && await database('finance_transactions').where({ source: 'native', fiscal_year: start.id, entry_type: 'opening' }).first('id'))
 
       const lineCounts = runIds.length ? await database('finance_bank_lines').whereIn('fiscal_year', runIds).groupBy('status').select('status').count('* as n') : []
       const bankLines = lineCounts.reduce((s, c) => s + Number(c.n), 0)
@@ -878,7 +879,7 @@ export function registerFinanceBooks(router, { database, logger, services, getSc
         const c = compareBooks({ ...(await booksOf(y.id)), throughISO: iso(y.ends_on) })
         if (c.accountsDifferent === 0) closedYearsMatching++
       }
-      const nativeRows = runIds.length ? await database('finance_transactions').where('source', 'native').whereIn('fiscal_year', runIds).select('id', 'typ') : []
+      const nativeRows = runIds.length ? await database('finance_transactions').where('source', 'native').whereIn('fiscal_year', runIds).select('id', 'entry_type') : []
       const withDocs = new Set(runIds.length ? (await database('finance_transaction_documents as d').join('finance_transactions as t', 't.id', 'd.entry')
         .where('t.source', 'native').whereIn('t.fiscal_year', runIds).distinct('d.entry').pluck('d.entry')).map(Number) : [])
       const needing = nativeRows.filter(needsReceipt)

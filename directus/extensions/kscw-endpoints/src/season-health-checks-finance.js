@@ -9,11 +9,12 @@
  *     Never by fiscal_year (assigned by invoice_date at import; ClubDesk's
  *     July batch sat in the previous FY) and never by fee_category (that is the
  *     CONTACT's category stamped on every invoice, camp fees included).
- *   - Two status vocabularies share finance_invoices.status: native
- *     open|pending_confirmation|partial|paid|cancelled and ClubDesk's German
- *     verbatim ('Gestellt', 'Bezahlt', 'Bezahlt (teilw. abgeschrieben)',
- *     'Teilweise bezahlt', 'Storniert', …). Every status predicate below
- *     handles both.
+ *   - finance_invoices.status is one slug vocabulary since migration 419:
+ *     native open|pending_confirmation|partial|paid|cancelled; ClubDesk mirror
+ *     rows map onto it (Gestellt → open, Bezahlt → paid, Storniert → cancelled,
+ *     Teilweise bezahlt → partial) plus paid_partially_written_off,
+ *     written_off and draft. Mirror rows still DISPLAY ClubDesk's wording
+ *     (INVOICE_STATUS_SHOWN).
  *   - Who owes CHF 0 by rule (resolveFeeWaivers + isExemptCategory): category
  *     'Gratis' (member, free) or 'Kein Beitrag' (non-member bucket),
  *     Ehrenmitglied, the vorstand role, coach of an ACTIVE team. A team
@@ -49,10 +50,12 @@ const DUES_INVOICE = `fi.subject ILIKE '%mitgliederbeitrag%' AND fi.subject ~ ${
  * one of them is negated somewhere below, where a NULL would drop the row
  * instead of listing it. Alias finance_invoices as `fi`.
  */
-/** Cancelled in either vocabulary. */
-const INVOICE_CANCELLED = `(COALESCE(fi.status, '') ILIKE 'storn%' OR COALESCE(fi.status, '') = 'cancelled')`
-/** Settled in either vocabulary — mirrors the trigger ('Bezahlt (teilw. abgeschrieben)' counts, 'Teilweise bezahlt' does not). */
-const INVOICE_PAID = `(COALESCE(fi.status, '') ILIKE 'bezahlt%' OR COALESCE(fi.status, '') = 'paid')`
+/** Cancelled (ClubDesk 'Storniert'). */
+const INVOICE_CANCELLED = `(COALESCE(fi.status, '') = 'cancelled')`
+/** Settled — mirrors the trigger (paid_partially_written_off counts, partial does not). */
+const INVOICE_PAID = `(COALESCE(fi.status, '') IN ('paid', 'paid_partially_written_off'))`
+/** The status column as the page showed it before migration 419: ClubDesk's wording on mirror rows. */
+const INVOICE_STATUS_SHOWN = `(CASE WHEN fi.source = 'clubdesk' THEN COALESCE(app_to_cd('invoice_status', fi.status), fi.status) ELSE fi.status END) AS status`
 /** Still owed: not cancelled, not settled, money outstanding (useFinance.isOpenInvoice). */
 const INVOICE_OPEN = `NOT ${INVOICE_CANCELLED} AND NOT ${INVOICE_PAID} AND COALESCE(fi.open_amount, 0) > 0`
 
@@ -126,7 +129,7 @@ const RATE_FOR_MEMBER = `EXISTS (
   SELECT 1 FROM finance_dues_rates r
    WHERE r.fiscal_year = ${FY_ID} AND r.active
      AND lower(r.category) = lower(COALESCE(m.fee_category, ''))
-     AND (NULLIF(r.sektion, '') IS NULL OR lower(r.sektion) = lower(COALESCE(m.club_section, '')))
+     AND (NULLIF(r.club_section, '') IS NULL OR lower(r.club_section) = lower(COALESCE(m.club_section, '')))
 )`
 
 /** Core roster row on an active team — "is this member a player this season". */
@@ -136,11 +139,11 @@ const ON_ROSTER = `EXISTS (
 )`
 
 /**
- * Written off in either vocabulary: ClubDesk 'Abgeschrieben' (a native
- * write-off entry settles the row to 'paid' via deriveSettlement, so it needs
- * no branch). NOT paid for the dues_paid trigger, but nothing left to collect.
+ * Written off: ClubDesk 'Abgeschrieben' (a native write-off entry settles the
+ * row to 'paid' via deriveSettlement, so it needs no branch). NOT paid for the
+ * dues_paid trigger, but nothing left to collect.
  */
-const INVOICE_WRITTEN_OFF = `COALESCE(fi.status, '') ILIKE 'abgeschrieben%'`
+const INVOICE_WRITTEN_OFF = `COALESCE(fi.status, '') = 'written_off'`
 
 /** Paid / settled / billed dues for the season, per member. */
 const HAS_PAID_DUES = `EXISTS (SELECT 1 FROM finance_invoices fi WHERE fi.member = m.id AND ${DUES_INVOICE} AND ${INVOICE_PAID})`
@@ -240,7 +243,7 @@ SELECT ${MEMBER_COLS}, m.club_section, m.fee_category,
     title: 'Invoice past its due date with an open balance',
     description: 'A member-linked invoice (native or ClubDesk mirror, any subject) whose due date has passed with money still outstanding and no payment reported by the member (those wait in the pending-confirmation check, as in the dunning candidates). Dun it, or record the payment; members flagged never_dun are listed but must not receive a reminder.',
     sql: `
-SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, fi.status,
+SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, ${INVOICE_STATUS_SHOWN},
        fi.due_date::text AS due_date, ({{today}} - fi.due_date) AS days_overdue,
        fi.open_amount::text AS open_chf, fi.dunning_level, m.never_dun
   FROM finance_invoices fi
@@ -261,7 +264,7 @@ SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, fi.status,
     title: 'Payment reported by the member over 14 days ago, still unconfirmed',
     description: 'The member said "I paid" (native pending_confirmation or a mirror row re-applied from a self-report), the books still show an open balance, and neither the treasurer nor the nightly sync confirmed it within two weeks. Confirm it or tell the member the money never arrived.',
     sql: `
-SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, fi.status,
+SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, ${INVOICE_STATUS_SHOWN},
        to_char(fi.reported_paid_at AT TIME ZONE 'Europe/Zurich', 'YYYY-MM-DD HH24:MI') AS reported_at,
        fi.reported_paid_method, ${daysSince('fi.reported_paid_at')} AS days_waiting,
        fi.open_amount::text AS open_chf
@@ -283,7 +286,7 @@ SELECT ${MEMBER_COLS}, fi.number AS invoice_number, fi.subject, fi.status,
     description: 'A Mitgliederbeitrag invoice for the current season with no member link (a team or billing-contact link does not count — only the member link flips dues_paid), so its recipient reads as unbilled and unpaid. Link it to the member from the finance explorer (the link persists through the nightly re-import).',
     sql: `
 SELECT fi.id AS invoice_id, fi.number AS invoice_number, fi.subject, fi.recipient_name, fi.recipient_email,
-       fi.invoice_date::text AS invoice_date, fi.status,
+       fi.invoice_date::text AS invoice_date, ${INVOICE_STATUS_SHOWN},
        fi.amount::text AS amount_chf, fi.open_amount::text AS open_chf
   FROM finance_invoices fi
  WHERE fi.member IS NULL

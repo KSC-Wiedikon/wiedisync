@@ -58,7 +58,7 @@ export const RETENTION_MONTHS = 12
 export const RETENTION_FIELDS = ['iban', 'ahv_number', 'phone', 'address', 'postal_code', 'city', 'email']
 
 /** Address parts the invoice snapshot copies, member column → invoice column. */
-const RECIPIENT_MAP = { address: 'recipient_address', postal_code: 'recipient_zip', city: 'recipient_city' }
+const RECIPIENT_MAP = { address: 'recipient_address', postal_code: 'recipient_postal_code', city: 'recipient_city' }
 
 /** Non-deliverable stand-in for the NOT NULL email column (RFC 2606). */
 const erasedEmail = (id) => `erased-${id}@invalid`

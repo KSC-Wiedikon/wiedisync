@@ -29,6 +29,7 @@ import { normalizeSex, mapLicences, registrationNatCodes } from '../../kscw-endp
 import { normalizeRole } from '../../kscw-endpoints/src/registration-values.js'
 import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normalizeLicenceCategory, normalizeClubSection, normalizeRegisterStatus, normalizeFeeCategory } from '../../kscw-endpoints/src/member-values.js'
 import { normalizeSchedulingPayload } from '../../kscw-endpoints/src/scheduling-values.js'
+import { normalizeInvoiceStatus, normalizePaymentMethod, normalizeEntryType } from '../../kscw-endpoints/src/finance-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
@@ -6060,6 +6061,39 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     filter(`${collection}.items.create`, (payload) => normalizeSchedulingPayload(collection, payload))
     filter(`${collection}.items.update`, (payload) => normalizeSchedulingPayload(collection, payload))
   }
+
+  // ── finance: names and values after migration 419 ─────────────────────
+  // A bundle cached before 419 still saves a payout with payee_zip / payee_ort
+  // (MemberPayoutQrBill → items API); the Data Studio may still type a German
+  // invoice status or booking type. Rename / normalise instead of a 400. An
+  // unknown value is left as sent, so the CHECK names it.
+  const renameKey = (payload, from, to) => {
+    if (payload && typeof payload === 'object' && from in payload) {
+      if (!(to in payload)) payload[to] = payload[from]
+      delete payload[from]
+    }
+  }
+  const normalizePayout = (payload) => {
+    renameKey(payload, 'payee_zip', 'payee_postal_code')
+    renameKey(payload, 'payee_ort', 'payee_city')
+    return payload
+  }
+  filter('finance_payouts.items.create', (payload) => normalizePayout(payload))
+  filter('finance_payouts.items.update', (payload) => normalizePayout(payload))
+  const normalizeInvoiceValues = (payload) => {
+    if (!payload || typeof payload !== 'object') return payload
+    if (payload.status) payload.status = normalizeInvoiceStatus(payload.status) ?? payload.status
+    if (payload.payment_method) payload.payment_method = normalizePaymentMethod(payload.payment_method) ?? payload.payment_method
+    return payload
+  }
+  filter('finance_invoices.items.create', (payload) => normalizeInvoiceValues(payload))
+  filter('finance_invoices.items.update', (payload) => normalizeInvoiceValues(payload))
+  const normalizeEntryValues = (payload) => {
+    if (payload && typeof payload === 'object' && payload.entry_type) payload.entry_type = normalizeEntryType(payload.entry_type) ?? payload.entry_type
+    return payload
+  }
+  filter('finance_transactions.items.create', (payload) => normalizeEntryValues(payload))
+  filter('finance_transactions.items.update', (payload) => normalizeEntryValues(payload))
 
   // ── Create or link member from approved registration ───────────
   // Symmetric first-name-prefix match (same rule the ClubDesk linker uses):

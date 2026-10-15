@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useFinanceAccounts, useFinanceTransactions, toNum } from '../../../hooks/useFinance'
 import type { AccountType, FinanceAccount, FinanceTransaction } from '../types'
+import { YEAR_END_ENTRY_TYPES, type EntryType } from '@finance-values'
 
 export type AcctRow = FinanceAccount & { bal: number }
 
@@ -24,7 +25,7 @@ function statsFrom(rows: FinanceTransaction[]) {
 export interface MonthPoint { month: string; income: number; expense: number }
 
 /** Year-end closing and opening entries move balances between years — they are not income or expense. */
-const isYearEntry = (tx: FinanceTransaction) => tx.typ === 'Abschluss' || tx.typ === 'Eröffnung' || tx.typ === 'Eroeffnung'
+const isYearEntry = (tx: FinanceTransaction) => YEAR_END_ENTRY_TYPES.includes(tx.entry_type as EntryType)
 
 /**
  * What one booking does to the year's result: + for income (or an expense refunded),

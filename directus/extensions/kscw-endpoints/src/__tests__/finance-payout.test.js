@@ -204,7 +204,7 @@ describe('insertPayout', () => {
     expect(trx.calls[0].table).toBe('finance_payouts')
     expect(trx.calls[0].row).toEqual({
       member: 7, amount: 165.5, currency: 'CHF', message: 'Schiedsrichterspesen 2026/27 (3 Spiele)',
-      iban: CH_CLEAN, payee_name: 'Anna Muster', payee_address: 'Weg 1', payee_zip: '8003', payee_ort: 'Zürich',
+      iban: CH_CLEAN, payee_name: 'Anna Muster', payee_address: 'Weg 1', payee_postal_code: '8003', payee_city: 'Zürich',
       status: 'paid', created_by_name: 'Treasurer', created_by_email: 't@kscw.ch', user_created: 'uuid-1',
     })
   })
