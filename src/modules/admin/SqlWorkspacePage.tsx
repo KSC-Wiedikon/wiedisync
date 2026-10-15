@@ -492,7 +492,10 @@ export default function SqlWorkspacePage() {
                     </TableCell>
                   </TableRow>
                   {open &&
-                    tb.columns.map((c) => (
+                    // Primary key first, then A–Z (the server sends table order).
+                    [...tb.columns]
+                      .sort((a, b) => Number(!!b.pk) - Number(!!a.pk) || a.name.localeCompare(b.name))
+                      .map((c) => (
                       <TableRow key={c.name} className="bg-surface-sunken">
                         <TableCell colSpan={2} className="py-1 pl-6 pr-2 text-[11px]">
                           <div className="flex items-baseline gap-1.5">
