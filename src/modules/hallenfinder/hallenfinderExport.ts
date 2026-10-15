@@ -145,11 +145,11 @@ export async function buildHallenfinderXlsx(
       widthM: r.widthM ?? null,
       heightM: r.heightM ?? null,
       courts: r.partitions?.length || null,
-      district: r.stadtkreis ? `Kreis ${r.stadtkreis}` : '',
-      quarter: r.stadtquartier ?? '',
-      schoolDistrict: r.schulkreis ?? '',
+      district: r.cityDistrict ? `Kreis ${r.cityDistrict}` : '',
+      quarter: r.cityQuarter ?? '',
+      schoolDistrict: r.schoolDistrict ?? '',
       address: r.address ?? '',
-      plz: r.plz ?? '',
+      plz: r.postalCode ?? '',
       contact: r.contactEmail ?? '',
     })
 

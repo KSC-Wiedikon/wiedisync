@@ -21,7 +21,7 @@ export default {
     1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun',
   },
   type: {
-    gymnastikraum: 'Gymnastics room', sporthalle: 'Sport hall', dreifachhalle: 'Triple hall', doppelhalle: 'Double hall',
+    gym_room: 'Gymnastics room', sports_hall: 'Sport hall', triple_hall: 'Triple hall', double_hall: 'Double hall',
   },
   table: {
     day: 'Day', hall: 'Hall', photo: 'Photo', size: 'Size (L × W × H)', window: 'Free window', weeks: 'Weeks free', district: 'District', address: 'Address', actions: 'Book',

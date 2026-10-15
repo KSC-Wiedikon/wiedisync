@@ -11,14 +11,17 @@ export interface HallPartition {
 }
 
 export interface HallResult {
-  einrichtungId: number
+  /** The city's hall id (its `einrichtung` query parameter). */
+  facilityId: number
   name: string
+  /** sports_hall | gym_room | triple_hall | double_hall (migration 421). */
   hallType: string | null
   address: string | null
-  plz: string | null
-  stadtkreis: string | null
-  stadtquartier: string | null
-  schulkreis: string | null
+  postalCode: string | null
+  /** Stadtkreis / Stadtquartier / Schulkreis, as the city prints them. */
+  cityDistrict: string | null
+  cityQuarter: string | null
+  schoolDistrict: string | null
   // Migration 269 — dimensions + photo, all null until the monthly detail pass
   // runs. `sizeLabel` is the city's own string ("23,00 x 10,90 x 5,40 m") and is
   // what the table shows; the parsed numbers are kept for sorting, not display.

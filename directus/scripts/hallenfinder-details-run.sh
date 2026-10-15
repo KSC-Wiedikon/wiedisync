@@ -21,7 +21,7 @@ esac
 PSQL="sudo docker exec -i kscw-postgres psql -U supabase_admin -d $DB -X -v ON_ERROR_STOP=1"
 
 echo "→ reading hall ids from $ENVNAME…" >&2
-IDS=$(ssh hetzner "$PSQL -tAc \"SELECT string_agg(einrichtung_id::text, ',') FROM city_halls\"" | tr -d '[:space:]')
+IDS=$(ssh hetzner "$PSQL -tAc \"SELECT string_agg(facility_id::text, ',') FROM city_halls\"" | tr -d '[:space:]')
 if [ -z "$IDS" ]; then
   echo "no halls in city_halls on $ENVNAME — run the availability scrape first" >&2
   exit 1

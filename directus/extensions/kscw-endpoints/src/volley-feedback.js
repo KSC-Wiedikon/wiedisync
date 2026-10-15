@@ -63,9 +63,25 @@ const TEXT_FIELDS = {
 
 /** 1–5 star ratings. Anything else becomes null rather than being stored. */
 const RATING_FIELDS = [
-  'rating_verein', 'rating_vorstand', 'rating_tk_leitung',
-  'rating_training', 'rating_kommunikation',
+  'rating_club', 'rating_board', 'rating_technical_committee',
+  'rating_training', 'rating_communication',
 ]
+
+/**
+ * The German request keys the columns had before migration 421. The form on
+ * kscw-website (public/js/volley-feedback-form.js) still posts them, so they
+ * stay accepted; an English key wins when both are sent.
+ */
+export const LEGACY_RATING_KEYS = {
+  rating_club: 'rating_verein',
+  rating_board: 'rating_vorstand',
+  rating_technical_committee: 'rating_tk_leitung',
+  rating_communication: 'rating_kommunikation',
+}
+
+/** The submitted rating for a column, from its English or its legacy key. */
+export const ratingInput = (body, field) =>
+  body[field] ?? (LEGACY_RATING_KEYS[field] ? body[LEGACY_RATING_KEYS[field]] : undefined)
 
 /** jsonb arrays of short codes. */
 const ARRAY_FIELDS = ['functions', 'teams']
@@ -117,7 +133,7 @@ export function registerVolleyFeedback(router, { database, logger }) {
       // the collection later. This cannot.
       const row = { date_created: new Date().toISOString() }
       for (const [field, max] of Object.entries(TEXT_FIELDS)) row[field] = str(body[field], max)
-      for (const field of RATING_FIELDS) row[field] = rating(body[field])
+      for (const field of RATING_FIELDS) row[field] = rating(ratingInput(body, field))
       for (const field of ARRAY_FIELDS) row[field] = JSON.stringify(codeArray(body[field]) ?? [])
       row.is_anonymous = body.is_anonymous === true || body.is_anonymous === 'true'
       // An anonymous submission must not carry a name, whatever the client sent.

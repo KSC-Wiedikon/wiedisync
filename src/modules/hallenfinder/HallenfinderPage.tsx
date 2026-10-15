@@ -22,7 +22,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7]
 const START_OPTIONS = ['18:00', '18:30', '19:00', '19:30', '20:00', '20:30']
 const DURATION_OPTIONS = [60, 90, 120, 150, 180] // minutes
 const DISTRICTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
-const HALL_TYPES = ['sporthalle', 'gymnastikraum', 'dreifachhalle', 'doppelhalle']
+const HALL_TYPES = ['sports_hall', 'gym_room', 'triple_hall', 'double_hall']
 
 const selectClass =
   'h-11 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800'
@@ -226,7 +226,7 @@ export default function HallenfinderPage() {
               </TableHeader>
               <TableBody>
                 {results.map((r: HallResult) => (
-                  <TableRow key={`${r.einrichtungId}-${r.weekday}`}>
+                  <TableRow key={`${r.facilityId}-${r.weekday}`}>
                     <TableCell className="whitespace-nowrap font-medium">{t(`weekdayShort.${r.weekday}`)}</TableCell>
                     {/* Photos are hotlinked from the city's server (they own the
                         images) — roughly two thirds of halls have none, so the
@@ -275,8 +275,8 @@ export default function HallenfinderPage() {
                         : <Badge variant="secondary">{t('someWeeks', { free: r.weeksFree, total: r.weeksTotal })}</Badge>}
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap sm:table-cell">
-                      {r.stadtkreis ? `Kreis ${r.stadtkreis}` : '—'}
-                      {r.stadtquartier ? <span className="block text-xs text-muted-foreground">{r.stadtquartier}</span> : null}
+                      {r.cityDistrict ? `Kreis ${r.cityDistrict}` : '—'}
+                      {r.cityQuarter ? <span className="block text-xs text-muted-foreground">{r.cityQuarter}</span> : null}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{r.address ?? '—'}</TableCell>
                     <TableCell className="text-right">

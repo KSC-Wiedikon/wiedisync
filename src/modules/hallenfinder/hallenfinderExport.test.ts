@@ -19,7 +19,7 @@ const L: HallenfinderXlsxLabels = {
   exported: 'Exported', resultCount: 'Halls in this export',
   any: 'Any', yes: 'Yes', no: 'No',
   weekdayNames: { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday' },
-  typeNames: { sporthalle: 'Sport hall', dreifachhalle: 'Triple hall' },
+  typeNames: { sports_hall: 'Sport hall', triple_hall: 'Triple hall' },
 }
 
 const meta: HallenfinderXlsxMeta = {
@@ -37,9 +37,9 @@ const meta: HallenfinderXlsxMeta = {
 }
 
 const hall = (over: Partial<HallResult> = {}): HallResult => ({
-  einrichtungId: 1, name: 'Sporthalle Musterweg', hallType: 'dreifachhalle',
-  address: 'Musterweg 1', plz: '8003', stadtkreis: '3', stadtquartier: 'Sihlfeld',
-  schulkreis: 'Uto', hallTypeLabel: null, sizeLabel: '45,00 x 27,00 x 7,00 m',
+  facilityId: 1, name: 'Sporthalle Musterweg', hallType: 'triple_hall',
+  address: 'Musterweg 1', postalCode: '8003', cityDistrict: '3', cityQuarter: 'Sihlfeld',
+  schoolDistrict: 'Uto', hallTypeLabel: null, sizeLabel: '45,00 x 27,00 x 7,00 m',
   lengthM: 45, widthM: 27, heightM: 7, partitions: [],
   photoUrl: null, photoThumbUrl: null, contactEmail: 'hauswart@example.ch',
   weekday: 1, weeksTotal: 20, weeksFree: 20, freeAllNonHolidayWeeks: true,

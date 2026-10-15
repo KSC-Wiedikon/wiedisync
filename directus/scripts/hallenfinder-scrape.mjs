@@ -82,7 +82,7 @@ async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)) }
 
 /**
  * One recurring-availability query for a weekday across the whole season.
- * Returns { count, halls: [{ einrichtungId, name, window, … }] } or null after
+ * Returns { count, halls: [{ facilityId, name, window, … }] } or null after
  * 3 failed attempts (the caller treats that weekday as unscraped).
  */
 async function fetchWeekday(wd) {
@@ -112,14 +112,16 @@ async function fetchWeekday(wd) {
   }
 }
 
+// city_halls.hall_type slugs (CHECK city_halls_hall_type_values, migration 421).
+// Derived from the hall NAME; the city's own Hallentyp lands in hall_type_label.
 function hallType(name) {
   const n = name.toLowerCase()
-  if (n.includes('gymnastik')) return 'gymnastikraum'
-  if (n.includes('dreifach')) return 'dreifachhalle'
-  if (n.includes('doppel')) return 'doppelhalle'
-  return 'sporthalle'
+  if (n.includes('gymnastik')) return 'gym_room'
+  if (n.includes('dreifach')) return 'triple_hall'
+  if (n.includes('doppel')) return 'double_hall'
+  return 'sports_hall'
 }
-function plzOf(address) { const m = (address || '').match(/\b(\d{4})\b/); return m ? m[1] : null }
+function postalCodeOf(address) { const m = (address || '').match(/\b(\d{4})\b/); return m ? m[1] : null }
 
 // ── SQL emit helpers ──────────────────────────────────────────────
 function q(v) { return v === null || v === undefined ? 'NULL' : `'${String(v).replace(/'/g, "''")}'` }
@@ -136,7 +138,7 @@ async function main() {
   const targetWeekdays = WEEKDAYS.slice(0, LIMIT)
   log(`Querying ${targetWeekdays.length} weekday(s) over ${season.start}…${season.end}…`)
 
-  const hallsSeen = new Map()                 // id → {name,hall_type,address,plz,districts…}
+  const hallsSeen = new Map()                 // id → {name,hall_type,address,postal_code,districts…}
   const windowByHallWeekday = new Map()       // `${id}|${wd}` → window string ("18:00-22:00")
   const scrapedWeekdays = []                  // weekdays whose query actually succeeded
   const failedWeekdays = []
@@ -147,11 +149,11 @@ async function main() {
     if (res === null) { failedWeekdays.push(wd); log(`  ! weekday ${wd}: giving up`); await sleep(DELAY); continue }
     scrapedWeekdays.push(wd)
     for (const h of res.halls) {
-      const id = Number(h.einrichtungId)
+      const id = Number(h.facilityId)
       if (!hallsSeen.has(id)) {
         hallsSeen.set(id, {
-          name: h.name, hall_type: hallType(h.name), address: h.address, plz: plzOf(h.address),
-          stadtkreis: h.stadtkreis, stadtquartier: h.stadtquartier, schulkreis: h.schulkreis,
+          name: h.name, hall_type: hallType(h.name), address: h.address, postal_code: postalCodeOf(h.address),
+          city_district: h.cityDistrict, city_quarter: h.cityQuarter, school_district: h.schoolDistrict,
         })
       }
       // A hall without a parsed window is unusable downstream (windowSatisfies
@@ -183,7 +185,7 @@ async function main() {
     const dates = (allDatesByWeekday.get(wd) || []).map((iso) => ({
       date: iso, free: true, holiday: isHoliday(iso, holidays), errored: false, window: win,
     }))
-    rows.push({ einrichtung_id: id, weekday: wd, dates })
+    rows.push({ facility_id: id, weekday: wd, dates })
   }
 
   if (!EMIT_SQL) {
@@ -193,7 +195,7 @@ async function main() {
       sample: rows.slice(0, 3).map((r) => {
         const nh = r.dates.filter((d) => !d.holiday && !d.errored)
         return {
-          hall: hallsSeen.get(r.einrichtung_id)?.name, weekday: r.weekday,
+          hall: hallsSeen.get(r.facility_id)?.name, weekday: r.weekday,
           nonHolidayWeeks: nh.length, freeAllNonHoliday: nh.length > 0 && nh.every((d) => d.free),
         }
       }),
@@ -208,10 +210,10 @@ async function main() {
   out.push('BEGIN;')
   for (const [id, h] of hallsSeen) {
     out.push(
-      `INSERT INTO city_halls (einrichtung_id, name, hall_type, address, plz, stadtkreis, stadtquartier, schulkreis, last_seen) `
-      + `VALUES (${id}, ${q(h.name)}, ${q(h.hall_type)}, ${q(h.address)}, ${q(h.plz)}, ${q(h.stadtkreis)}, ${q(h.stadtquartier)}, ${q(h.schulkreis)}, NOW()) `
-      + `ON CONFLICT (einrichtung_id) DO UPDATE SET name=EXCLUDED.name, hall_type=EXCLUDED.hall_type, address=EXCLUDED.address, plz=EXCLUDED.plz, `
-      + `stadtkreis=EXCLUDED.stadtkreis, stadtquartier=EXCLUDED.stadtquartier, schulkreis=EXCLUDED.schulkreis, last_seen=NOW();`
+      `INSERT INTO city_halls (facility_id, name, hall_type, address, postal_code, city_district, city_quarter, school_district, last_seen) `
+      + `VALUES (${id}, ${q(h.name)}, ${q(h.hall_type)}, ${q(h.address)}, ${q(h.postal_code)}, ${q(h.city_district)}, ${q(h.city_quarter)}, ${q(h.school_district)}, NOW()) `
+      + `ON CONFLICT (facility_id) DO UPDATE SET name=EXCLUDED.name, hall_type=EXCLUDED.hall_type, address=EXCLUDED.address, postal_code=EXCLUDED.postal_code, `
+      + `city_district=EXCLUDED.city_district, city_quarter=EXCLUDED.city_quarter, school_district=EXCLUDED.school_district, last_seen=NOW();`
     )
   }
   // Clear this season's availability, then reinsert fresh (handles halls that lost
@@ -221,8 +223,8 @@ async function main() {
     + `AND weekday IN (${scrapedWeekdays.join(',')});`)
   for (const r of rows) {
     out.push(
-      `INSERT INTO city_hall_availability (einrichtung_id, weekday, season_start, season_end, scrape_window_from, scrape_window_to, scrape_min_minutes, dates, scraped_at) `
-      + `VALUES (${r.einrichtung_id}, ${r.weekday}, ${q(season.start)}, ${q(season.end)}, ${q(FROM)}, ${q(TO)}, ${MIN_MINUTES}, ${qJson(r.dates)}, NOW());`
+      `INSERT INTO city_hall_availability (facility_id, weekday, season_start, season_end, scrape_window_from, scrape_window_to, scrape_min_minutes, dates, scraped_at) `
+      + `VALUES (${r.facility_id}, ${r.weekday}, ${q(season.start)}, ${q(season.end)}, ${q(FROM)}, ${q(TO)}, ${MIN_MINUTES}, ${qJson(r.dates)}, NOW());`
     )
   }
   out.push(

@@ -33,10 +33,10 @@ export default {
     '7': 'Dim',
   },
   type: {
-    gymnastikraum: 'Salle de gymnastique',
-    sporthalle: 'Salle de sport',
-    dreifachhalle: 'Salle triple',
-    doppelhalle: 'Salle double',
+    gym_room: 'Salle de gymnastique',
+    sports_hall: 'Salle de sport',
+    triple_hall: 'Salle triple',
+    double_hall: 'Salle double',
   },
   table: {
     day: 'Jour',

@@ -626,8 +626,8 @@ const KEEP_AS_NUMBER = new Set([
   'training_min_participants', 'training_respond_by_days',
   'guest_count', 'confirmed_proposal', 'seats_available',
   'respond_by_days', 'count',
-  'rating_verein', 'rating_vorstand', 'rating_tk_leitung',
-  'rating_training', 'rating_kommunikation',
+  'rating_club', 'rating_board', 'rating_technical_committee',
+  'rating_training', 'rating_communication',
   // Besammlung offset (migration 340). Stringified it would break the
   // `start - offset` arithmetic that derives the displayed clock time.
   'meeting_offset_minutes',

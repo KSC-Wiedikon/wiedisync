@@ -55,7 +55,7 @@ if [ "$(date -u +%d)" = "01" ] || [ "${HALLENFINDER_DETAILS:-0}" = "1" ]; then
   echo "--- detail pass $(date -u +%FT%TZ) ---"
   # The scrape script has no DB access by design, so the id list comes from here.
   IDS=$(docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc \
-    "SELECT string_agg(einrichtung_id::text, ',') FROM city_halls" | tr -d '[:space:]')
+    "SELECT string_agg(facility_id::text, ',') FROM city_halls" | tr -d '[:space:]')
   if [ -z "$IDS" ]; then
     echo "hallenfinder-sync: no halls in city_halls, skipping detail pass" >&2
   else

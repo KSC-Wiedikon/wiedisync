@@ -429,7 +429,15 @@ UPDATE newsletter_subscribers    SET email         = 'scrub_'||substr(md5(email)
 UPDATE sv_vm_check               SET email         = 'scrub_'||substr(md5(email),1,16)||'@devsink.invalid'         WHERE email IS NOT NULL AND email<>'';
 UPDATE svrz_scheduler_contacts SET contact_email = CASE WHEN contact_email IS NOT NULL AND contact_email<>'' THEN 'scrub_'||substr(md5(contact_email),1,16)||'@devsink.invalid' ELSE contact_email END,
                                      contact_phone = NULL;
-UPDATE vm_vb_spielplan_contact   SET "Email"       = 'scrub_'||substr(md5("Email"),1,16)||'@devsink.invalid'       WHERE "Email" IS NOT NULL AND "Email"<>'';
+-- vm_vb_spielplan_contact is dropped by migration 421. Until 421 is on prod the
+-- clone still has it, so scrub it only when present (EXECUTE: the UPDATE must
+-- not be planned against a missing table). Delete this block once 421 is on prod.
+DO $$
+BEGIN
+  IF to_regclass('public.vm_vb_spielplan_contact') IS NOT NULL THEN
+    EXECUTE $q$UPDATE vm_vb_spielplan_contact SET "Email" = 'scrub_'||substr(md5("Email"),1,16)||'@devsink.invalid' WHERE "Email" IS NOT NULL AND "Email"<>''$q$;
+  END IF;
+END $$;
 
 -- ── History: the same PII sits in every past write ──────────────────────────
 -- Directus revisions snapshot whole items; user_logs carries the payloads of

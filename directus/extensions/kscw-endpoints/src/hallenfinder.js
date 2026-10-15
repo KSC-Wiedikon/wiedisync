@@ -5,8 +5,9 @@
  *     ?weekday=1,2,3,4,5        (default Mon–Fri)
  *     &startFrom=18:00          (slot must start at/after this)
  *     &minMinutes=90            (required free duration)
- *     &district=3               (optional Stadtkreis)
- *     &hallType=sporthalle      (optional)
+ *     &district=3               (optional Stadtkreis — city_halls.city_district)
+ *     &hallType=sports_hall     (optional: sports_hall | gym_room | triple_hall | double_hall;
+ *                                the pre-421 German slugs are still accepted)
  *     &freeAllNonHolidayWeeks=1 (default 1 — free EVERY non-Schulferien week)
  *
  * Returns one row per (hall, weekday) that qualifies, with week counts, a
@@ -77,6 +78,18 @@ function pgDate(v) {
 }
 const WD_PARAM = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7 } // our weekday == city wochentag
 
+// city_halls.hall_type slugs since migration 421. A tab still running a
+// pre-421 bundle filters with the old German slug — map it rather than
+// silently returning nothing.
+const LEGACY_HALL_TYPE = {
+  sporthalle: 'sports_hall', gymnastikraum: 'gym_room', dreifachhalle: 'triple_hall', doppelhalle: 'double_hall',
+}
+export function normaliseHallType(v) {
+  if (v === null || v === undefined || v === '') return null
+  const s = String(v).trim().toLowerCase()
+  return LEGACY_HALL_TYPE[s] ?? s
+}
+
 export function registerHallenfinder(router, { database, logger }) {
   const log = logger.child({ endpoint: 'hallenfinder' })
 
@@ -94,7 +107,7 @@ export function registerHallenfinder(router, { database, logger }) {
       const startFromMin = toMin(startFrom)
       const minMinutes = Number.isFinite(Number(req.query.minMinutes)) ? Number(req.query.minMinutes) : 90
       const district = req.query.district ? String(req.query.district) : null
-      const hallType = req.query.hallType ? String(req.query.hallType) : null
+      const hallType = normaliseHallType(req.query.hallType)
       const freeAll = String(req.query.freeAllNonHolidayWeeks ?? '1') !== '0'
 
       // ── latest scraped season ──
@@ -107,14 +120,14 @@ export function registerHallenfinder(router, { database, logger }) {
       }
 
       const rows = await database('city_hall_availability as a')
-        .join('city_halls as h', 'h.einrichtung_id', 'a.einrichtung_id')
+        .join('city_halls as h', 'h.facility_id', 'a.facility_id')
         .where('a.season_start', season.start).andWhere('a.season_end', season.end)
         .whereIn('a.weekday', weekdays)
-        .modify((q) => { if (district) q.andWhere('h.stadtkreis', district) })
+        .modify((q) => { if (district) q.andWhere('h.city_district', district) })
         .modify((q) => { if (hallType) q.andWhere('h.hall_type', hallType) })
         .select(
-          'a.einrichtung_id', 'a.weekday', 'a.dates', 'a.scrape_window_to', 'a.scraped_at',
-          'h.name', 'h.hall_type', 'h.address', 'h.plz', 'h.stadtkreis', 'h.stadtquartier', 'h.schulkreis',
+          'a.facility_id', 'a.weekday', 'a.dates', 'a.scrape_window_to', 'a.scraped_at',
+          'h.name', 'h.hall_type', 'h.address', 'h.postal_code', 'h.city_district', 'h.city_quarter', 'h.school_district',
           // Migration 269 — dimensions, photo and rental contact.
           'h.hall_type_label', 'h.size_label', 'h.length_m', 'h.width_m', 'h.height_m',
           'h.partitions', 'h.photo_url', 'h.photo_thumb_url', 'h.contact_email',
@@ -140,14 +153,14 @@ export function registerHallenfinder(router, { database, logger }) {
 
         const scrapeTo = r.scrape_window_to || '22:00'
         results.push({
-          einrichtungId: r.einrichtung_id,
+          facilityId: r.facility_id,
           name: r.name,
           hallType: r.hall_type,
           address: r.address,
-          plz: r.plz,
-          stadtkreis: r.stadtkreis,
-          stadtquartier: r.stadtquartier,
-          schulkreis: r.schulkreis,
+          postalCode: r.postal_code,
+          cityDistrict: r.city_district,
+          cityQuarter: r.city_quarter,
+          schoolDistrict: r.school_district,
           // Migration 269. numeric(6,2) comes back from pg as a string —
           // Number() it here so the frontend never formats "23.00" as text.
           hallTypeLabel: r.hall_type_label ?? null,
@@ -164,8 +177,8 @@ export function registerHallenfinder(router, { database, logger }) {
           weeksFree: satisfied.length,
           freeAllNonHolidayWeeks: allFree,
           sampleWindow,
-          detailsUrl: `${CITY_BASE}/details.php?einrichtung=${r.einrichtung_id}`,
-          belegungsplanUrl: `${CITY_BASE}/kalender.php?einrichtung=${r.einrichtung_id}`
+          detailsUrl: `${CITY_BASE}/details.php?einrichtung=${r.facility_id}`,
+          belegungsplanUrl: `${CITY_BASE}/kalender.php?einrichtung=${r.facility_id}`
             + `&wochentag=${WD_PARAM[r.weekday]}&tag_ab=${ddmmyyyy(season.start)}&tag_bis=${ddmmyyyy(season.end)}`
             + `&zeit_von=${encodeURIComponent(startFrom)}&zeit_bis=${encodeURIComponent(scrapeTo)}`,
           reservationUrl: `${CITY_BASE}/freieTermine.php?terminart=periodisch&switch=no&hallentyp=`

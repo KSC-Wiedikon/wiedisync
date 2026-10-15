@@ -33,10 +33,10 @@ export default {
     '7': 'Dom',
   },
   type: {
-    gymnastikraum: 'Sala di ginnastica',
-    sporthalle: 'Palestra',
-    dreifachhalle: 'Palestra tripla',
-    doppelhalle: 'Palestra doppia',
+    gym_room: 'Sala di ginnastica',
+    sports_hall: 'Palestra',
+    triple_hall: 'Palestra tripla',
+    double_hall: 'Palestra doppia',
   },
   table: {
     day: 'Giorno',

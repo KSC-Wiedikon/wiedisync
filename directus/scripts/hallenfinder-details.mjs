@@ -19,7 +19,7 @@
  *   (no --emit-sql → prints a JSON summary to stdout for dry-runs)
  *
  * Get the id list from the DB on the VPS:
- *   psql -tAc "SELECT string_agg(einrichtung_id::text, ',') FROM city_halls"
+ *   psql -tAc "SELECT string_agg(facility_id::text, ',') FROM city_halls"
  */
 
 import { parseHallDetails, CITY_BASE } from './hallenfinder/parse-details.mjs'
@@ -42,7 +42,7 @@ function log(...a) { if (!QUIET) console.error(...a) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 if (IDS.length === 0) {
-  console.error('hallenfinder-details: --ids=<comma-separated einrichtung ids> is required')
+  console.error('hallenfinder-details: --ids=<comma-separated facility ids> is required')
   process.exit(1)
 }
 
@@ -116,7 +116,7 @@ async function main() {
       + `partitions=${qJson(r.partitions)}, photo_url=${q(r.photoUrl)}, `
       + `photo_thumb_url=${q(r.photoThumbUrl)}, contact_email=${q(r.contactEmail)}, `
       + `details_scraped_at=NOW() `
-      + `WHERE einrichtung_id=${Number(r.id)};`
+      + `WHERE facility_id=${Number(r.id)};`
     )
   }
   out.push('COMMIT;')

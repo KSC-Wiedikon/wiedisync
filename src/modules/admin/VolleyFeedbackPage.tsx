@@ -23,11 +23,11 @@ interface VolleyFeedback {
   teams: string[] | null
   other_function: string | null
   other_team: string | null
-  rating_verein: number | null
-  rating_vorstand: number | null
-  rating_tk_leitung: number | null
+  rating_club: number | null
+  rating_board: number | null
+  rating_technical_committee: number | null
   rating_training: number | null
-  rating_kommunikation: number | null
+  rating_communication: number | null
   feedback_text: string | null
   ideas_text: string | null
   other_text: string | null
@@ -35,19 +35,19 @@ interface VolleyFeedback {
 }
 
 const RATING_KEYS = [
-  'rating_verein',
-  'rating_vorstand',
-  'rating_tk_leitung',
+  'rating_club',
+  'rating_board',
+  'rating_technical_committee',
   'rating_training',
-  'rating_kommunikation',
+  'rating_communication',
 ] as const
 
 const RATING_I18N_KEYS: Record<(typeof RATING_KEYS)[number], string> = {
-  rating_verein: 'vfRatingClub',
-  rating_vorstand: 'vfRatingBoard',
-  rating_tk_leitung: 'vfRatingTk',
+  rating_club: 'vfRatingClub',
+  rating_board: 'vfRatingBoard',
+  rating_technical_committee: 'vfRatingTk',
   rating_training: 'vfRatingTraining',
-  rating_kommunikation: 'vfRatingComm',
+  rating_communication: 'vfRatingComm',
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -122,8 +122,8 @@ export default function VolleyFeedbackPage() {
       i.is_anonymous ? t('vfYes') : t('vfNo'),
       i.functions?.join(', ') || '',
       i.teams?.join(', ') || '',
-      i.rating_verein ?? '', i.rating_vorstand ?? '', i.rating_tk_leitung ?? '',
-      i.rating_training ?? '', i.rating_kommunikation ?? '',
+      i.rating_club ?? '', i.rating_board ?? '', i.rating_technical_committee ?? '',
+      i.rating_training ?? '', i.rating_communication ?? '',
       (i.feedback_text || '').replace(/[\r\n]+/g, ' '),
       (i.ideas_text || '').replace(/[\r\n]+/g, ' '),
       (i.other_text || '').replace(/[\r\n]+/g, ' '),

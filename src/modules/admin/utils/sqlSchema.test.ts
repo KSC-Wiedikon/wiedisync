@@ -197,6 +197,6 @@ describe('starterSelect', () => {
   it('quotes identifiers that are not plain lower-case names', () => {
     expect(quoteIdent('Email')).toBe('"Email"')
     expect(quoteIdent('a"b')).toBe('"a""b"')
-    expect(quoteIdent('vm_vb_spielplan_contact')).toBe('vm_vb_spielplan_contact')
+    expect(quoteIdent('svrz_scheduler_contacts')).toBe('svrz_scheduler_contacts')
   })
 })

@@ -17,20 +17,20 @@ test('parseSearchResult extracts every hall with all fields', () => {
   assert.equal(count, 3)
   assert.equal(halls.length, 3, 'halls.length must equal the Treffer count')
 
-  const buhnrain = halls.find((h) => h.einrichtungId === '39')
+  const buhnrain = halls.find((h) => h.facilityId === '39')
   assert.ok(buhnrain, 'Gymnastikraum Buhnrain (39) present')
   assert.equal(buhnrain.name, 'Gymnastikraum Buhnrain')
   assert.equal(buhnrain.window, '18:00-22:00')
-  assert.equal(buhnrain.stadtkreis, '11')
-  assert.equal(buhnrain.stadtquartier, 'Seebach')
-  assert.equal(buhnrain.schulkreis, 'Glattal')
+  assert.equal(buhnrain.cityDistrict, '11')
+  assert.equal(buhnrain.cityQuarter, 'Seebach')
+  assert.equal(buhnrain.schoolDistrict, 'Glattal')
   assert.equal(buhnrain.address, 'Buhnrain 40, 8052 Zürich')
 
   // Every hall must have a stable id, a name and a parsed Stadtkreis.
   for (const h of halls) {
-    assert.match(h.einrichtungId, /^\d+$/)
+    assert.match(h.facilityId, /^\d+$/)
     assert.ok(h.name && h.name.length > 0)
-    assert.ok(h.stadtkreis, `${h.name} has a Stadtkreis`)
+    assert.ok(h.cityDistrict, `${h.name} has a Stadtkreis`)
   }
 })
 

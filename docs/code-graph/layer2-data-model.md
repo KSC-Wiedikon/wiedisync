@@ -175,7 +175,6 @@ erDiagram
 | `sv_vm_check` | `id`, `association_id`, names, `licence_*`, `is_writer`, `is_referee`, `referee_assoc`, `team_ids`, `synced_at` | drives `members.scorer_vb`/`referee_vb` | Volleymanager licence-sync snapshot. |
 | `svrz_games` | `id` (uuid), `svrz_persistence_id`, `svrz_number`, `status`, home/away club+team, `league_*`, `raw` (json) | standalone | Mirror of SVRZ indoor-league games. |
 | `svrz_spielplaner_contacts` | `id` (uuid), `svrz_persistence_id`, `season_uuid`, `team_identifier` (per-team key for team-responsible rows — migration 106), `club_*`, `person_*`, `contact_*`, `raw` (json) | standalone | SVRZ per-club / per-team scheduling contacts. |
-| `vm_vb_spielplan_contact` | `id`, `FirstName`, `LastName`, `Email`, `Language` | standalone | Volleymanager scheduling-contact cache. |
 | `scheduling_emails` | `id`, `message_id` (unique), `in_reply_to`, `references_ids`, `direction` (in/out), `folder`, `imap_uid`, `from_address`/`from_name`, `to_addresses`, `subject`, `body_text`/`body_html`, `read_at` | standalone (matched to opponents client-side by address) | Embedded Spielplanung mailbox for `spielplanung@volleyball.kscw.ch` (IMAP INBOX + Sent sync; attachment bytes streamed on demand, never stored) — migration 100. |
 | `sync_runs` | `source` (PK), `last_run_at`, `status`, `rows_changed`, `duration_ms`, `error_message` | standalone | Per-cron heartbeat (read by /status). |
 | `kscw_migrations` | `filename` (PK), `sha256`, `applied_at`, `applied_by` | standalone | Migration-runner journal (apply-once + sha guard). |

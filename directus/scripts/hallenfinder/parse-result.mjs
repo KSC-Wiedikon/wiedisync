@@ -8,7 +8,10 @@
  * result pages share the same teaser markup).
  *
  * Result shape:
- *   { count, halls: [{ einrichtungId, name, window, stadtkreis, stadtquartier, schulkreis, address }] }
+ *   { count, halls: [{ facilityId, name, window, cityDistrict, cityQuarter, schoolDistrict, address }] }
+ *
+ * `facilityId` is the city's `einrichtung=` id; cityDistrict / cityQuarter /
+ * schoolDistrict are its Stadtkreis / Stadtquartier / Schulkreis, verbatim.
  *
  * `count` is the site's own "N Treffer" (a checksum against halls.length).
  * `window` is the "verfügbar" time text shown (e.g. "18:00-22:00"), or '' if absent.
@@ -36,9 +39,9 @@ function parseLocation(text) {
   const quartier = t.match(/Stadtquartier\s+([^,]+?)(?:,|$)/i)
   const schulkreis = t.match(/Schulkreis\s+([^,]+?)(?:,|$)/i)
   return {
-    stadtkreis: kreis ? kreis[1].trim() : null,
-    stadtquartier: quartier ? quartier[1].trim() : null,
-    schulkreis: schulkreis ? schulkreis[1].trim() : null,
+    cityDistrict: kreis ? kreis[1].trim() : null,
+    cityQuarter: quartier ? quartier[1].trim() : null,
+    schoolDistrict: schulkreis ? schulkreis[1].trim() : null,
   }
 }
 
@@ -66,10 +69,10 @@ export function parseSearchResult(html) {
   // Split into per-hall chunks. The first chunk (before the first teaser) is header noise.
   const chunks = html.split(/class="teaser_container"/i).slice(1)
   for (const chunk of chunks) {
-    // einrichtung id — appears in the onclick details.php link and the anchors.
+    // The city's `einrichtung` id — appears in the onclick details.php link and the anchors.
     const idM = chunk.match(/einrichtung=(\d+)/)
     if (!idM) continue
-    const einrichtungId = idM[1]
+    const facilityId = idM[1]
 
     const nameM = chunk.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)
     const name = nameM ? stripTags(nameM[1]) : null
@@ -80,12 +83,12 @@ export function parseSearchResult(html) {
     const window = winM ? winM[1].replace(/\s+/g, '') : ''
 
     const locM = chunk.match(/class="mod_eventinfo__location-name"[^>]*>([\s\S]*?)<\/span>/i)
-    const loc = locM ? parseLocation(locM[1]) : { stadtkreis: null, stadtquartier: null, schulkreis: null }
+    const loc = locM ? parseLocation(locM[1]) : { cityDistrict: null, cityQuarter: null, schoolDistrict: null }
 
     const addrM = chunk.match(/class="mod_eventinfo__location-address"[^>]*>([\s\S]*?)<\/span>/i)
     const address = addrM ? stripTags(addrM[1]) : null
 
-    halls.push({ einrichtungId, name, window, ...loc, address })
+    halls.push({ facilityId, name, window, ...loc, address })
   }
 
   return { count, halls }
