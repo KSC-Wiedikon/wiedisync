@@ -778,6 +778,8 @@ export default {
   sqlWorkspaceRefreshSchema: 'Schema neu lade',
   sqlWorkspaceFilterTables: 'Tabelle/Spalte filtere…',
   sqlWorkspaceInsertSelect: 'SELECT * FROM iifüege',
+  sqlWorkspaceQueryReplaced: 'Abfrog ersetzt',
+  sqlWorkspaceUndo: 'Rückgängig',
   sqlWorkspaceNoTables: 'Käi Tabelle gfunde',
   sqlWorkspacePlaceholder: 'SELECT * FROM members LIMIT 10;',
   sqlWorkspaceRecent: 'Zletscht',

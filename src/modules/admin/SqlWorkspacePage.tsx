@@ -330,10 +330,18 @@ export default function SqlWorkspacePage() {
     }
   }, [sql, writeMode, loading, recent, loadSchemaInto, prompt, t])
 
+  // Replaces the editor content, like the Recent chips do. An unrun query
+  // would otherwise be lost, so a non-empty buffer gets an Undo toast.
   const insertTableRef = useCallback((table: SchemaTable) => {
-    setSql((cur) => (cur.trim() ? cur : starterSelect(table)))
+    const previous = sql
+    setSql(starterSelect(table))
     setSchemaSheetOpen(false)
-  }, [])
+    if (previous.trim()) {
+      toast(t('sqlWorkspaceQueryReplaced'), {
+        action: { label: t('sqlWorkspaceUndo'), onClick: () => setSql(previous) },
+      })
+    }
+  }, [sql, t])
 
   const applyFix = useCallback((suggestion: string) => {
     if (!fix) return

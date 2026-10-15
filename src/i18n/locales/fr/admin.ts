@@ -546,6 +546,8 @@ export default {
   sqlWorkspaceRefreshSchema: 'Recharger le schéma',
   sqlWorkspaceFilterTables: 'Filtrer tables/colonnes…',
   sqlWorkspaceInsertSelect: 'Insérer SELECT * FROM',
+  sqlWorkspaceQueryReplaced: 'Requête remplacée',
+  sqlWorkspaceUndo: 'Annuler',
   sqlWorkspaceNoTables: 'Aucune table correspondante',
   sqlWorkspacePlaceholder: 'SELECT * FROM members LIMIT 10;',
   sqlWorkspaceRecent: 'Récentes',

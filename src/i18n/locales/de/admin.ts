@@ -1426,6 +1426,8 @@ export default {
   sqlWorkspaceRefreshSchema: 'Schema neu laden',
   sqlWorkspaceFilterTables: 'Tabellen/Spalten filtern…',
   sqlWorkspaceInsertSelect: 'SELECT * FROM einfügen',
+  sqlWorkspaceQueryReplaced: 'Abfrage ersetzt',
+  sqlWorkspaceUndo: 'Rückgängig',
   sqlWorkspaceNoTables: 'Keine Tabellen gefunden',
   sqlWorkspacePlaceholder: 'SELECT * FROM members LIMIT 10;',
   sqlWorkspaceRecent: 'Zuletzt',
