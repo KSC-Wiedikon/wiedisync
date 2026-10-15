@@ -131,7 +131,7 @@ const RATE_FOR_MEMBER = `EXISTS (
   SELECT 1 FROM finance_dues_rates r
    WHERE r.fiscal_year = ${FY_ID} AND r.active
      AND lower(r.category) = lower(COALESCE(m.fee_category, ''))
-     AND (NULLIF(r.club_section, '') IS NULL OR lower(r.club_section) = lower(COALESCE(m.club_section, '')))
+     AND (NULLIF(r.sektion, '') IS NULL OR lower(r.sektion) = lower(COALESCE(m.club_section, '')))
 )`
 
 /** Core roster row on an active team — "is this member a player this season". */
