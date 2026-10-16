@@ -363,10 +363,13 @@ export default {
     // drop guard (finding 11).
     const cspReportIp = new Map()
     const cspCors = (req, res) => {
-      // Only our own origins; a report endpoint is not a general relay.
+      // Only our own origins; a report endpoint is not a general relay. Club
+      // hosts only — never a *.pages.dev name from Luca's personal Cloudflare
+      // account (wiedisync.pages.dev was here until 2026-10-16): once such a
+      // project is deleted, anyone can claim the name.
       const origin = req.headers.origin
       const ALLOWED = ['https://kscw.ch', 'https://www.kscw.ch', 'https://wiedisync.kscw.ch',
-        'https://spielplanung.wiedisync.kscw.ch', 'https://accounting.wiedisync.kscw.ch', 'https://wiedisync.pages.dev']
+        'https://spielplanung.wiedisync.kscw.ch', 'https://accounting.wiedisync.kscw.ch', 'https://wiedisync-dev.kscw.ch']
       if (origin && ALLOWED.includes(origin)) {
         res.set('Access-Control-Allow-Origin', origin)
         res.set('Access-Control-Allow-Headers', 'content-type')
@@ -2128,7 +2131,10 @@ export default {
         const GITHUB_PAT = process.env.GITHUB_PAT
         if (!GITHUB_PAT) return res.status(500).json({ error: 'GITHUB_PAT not configured' })
 
-        const repo = fb.source === 'website' ? 'kscw-website' : 'kscw'
+        // Owner is the club org. The member-app repo is `wiedisync`: the old name
+        // `kscw` only resolved through GitHub's redirect from `Lucanepa/kscw`, and
+        // `KSC-Wiedikon/kscw` was never a repo (404).
+        const repo = fb.source === 'website' ? 'kscw-website' : 'wiedisync'
         const labels = fb.type === 'bug' ? ['bug', 'user-reported'] : ['enhancement', 'user-reported']
 
         const member = fb.user ? await database('members').where('id', fb.user).first() : null
@@ -2147,7 +2153,7 @@ export default {
           body += `\n\n**Screenshots:** ` + shotIds.map((id, i) => `[${i + 1}](${process.env.PUBLIC_URL}/assets/${id})`).join(' · ')
         }
 
-        const ghResp = await fetch(`https://api.github.com/repos/Lucanepa/${repo}/issues`, {
+        const ghResp = await fetch(`https://api.github.com/repos/KSC-Wiedikon/${repo}/issues`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${GITHUB_PAT}`,

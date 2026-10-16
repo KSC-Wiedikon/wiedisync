@@ -71,7 +71,7 @@ interface GitHubIssue {
   url: string
 }
 
-const GITHUB_REPO = 'Lucanepa/wiedisync'
+const GITHUB_REPO = 'KSC-Wiedikon/wiedisync'
 
 export default function FeedbackPage() {
   const { t, i18n } = useTranslation('feedback')

@@ -27,7 +27,7 @@ export function activityPath(kind: ShareableActivity, id: string | number): stri
  * Absolute deep link to one activity, e.g. `https://wiedisync.kscw.ch/events/42`.
  *
  * Origin taken from the browser on purpose: the same build serves
- * wiedisync.kscw.ch and wiedisync.pages.dev, and a hardcoded prod URL would send
+ * wiedisync.kscw.ch and wiedisync-dev.kscw.ch, and a hardcoded prod URL would send
  * a link shared from the dev preview to production data.
  */
 export function activityLink(kind: ShareableActivity, id: string | number): string {

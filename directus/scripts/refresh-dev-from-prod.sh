@@ -314,7 +314,7 @@ if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=
 fi
 if [ "$DO_SCRUB" = "1" ]; then
   docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
-    -c "UPDATE directus_settings SET project_url='https://wiedisync.pages.dev' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
+    -c "UPDATE directus_settings SET project_url='https://wiedisync-dev.kscw.ch' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
 fi
 
 echo "[7/7] Re-pinning dev creds by id (allowlist passwords + all captured tokens)"
@@ -375,4 +375,4 @@ echo
 echo "✔ Dev refreshed from prod."
 echo "  • Permissions came from the prod clone (already correct)."
 echo "  • Files/images are NOT copied — directus_files rows reference prod assets that don't exist in dev storage, so some images 404 in dev."
-echo "  • Test it at https://wiedisync.pages.dev"
+echo "  • Test it at https://wiedisync-dev.kscw.ch"

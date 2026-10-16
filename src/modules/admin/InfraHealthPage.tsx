@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 
 const PROD_URL = API_URL
 const DEV_URL = 'https://directus-dev.kscw.ch'
-const PUSH_WORKER_URL = 'https://kscw-push.lucanepa.workers.dev'
+const PUSH_WORKER_URL = 'https://kscw-push.kscw.workers.dev'
 
 type Status = 'healthy' | 'down' | 'stale' | 'checking' | 'unknown'
 

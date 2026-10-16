@@ -115,14 +115,17 @@ describe('F-27: shared verifier', () => {
   })
 
   it('accepts a success solved on one of our hostnames', async () => {
-    for (const hostname of ['kscw.ch', 'www.kscw.ch', 'wiedisync.kscw.ch', 'wiedisync.pages.dev', 'dev.kscw-wiedisync.pages.dev', 'localhost']) {
+    for (const hostname of ['kscw.ch', 'www.kscw.ch', 'wiedisync.kscw.ch', 'wiedisync-dev.kscw.ch', 'dev.kscw-wiedisync.pages.dev', 'localhost']) {
       const r = await verifyTurnstileToken('tok', { secret: REAL, fetchImpl: reply({ success: true, hostname }) })
       expect(r, hostname).toEqual({ ok: true, reason: null })
     }
   })
 
   it('rejects a success solved on somebody else\'s site', async () => {
-    for (const hostname of ['evil.example', 'kscw.ch.evil.example', 'notkscw.ch', undefined]) {
+    // The last four are the *.pages.dev names of the old projects in Luca's personal
+    // Cloudflare account: once deleted, anyone can claim them.
+    for (const hostname of ['evil.example', 'kscw.ch.evil.example', 'notkscw.ch', undefined,
+      'wiedisync.pages.dev', 'dev.wiedisync.pages.dev', 'wiedisync-spielplanung.pages.dev', 'kscw-website.pages.dev']) {
       const r = await verifyTurnstileToken('tok', { secret: REAL, fetchImpl: reply({ success: true, hostname }) })
       expect(r, String(hostname)).toEqual({ ok: false, reason: 'hostname' })
     }

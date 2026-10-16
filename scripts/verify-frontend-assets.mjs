@@ -18,7 +18,7 @@
 // Usage:
 //   node scripts/verify-frontend-assets.mjs [baseUrl]
 //   npm run assets:check:prod   # https://wiedisync.kscw.ch
-//   npm run assets:check:dev    # https://wiedisync.pages.dev
+//   npm run assets:check:dev    # https://wiedisync-dev.kscw.ch
 
 const BASE = (process.argv[2] || 'https://wiedisync.kscw.ch').replace(/\/+$/, '')
 const CONCURRENCY = 10

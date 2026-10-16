@@ -36,7 +36,7 @@
   //   npx wrangler secret put RELAY_TOKEN
   // ALLOWED_ORIGINS gates cross-origin subscribe/publish (comma-separated).
   "vars": {
-    "ALLOWED_ORIGINS": "https://wiedisync.kscw.ch,https://wiedisync.pages.dev,http://localhost:1234",
+    "ALLOWED_ORIGINS": "https://wiedisync.kscw.ch,https://wiedisync-dev.kscw.ch,http://localhost:1234",
     // Default channel when a request omits one. One board today → "kscw".
     "DEFAULT_CHANNEL": "kscw"
   }

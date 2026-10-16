@@ -12,7 +12,7 @@ export function escHtml(str) {
 
 /** Frontend URL — env var or auto-detect from Directus PUBLIC_URL */
 export const FRONTEND_URL = process.env.FRONTEND_URL
-  || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://wiedisync.pages.dev' : 'https://wiedisync.kscw.ch')
+  || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://wiedisync-dev.kscw.ch' : 'https://wiedisync.kscw.ch')
 
 // Game scheduling lives on its own subdomain; opponent + scheduling-dashboard
 // links point here (auto-detected dev vs prod from PUBLIC_URL, like FRONTEND_URL).

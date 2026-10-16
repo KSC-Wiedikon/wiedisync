@@ -22,7 +22,7 @@ export async function onRequest(context) {
   }
 
   // Prod hosts talk to prod Directus; every preview/dev host
-  // (wiedisync.pages.dev, *.pages.dev) uses dev Directus. Mirrors src/lib/api.ts,
+  // (wiedisync-dev.kscw.ch, *.pages.dev previews) uses dev Directus. Mirrors src/lib/api.ts,
   // which pins TWO prod hosts — this checked only one, so the Spielplanung host
   // would have been routed at DEV Directus (audit 2026-08-08, finding 36).
   // Unreachable today (the only iCal URL builder sits on an unrouted page), but

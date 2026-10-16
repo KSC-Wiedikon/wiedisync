@@ -74,7 +74,7 @@ jobs:
           # spielplanung.wiedisync.kscw.ch, so the var is irrelevant there — but EVERY
           # OTHER host falls through to `VITE_DIRECTUS_URL || directus-dev`. Setting it
           # on the member app would therefore point kscw-wiedisync.pages.dev at PROD
-          # data, which is exactly the trap CLAUDE.md flags for wiedisync.pages.dev.
+          # data, which is exactly the trap INFRA.md flags for VITE_DIRECTUS_URL.
           # Empty string is falsy in that expression, so it correctly yields dev.
           VITE_DIRECTUS_URL: ${{ startsWith(matrix.project, 'kscw-spielplanung') && (github.ref_name == 'prod' && 'https://directus.kscw.ch' || 'https://directus-dev.kscw.ch') || '' }}
           VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
