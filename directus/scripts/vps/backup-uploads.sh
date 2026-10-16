@@ -32,7 +32,6 @@ BACKUP_DIR=/data/backups
 MIRROR=/data/uploads-mirror
 DATE=$(date +%Y-%m-%d)
 BUCKET=r2kscw:kscw-uploads          # existing rclone remote (admin creds, root-only)
-GDRIVE_DIR=gdrive:Backups/directus-kscw
 R2_DIR=r2kscw:kscw-db-backups
 GPG_RECIPIENT=backup@kscw.ch
 
@@ -74,7 +73,10 @@ SIZE=$(du -h "$ARCHIVE" | cut -f1)
 # remote lacks (8-week local retention), so a missed week is filled in by the next run.
 OFFSITE=()
 leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+=("$name FAILED"); fi; }
-leg GDrive rclone copy "$BACKUP_DIR" "$GDRIVE_DIR" --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
+# Google Drive leg dropped 16.10.2026: the `gdrive` remote was Luca's PERSONAL Drive with
+# full access, which the club's server must not hold. Club offsite copy = R2; Luca's server
+# also pulls a private copy to his NAS. A club-owned Drive (kscwzh@gmail.com) can come back
+# later as a second club copy (handover document 03, GG1).
 leg R2     rclone copy "$BACKUP_DIR" "$R2_DIR"     --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
 # NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
 # the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
@@ -82,7 +84,6 @@ leg R2     rclone copy "$BACKUP_DIR" "$R2_DIR"     --include 'kscw_uploads_*.tar
 
 # ── 4. retention: 8 weeks everywhere ────────────────────────────────────────────────
 find "$BACKUP_DIR" -name 'kscw_uploads_*.tar.gz.gpg' -mtime +56 -delete
-rclone delete "$GDRIVE_DIR" --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 2>&1
 rclone delete "$R2_DIR"     --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 2>&1
 
 SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')

@@ -12,14 +12,14 @@
 # So each new archive is copied, GPG-encrypted to backup@kscw.ch (same key and escrow
 # as the database dumps — the private half is not on this box), to the same places as
 # the backups, but under its own folders that NO prune pattern touches:
-#   gdrive:Archive/kscw-finance     r2kscw:kscw-db-backups/finance-archive/
+#   r2kscw:kscw-db-backups/finance-archive/
 # The encrypted file also stays in $WORK, where Luca's lenovoserver pulls it to his NAS
 # (since 16.10.2026 the VPS holds no key to the NAS; kscw-backup-pull.timer there).
 # The prune globs of backup-postgres.sh ('*.sql.gz.gpg') and backup-uploads.sh
 # ('kscw_uploads_*.tar.gz.gpg') cannot match 'kscw_finanzarchiv_*.zip.gpg'.
 #
 # Daily, idempotent: only archives with offsite_at IS NULL are handled; the result per
-# target lands in finance_archives.offsite, offsite_at once Drive and R2 both succeed.
+# target lands in finance_archives.offsite, offsite_at once R2 has it.
 # The plaintext copy is checked against the recorded SHA-256 before encrypting.
 # Deploy: npm run backup:deploy-scripts (installs to /usr/local/bin). Cron (root):
 #   45 3 * * * /usr/local/bin/finance-archive-offsite.sh
@@ -30,7 +30,6 @@ PG=kscw-postgres
 DB=${DB:-postgres}                       # override only for a test run (dev)
 BUCKET=${BUCKET:-r2kscw:kscw-uploads}  # dev: r2kscw:kscw-uploads-dev
 WORK=/data/backups/finance-archive
-GDRIVE_DIR=${GDRIVE_DIR:-gdrive:Archive/kscw-finance}
 R2_DIR=${R2_DIR:-r2kscw:kscw-db-backups/finance-archive}
 GPG_RECIPIENT=backup@kscw.ch
 LOG=/data/backups/backup.log
@@ -74,15 +73,18 @@ while IFS='|' read -r ID DISK SHA FY STORE; do
   fi
   rm -f "$PLAIN"
   ENC_SHA=$(sha256sum "$ENC" | cut -d' ' -f1)
-  G=failed; R=failed
-  rclone copy "$ENC" "$GDRIVE_DIR" </dev/null 2>>"$LOG" && G=ok
+  # Google Drive leg dropped 16.10.2026: the `gdrive` remote was Luca's PERSONAL Drive with
+  # full access, which the club's server must not hold. Club offsite copy = R2; Luca's server
+  # also pulls a private copy to his NAS. A club-owned Drive (kscwzh@gmail.com) can come back
+  # later as a second club copy (handover document 03, GG1).
+  R=failed
   rclone copy "$ENC" "$R2_DIR" </dev/null 2>>"$LOG" && R=ok
   DONE=""
   # $ENC is kept in $WORK (yearly, small): it is what the NAS pull picks up.
-  if [ "$G$R" = "okok" ]; then DONE=", offsite_at = now()"; fi
+  if [ "$R" = "ok" ]; then DONE=", offsite_at = now()"; fi
   psqlq -c "UPDATE finance_archives SET offsite = jsonb_build_object(
-      'gdrive', '$G', 'r2', '$R', 'file', '$NAME.zip.gpg',
+      'r2', '$R', 'file', '$NAME.zip.gpg',
       'encrypted_sha256', '$ENC_SHA', 'checked_at', now())$DONE WHERE id = $ID" >/dev/null \
     || log "archive $ID: could not record the result"
-  log "archive $ID ($FY): GDrive $G, R2 $R"
+  log "archive $ID ($FY): R2 $R"
 done <<< "$ROWS"

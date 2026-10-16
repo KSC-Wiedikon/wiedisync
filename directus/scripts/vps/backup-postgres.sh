@@ -2,7 +2,6 @@
 BACKUP_DIR=/data/backups
 DATE=$(date +%Y-%m-%d_%H%M)
 CONTAINER=kscw-postgres
-GDRIVE_DIR=gdrive:Backups/directus-kscw
 R2_DIR=r2kscw:kscw-db-backups
 GPG_RECIPIENT=backup@kscw.ch
 
@@ -43,9 +42,10 @@ PRUNE_FAILED=()
 # leg <name> <command…> — records "<name> OK" / "<name> FAILED"
 leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+=("$name FAILED"); fi; }
 
-# Sync ENCRYPTED files to Google Drive (60d retention)
-leg GDrive rclone copy "$BACKUP_DIR" "$GDRIVE_DIR" --include '*.sql.gz.gpg' 2>&1
-rclone delete "$GDRIVE_DIR" --min-age 60d --include '*.sql.gz.gpg' 2>&1 || PRUNE_FAILED+=(GDrive)
+# Google Drive leg dropped 16.10.2026: the `gdrive` remote was Luca's PERSONAL Drive with
+# full access, which the club's server must not hold. Club offsite copy = R2; Luca's server
+# also pulls a private copy to his NAS. A club-owned Drive (kscwzh@gmail.com) can come back
+# later as a second club copy (handover document 03, GG1).
 
 # Sync ENCRYPTED files to Cloudflare R2 (60d retention)
 leg R2 rclone copy "$BACKUP_DIR" "$R2_DIR" --include '*.sql.gz.gpg' 2>&1

@@ -4,7 +4,6 @@ BACKUP_DIR=/data/backups
 LABEL="${1:-manual}"
 DATE=$(date +%Y-%m-%d_%H%M)
 CONTAINER=kscw-postgres
-GDRIVE_DIR=gdrive:Backups/directus-kscw
 R2_DIR=r2kscw:kscw-db-backups
 GPG_RECIPIENT=backup@kscw.ch
 FILE="$BACKUP_DIR/kscw_predeploy_${LABEL}_${DATE}.sql.gz"
@@ -32,8 +31,11 @@ offsite() {
   fi
   echo "$1 FAILED ($why)"
 }
-GDRIVE=$(offsite GDrive "$GDRIVE_DIR")
+# Google Drive leg dropped 16.10.2026: the `gdrive` remote was Luca's PERSONAL Drive with
+# full access, which the club's server must not hold. Club offsite copy = R2; Luca's server
+# also pulls a private copy to his NAS. A club-owned Drive (kscwzh@gmail.com) can come back
+# later as a second club copy (handover document 03, GG1).
 R2=$(offsite R2 "$R2_DIR")
 
-echo "$(date): Predeploy snapshot ($LABEL) - $SIZE - $FILE - offsite: $GDRIVE, $R2" | tee -a /data/backups/backup.log
+echo "$(date): Predeploy snapshot ($LABEL) - $SIZE - $FILE - offsite: $R2" | tee -a /data/backups/backup.log
 echo "$FILE"
