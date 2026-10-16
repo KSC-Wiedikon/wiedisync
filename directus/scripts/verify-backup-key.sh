@@ -97,7 +97,9 @@ fi
 echo "    matches the public key the VPS encrypts to"
 
 echo "==> Fetching ${CHUNK} bytes of the newest real archive from the VPS"
-LATEST="$(ssh hetzner "sudo ls -1t /data/backups/*.sql.gz.gpg 2>/dev/null | head -1" | tr -d '\r')"
+# kscw_20* = the 6-hourly main dump. Not *.sql.gz.gpg: since the Nomal dumps (nomal_*, a few KB)
+# joined the same run, the newest file is often one of those and can never pass the size check.
+LATEST="$(ssh hetzner "sudo ls -1t /data/backups/kscw_20*.sql.gz.gpg 2>/dev/null | head -1" | tr -d '\r')"
 [ -n "$LATEST" ] || { echo "FAIL: no .sql.gz.gpg found in /data/backups"; exit 1; }
 echo "    $LATEST"
 ssh hetzner "sudo head -c $CHUNK '$LATEST'" > "$WORK/chunk.gpg" 2>/dev/null
