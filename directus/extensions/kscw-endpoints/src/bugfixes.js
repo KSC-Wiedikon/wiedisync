@@ -151,7 +151,7 @@ function safeTokenEqual(given, expected) {
 
 const ERROR_LOG_DIR = process.env.ERROR_LOG_DIR || '/directus/logs'
 const GITHUB_PAT = process.env.GITHUB_PAT
-const REPO_OWNER = 'Lucanepa'
+const REPO_OWNER = 'KSC-Wiedikon'
 const ALLOWED_REPOS = ['wiedisync', 'kscw-website']
 const DEFAULT_REPO = 'wiedisync'
 const MAX_CONCURRENT_FIXES = 3

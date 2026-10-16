@@ -228,8 +228,11 @@ function rateLimitOk(key: string): boolean {
 }
 
 function corsHeaders(origin: string, allowed: string): Record<string, string> {
-  // Only allow exact prod domain, main preview, and Cloudflare Pages preview deploys (commit-hash.wiedisync.pages.dev)
-  const isAllowed = origin === allowed || origin === 'https://wiedisync.pages.dev' || /^https:\/\/[a-f0-9]+\.wiedisync\.pages\.dev$/.test(origin)
+  // Only allow the exact prod domain, the dev site, and the club Pages project's
+  // preview deploys (commit-hash.kscw-wiedisync.pages.dev). Never a project in
+  // Luca's personal Cloudflare account (wiedisync.pages.dev was here until
+  // 2026-10-16): a deleted project's *.pages.dev name can be claimed by anyone.
+  const isAllowed = origin === allowed || origin === 'https://wiedisync-dev.kscw.ch' || /^https:\/\/[a-f0-9]+\.kscw-wiedisync\.pages\.dev$/.test(origin)
   return {
     'Access-Control-Allow-Origin': isAllowed ? origin : allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',

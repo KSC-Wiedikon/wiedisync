@@ -9,7 +9,7 @@
 //   • `url`   — fetched credentialed (private Directus assets and /kscw file
 //               endpoints only resolve with the session cookie, and a bare
 //               <img>/<iframe> src carries that cookie only same-site, which is
-//               dead on wiedisync.pages.dev → directus-dev).
+//               dead on a *.pages.dev preview → directus-dev).
 //   • `blob`  — bytes already in hand (E2EE documents decrypted client-side,
 //               attachments streamed through an endpoint).
 //

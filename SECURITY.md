@@ -11,9 +11,9 @@ Living doc for the security posture of the KSCW platform. Audited findings, fixe
 | Surface | Origin | Auth | Notes |
 |---|---|---|---|
 | `wiedisync.kscw.ch` (React) | CF Pages, prod branch | Directus session cookie `kscw_session` (httpOnly, Secure, SameSite=Lax, host-only on `directus.kscw.ch` since 2026-09-28) — cookie mode since 2026-06-18 | Talks only to `directus.kscw.ch`. CF Pages env vars carry only `VITE_*` (public). |
-| `wiedisync.pages.dev` (React dev) | CF Pages, dev branch | Same | Talks to `directus-dev.kscw.ch`. |
+| `wiedisync-dev.kscw.ch` (React dev) | CF Pages `kscw-wiedisync-dev` (club account), dev branch | Same | Talks to `directus-dev.kscw.ch`. |
 | `directus.kscw.ch` (Directus) | Hetzner VPS via CF Tunnel | Built-in Directus auth (cookies + bearer). Custom endpoints inherit `req.accountability`. | All custom routes under `/kscw/*`. |
-| `kscw-push.lucanepa.workers.dev` (CF Worker) | Cloudflare Workers | Shared bearer secret from Directus → worker (constant-time compared since 2026-05-06). | VAPID keys in worker secret store; Directus side reads `VAPID_PUBLIC_KEY` env. |
+| `kscw-push.kscw.workers.dev` (CF Worker) | Cloudflare Workers, club account | Shared bearer secret from Directus → worker (constant-time compared since 2026-05-06). | VAPID keys in worker secret store; Directus side reads `VAPID_PUBLIC_KEY` env. |
 | `nomal.kscw.ch` (Nomal, video analysis; repo `KSC-Wiedikon/nomal`) | Hetzner VPS via CF Tunnel (own container) | Its own host-only session, started from a 60 s single-use Ed25519 token minted by `/kscw/nomal/v1/authorize` from the `kscw_session` cookie. Server-to-server: `X-Nomal-Service-Token` (SHA-256 compared) on the internal network only. | No CORS change: login is a top-level redirect, never a credentialed fetch. Gets personal data only for the teams a Nomal admin enabled. |
 | `kscw.ch` (ClubDesk) | External | Out of our scope | Don't change DNS until explicitly confirmed. |
 | **`github.com/KSC-Wiedikon/wiedisync` (the repo itself)** | GitHub, **PUBLIC** since 2026-02-27 | None — world-readable | **Anything ever committed is permanently disclosed. Deletion is not remediation; rotation is.** A force-push does not remove the commit either: GitHub keeps unreachable commits addressable by SHA until Support runs GC on the repo. The same applies to `KSC-Wiedikon/kscw-website` and `Lucanepa/openvolley`. |
@@ -49,6 +49,14 @@ Tracked (must stay clean of secrets):
 Treat this as a deduplication shield: if a future audit finds something on this list, it's either a regression or a misunderstanding — verify before re-flagging.
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
+
+### 2026-10-16 — nothing in code trusts Luca's personal GitHub or Cloudflare account any more
+
+Handover migration plan items G2, C2 and T1. The old Pages projects in Luca's personal Cloudflare account (`wiedisync`, `wiedisync-spielplanung`, `wiedisync-spielplanung-dev`, `kscw-website`) are to be deleted, and a deleted project's `*.pages.dev` name can be claimed by anyone, so every place that trusted one now names a club host instead.
+- **Origins removed** (`wiedisync.pages.dev`, `<hash>.wiedisync.pages.dev`, `kscw-website.pages.dev`): the CSP-report CORS list (`kscw-endpoints/src/index.js`), the Turnstile solving-hostname list (`kscw-hooks/src/turnstile.js`; the test now asserts they are rejected), the `kscw-push` and `kscw-sentry-tunnel` Worker CORS checks, live-relay's `ALLOWED_ORIGINS`, and the app CSP (`public/_headers` img-src / connect-src). Where the entry stood for "the dev site" it became `wiedisync-dev.kscw.ch`; the preview patterns became the club project's `<hash>.kscw-wiedisync.pages.dev`.
+- **Fallbacks**: the dev frontend URL in `email-template.js` / `kscw-hooks/src/index.js` and the dev `project_url` set by both dev-refresh scripts → `wiedisync-dev.kscw.ch`; the `PUSH_WORKER_URL` fallback (and the infra-health probe) → the club Worker `kscw-push.kscw.workers.dev`.
+- **GitHub**: issue/bug-fix API calls use the org `KSC-Wiedikon` instead of relying on GitHub's redirect from `Lucanepa/…`. The in-app feedback → issue path also targets `wiedisync` (it used the old repo name `kscw`, which resolved only through that redirect).
+- Still open (manual): the `GITHUB_PAT` is still Luca's token (G2); the Google Places key's HTTP-referrer list must not contain `*.wiedisync.pages.dev`.
 
 ### 2026-10-15 — deliberate WIDENING (not a hardening): the Nomal bridge
 

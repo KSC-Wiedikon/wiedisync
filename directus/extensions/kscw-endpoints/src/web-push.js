@@ -95,7 +95,7 @@ function isNtfyTopicUrl(u) {
 // public-key value that may not match the worker's secret store. A split-brain
 // here makes every push delivery fail with no obvious cause.
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY
-const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.lucanepa.workers.dev'
+const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.kscw.workers.dev'
 const PUSH_AUTH_SECRET = process.env.PUSH_AUTH_SECRET
 if (!VAPID_PUBLIC_KEY) {
   // Don't throw at import time (would crash the whole Directus container);

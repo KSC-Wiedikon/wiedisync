@@ -413,7 +413,7 @@ if ! scrub; then
   exit 1
 fi
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
-  -c "UPDATE directus_settings SET project_url='https://wiedisync.pages.dev' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
+  -c "UPDATE directus_settings SET project_url='https://wiedisync-dev.kscw.ch' WHERE project_url IS NOT NULL;" >/dev/null 2>&1 || true
 
 log "[7/7] Re-pinning dev creds by id (allowlist passwords + all captured tokens)"
 if ! repin; then

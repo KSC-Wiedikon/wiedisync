@@ -104,14 +104,14 @@ tables they name. Bridge edges are tagged `INFERRED`; for AST-only ground truth 
 
 All changes go through `dev` first.
 
-- **Frontend:** Pushing to `dev` auto-deploys the preview at [wiedisync.pages.dev](https://wiedisync.pages.dev) (Cloudflare Pages). An approval-gated merge of `dev` → `prod` deploys to [wiedisync.kscw.ch](https://wiedisync.kscw.ch).
+- **Frontend:** Pushing to `dev` auto-deploys the dev site [wiedisync-dev.kscw.ch](https://wiedisync-dev.kscw.ch) (Cloudflare Pages, via GitHub Actions). An approval-gated merge of `dev` → `prod` deploys to [wiedisync.kscw.ch](https://wiedisync.kscw.ch).
 - **Backend:** Directus runs as plain Docker on Hetzner (not Coolify). Deploy extensions with `npm run ext:deploy:dev` / `npm run ext:deploy:prod` (rsync + container restart); apply DB migrations and permissions with `npm run db:deploy:dev` / `npm run db:deploy:prod`.
 
 See `CLAUDE.md` (Branches & Dev-First Workflow) and `INFRA.md` for the full flow.
 
 ## Related
 
-- [KSCW Website](https://github.com/Lucanepa/kscw-website) — Public club website
+- [KSCW Website](https://github.com/KSC-Wiedikon/kscw-website) — Public club website
 - [Directus API](https://directus.kscw.ch) — Backend API
 
 ## License

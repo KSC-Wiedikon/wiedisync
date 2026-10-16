@@ -22,15 +22,16 @@
 export const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 
 /** Hostnames a genuine widget is solved on: both production sites and every
- *  subdomain of kscw.ch, the Cloudflare Pages projects (and their per-branch
- *  preview subdomains), and local dev. Extend per environment with the
- *  comma-separated TURNSTILE_ALLOWED_HOSTNAMES env var. */
+ *  subdomain of kscw.ch, the club account's Cloudflare Pages projects (and
+ *  their per-branch preview subdomains), and local dev. Extend per environment
+ *  with the comma-separated TURNSTILE_ALLOWED_HOSTNAMES env var.
+ *  Never list a project from Luca's personal Cloudflare account
+ *  (`wiedisync`, `wiedisync-spielplanung*`, `kscw-website`; removed 2026-10-16):
+ *  a deleted project's *.pages.dev name can be claimed by anyone. */
 export const DEFAULT_TURNSTILE_HOSTNAMES = [
   'kscw.ch',
-  'wiedisync.pages.dev',
   'kscw-wiedisync.pages.dev',
   'kscw-web.pages.dev',
-  'kscw-website.pages.dev',
   'localhost',
   '127.0.0.1',
 ]

@@ -24,7 +24,9 @@ interface PlaceDetails {
 // Autocomplete runs in the browser, so the key is inlined into the static bundle
 // and CANNOT be hidden here. It MUST be locked down in the Google Cloud Console:
 //   1. Application restriction: HTTP referrers, limited to the app's domains only
-//      (wiedisync.kscw.ch, *.wiedisync.pages.dev) — no wildcard "*".
+//      (the club's *.kscw.ch hosts, e.g. wiedisync.kscw.ch, wiedisync-dev.kscw.ch)
+//      — no wildcard "*", and never *.wiedisync.pages.dev (an old project in
+//      Luca's personal Cloudflare account; once deleted, anyone can claim it).
 //   2. API restriction: Places API only — the key must NOT carry scope for any
 //      other Google API.
 //   3. Billing: set a daily quota cap so a leaked key cannot rack up unbounded

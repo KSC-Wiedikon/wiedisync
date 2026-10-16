@@ -62,7 +62,7 @@ import { sweepFolderOrphans, referencedByFormAnswers, referencedByRegistrationDo
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
-  || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://wiedisync.pages.dev' : 'https://wiedisync.kscw.ch')
+  || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://wiedisync-dev.kscw.ch' : 'https://wiedisync.kscw.ch')
 
 // Escape user/admin-supplied text before interpolating into outbound email
 // HTML. Used by registration rejection emails and any other place where a
@@ -133,7 +133,7 @@ const GAME_SQUAD_JOIN = `JOIN (
           )
         ) mt ON mt.game = g.id`
 
-const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.lucanepa.workers.dev'
+const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.kscw.workers.dev'
 const PUSH_AUTH_SECRET = process.env.PUSH_AUTH_SECRET || ''
 
 async function sendPushToMembers(db, memberIds, title, body, url, tag, log) {

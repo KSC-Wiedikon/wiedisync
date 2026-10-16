@@ -532,19 +532,22 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 // Exact-origin allowlist for CORS. No suffix matching — a bare
 // `endsWith('.kscw.ch')` accepts attacker-controlled subdomains
 // (`https://evil.kscw.ch`). We test exact known origins plus the
-// `<hash>.wiedisync.pages.dev` CF Pages preview pattern (anchored).
+// `<hash>.kscw-wiedisync.pages.dev` CF Pages preview pattern (anchored) of
+// the club account's project. Never a project in Luca's personal Cloudflare
+// account (`wiedisync.pages.dev` was here until 2026-10-16): a deleted
+// project's *.pages.dev name can be claimed by anyone.
 function isAllowedOrigin(origin: string, env: Env): boolean {
   if (!origin) return false
   const exact = new Set([
     env.ALLOWED_ORIGIN,
     'https://wiedisync.kscw.ch',
-    'https://wiedisync.pages.dev',
+    'https://wiedisync-dev.kscw.ch',
     'http://localhost:5173',
     'http://localhost:4173',
   ])
   if (exact.has(origin)) return true
-  // CF Pages branch/preview deploys: https://<hash>.wiedisync.pages.dev
-  return /^https:\/\/[a-z0-9-]+\.wiedisync\.pages\.dev$/.test(origin)
+  // CF Pages branch/preview deploys: https://<hash>.kscw-wiedisync.pages.dev
+  return /^https:\/\/[a-z0-9-]+\.kscw-wiedisync\.pages\.dev$/.test(origin)
 }
 
 function corsHeaders(origin: string): Record<string, string> {
