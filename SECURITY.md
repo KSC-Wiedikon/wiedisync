@@ -56,7 +56,7 @@ Handover migration plan items G2, C2 and T1. The old Pages projects in Luca's pe
 - **Origins removed** (`wiedisync.pages.dev`, `<hash>.wiedisync.pages.dev`, `kscw-website.pages.dev`): the CSP-report CORS list (`kscw-endpoints/src/index.js`), the Turnstile solving-hostname list (`kscw-hooks/src/turnstile.js`; the test now asserts they are rejected), the `kscw-push` and `kscw-sentry-tunnel` Worker CORS checks, live-relay's `ALLOWED_ORIGINS`, and the app CSP (`public/_headers` img-src / connect-src). Where the entry stood for "the dev site" it became `wiedisync-dev.kscw.ch`; the preview patterns became the club project's `<hash>.kscw-wiedisync.pages.dev`.
 - **Fallbacks**: the dev frontend URL in `email-template.js` / `kscw-hooks/src/index.js` and the dev `project_url` set by both dev-refresh scripts → `wiedisync-dev.kscw.ch`; the `PUSH_WORKER_URL` fallback (and the infra-health probe) → the club Worker `kscw-push.kscw.workers.dev`.
 - **GitHub**: issue/bug-fix API calls use the org `KSC-Wiedikon` instead of relying on GitHub's redirect from `Lucanepa/…`. The in-app feedback → issue path also targets `wiedisync` (it used the old repo name `kscw`, which resolved only through that redirect).
-- Still open (manual): the `GITHUB_PAT` is still Luca's token (G2); the Google Places key's HTTP-referrer list must not contain `*.wiedisync.pages.dev`.
+- Still open (manual): the Google Places key's HTTP-referrer list must not contain `*.wiedisync.pages.dev`. Done 2026-10-16: `GITHUB_PAT` and the rebuild Flow's token are the club account's (KSCWiedikon, fine-grained, `wiedisync` + `kscw-website` only), set with `scripts/github-token-rotate.sh` (G2).
 
 ### 2026-10-15 — deliberate WIDENING (not a hardening): the Nomal bridge
 
