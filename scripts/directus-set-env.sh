@@ -51,6 +51,8 @@ say "1/3 $KEY set in $ENVF (backup $BAK)"
 IMAGE=$(docker inspect "$CONT" --format '{{.Config.Image}}')
 HOSTIP=$(docker inspect "$CONT" --format '{{range $p, $b := .HostConfig.PortBindings}}{{range $b}}{{.HostIp}}{{end}}{{end}}')
 GHPAT=$(docker exec "$CONT" printenv GITHUB_PAT 2>/dev/null || true)
+# Setting the token itself: carry the NEW value (the -e below overrides .env)
+[ "$KEY" = GITHUB_PAT ] && GHPAT=$VALUE
 BIND="${HOSTIP:+$HOSTIP:}$PORT:8055"
 
 recreate(){
