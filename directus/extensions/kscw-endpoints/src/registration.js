@@ -29,16 +29,8 @@ import { signTicket, verifyTicket } from './scorer-exam.js'
 import { sniffUpload, safeFilename, createLimiter, overDailyBudget } from './public-upload.js'
 import { callerSportScope, membersInScope, parseRoles, scopeAllowsMember } from './sport-scope.js'
 
-/** The JSON body as an object (English keys, migration 413) — `{}` for anything else. */
-// kscw-website still posts the licence application as `bb_doc_lizenz` — column
-// bb_doc_licence since migration 422. Drop the rename once the website is switched.
-const LEGACY_LICENCE_KEY = 'bb_doc_lizenz'
-const requestBody = (req) => {
-  const body = req.body && typeof req.body === 'object' ? req.body : {}
-  if (!Object.hasOwn(body, LEGACY_LICENCE_KEY)) return body
-  const { [LEGACY_LICENCE_KEY]: legacy, ...rest } = body
-  return Object.hasOwn(rest, 'bb_doc_licence') ? rest : { ...rest, bb_doc_licence: legacy }
-}
+/** The JSON body as an object (English keys, migrations 413 + 422) — `{}` for anything else. */
+const requestBody = (req) => (req.body && typeof req.body === 'object' ? req.body : {})
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -1373,7 +1365,6 @@ export function registerRegistration(router, { database, logger, services, getSc
       const itemsService = new ItemsService('registrations', { schema, knex: database })
 
       // Verify registration exists, is pending, and caller knows the reference number
-      // requestBody renames kscw-website's `bb_doc_lizenz` (migration 422).
       const { reference_number, id_upload_front, id_upload_back, bb_doc_licence, bb_doc_release_letter, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = requestBody(req)
       if (!reference_number) {
         return res.status(400).json({ error: 'reference_number required' })
@@ -1555,8 +1546,6 @@ export function registerRegistration(router, { database, logger, services, getSc
           id_upload_front: !!reg.id_upload_front,
           id_upload_back: !!reg.id_upload_back,
           bb_doc_licence: !!reg.bb_doc_licence,
-          // Pre-422 key, read by kscw-website's nachreichen page until it is switched.
-          bb_doc_lizenz: !!reg.bb_doc_licence,
           bb_doc_release_letter: !!reg.bb_doc_release_letter,
           bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
           bb_doc_natdecl: !!reg.bb_doc_natdecl,
@@ -1612,9 +1601,7 @@ export function registerRegistration(router, { database, logger, services, getSc
   }
 
   router.get('/registration/doc-template/:field', async (req, res) => {
-    // kscw-website still links the licence application as `bb_doc_lizenz` (migration 422).
-    const rawField = String(req.params.field || '')
-    const field = rawField === LEGACY_LICENCE_KEY ? 'bb_doc_licence' : rawField
+    const field = String(req.params.field || '')
     try {
       const tpl = BB_PDF_TEMPLATES[field]
       // Unknown field is rejected BEFORE the lookup, so this route cannot be used

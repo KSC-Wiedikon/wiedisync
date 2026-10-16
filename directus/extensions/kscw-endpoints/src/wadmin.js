@@ -182,20 +182,6 @@ export const REGISTRATION_FILE_COLUMNS = [
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ]
 
-/**
- * kscw-website's admin still reads the licence application as `bb_doc_lizenz`
- * (column renamed bb_doc_licence by migration 422): shows it, counts it as
- * provided, deletes it with a rejected registration. Echo it under the old name
- * too until the website is switched. Pure.
- */
-export function withLegacyKeys(collection, data) {
-  if (collection !== 'registrations' || !data) return data
-  const add = (row) => (row && typeof row === 'object' && 'bb_doc_licence' in row && !('bb_doc_lizenz' in row)
-    ? { ...row, bb_doc_lizenz: row.bb_doc_licence }
-    : row)
-  return Array.isArray(data) ? data.map(add) : add(data)
-}
-
 // ── Mixed-Turnier (audit 2026-09-28, F-10) ──────────────────────────────────
 // The event the 2026 Mixed-Turnier lives on — the same id migration 012 moved the
 // website signups onto (event_signups.event = 5) and admin.astro filtered on.
@@ -734,7 +720,7 @@ export function registerWadmin(router, ctx) {
         const scoped = registrationScopeFilter(req.wadminSportScope)
         q.filter = q.filter ? { _and: [q.filter, scoped] } : scoped
       }
-      res.json({ data: withLegacyKeys(c, await (await svc(c)).readByQuery(q)) })
+      res.json({ data: await (await svc(c)).readByQuery(q) })
     }
     catch (e) { sendErr(res, e) }
   })
@@ -743,7 +729,7 @@ export function registerWadmin(router, ctx) {
     const c = await guard(req, res); if (!c) return
     try {
       if (await rowOutOfScope(req, c, req.params.id)) return outOfScope(res)
-      res.json({ data: withLegacyKeys(c, await (await svc(c)).readOne(req.params.id, readQuery(req))) })
+      res.json({ data: await (await svc(c)).readOne(req.params.id, readQuery(req)) })
     }
     catch (e) { sendErr(res, e) }
   })
