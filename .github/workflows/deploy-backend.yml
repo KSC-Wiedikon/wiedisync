@@ -1,0 +1,119 @@
+name: Deploy backend
+
+# Runs the same `npm run deploy:<target>` chain a maintainer would run locally
+# (db:snapshot -> db:migrate -> db:setup-perms -> db:smoke -> ext:deploy), on a
+# runner that holds the Hetzner SSH key — so a deploy no longer needs a
+# workstation with an unlocked vault.
+#
+# Secrets are read from the GitHub Environment named by `target`, so `dev` and
+# `prod` use the same secret names with different values.
+#
+# PROD MUST HAVE A REQUIRED REVIEWER. Locally, prod is gated by `rbw unlock`
+# asking for a master password on a TTY (directus/scripts/deploy-auth.sh). A
+# runner has no such gate, so the environment's required-reviewer setting is the
+# only thing standing between a click and a production migration. Set it before
+# putting prod secrets in.
+#
+# Per environment:
+#   HETZNER_SSH_KEY         private key for the deploy user
+#   HETZNER_HOST            VPS hostname or IP
+#   HETZNER_USER            SSH user (needs the sudo rights the scripts use)
+#   ADMIN_EMAIL             Directus admin login, for db:setup-perms
+#   ADMIN_PASSWORD          its password
+#   SMOKE_TEST_TOKEN        non-admin Member token, for db:smoke
+#
+# Optional:
+#   SMOKE_TEST_COACH_TOKEN  Coach token; db:smoke skips its coach checks without it
+#
+# Two things that will fail the run if you skip them:
+#
+# 1. setup-permissions.mjs authenticates by password, NOT by static token — the
+#    static token has no directus_roles access. Same reasoning as deploy-auth.sh.
+#
+# 2. prod needs its own Member token. deploy-auth.sh skips prod smoke because no
+#    prod member token was ever vaulted, but `npm run deploy:prod` chains
+#    db:smoke:prod, and the chain is `&&` — without the token the deploy dies at
+#    smoke, after the migration and before ext:deploy, leaving prod half
+#    deployed. Create a non-admin Member user in prod Directus, take a static
+#    token, and store it as SMOKE_TEST_TOKEN on the prod environment. This also
+#    makes CLAUDE.md's "smoke test is part of deploy" rule true on prod, which it
+#    currently is not.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment to deploy
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+concurrency:
+  group: deploy-backend-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # deploy-extensions.sh resolves origin/dev|origin/prod, so it needs
+          # real history and remote refs, not a single-commit shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Fail fast on missing secrets
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HETZNER_HOST }}
+          SSH_USER: ${{ secrets.HETZNER_USER }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SMOKE_TEST_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
+        run: |
+          missing=
+          for v in SSH_KEY SSH_HOST SSH_USER ADMIN_EMAIL ADMIN_PASSWORD SMOKE_TEST_TOKEN; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "✗ missing on the '${{ inputs.target }}' environment:$missing" >&2
+            echo "  A deploy that starts without these dies mid-chain, after the" >&2
+            echo "  migration and before ext:deploy. Refusing to start." >&2
+            exit 1
+          fi
+          echo "✓ all required secrets present"
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HETZNER_HOST }}
+          SSH_USER: ${{ secrets.HETZNER_USER }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_hetzner
+          chmod 600 ~/.ssh/id_hetzner
+          {
+            echo "Host hetzner"
+            echo "  HostName $SSH_HOST"
+            echo "  User $SSH_USER"
+            echo "  IdentityFile ~/.ssh/id_hetzner"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking accept-new"
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - run: npm ci
+
+      - name: Deploy
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SMOKE_TEST_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
+          SMOKE_TEST_COACH_TOKEN: ${{ secrets.SMOKE_TEST_COACH_TOKEN }}
+        run: npm run deploy:${{ inputs.target }}
