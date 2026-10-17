@@ -1,16 +1,16 @@
 /**
  * WiePlay bridge: login token signing, the adults-only rule, roster assembly, and the
- * route guards (config, state, return URL, service token, Cloudflare refusal) — under the
- * new /kscw/wieplay/v1 routes and the old /kscw/nomal/v1 aliases (WiePlay was Nomal until
- * 17.10.2026; the aliases go after WiePlay's cutover).
+ * route guards (config, state, return URL, service token, Cloudflare refusal) under
+ * /kscw/wieplay/v1. WiePlay was Nomal until 17.10.2026; since its cutover the old names
+ * (/kscw/nomal/v1, aud "nomal", X-Nomal-Service-Token, NOMAL_* env) must get nowhere.
  */
 import crypto from 'crypto'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   signWieplayToken, previousSeasonShort, parseReturnUrls, wieplayConfig, wieplayEnv,
-  serviceTokenFrom, serviceTokenOk, parseStringList, sportAdminScopes, parseTeamIds, isoDate,
+  serviceTokenOk, parseStringList, sportAdminScopes, parseTeamIds, isoDate,
   hhmm, normalizeSets, adultOn, mergeRelations, buildRosterRows, registerWieplayBridge,
-  BRIDGE_ROUTES,
+  BRIDGE_BASE, TOKEN_AUDIENCE, SERVICE_TOKEN_HEADER,
 } from '../wieplay-bridge.js'
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
@@ -19,7 +19,9 @@ const TOKEN = 'service-token-for-tests'
 const TOKEN_HASH = crypto.createHash('sha256').update(TOKEN).digest('hex')
 const RETURN = 'https://wieplay-dev.kscw.ch/api/auth/callback'
 const STATE = 'abcdefghijklmnopqrstuvwx'
-const PREFIXES = ['wieplay', 'nomal']
+const ROUTES = ['authorize', 'teams', 'sync', 'adult-check']
+const HEADER = 'x-wieplay-service-token'
+const OLD_HEADER = 'x-nomal-service-token'
 const ENV_KEYS = ['JWT_PRIVATE_KEY', 'JWT_KID', 'RETURN_URLS', 'SYNC_TOKEN_HASH', 'JWT_ISSUER', 'LOGIN_URL']
 
 const decode = (part) => JSON.parse(Buffer.from(part, 'base64url'))
@@ -52,30 +54,31 @@ describe('helpers', () => {
     expect(wieplayConfig({ PUBLIC_URL: 'https://directus.kscw.ch' }).issuer).toBe('wiedisync-prod')
   })
 
-  it('config reads WIEPLAY_* and falls back to NOMAL_* per key when unset or empty', () => {
+  it('config reads WIEPLAY_* only; the pre-rename NOMAL_* keys are ignored', () => {
     const nomal = Object.fromEntries(ENV_KEYS.map((k) => [`NOMAL_${k}`, `old-${k}`]))
-    const wieplay = Object.fromEntries(ENV_KEYS.map((k) => [`WIEPLAY_${k}`, `new-${k}`]))
+    const wieplay = Object.fromEntries(ENV_KEYS.map((k) => [`WIEPLAY_${k}`, ` new-${k} `]))
     for (const k of ENV_KEYS) {
-      expect(wieplayEnv(nomal, k)).toBe(`old-${k}`)
+      expect(wieplayEnv(wieplay, k)).toBe(`new-${k}`)
       expect(wieplayEnv({ ...nomal, ...wieplay }, k)).toBe(`new-${k}`)
-      expect(wieplayEnv({ ...nomal, [`WIEPLAY_${k}`]: '  ' }, k)).toBe(`old-${k}`)
+      expect(wieplayEnv(nomal, k)).toBe('')
+      expect(wieplayEnv({ ...nomal, [`WIEPLAY_${k}`]: '  ' }, k)).toBe('')
       expect(wieplayEnv({}, k)).toBe('')
     }
-    const hashA = 'A'.repeat(64)
     const cfgOld = wieplayConfig({
+      PUBLIC_URL: 'https://directus-dev.kscw.ch',
       NOMAL_JWT_PRIVATE_KEY: 'old\\nkey', NOMAL_JWT_KID: 'nomal-dev-1', NOMAL_RETURN_URLS: RETURN,
-      NOMAL_SYNC_TOKEN_HASH: hashA, NOMAL_JWT_ISSUER: 'iss-old', NOMAL_LOGIN_URL: 'https://old.example/login',
+      NOMAL_SYNC_TOKEN_HASH: 'a'.repeat(64), NOMAL_JWT_ISSUER: 'iss-old', NOMAL_LOGIN_URL: 'https://old.example/login',
     })
-    expect(cfgOld).toMatchObject({
-      privateKeyPem: 'old\nkey', kid: 'nomal-dev-1', syncTokenHash: 'a'.repeat(64),
-      issuer: 'iss-old', loginUrl: 'https://old.example/login',
-    })
-    expect([...cfgOld.returnUrls]).toEqual([RETURN])
+    expect(cfgOld).toMatchObject({ privateKeyPem: '', kid: '', syncTokenHash: '', issuer: 'wiedisync-dev' })
+    expect(cfgOld.loginUrl).not.toBe('https://old.example/login')
+    expect(cfgOld.returnUrls.size).toBe(0)
     const cfgNew = wieplayConfig({
       NOMAL_JWT_KID: 'nomal-dev-1', WIEPLAY_JWT_KID: 'wieplay-dev-1',
       NOMAL_RETURN_URLS: 'https://old.example/cb', WIEPLAY_RETURN_URLS: RETURN,
+      WIEPLAY_SYNC_TOKEN_HASH: 'A'.repeat(64),
     })
     expect(cfgNew.kid).toBe('wieplay-dev-1')
+    expect(cfgNew.syncTokenHash).toBe('a'.repeat(64))
     expect([...cfgNew.returnUrls]).toEqual([RETURN])
   })
 
@@ -86,11 +89,10 @@ describe('helpers', () => {
     expect(serviceTokenOk(TOKEN, 'not-a-hash')).toBe(false)
   })
 
-  it('service token comes from the new header first, else the old one', () => {
-    expect(serviceTokenFrom({ 'x-wieplay-service-token': 'new' })).toBe('new')
-    expect(serviceTokenFrom({ 'x-nomal-service-token': 'old' })).toBe('old')
-    expect(serviceTokenFrom({ 'x-wieplay-service-token': 'new', 'x-nomal-service-token': 'old' })).toBe('new')
-    expect(serviceTokenFrom({})).toBeUndefined()
+  it('one name per thing: /wieplay/v1, aud "wieplay", X-WiePlay-Service-Token', () => {
+    expect(BRIDGE_BASE).toBe('/wieplay/v1')
+    expect(TOKEN_AUDIENCE).toBe('wieplay')
+    expect(SERVICE_TOKEN_HEADER).toBe(HEADER)
   })
 
   it('roles, sport admin scopes, team ids', () => {
@@ -194,7 +196,8 @@ function harness(database = NO_DATABASE) {
       redirect(c, url) { this.statusCode = c; this.location = url; return this },
     }
     const handler = routes.get(path)
-    if (!handler) throw new Error(`no route ${path}`)
+    // Like Express/Directus: a path nobody registered falls through to a 404.
+    if (!handler) return res.status(404).json({ error: `Route ${path} doesn't exist.` })
     await handler({ query, headers, accountability }, res)
     return res
   }
@@ -221,139 +224,148 @@ describe('routes', () => {
   })
   afterEach(() => { process.env = { ...saved } })
 
-  it('registers every route under both names', () => {
-    expect(BRIDGE_ROUTES.map((r) => [r.prefix, r.aud])).toEqual([['wieplay', 'wieplay'], ['nomal', 'nomal']])
-    expect(harness().paths.sort()).toEqual(PREFIXES.flatMap((p) =>
-      ['authorize', 'teams', 'sync', 'adult-check'].map((r) => `/${p}/v1/${r}`)).sort())
+  it('registers the four routes under /wieplay/v1 only', () => {
+    expect(harness().paths.sort()).toEqual(ROUTES.map((r) => `/wieplay/v1/${r}`).sort())
   })
 
-  for (const prefix of PREFIXES) {
-    describe(`/${prefix}/v1`, () => {
-      it('authorize: 503 wieplay_not_configured until configured', async () => {
-        delete process.env.WIEPLAY_JWT_PRIVATE_KEY
-        const res = await harness()(`/${prefix}/v1/authorize`, { query: { state: STATE, return: RETURN } })
-        expect(res.statusCode).toBe(503)
-        expect(res.body.code).toBe('wieplay_not_configured')
-      })
+  it('authorize: 503 wieplay_not_configured until configured', async () => {
+    delete process.env.WIEPLAY_JWT_PRIVATE_KEY
+    const res = await harness()('/wieplay/v1/authorize', { query: { state: STATE, return: RETURN } })
+    expect(res.statusCode).toBe(503)
+    expect(res.body.code).toBe('wieplay_not_configured')
+  })
 
-      it('authorize: refuses bad state and foreign return URLs', async () => {
-        const call = harness()
-        expect((await call(`/${prefix}/v1/authorize`, { query: { state: 'short', return: RETURN } })).statusCode).toBe(400)
-        const foreign = await call(`/${prefix}/v1/authorize`, { query: { state: STATE, return: 'https://evil.example/cb' } })
-        expect(foreign.statusCode).toBe(400)
-      })
+  it('authorize: refuses bad state and foreign return URLs', async () => {
+    const call = harness()
+    expect((await call('/wieplay/v1/authorize', { query: { state: 'short', return: RETURN } })).statusCode).toBe(400)
+    const foreign = await call('/wieplay/v1/authorize', { query: { state: STATE, return: 'https://evil.example/cb' } })
+    expect(foreign.statusCode).toBe(400)
+  })
 
-      it('authorize: without a session, logs in first and comes back to the same route', async () => {
-        const res = await harness()(`/${prefix}/v1/authorize`, { query: { state: STATE, return: RETURN } })
-        expect(res.statusCode).toBe(302)
-        const login = new URL(res.location)
-        expect(`${login.origin}${login.pathname}`).toBe('https://wiedisync-dev.kscw.ch/login')
-        const next = new URL(login.searchParams.get('next'))
-        expect(`${next.origin}${next.pathname}`).toBe(`https://directus-dev.kscw.ch/kscw/${prefix}/v1/authorize`)
-        expect(next.searchParams.get('return')).toBe(RETURN)
-        expect(next.searchParams.get('state')).toBe(STATE)
-        expect(res.headers['Cache-Control']).toBe('no-store')
-      })
+  it('authorize: without a session, logs in first and comes back to the same route', async () => {
+    const res = await harness()('/wieplay/v1/authorize', { query: { state: STATE, return: RETURN } })
+    expect(res.statusCode).toBe(302)
+    const login = new URL(res.location)
+    expect(`${login.origin}${login.pathname}`).toBe('https://wiedisync-dev.kscw.ch/login')
+    const next = new URL(login.searchParams.get('next'))
+    expect(`${next.origin}${next.pathname}`).toBe('https://directus-dev.kscw.ch/kscw/wieplay/v1/authorize')
+    expect(next.searchParams.get('return')).toBe(RETURN)
+    expect(next.searchParams.get('state')).toBe(STATE)
+    expect(res.headers['Cache-Control']).toBe('no-store')
+  })
 
-      it(`authorize: with a session, signs a token for aud "${prefix}" and logs wieplay_login`, async () => {
-        const inserts = []
-        const database = fakeDatabase({
-          members: [{ id: 5, uuid: 'uuid-5', first_name: 'Ada', last_name: 'Muster', role: '["user","vb_admin"]' }],
-          teams: [{ id: 92, season: '2026/27', captain: 5 }],
-          member_teams: [{ team: 92, member: 5, season: '2026/27', guest_level: 0 }],
-          teams_coaches: [],
-          teams_responsibles: [],
-        }, inserts)
-        const res = await harness(database)(`/${prefix}/v1/authorize`, {
-          query: { state: STATE, return: RETURN }, accountability: { user: 'user-uuid' },
-        })
-        expect(res.statusCode).toBe(302)
-        const back = new URL(res.location)
-        expect(`${back.origin}${back.pathname}`).toBe(RETURN)
-        expect(back.searchParams.get('state')).toBe(STATE)
-        const [h, p, s] = back.searchParams.get('token').split('.')
-        expect(crypto.verify(null, Buffer.from(`${h}.${p}`), publicKey, Buffer.from(s, 'base64url'))).toBe(true)
-        expect(decode(h).kid).toBe('k1')
-        const claims = decode(p)
-        expect(claims).toMatchObject({
-          aud: prefix, iss: 'wiedisync-dev', sub: 'uuid-5', mid: 5, name: 'Ada Muster', state: STATE,
-          roles: ['user', 'vb_admin'], sport_admin: ['volleyball'],
-          teams: [{ team: 92, season: '2026/27', rel: ['captain', 'player'], guest: false }],
-        })
-        expect(claims.exp - claims.iat).toBe(60)
-        await new Promise((r) => setTimeout(r, 0)) // the user log is fire-and-forget
-        const logRow = inserts.find((i) => i.table === 'user_logs')?.row
-        expect(logRow?.action).toBe('wieplay_login')
-        expect(JSON.parse(logRow.data)).toMatchObject({ to: 'wieplay-dev.kscw.ch', route: prefix })
-      })
-
-      it('service routes: token required, never through Cloudflare', async () => {
-        const call = harness()
-        expect((await call(`/${prefix}/v1/teams`)).statusCode).toBe(401)
-        for (const header of ['x-wieplay-service-token', 'x-nomal-service-token']) {
-          expect((await call(`/${prefix}/v1/teams`, { headers: { [header]: 'wrong' } })).statusCode).toBe(401)
-          const viaCf = await call(`/${prefix}/v1/teams`, {
-            headers: { [header]: TOKEN, 'cf-connecting-ip': '203.0.113.9' },
-          })
-          expect(viaCf.statusCode).toBe(404)
-        }
-        delete process.env.WIEPLAY_SYNC_TOKEN_HASH
-        const res = await call(`/${prefix}/v1/sync`, { query: { teams: '1' } })
-        expect(res.statusCode).toBe(503)
-        expect(res.body.code).toBe('wieplay_not_configured')
-      })
-
-      for (const header of ['x-wieplay-service-token', 'x-nomal-service-token']) {
-        it(`service routes: ${header} is accepted`, async () => {
-          const database = fakeDatabase({
-            teams: [{ id: 92, name: 'H3', sport: 'volleyball', season: '2026/27', league: '3L', team_id: 'h3', active: true }],
-          }, [])
-          const res = await harness(database)(`/${prefix}/v1/teams`, { headers: { [header]: TOKEN } })
-          expect(res.statusCode).toBe(200)
-          expect(res.body.teams).toEqual([
-            { id: 92, name: 'H3', sport: 'volleyball', season: '2026/27', league: '3L', team_key: 'h3', active: true },
-          ])
-        })
-      }
-
-      it('sync: rejects junk team lists before touching the database', async () => {
-        const res = await harness()(`/${prefix}/v1/sync`, {
-          query: { teams: '1;DROP' }, headers: { 'x-wieplay-service-token': TOKEN },
-        })
-        expect(res.statusCode).toBe(400)
-      })
-
-      it('adult-check: rejects a bad date before touching the database', async () => {
-        const res = await harness()(`/${prefix}/v1/adult-check`, {
-          query: { team: '92', date: '18.10.2026' }, headers: { 'x-nomal-service-token': TOKEN },
-        })
-        expect(res.statusCode).toBe(400)
-      })
+  it('authorize: with a session, signs a token for aud "wieplay" and logs wieplay_login', async () => {
+    const inserts = []
+    const database = fakeDatabase({
+      members: [{ id: 5, uuid: 'uuid-5', first_name: 'Ada', last_name: 'Muster', role: '["user","vb_admin"]' }],
+      teams: [{ id: 92, season: '2026/27', captain: 5 }],
+      member_teams: [{ team: 92, member: 5, season: '2026/27', guest_level: 0 }],
+      teams_coaches: [],
+      teams_responsibles: [],
+    }, inserts)
+    const res = await harness(database)('/wieplay/v1/authorize', {
+      query: { state: STATE, return: RETURN }, accountability: { user: 'user-uuid' },
     })
-  }
+    expect(res.statusCode).toBe(302)
+    const back = new URL(res.location)
+    expect(`${back.origin}${back.pathname}`).toBe(RETURN)
+    expect(back.searchParams.get('state')).toBe(STATE)
+    const [h, p, s] = back.searchParams.get('token').split('.')
+    expect(crypto.verify(null, Buffer.from(`${h}.${p}`), publicKey, Buffer.from(s, 'base64url'))).toBe(true)
+    expect(decode(h).kid).toBe('k1')
+    const claims = decode(p)
+    expect(claims).toMatchObject({
+      aud: 'wieplay', iss: 'wiedisync-dev', sub: 'uuid-5', mid: 5, name: 'Ada Muster', state: STATE,
+      roles: ['user', 'vb_admin'], sport_admin: ['volleyball'],
+      teams: [{ team: 92, season: '2026/27', rel: ['captain', 'player'], guest: false }],
+    })
+    expect(claims.exp - claims.iat).toBe(60)
+    await new Promise((r) => setTimeout(r, 0)) // the user log is fire-and-forget
+    const logRow = inserts.find((i) => i.table === 'user_logs')?.row
+    expect(logRow?.action).toBe('wieplay_login')
+    const logData = JSON.parse(logRow.data)
+    expect(logData).toMatchObject({ to: 'wieplay-dev.kscw.ch' })
+    expect(logData).not.toHaveProperty('route')
+  })
 
-  describe('the pre-rename NOMAL_* env alone (the env today)', () => {
-    beforeEach(() => {
+  it('service routes: token required, never through Cloudflare', async () => {
+    const call = harness()
+    expect((await call('/wieplay/v1/teams')).statusCode).toBe(401)
+    expect((await call('/wieplay/v1/teams', { headers: { [HEADER]: 'wrong' } })).statusCode).toBe(401)
+    const viaCf = await call('/wieplay/v1/teams', {
+      headers: { [HEADER]: TOKEN, 'cf-connecting-ip': '203.0.113.9' },
+    })
+    expect(viaCf.statusCode).toBe(404)
+    delete process.env.WIEPLAY_SYNC_TOKEN_HASH
+    const res = await call('/wieplay/v1/sync', { query: { teams: '1' } })
+    expect(res.statusCode).toBe(503)
+    expect(res.body.code).toBe('wieplay_not_configured')
+  })
+
+  it('service routes: X-WiePlay-Service-Token is accepted', async () => {
+    const database = fakeDatabase({
+      teams: [{ id: 92, name: 'H3', sport: 'volleyball', season: '2026/27', league: '3L', team_id: 'h3', active: true }],
+    }, [])
+    const res = await harness(database)('/wieplay/v1/teams', { headers: { [HEADER]: TOKEN } })
+    expect(res.statusCode).toBe(200)
+    expect(res.body.teams).toEqual([
+      { id: 92, name: 'H3', sport: 'volleyball', season: '2026/27', league: '3L', team_key: 'h3', active: true },
+    ])
+  })
+
+  it('sync: rejects junk team lists before touching the database', async () => {
+    const res = await harness()('/wieplay/v1/sync', {
+      query: { teams: '1;DROP' }, headers: { [HEADER]: TOKEN },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('adult-check: rejects a bad date before touching the database', async () => {
+    const res = await harness()('/wieplay/v1/adult-check', {
+      query: { team: '92', date: '18.10.2026' }, headers: { [HEADER]: TOKEN },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  describe('the pre-rename names (Nomal) are gone', () => {
+    it('/nomal/v1/*: 404 on every route, even with the real token and a session', async () => {
+      const call = harness()
+      for (const r of ROUTES) {
+        const res = await call(`/nomal/v1/${r}`, {
+          query: { state: STATE, return: RETURN, teams: '92', team: '92', date: '2026-10-18' },
+          headers: { [HEADER]: TOKEN, [OLD_HEADER]: TOKEN },
+          accountability: { user: 'user-uuid' },
+        })
+        expect(res.statusCode).toBe(404)
+      }
+    })
+
+    it('X-Nomal-Service-Token: 401, on every service route', async () => {
+      const call = harness()
+      for (const r of ['teams', 'sync', 'adult-check']) {
+        const res = await call(`/wieplay/v1/${r}`, {
+          query: { teams: '92', team: '92', date: '2026-10-18' }, headers: { [OLD_HEADER]: TOKEN },
+        })
+        expect(res.statusCode).toBe(401)
+        expect(res.body.error).toBe('Invalid service token')
+      }
+    })
+
+    it('NOMAL_* env alone: 503 wieplay_not_configured, nothing signed', async () => {
       for (const k of Object.keys(process.env)) if (k.startsWith('WIEPLAY_')) delete process.env[k]
       setEnv('NOMAL')
-    })
-
-    for (const prefix of PREFIXES) {
-      it(`/${prefix}/v1: configured, signs for aud "${prefix}", accepts the service token`, async () => {
-        const database = fakeDatabase({
-          members: [{ id: 5, uuid: 'uuid-5', first_name: 'Ada', last_name: 'Muster', role: '[]' }],
-          teams: [], member_teams: [], teams_coaches: [], teams_responsibles: [],
-        }, [])
-        const call = harness(database)
-        const res = await call(`/${prefix}/v1/authorize`, {
-          query: { state: STATE, return: RETURN }, accountability: { user: 'user-uuid' },
-        })
-        expect(res.statusCode).toBe(302)
-        const token = new URL(res.location).searchParams.get('token')
-        expect(decode(token.split('.')[1]).aud).toBe(prefix)
-        const teams = await call(`/${prefix}/v1/teams`, { headers: { 'x-nomal-service-token': TOKEN } })
-        expect(teams.statusCode).toBe(200)
+      const call = harness()
+      const login = await call('/wieplay/v1/authorize', {
+        query: { state: STATE, return: RETURN }, accountability: { user: 'user-uuid' },
       })
-    }
+      expect(login.statusCode).toBe(503)
+      expect(login.body.code).toBe('wieplay_not_configured')
+      expect(login.location).toBeUndefined()
+      for (const headers of [{ [HEADER]: TOKEN }, { [OLD_HEADER]: TOKEN }]) {
+        const teams = await call('/wieplay/v1/teams', { headers })
+        expect(teams.statusCode).toBe(503)
+        expect(teams.body.code).toBe('wieplay_not_configured')
+      }
+    })
   })
 })

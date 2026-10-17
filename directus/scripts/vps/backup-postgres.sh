@@ -10,20 +10,17 @@ PLAIN="$BACKUP_DIR/kscw_${DATE}.sql.gz"
 docker exec $CONTAINER pg_dump -U supabase_admin -d postgres --no-owner --no-acl | gzip > "$PLAIN"
 
 # WiePlay (video analysis, repo KSC-Wiedikon/wieplay; called Nomal until 17.10.2026) keeps its
-# own database on the same server. Prod only: the dev database is disposable. The database is
-# `wieplay` once renamed, `nomal` until then; skipped while neither exists.
+# own database `wieplay` on the same server. Prod only: the dev database is disposable. Skipped
+# while it does not exist. (The `nomal` fallback went on 18.10.2026: that database is gone.)
 # The file name starts with wieplay_, so restore-test.sh (kscw_20*) never picks it up.
 WIEPLAY=""
 WIEPLAY_FAILED=0
-for db in wieplay nomal; do
-  if docker exec $CONTAINER psql -U supabase_admin -d postgres -tAc \
-      "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -qx 1; then
-    WIEPLAY="$BACKUP_DIR/wieplay_${DATE}.sql.gz"
-    docker exec $CONTAINER pg_dump -U supabase_admin -d "$db" --no-owner --no-acl | gzip > "$WIEPLAY"
-    [ "${PIPESTATUS[0]}" -eq 0 ] || WIEPLAY_FAILED=1
-    break
-  fi
-done
+if docker exec $CONTAINER psql -U supabase_admin -d postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname = 'wieplay'" | grep -qx 1; then
+  WIEPLAY="$BACKUP_DIR/wieplay_${DATE}.sql.gz"
+  docker exec $CONTAINER pg_dump -U supabase_admin -d wieplay --no-owner --no-acl | gzip > "$WIEPLAY"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || WIEPLAY_FAILED=1
+fi
 
 # Encrypt for offsite copies (recipient = public-key-only VPS keyring)
 # Encrypt every .sql.gz that doesn't yet have a .gpg twin (catches today's + last 7 days).
