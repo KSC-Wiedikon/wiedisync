@@ -6,7 +6,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { safeReturnPath } from '../../utils/activityLinks'
-import { safeNomalReturn } from '../../utils/nomalReturn'
+import { safeWieplayReturn } from '../../utils/wieplayReturn'
 import { API_URL } from '../../lib/api'
 import SupportContact from '@/components/SupportContact'
 import LanguageDropdown from '@/components/LanguageDropdown'
@@ -24,9 +24,9 @@ export default function LoginPage() {
   // login screen; validated against AuthRoute's own rule, never trusted raw.
   const nextParam = new URLSearchParams(location.search).get('next')
   const returnTo = safeReturnPath(nextParam) ?? '/'
-  // WiePlay, formerly Nomal (wieplay.kscw.ch), sends people here to log in, then back to its bridge on the
-  // API host — the only absolute `next` accepted (see utils/nomalReturn.ts).
-  const nomalReturn = safeNomalReturn(nextParam, API_URL)
+  // WiePlay (wieplay.kscw.ch) sends people here to log in, then back to its bridge on the
+  // API host — the only absolute `next` accepted (see utils/wieplayReturn.ts).
+  const wieplayReturn = safeWieplayReturn(nextParam, API_URL)
 
   const [email, setEmail] = useState(() => {
     if (locationState?.email) {
@@ -61,9 +61,9 @@ export default function LoginPage() {
   })
   useEffect(() => {
     if (!user) return
-    if (nomalReturn) window.location.assign(nomalReturn)
+    if (wieplayReturn) window.location.assign(wieplayReturn)
     else navigate(returnTo, { replace: true })
-  }, [user, navigate, returnTo, nomalReturn])
+  }, [user, navigate, returnTo, wieplayReturn])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,7 +75,7 @@ export default function LoginPage() {
       sessionStorage.removeItem('login-redirect-email')
       sessionStorage.removeItem('login-redirect-exists')
       sessionStorage.removeItem('login-redirect-shared')
-      if (nomalReturn) window.location.assign(nomalReturn)
+      if (wieplayReturn) window.location.assign(wieplayReturn)
       else navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message.toLowerCase() : ''

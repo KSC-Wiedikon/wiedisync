@@ -1,32 +1,38 @@
 /**
- * Nomal bridge — login and team data for WiePlay (called Nomal until 17.10.2026), the club's
- * video-analysis app (separate service at wieplay.kscw.ch; repo KSC-Wiedikon/wieplay,
- * docs/PLAN.md §4). Routes and env keys keep the name nomal.
+ * WiePlay bridge — login and team data for WiePlay, the club's video-analysis app (separate
+ * service at wieplay.kscw.ch; repo KSC-Wiedikon/wieplay, docs/PLAN.md §4). WiePlay was called
+ * Nomal until 17.10.2026.
  *
- *   GET /kscw/nomal/v1/authorize?state=&return=  browser, Wiedisync session → 302 back to
- *                                                Nomal with a 60 s, single-use, Ed25519 JWT
- *   GET /kscw/nomal/v1/teams                     service: every team of the current and the
- *                                                previous season, metadata only
- *   GET /kscw/nomal/v1/sync?teams=1,2            service: rosters, games and trainings of the
- *                                                requested teams only (the Nomal-enabled ones)
- *   GET /kscw/nomal/v1/adult-check?team=&date=   service: does every rostered person pass the
- *                                                adults-only rule on that date? Birthdates
- *                                                never leave Wiedisync.
+ *   GET /kscw/wieplay/v1/authorize?state=&return=  browser, Wiedisync session → 302 back to
+ *                                                  WiePlay with a 60 s, single-use, Ed25519 JWT
+ *   GET /kscw/wieplay/v1/teams                     service: every team of the current and the
+ *                                                  previous season, metadata only
+ *   GET /kscw/wieplay/v1/sync?teams=1,2            service: rosters, games and trainings of the
+ *                                                  requested teams only (the WiePlay-enabled ones)
+ *   GET /kscw/wieplay/v1/adult-check?team=&date=   service: does every rostered person pass the
+ *                                                  adults-only rule on that date? Birthdates
+ *                                                  never leave Wiedisync.
  *
- * Which teams use Nomal is decided inside Nomal (by full admins); this file holds no state.
- * Service routes need `X-Nomal-Service-Token` (its SHA-256 must equal NOMAL_SYNC_TOKEN_HASH)
- * and answer 404 to anything that came through Cloudflare: Nomal calls them over the VPS's
+ * Old names (remove after WiePlay's cutover to the new ones): every route also answers under
+ * /kscw/nomal/v1/* with identical behaviour, except that /kscw/nomal/v1/authorize signs its
+ * token for aud "nomal" (what the running WiePlay verifies until it switches) instead of
+ * "wieplay"; the `X-Nomal-Service-Token` header is accepted next to `X-WiePlay-Service-Token`;
+ * every WIEPLAY_* env key falls back to its NOMAL_* twin when unset or empty.
+ *
+ * Which teams use WiePlay is decided inside WiePlay (by full admins); this file holds no state.
+ * Service routes need `X-WiePlay-Service-Token` (its SHA-256 must equal WIEPLAY_SYNC_TOKEN_HASH)
+ * and answer 404 to anything that came through Cloudflare: WiePlay calls them over the VPS's
  * internal network only. (Not `Authorization: Bearer` — Directus would try to read that as
  * one of its own tokens and refuse the request first.)
  *
- * Env (unset → 503 nomal_not_configured):
- *   NOMAL_JWT_PRIVATE_KEY  Ed25519 private key, PKCS#8 PEM (newlines may be written as \n)
- *   NOMAL_JWT_KID          key id, sent in the token header; Nomal picks the public key by it
- *   NOMAL_RETURN_URLS      comma-separated exact callback URLs, e.g.
- *                          https://wieplay.kscw.ch/api/auth/callback
- *   NOMAL_SYNC_TOKEN_HASH  hex SHA-256 of the service token Nomal sends
- *   NOMAL_JWT_ISSUER       optional; default wiedisync-prod / wiedisync-dev from PUBLIC_URL
- *   NOMAL_LOGIN_URL        optional; where to log in first (default FRONTEND_URL + /login)
+ * Env (unset → 503 wieplay_not_configured):
+ *   WIEPLAY_JWT_PRIVATE_KEY  Ed25519 private key, PKCS#8 PEM (newlines may be written as \n)
+ *   WIEPLAY_JWT_KID          key id, sent in the token header; WiePlay picks the public key by it
+ *   WIEPLAY_RETURN_URLS      comma-separated exact callback URLs, e.g.
+ *                            https://wieplay.kscw.ch/api/auth/callback
+ *   WIEPLAY_SYNC_TOKEN_HASH  hex SHA-256 of the service token WiePlay sends
+ *   WIEPLAY_JWT_ISSUER       optional; default wiedisync-prod / wiedisync-dev from PUBLIC_URL
+ *   WIEPLAY_LOGIN_URL        optional; where to log in first (default FRONTEND_URL + /login)
  */
 
 import crypto from 'crypto'
@@ -38,10 +44,27 @@ const TOKEN_TTL_SECONDS = 60
 const MAX_SYNC_TEAMS = 20
 const SPORTS = ['volleyball', 'basketball']
 
+/**
+ * Route prefixes under /kscw and the audience of the login token each one issues.
+ * `nomal` is WiePlay's old name: an alias with identical behaviour so the running WiePlay
+ * keeps working while it switches over. Remove it (and the NOMAL_* env fallback and the
+ * X-Nomal-Service-Token header) after WiePlay's cutover.
+ */
+export const BRIDGE_ROUTES = Object.freeze([
+  Object.freeze({ prefix: 'wieplay', aud: 'wieplay' }),
+  Object.freeze({ prefix: 'nomal', aud: 'nomal' }),
+])
+
+/**
+ * Service-token headers, new name first. The old name is accepted on every route until
+ * WiePlay's cutover.
+ */
+export const SERVICE_TOKEN_HEADERS = Object.freeze(['x-wieplay-service-token', 'x-nomal-service-token'])
+
 const b64url = (input) => Buffer.from(input).toString('base64url')
 
 /** Compact JWS with EdDSA (Ed25519): header.payload.signature. */
-export function signNomalToken(payload, { privateKeyPem, kid }) {
+export function signWieplayToken(payload, { privateKeyPem, kid }) {
   const header = { alg: 'EdDSA', typ: 'JWT', kid }
   const input = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`
   const signature = crypto.sign(null, Buffer.from(input), crypto.createPrivateKey(privateKeyPem))
@@ -68,19 +91,35 @@ export function parseReturnUrls(raw) {
   return out
 }
 
-export function nomalConfig(env = process.env) {
-  const privateKeyPem = String(env.NOMAL_JWT_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
+/**
+ * `WIEPLAY_<key>`, or the pre-rename `NOMAL_<key>` when that is unset or empty. Trimmed.
+ * Drop the fallback once the Directus env carries only the WIEPLAY_* keys.
+ */
+export function wieplayEnv(env, key) {
+  return String(env[`WIEPLAY_${key}`] ?? '').trim() || String(env[`NOMAL_${key}`] ?? '').trim()
+}
+
+export function wieplayConfig(env = process.env) {
+  const privateKeyPem = wieplayEnv(env, 'JWT_PRIVATE_KEY').replace(/\\n/g, '\n').trim()
   const publicUrl = String(env.PUBLIC_URL ?? '')
   return {
     privateKeyPem,
-    kid: String(env.NOMAL_JWT_KID ?? '').trim(),
-    issuer: String(env.NOMAL_JWT_ISSUER ?? '').trim()
+    kid: wieplayEnv(env, 'JWT_KID'),
+    issuer: wieplayEnv(env, 'JWT_ISSUER')
       || (publicUrl.includes('directus-dev') ? 'wiedisync-dev' : 'wiedisync-prod'),
-    returnUrls: parseReturnUrls(env.NOMAL_RETURN_URLS),
-    syncTokenHash: String(env.NOMAL_SYNC_TOKEN_HASH ?? '').trim().toLowerCase(),
-    loginUrl: String(env.NOMAL_LOGIN_URL ?? '').trim() || `${FRONTEND_URL}/login`,
+    returnUrls: parseReturnUrls(wieplayEnv(env, 'RETURN_URLS')),
+    syncTokenHash: wieplayEnv(env, 'SYNC_TOKEN_HASH').toLowerCase(),
+    loginUrl: wieplayEnv(env, 'LOGIN_URL') || `${FRONTEND_URL}/login`,
     publicUrl,
   }
+}
+
+/** The service token from whichever header carries one (new name first). */
+export function serviceTokenFrom(headers) {
+  for (const name of SERVICE_TOKEN_HEADERS) {
+    if (headers?.[name]) return headers[name]
+  }
+  return undefined
 }
 
 export function serviceTokenOk(provided, expectedHashHex) {
@@ -137,7 +176,7 @@ export function normalizeSets(json) {
   return sets.length ? sets : null
 }
 
-/** Adults-only rule (Nomal PLAN §5.3): a birthdate must exist and be 18+ years before `on`. */
+/** Adults-only rule (WiePlay PLAN §5.3): a birthdate must exist and be 18+ years before `on`. */
 export function adultOn(birthdate, on) {
   const born = isoDate(birthdate)
   if (!born) return { ok: false, reason: 'no_birthdate' }
@@ -182,8 +221,8 @@ export function buildRosterRows(teams, players, coaches, responsibles) {
 
 const displayName = (m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()
 
-export function registerNomalBridge(router, { database, logger }) {
-  const log = logger.child({ endpoint: 'nomal-bridge' })
+export function registerWieplayBridge(router, { database, logger }) {
+  const log = logger.child({ endpoint: 'wieplay-bridge' })
 
   const fail = (res, err, route) => {
     const status = err?.status || 500
@@ -192,7 +231,7 @@ export function registerNomalBridge(router, { database, logger }) {
   }
 
   const notConfigured = (res) =>
-    res.status(503).json({ error: 'Nomal is not configured', code: 'nomal_not_configured' })
+    res.status(503).json({ error: 'WiePlay is not configured', code: 'wieplay_not_configured' })
 
   async function rosterRows(teams) {
     const ids = teams.map((t) => t.id)
@@ -205,11 +244,11 @@ export function registerNomalBridge(router, { database, logger }) {
   }
 
   // ── Browser: login hand-off ────────────────────────────────────────────────
-  router.get('/nomal/v1/authorize', async (req, res) => {
+  const authorize = ({ prefix, aud }) => async (req, res) => {
     res.set('Cache-Control', 'no-store')
     res.set('Referrer-Policy', 'no-referrer')
     try {
-      const cfg = nomalConfig()
+      const cfg = wieplayConfig()
       if (!cfg.privateKeyPem || !cfg.kid || !cfg.returnUrls.size) return notConfigured(res)
 
       const state = String(req.query.state ?? '')
@@ -219,8 +258,9 @@ export function registerNomalBridge(router, { database, logger }) {
 
       const userId = req.accountability?.user
       if (!userId) {
-        // Not logged in to Wiedisync: log in there first, then come straight back here.
-        const self = `${cfg.publicUrl}/kscw/nomal/v1/authorize?${new URLSearchParams({ state, return: back })}`
+        // Not logged in to Wiedisync: log in there first, then come straight back to this
+        // same route (so the token keeps the audience the caller asked for).
+        const self = `${cfg.publicUrl}/kscw/${prefix}/v1/authorize?${new URLSearchParams({ state, return: back })}`
         return res.redirect(302, `${cfg.loginUrl}?${new URLSearchParams({ next: self })}`)
       }
 
@@ -236,9 +276,9 @@ export function registerNomalBridge(router, { database, logger }) {
       const seasonOf = new Map(teams.map((t) => [t.id, t.season]))
       const roles = parseStringList(member.role)
       const now = Math.floor(Date.now() / 1000)
-      const token = signNomalToken({
+      const token = signWieplayToken({
         iss: cfg.issuer,
-        aud: 'nomal',
+        aud,
         sub: String(member.uuid),
         mid: member.id,
         name: displayName(member),
@@ -252,26 +292,26 @@ export function registerNomalBridge(router, { database, logger }) {
       }, cfg)
 
       writeUserLog(database, log, {
-        accountability: req.accountability, action: 'nomal_login', collection: 'members',
-        recordId: member.id, data: { to: new URL(back).host },
+        accountability: req.accountability, action: 'wieplay_login', collection: 'members',
+        recordId: member.id, data: { to: new URL(back).host, route: prefix },
       }).catch(() => {})
       res.redirect(302, `${back}?${new URLSearchParams({ token, state })}`)
-    } catch (err) { fail(res, err, 'GET nomal/authorize') }
-  })
+    } catch (err) { fail(res, err, `GET ${prefix}/authorize`) }
+  }
 
-  // ── Service routes (Nomal API → here, internal network only) ───────────────
+  // ── Service routes (WiePlay API → here, internal network only) ─────────────
   const service = (route, handler) => async (req, res) => {
     res.set('Cache-Control', 'no-store')
-    const cfg = nomalConfig()
+    const cfg = wieplayConfig()
     if (!cfg.syncTokenHash) return notConfigured(res)
     if (req.headers['cf-connecting-ip']) return res.status(404).json({ error: 'Not found' })
-    if (!serviceTokenOk(req.headers['x-nomal-service-token'], cfg.syncTokenHash)) {
+    if (!serviceTokenOk(serviceTokenFrom(req.headers), cfg.syncTokenHash)) {
       return res.status(401).json({ error: 'Invalid service token' })
     }
     try { await handler(req, res) } catch (err) { fail(res, err, route) }
   }
 
-  router.get('/nomal/v1/teams', service('GET nomal/teams', async (_req, res) => {
+  const teamsRoute = async (_req, res) => {
     const season = currentSeasonShort()
     const seasons = [season, previousSeasonShort(season)]
     const rows = await database('teams').whereIn('season', seasons).whereIn('sport', SPORTS)
@@ -285,9 +325,9 @@ export function registerNomalBridge(router, { database, logger }) {
         team_key: t.team_id || null, active: t.active === true,
       })),
     })
-  }))
+  }
 
-  router.get('/nomal/v1/sync', service('GET nomal/sync', async (req, res) => {
+  const syncRoute = (prefix) => async (req, res) => {
     const ids = parseTeamIds(req.query.teams)
     const teams = await database('teams').whereIn('id', ids).select('id', 'season', 'captain')
     if (teams.length !== ids.length) return res.status(404).json({ error: 'Unknown team id' })
@@ -310,7 +350,7 @@ export function registerNomalBridge(router, { database, logger }) {
           'trainings.end_time', 'trainings.hall_name', 'halls.name as hall'),
     ])
 
-    log.info(`nomal sync: teams ${ids.join(',')} → ${members.length} members, ${games.length} games`)
+    log.info(`wieplay sync (/${prefix}): teams ${ids.join(',')} → ${members.length} members, ${games.length} games`)
     res.json({
       version: 1,
       members: members.map((m) => ({
@@ -349,9 +389,9 @@ export function registerNomalBridge(router, { database, logger }) {
         hall_name: t.hall || t.hall_name || null,
       })),
     })
-  }))
+  }
 
-  router.get('/nomal/v1/adult-check', service('GET nomal/adult-check', async (req, res) => {
+  const adultCheckRoute = async (req, res) => {
     const [teamId] = parseTeamIds(req.query.team)
     const on = String(req.query.date ?? '')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(on)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' })
@@ -371,5 +411,14 @@ export function registerNomalBridge(router, { database, logger }) {
       failing_count: people.filter((p) => !p.ok).length,
       people,
     })
-  }))
+  }
+
+  // /kscw/wieplay/v1/* and, until WiePlay's cutover, the same routes under /kscw/nomal/v1/*.
+  for (const route of BRIDGE_ROUTES) {
+    const { prefix } = route
+    router.get(`/${prefix}/v1/authorize`, authorize(route))
+    router.get(`/${prefix}/v1/teams`, service(`GET ${prefix}/teams`, teamsRoute))
+    router.get(`/${prefix}/v1/sync`, service(`GET ${prefix}/sync`, syncRoute(prefix)))
+    router.get(`/${prefix}/v1/adult-check`, service(`GET ${prefix}/adult-check`, adultCheckRoute))
+  }
 }
