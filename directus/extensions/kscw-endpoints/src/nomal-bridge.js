@@ -1,6 +1,7 @@
 /**
- * Nomal bridge — login and team data for Nomal, the club's video-analysis app
- * (separate service at nomal.kscw.ch; repo KSC-Wiedikon/nomal, docs/PLAN.md §4).
+ * Nomal bridge — login and team data for WiePlay (called Nomal until 17.10.2026), the club's
+ * video-analysis app (separate service at wieplay.kscw.ch; repo KSC-Wiedikon/wieplay,
+ * docs/PLAN.md §4). Routes and env keys keep the name nomal.
  *
  *   GET /kscw/nomal/v1/authorize?state=&return=  browser, Wiedisync session → 302 back to
  *                                                Nomal with a 60 s, single-use, Ed25519 JWT
@@ -22,7 +23,7 @@
  *   NOMAL_JWT_PRIVATE_KEY  Ed25519 private key, PKCS#8 PEM (newlines may be written as \n)
  *   NOMAL_JWT_KID          key id, sent in the token header; Nomal picks the public key by it
  *   NOMAL_RETURN_URLS      comma-separated exact callback URLs, e.g.
- *                          https://nomal.kscw.ch/api/auth/callback
+ *                          https://wieplay.kscw.ch/api/auth/callback
  *   NOMAL_SYNC_TOKEN_HASH  hex SHA-256 of the service token Nomal sends
  *   NOMAL_JWT_ISSUER       optional; default wiedisync-prod / wiedisync-dev from PUBLIC_URL
  *   NOMAL_LOGIN_URL        optional; where to log in first (default FRONTEND_URL + /login)

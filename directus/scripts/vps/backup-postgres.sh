@@ -9,7 +9,7 @@ GPG_RECIPIENT=backup@kscw.ch
 PLAIN="$BACKUP_DIR/kscw_${DATE}.sql.gz"
 docker exec $CONTAINER pg_dump -U supabase_admin -d postgres --no-owner --no-acl | gzip > "$PLAIN"
 
-# Nomal (video analysis, repo KSC-Wiedikon/nomal) keeps its own database on the same
+# Nomal (WiePlay, video analysis, repo KSC-Wiedikon/wieplay) keeps its own database on the same
 # server. Prod only: nomal_dev is disposable. Skipped until the database exists.
 # The file name starts with nomal_, so restore-test.sh (kscw_20*) never picks it up.
 NOMAL=""
