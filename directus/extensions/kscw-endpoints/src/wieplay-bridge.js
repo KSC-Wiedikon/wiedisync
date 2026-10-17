@@ -13,11 +13,9 @@
  *                                                  adults-only rule on that date? Birthdates
  *                                                  never leave Wiedisync.
  *
- * Old names (remove after WiePlay's cutover to the new ones): every route also answers under
- * /kscw/nomal/v1/* with identical behaviour, except that /kscw/nomal/v1/authorize signs its
- * token for aud "nomal" (what the running WiePlay verifies until it switches) instead of
- * "wieplay"; the `X-Nomal-Service-Token` header is accepted next to `X-WiePlay-Service-Token`;
- * every WIEPLAY_* env key falls back to its NOMAL_* twin when unset or empty.
+ * The pre-rename names (the /kscw/nomal/v1/* routes, aud "nomal", the X-Nomal-Service-Token
+ * header and the NOMAL_* env keys) were removed on 18.10.2026, after WiePlay's cutover: they
+ * now get 404, 401 and "not configured" like any other unknown route, header or key.
  *
  * Which teams use WiePlay is decided inside WiePlay (by full admins); this file holds no state.
  * Service routes need `X-WiePlay-Service-Token` (its SHA-256 must equal WIEPLAY_SYNC_TOKEN_HASH)
@@ -44,22 +42,14 @@ const TOKEN_TTL_SECONDS = 60
 const MAX_SYNC_TEAMS = 20
 const SPORTS = ['volleyball', 'basketball']
 
-/**
- * Route prefixes under /kscw and the audience of the login token each one issues.
- * `nomal` is WiePlay's old name: an alias with identical behaviour so the running WiePlay
- * keeps working while it switches over. Remove it (and the NOMAL_* env fallback and the
- * X-Nomal-Service-Token header) after WiePlay's cutover.
- */
-export const BRIDGE_ROUTES = Object.freeze([
-  Object.freeze({ prefix: 'wieplay', aud: 'wieplay' }),
-  Object.freeze({ prefix: 'nomal', aud: 'nomal' }),
-])
+/** Route base under /kscw. */
+export const BRIDGE_BASE = '/wieplay/v1'
 
-/**
- * Service-token headers, new name first. The old name is accepted on every route until
- * WiePlay's cutover.
- */
-export const SERVICE_TOKEN_HEADERS = Object.freeze(['x-wieplay-service-token', 'x-nomal-service-token'])
+/** Audience of the login token; WiePlay verifies it. */
+export const TOKEN_AUDIENCE = 'wieplay'
+
+/** The only header the service routes read the token from (Express lower-cases names). */
+export const SERVICE_TOKEN_HEADER = 'x-wieplay-service-token'
 
 const b64url = (input) => Buffer.from(input).toString('base64url')
 
@@ -91,12 +81,9 @@ export function parseReturnUrls(raw) {
   return out
 }
 
-/**
- * `WIEPLAY_<key>`, or the pre-rename `NOMAL_<key>` when that is unset or empty. Trimmed.
- * Drop the fallback once the Directus env carries only the WIEPLAY_* keys.
- */
+/** `WIEPLAY_<key>`, trimmed; '' when unset. */
 export function wieplayEnv(env, key) {
-  return String(env[`WIEPLAY_${key}`] ?? '').trim() || String(env[`NOMAL_${key}`] ?? '').trim()
+  return String(env[`WIEPLAY_${key}`] ?? '').trim()
 }
 
 export function wieplayConfig(env = process.env) {
@@ -112,14 +99,6 @@ export function wieplayConfig(env = process.env) {
     loginUrl: wieplayEnv(env, 'LOGIN_URL') || `${FRONTEND_URL}/login`,
     publicUrl,
   }
-}
-
-/** The service token from whichever header carries one (new name first). */
-export function serviceTokenFrom(headers) {
-  for (const name of SERVICE_TOKEN_HEADERS) {
-    if (headers?.[name]) return headers[name]
-  }
-  return undefined
 }
 
 export function serviceTokenOk(provided, expectedHashHex) {
@@ -244,7 +223,7 @@ export function registerWieplayBridge(router, { database, logger }) {
   }
 
   // ── Browser: login hand-off ────────────────────────────────────────────────
-  const authorize = ({ prefix, aud }) => async (req, res) => {
+  const authorize = async (req, res) => {
     res.set('Cache-Control', 'no-store')
     res.set('Referrer-Policy', 'no-referrer')
     try {
@@ -258,9 +237,8 @@ export function registerWieplayBridge(router, { database, logger }) {
 
       const userId = req.accountability?.user
       if (!userId) {
-        // Not logged in to Wiedisync: log in there first, then come straight back to this
-        // same route (so the token keeps the audience the caller asked for).
-        const self = `${cfg.publicUrl}/kscw/${prefix}/v1/authorize?${new URLSearchParams({ state, return: back })}`
+        // Not logged in to Wiedisync: log in there first, then come straight back here.
+        const self = `${cfg.publicUrl}/kscw${BRIDGE_BASE}/authorize?${new URLSearchParams({ state, return: back })}`
         return res.redirect(302, `${cfg.loginUrl}?${new URLSearchParams({ next: self })}`)
       }
 
@@ -278,7 +256,7 @@ export function registerWieplayBridge(router, { database, logger }) {
       const now = Math.floor(Date.now() / 1000)
       const token = signWieplayToken({
         iss: cfg.issuer,
-        aud,
+        aud: TOKEN_AUDIENCE,
         sub: String(member.uuid),
         mid: member.id,
         name: displayName(member),
@@ -293,10 +271,10 @@ export function registerWieplayBridge(router, { database, logger }) {
 
       writeUserLog(database, log, {
         accountability: req.accountability, action: 'wieplay_login', collection: 'members',
-        recordId: member.id, data: { to: new URL(back).host, route: prefix },
+        recordId: member.id, data: { to: new URL(back).host },
       }).catch(() => {})
       res.redirect(302, `${back}?${new URLSearchParams({ token, state })}`)
-    } catch (err) { fail(res, err, `GET ${prefix}/authorize`) }
+    } catch (err) { fail(res, err, 'GET wieplay/authorize') }
   }
 
   // ── Service routes (WiePlay API → here, internal network only) ─────────────
@@ -305,7 +283,7 @@ export function registerWieplayBridge(router, { database, logger }) {
     const cfg = wieplayConfig()
     if (!cfg.syncTokenHash) return notConfigured(res)
     if (req.headers['cf-connecting-ip']) return res.status(404).json({ error: 'Not found' })
-    if (!serviceTokenOk(serviceTokenFrom(req.headers), cfg.syncTokenHash)) {
+    if (!serviceTokenOk(req.headers[SERVICE_TOKEN_HEADER], cfg.syncTokenHash)) {
       return res.status(401).json({ error: 'Invalid service token' })
     }
     try { await handler(req, res) } catch (err) { fail(res, err, route) }
@@ -327,7 +305,7 @@ export function registerWieplayBridge(router, { database, logger }) {
     })
   }
 
-  const syncRoute = (prefix) => async (req, res) => {
+  const syncRoute = async (req, res) => {
     const ids = parseTeamIds(req.query.teams)
     const teams = await database('teams').whereIn('id', ids).select('id', 'season', 'captain')
     if (teams.length !== ids.length) return res.status(404).json({ error: 'Unknown team id' })
@@ -350,7 +328,7 @@ export function registerWieplayBridge(router, { database, logger }) {
           'trainings.end_time', 'trainings.hall_name', 'halls.name as hall'),
     ])
 
-    log.info(`wieplay sync (/${prefix}): teams ${ids.join(',')} → ${members.length} members, ${games.length} games`)
+    log.info(`wieplay sync: teams ${ids.join(',')} → ${members.length} members, ${games.length} games`)
     res.json({
       version: 1,
       members: members.map((m) => ({
@@ -413,12 +391,8 @@ export function registerWieplayBridge(router, { database, logger }) {
     })
   }
 
-  // /kscw/wieplay/v1/* and, until WiePlay's cutover, the same routes under /kscw/nomal/v1/*.
-  for (const route of BRIDGE_ROUTES) {
-    const { prefix } = route
-    router.get(`/${prefix}/v1/authorize`, authorize(route))
-    router.get(`/${prefix}/v1/teams`, service(`GET ${prefix}/teams`, teamsRoute))
-    router.get(`/${prefix}/v1/sync`, service(`GET ${prefix}/sync`, syncRoute(prefix)))
-    router.get(`/${prefix}/v1/adult-check`, service(`GET ${prefix}/adult-check`, adultCheckRoute))
-  }
+  router.get(`${BRIDGE_BASE}/authorize`, authorize)
+  router.get(`${BRIDGE_BASE}/teams`, service('GET wieplay/teams', teamsRoute))
+  router.get(`${BRIDGE_BASE}/sync`, service('GET wieplay/sync', syncRoute))
+  router.get(`${BRIDGE_BASE}/adult-check`, service('GET wieplay/adult-check', adultCheckRoute))
 }
