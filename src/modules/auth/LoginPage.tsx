@@ -24,7 +24,7 @@ export default function LoginPage() {
   // login screen; validated against AuthRoute's own rule, never trusted raw.
   const nextParam = new URLSearchParams(location.search).get('next')
   const returnTo = safeReturnPath(nextParam) ?? '/'
-  // Nomal (nomal.kscw.ch) sends people here to log in, then back to its bridge on the
+  // WiePlay, formerly Nomal (wieplay.kscw.ch), sends people here to log in, then back to its bridge on the
   // API host — the only absolute `next` accepted (see utils/nomalReturn.ts).
   const nomalReturn = safeNomalReturn(nextParam, API_URL)
 

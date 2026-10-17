@@ -1,5 +1,5 @@
 /**
- * Nomal (the club's video-analysis app at nomal.kscw.ch) sends people who are not logged
+ * WiePlay, formerly Nomal (the club's video-analysis app at wieplay.kscw.ch), sends people who are not logged
  * in to `/login?next=<Nomal bridge URL on the API host>`. After login, LoginPage leaves the
  * SPA for that URL, which hands Nomal a one-time login token (kscw-endpoints nomal-bridge.js).
  *
