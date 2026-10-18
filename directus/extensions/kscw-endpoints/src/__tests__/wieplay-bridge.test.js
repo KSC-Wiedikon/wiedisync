@@ -19,7 +19,7 @@ const TOKEN = 'service-token-for-tests'
 const TOKEN_HASH = crypto.createHash('sha256').update(TOKEN).digest('hex')
 const RETURN = 'https://wieplay-dev.kscw.ch/api/auth/callback'
 const STATE = 'abcdefghijklmnopqrstuvwx'
-const ROUTES = ['authorize', 'teams', 'sync', 'adult-check']
+const ROUTES = ['authorize', 'teams', 'sync', 'adult-check', 'score-log']
 const HEADER = 'x-wieplay-service-token'
 const OLD_HEADER = 'x-nomal-service-token'
 const ENV_KEYS = ['JWT_PRIVATE_KEY', 'JWT_KID', 'RETURN_URLS', 'SYNC_TOKEN_HASH', 'JWT_ISSUER', 'LOGIN_URL']
@@ -268,7 +268,7 @@ describe('routes', () => {
   })
   afterEach(() => { process.env = { ...saved } })
 
-  it('registers the four routes under /wieplay/v1 only', () => {
+  it('registers the five routes under /wieplay/v1 only', () => {
     expect(harness().paths.sort()).toEqual(ROUTES.map((r) => `/wieplay/v1/${r}`).sort())
   })
 
@@ -420,7 +420,7 @@ describe('routes', () => {
 
     it('X-Nomal-Service-Token: 401, on every service route', async () => {
       const call = harness()
-      for (const r of ['teams', 'sync', 'adult-check']) {
+      for (const r of ['teams', 'sync', 'adult-check', 'score-log']) {
         const res = await call(`/wieplay/v1/${r}`, {
           query: { teams: '92', team: '92', date: '2026-10-18' }, headers: { [OLD_HEADER]: TOKEN },
         })

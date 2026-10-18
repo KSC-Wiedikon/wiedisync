@@ -13,6 +13,9 @@
  *   GET /kscw/wieplay/v1/adult-check?team=&date=   service: does every rostered person pass the
  *                                                  adults-only rule on that date? Birthdates
  *                                                  never leave Wiedisync.
+ *   GET /kscw/wieplay/v1/score-log?game=<games.id> service: the club scoreboard's point-by-point
+ *                                                  history of that game (team names and scores
+ *                                                  only; wieplay-score-log.js), read-only
  *
  * The pre-rename names (the /kscw/nomal/v1/* routes, aud "nomal", the X-Nomal-Service-Token
  * header and the NOMAL_* env keys) were removed on 18.10.2026, after WiePlay's cutover: they
@@ -41,6 +44,7 @@ import crypto from 'crypto'
 import { writeUserLog } from './activity-log.js'
 import { currentSeasonShort } from './season.js'
 import { FRONTEND_URL } from './email-template.js'
+import { loadScoreLog, scoreLogDeps } from './wieplay-score-log.js'
 
 const TOKEN_TTL_SECONDS = 60
 const MAX_SYNC_TEAMS = 20
@@ -429,8 +433,20 @@ export function registerWieplayBridge(router, { database, logger }) {
     })
   }
 
+  // The scoreboard's log of one game (any game: names and scores are public on /live anyway).
+  const scoreLogRoute = async (req, res) => {
+    const raw = String(req.query.game ?? '')
+    if (!/^\d{1,9}$/.test(raw)) return res.status(400).json({ error: 'game must be a numeric id' })
+    const found = await loadScoreLog(Number(raw), scoreLogDeps(database, { normalizeSets, hhmm }))
+    if (!found) return res.status(404).json({ error: 'Unknown game id' })
+    const points = found.events.filter((e) => e.kind === 'point').length
+    log.info(`wieplay score-log: game ${raw} → ${found.source ?? 'none'}, ${points} points, ${found.events.length} events`)
+    res.json(found)
+  }
+
   router.get(`${BRIDGE_BASE}/authorize`, authorize)
   router.get(`${BRIDGE_BASE}/teams`, service('GET wieplay/teams', teamsRoute))
   router.get(`${BRIDGE_BASE}/sync`, service('GET wieplay/sync', syncRoute))
   router.get(`${BRIDGE_BASE}/adult-check`, service('GET wieplay/adult-check', adultCheckRoute))
+  router.get(`${BRIDGE_BASE}/score-log`, service('GET wieplay/score-log', scoreLogRoute))
 }
