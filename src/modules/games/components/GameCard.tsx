@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Users, Pencil, MapPin } from 'lucide-react'
+import { Users, Pencil, MapPin, Video } from 'lucide-react'
 import type { Game, Team, Hall, BaseRecord } from '../../../types'
 import { formatDayMonthZurich, formatTime, formatWeekday } from '../../../utils/dateHelpers'
 import { gameNumberLabel } from '../../../utils/leagueShort'
@@ -14,6 +14,7 @@ import type { Warning } from '../../../utils/participationWarnings'
 import { useAuth } from '../../../hooks/useAuth'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
 import { useGameCallUp } from '../../../hooks/useUserVisibleGameIds'
+import { useWieplayGameUrl } from '../../../hooks/useWieplay'
 import type { Participation } from '../../../types'
 import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
@@ -44,6 +45,8 @@ interface GameCardProps {
   onEdit?: (game: Game) => void
   /** Already-played fixture shown under the upcoming ones: greyed, no RSVP/cancel. */
   past?: boolean
+  /** The "Video" link to WiePlay (default on); off in the public embed on kscw.ch. */
+  showVideoLink?: boolean
 }
 
 type ExpandedGame = Game & {
@@ -127,7 +130,7 @@ function ScoreAside({ side, game, total, sets, kscwWon, kscwLost }: {
   )
 }
 
-export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, past }: GameCardProps) {
+export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, past, showVideoLink = true }: GameCardProps) {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
   const { user, canParticipateIn, isStaffOnly, isGuestIn } = useAuth()
@@ -224,6 +227,17 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
     </RowChip>
   ) : null
 
+  // The game's video in WiePlay (teams that use it, played games, viewers on the team) — a
+  // plain link to WiePlay's game page, in a new tab.
+  const videoUrl = useWieplayGameUrl(showVideoLink ? game : null)
+  const videoLink = videoUrl ? (
+    <Button asChild size="tool" variant="outline">
+      <a href={videoUrl} target="_blank" rel="noopener noreferrer" title={t('wieplayVideoTitle')} aria-label={t('wieplayVideoTitle')}>
+        <Video aria-hidden />{t('wieplayVideo')}
+      </a>
+    </Button>
+  ) : null
+
   if (variant === 'compact') {
     return (
       <ActivityRow
@@ -232,6 +246,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         title={title}
         status={provisional ? <ProvisionalPill /> : game.status !== 'completed' ? <StatusBadge status={game.status} /> : undefined}
         chips={<>{teamChip}{hallChip}</>}
+        tools={videoLink ?? undefined}
         onClick={onClick ? () => onClick(game) : undefined}
       />
     )
@@ -240,7 +255,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const showCancel = !past && (game.status === 'scheduled' || game.status === 'cancelled')
   const showRoster = !!onOpenRoster
   const showEdit = !!onEdit && canManage
-  const hasTools = showCancel || showRoster || showEdit
+  const hasTools = showCancel || showRoster || showEdit || !!videoLink
   // Cards (game / training / event) share one stripe meaning: MY answer
   // (rsvpTone), cancelled overriding in red; the rail date stays neutral so a
   // red "declined" never reads as "cancelled". The game-state/result tone above
@@ -326,6 +341,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
           2–3 column card grid). */}
       {hasTools && (
         <div className="-mx-1 flex flex-wrap items-center gap-1.5 border-t border-border/60 px-3 py-2">
+          {videoLink}
           {showRoster && (
             <Button
               type="button"

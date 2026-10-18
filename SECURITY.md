@@ -50,6 +50,10 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-10-18 — small WIDENING: the WiePlay bridge's `/sync` writes one column (`teams.wieplay_enabled`)
+
+Until now the bridge's service routes only read. `GET /kscw/wieplay/v1/sync?teams=<ids>` now also sets `teams.wieplay_enabled` (migration 423) to true for the requested team rows and false for all others, so the member app can link those teams' games to WiePlay. Controls: the same gate as before (`X-WiePlay-Service-Token`, SHA-256 compared, 404 through Cloudflare, ids parsed and capped at 20, unknown id → 404 before any write); the write is one boolean per team in one transaction; the column is endpoint-owned — trigger `teams_wieplay_enabled_guard` ignores every other writer (items API, Data Studio) unless the transaction set `kscw.wieplay_enabled_write`, which only this route does. Worst case with a stolen service token: "Video" links appear or vanish; it already gave rosters of the requested teams, and WiePlay checks every viewer itself (a game the viewer may not see answers like a game without video). Readable by members only (not in `PUBLIC_TEAM_FIELDS`). No user to attribute (service caller), so a change is logged as one `wieplay sync: teams.wieplay_enabled on [...] off [...]` container-log line. Tests: `__tests__/wieplay-bridge.test.js` (`markWieplayTeams`, sync marks + still serves when the column is missing, unknown id writes nothing).
+
 ### 2026-10-18 — attack surface REMOVED: the WiePlay bridge's pre-rename names (Nomal)
 
 WiePlay's cutover finished on 17./18.10.2026 (dev and prod call only `/kscw/wieplay/v1/*` with `X-WiePlay-Service-Token` and verify aud `wieplay`; both Directus envs carry only `WIEPLAY_*`, kid `wieplay-dev-1` / `wieplay-prod-1`), so the aliases kept for the switch were taken out of `kscw-endpoints/src/wieplay-bridge.js`:

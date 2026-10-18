@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.37.0'
+const APP_VERSION = '2.38.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.38.0',
+    date: '18.10.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Games of teams that use WiePlay, the club's video analysis app, have a \"Video\" button on the game card and in the game details. It opens the game's video in WiePlay in a new tab — for played games and today's games, for the team's players and coaches.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.37.0',
     date: '14.10.2026',

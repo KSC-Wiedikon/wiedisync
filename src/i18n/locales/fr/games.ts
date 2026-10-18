@@ -360,6 +360,9 @@ export default {
   // Video recordings (migration 375)
   recordings: "Vidéo",
   recordingsLivestream: "Vidéo & livestream",
+  // The game's video in WiePlay, the club's video analysis app (teams that use it)
+  wieplayVideo: "Vidéo",
+  wieplayVideoTitle: "Voir la vidéo du match dans WiePlay (nouvel onglet)",
   recordingsLivestreamHint: "Un lien de livestream avec « Afficher sur le site web » est mis en avant sur kscw.ch jusqu'au match, puis il reste comme enregistrement.",
   recordingsAdd: "Ajouter une vidéo",
   recordingsEdit: "Modifier",

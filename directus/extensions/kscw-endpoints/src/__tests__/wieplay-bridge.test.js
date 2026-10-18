@@ -10,7 +10,7 @@ import {
   signWieplayToken, previousSeasonShort, parseReturnUrls, wieplayConfig, wieplayEnv,
   serviceTokenOk, parseStringList, sportAdminScopes, parseTeamIds, isoDate,
   hhmm, normalizeSets, adultOn, mergeRelations, buildRosterRows, registerWieplayBridge,
-  BRIDGE_BASE, TOKEN_AUDIENCE, SERVICE_TOKEN_HEADER,
+  markWieplayTeams, BRIDGE_BASE, TOKEN_AUDIENCE, SERVICE_TOKEN_HEADER, WIEPLAY_FLAG_GUC,
 } from '../wieplay-bridge.js'
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
@@ -160,6 +160,21 @@ describe('roster', () => {
   })
 })
 
+describe('markWieplayTeams', () => {
+  it('switches on the asked-for rows and off every other one, writing only changes, under the GUC', async () => {
+    const flags = { 1: false, 2: true, 3: true, 4: false }
+    const tx = flagTransaction(flags)
+    expect(await markWieplayTeams(tx, [1, 2])).toEqual({ on: [1], off: [3] })
+    expect(flags).toEqual({ 1: true, 2: true, 3: false, 4: false })
+    const [guc, on, off] = tx.calls
+    expect(guc.bindings).toEqual(['kscw.wieplay_enabled_write', 'on'])
+    expect(on.filters).toEqual([['in', 'id', [1, 2]], ['eq', 'wieplay_enabled', false]])
+    expect(off.filters).toEqual([['notIn', 'id', [1, 2]], ['eq', 'wieplay_enabled', true]])
+    // A second sync with the same teams changes nothing.
+    expect(await markWieplayTeams(flagTransaction(flags), [1, 2])).toEqual({ on: [], off: [] })
+  })
+})
+
 // ── Routes ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -180,6 +195,35 @@ function fakeDatabase(tables, inserts) {
 }
 
 const NO_DATABASE = () => { throw new Error('database not expected') }
+
+/**
+ * A knex transaction stand-in for teams.wieplay_enabled: records the GUC and every update with
+ * its filters; `flags` is the column's current value per team id. `missing` = the column does
+ * not exist (dev between the nightly prod clone and db:deploy:dev).
+ */
+function flagTransaction(flags, { missing = false } = {}) {
+  const calls = []
+  const trx = (table) => {
+    const filters = []
+    const q = {
+      whereIn: (col, v) => { filters.push(['in', col, v]); return q },
+      whereNotIn: (col, v) => { filters.push(['notIn', col, v]); return q },
+      where: (col, v) => { filters.push(['eq', col, v]); return q },
+      update: async (data, returning) => {
+        if (missing) throw new Error('column "wieplay_enabled" does not exist')
+        calls.push({ table, filters, data, returning })
+        const keep = (id) => filters.every(([op, , v]) =>
+          op === 'in' ? v.includes(id) : op === 'notIn' ? !v.includes(id) : flags[id] === v)
+        const hit = Object.keys(flags).map(Number).filter(keep)
+        for (const id of hit) flags[id] = data.wieplay_enabled
+        return hit.map((id) => ({ id }))
+      },
+    }
+    return q
+  }
+  trx.raw = async (sql, bindings) => { calls.push({ sql, bindings }) }
+  return { calls, transaction: async (fn) => fn(trx) }
+}
 
 function harness(database = NO_DATABASE) {
   const routes = new Map()
@@ -311,6 +355,40 @@ describe('routes', () => {
     expect(res.body.teams).toEqual([
       { id: 92, name: 'H3', sport: 'volleyball', season: '2026/27', league: '3L', team_key: 'h3', active: true },
     ])
+  })
+
+  it('sync: marks the requested teams in teams.wieplay_enabled and serves the snapshot', async () => {
+    const flags = { 92: false, 93: true, 94: true, 95: false }
+    const tx = flagTransaction(flags)
+    const database = Object.assign(fakeDatabase({
+      teams: [{ id: 92, season: '2026/27', captain: null }, { id: 93, season: '2025/26', captain: null }],
+      games: [{ id: 501, kscw_team: 92, date: '2026-10-11', time: '20:00:00', type: 'home', status: 'scheduled' }],
+    }, []), { transaction: tx.transaction })
+    const res = await harness(database)('/wieplay/v1/sync', {
+      query: { teams: '92,93' }, headers: { [HEADER]: TOKEN },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body.games.map((g) => g.id)).toEqual([501])
+    expect(flags).toEqual({ 92: true, 93: true, 94: false, 95: false })
+    expect(tx.calls[0]).toEqual({ sql: 'SELECT set_config(?, ?, true)', bindings: [WIEPLAY_FLAG_GUC, 'on'] })
+  })
+
+  it('sync: still serves the snapshot when the flags cannot be written', async () => {
+    const tx = flagTransaction({ 92: false }, { missing: true })
+    const database = Object.assign(fakeDatabase({ teams: [{ id: 92, season: '2026/27', captain: null }] }, []), {
+      transaction: tx.transaction,
+    })
+    const res = await harness(database)('/wieplay/v1/sync', { query: { teams: '92' }, headers: { [HEADER]: TOKEN } })
+    expect(res.statusCode).toBe(200)
+    expect(res.body.version).toBe(1)
+  })
+
+  it('sync: an unknown team id marks nothing', async () => {
+    const tx = flagTransaction({ 92: false })
+    const database = Object.assign(fakeDatabase({ teams: [] }, []), { transaction: tx.transaction })
+    const res = await harness(database)('/wieplay/v1/sync', { query: { teams: '92' }, headers: { [HEADER]: TOKEN } })
+    expect(res.statusCode).toBe(404)
+    expect(tx.calls).toEqual([])
   })
 
   it('sync: rejects junk team lists before touching the database', async () => {

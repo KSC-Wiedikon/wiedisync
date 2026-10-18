@@ -90,6 +90,9 @@ export interface Team extends BaseRecord {
    *  (higher = fewer scorer/scoreboard assignments). Stacks on top of the
    *  automatic referee credit. Editable on the scorer-assignment page. */
   duty_credit?: number
+  /** The team uses WiePlay, the club's video analysis app (migration 423): set by WiePlay's
+   *  hourly sync through the bridge, read-only everywhere else. Game cards link its games. */
+  wieplay_enabled?: boolean
 
 }
 
