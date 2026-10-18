@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.38.0 — 2026-10-18
+
+### New
+
+- Games of teams that use WiePlay, the club's video analysis app, have a "Video" button on the game card and in the game details. It opens the game's video in WiePlay in a new tab — for played games and today's games, for the team's players and coaches.
+
 ## v2.37.0 — 2026-10-14
 
 ### Changed

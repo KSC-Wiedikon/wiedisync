@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, X, Check, AlertTriangle, Trash2 } from 'lucide-react'
+import { MessageSquare, X, Check, AlertTriangle, Trash2, Video } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import { useRsvpLabels } from '../../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
 import { useGameCallUp } from '../../../hooks/useUserVisibleGameIds'
+import { useWieplayGameUrl } from '../../../hooks/useWieplay'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
@@ -193,6 +194,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     return parsed?.time ?? ''
   })
   const [fullGame, setFullGame] = useState<Game | null>(null)
+  // The game's video in WiePlay (same rule as the game card's "Video" link).
+  const videoUrl = useWieplayGameUrl(game)
   const [lateData, setLateData] = useState<DutyLateData | null>(null)
   // `lateData === null` used to mean two opposite things: "the duty-late GET has
   // not landed yet" AND "nobody has flagged this official". The second reading
@@ -620,6 +623,13 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               title={`${homeLabel} vs ${awayLabel}`}
               iconOnly
             />
+            {videoUrl && (
+              <Button asChild variant="outline">
+                <a href={videoUrl} target="_blank" rel="noopener noreferrer" title={t('wieplayVideoTitle')} aria-label={t('wieplayVideoTitle')}>
+                  <Video aria-hidden />{t('wieplayVideo')}
+                </a>
+              </Button>
+            )}
             {(game.status === 'scheduled' || game.status === 'cancelled') && (
               <>
               {game.status === 'scheduled' && (

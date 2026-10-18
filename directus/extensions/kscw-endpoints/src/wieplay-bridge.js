@@ -8,7 +8,8 @@
  *   GET /kscw/wieplay/v1/teams                     service: every team of the current and the
  *                                                  previous season, metadata only
  *   GET /kscw/wieplay/v1/sync?teams=1,2            service: rosters, games and trainings of the
- *                                                  requested teams only (the WiePlay-enabled ones)
+ *                                                  requested teams only (the WiePlay-enabled ones);
+ *                                                  marks those teams in teams.wieplay_enabled
  *   GET /kscw/wieplay/v1/adult-check?team=&date=   service: does every rostered person pass the
  *                                                  adults-only rule on that date? Birthdates
  *                                                  never leave Wiedisync.
@@ -17,7 +18,10 @@
  * header and the NOMAL_* env keys) were removed on 18.10.2026, after WiePlay's cutover: they
  * now get 404, 401 and "not configured" like any other unknown route, header or key.
  *
- * Which teams use WiePlay is decided inside WiePlay (by full admins); this file holds no state.
+ * Which teams use WiePlay is decided inside WiePlay (by full admins). The only state kept here is
+ * its mirror: every /sync call names exactly WiePlay's enabled team rows, and the bridge records
+ * them in `teams.wieplay_enabled` (migration 423), which the member app reads to link those
+ * teams' games to WiePlay's game page.
  * Service routes need `X-WiePlay-Service-Token` (its SHA-256 must equal WIEPLAY_SYNC_TOKEN_HASH)
  * and answer 404 to anything that came through Cloudflare: WiePlay calls them over the VPS's
  * internal network only. (Not `Authorization: Bearer` — Directus would try to read that as
@@ -200,6 +204,27 @@ export function buildRosterRows(teams, players, coaches, responsibles) {
 
 const displayName = (m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()
 
+/** GUC the guard trigger on teams.wieplay_enabled (migration 423) checks; transaction-local. */
+export const WIEPLAY_FLAG_GUC = 'kscw.wieplay_enabled_write'
+
+/**
+ * teams.wieplay_enabled := (id in `ids`): true for the team rows WiePlay asked for, false for
+ * every other row. Only rows whose flag changes are written. The column is endpoint-owned: its
+ * trigger keeps every other writer's value, so this runs in a transaction that sets the GUC.
+ * Returns the ids switched on and off (sorted).
+ */
+export async function markWieplayTeams(database, ids) {
+  return database.transaction(async (trx) => {
+    await trx.raw('SELECT set_config(?, ?, true)', [WIEPLAY_FLAG_GUC, 'on'])
+    const on = await trx('teams').whereIn('id', ids).where('wieplay_enabled', false)
+      .update({ wieplay_enabled: true }, ['id'])
+    const off = await trx('teams').whereNotIn('id', ids).where('wieplay_enabled', true)
+      .update({ wieplay_enabled: false }, ['id'])
+    const sorted = (rows) => rows.map((r) => Number(r.id ?? r)).sort((a, b) => a - b)
+    return { on: sorted(on), off: sorted(off) }
+  })
+}
+
 export function registerWieplayBridge(router, { database, logger }) {
   const log = logger.child({ endpoint: 'wieplay-bridge' })
 
@@ -309,6 +334,19 @@ export function registerWieplayBridge(router, { database, logger }) {
     const ids = parseTeamIds(req.query.teams)
     const teams = await database('teams').whereIn('id', ids).select('id', 'season', 'captain')
     if (teams.length !== ids.length) return res.status(404).json({ error: 'Unknown team id' })
+
+    // Which teams use WiePlay, for the member app's "Video" links. Never fails the sync: on dev
+    // the nightly prod clone drops the column until `npm run db:deploy:dev` (as long as prod
+    // lacks it), and the flags catch up at the next hourly sync. A service caller has no user
+    // to put in user_logs (writeUserLog skips it), so a change is traced in the container log.
+    try {
+      const changed = await markWieplayTeams(database, ids)
+      if (changed.on.length || changed.off.length) {
+        log.info(`wieplay sync: teams.wieplay_enabled on [${changed.on.join(',')}] off [${changed.off.join(',')}]`)
+      }
+    } catch (err) {
+      log.warn({ msg: `wieplay sync: teams.wieplay_enabled not updated: ${err?.message}` })
+    }
 
     const roster = await rosterRows(teams)
     const memberIds = [...new Set(roster.map((r) => r.member))]

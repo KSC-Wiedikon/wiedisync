@@ -956,6 +956,8 @@ const PUBLIC_TEAM_FIELDS = [
   // hardcoded id map that drifted each season. Public on volleyball.ch /
   // basketplan.ch, no PII.
   'team_id', 'bb_source_id',
+  // ⚠ NOT `wieplay_enabled` (migration 423): which teams use the club's video app is for
+  // members only — they read it through the Member policy's all-fields `teams` row below.
 ]
 
 /** Coach Dashboard prefs — readable by Coach/Team Responsible/Admin via an explicit read row. NOT added to PUBLIC_TEAM_FIELDS. */
@@ -1844,6 +1846,8 @@ async function main() {
   // cross-team rosters. Member-level fields they expose are bounded by the
   // members.read field whitelist below.
   const MEMBER_READ_ALL = [
+    // `teams` with all fields includes `wieplay_enabled` (migration 423): the game cards'
+    // "Video" link reads it. Written only by the WiePlay bridge (trigger-guarded column).
     'teams', 'games', 'rankings', 'sponsors',
     'event_sessions',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',

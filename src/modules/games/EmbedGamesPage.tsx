@@ -116,7 +116,7 @@ export default function EmbedGamesPage() {
             ) : (
               <RowList>
                 {games.map((g) => (
-                  <GameCard key={g.id} game={g} variant="compact" />
+                  <GameCard key={g.id} game={g} variant="compact" showVideoLink={false} />
                 ))}
               </RowList>
             )}

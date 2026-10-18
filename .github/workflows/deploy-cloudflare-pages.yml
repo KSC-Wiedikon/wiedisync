@@ -82,6 +82,9 @@ jobs:
           # back to member-app pages). Both apps are on .kscw.ch, so the login carries over.
           VITE_ACCOUNTING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://accounting.wiedisync.kscw.ch' || 'https://accounting-dev.kscw.ch' }}
           VITE_MEMBER_APP_ORIGIN: ${{ github.ref_name == 'prod' && 'https://wiedisync.kscw.ch' || 'https://wiedisync-dev.kscw.ch' }}
+          # WiePlay (video analysis): game cards link to its /games/<id> page. Its login runs
+          # through the matching Directus, so dev builds link to WiePlay dev.
+          VITE_WIEPLAY_ORIGIN: ${{ github.ref_name == 'prod' && 'https://wieplay.kscw.ch' || 'https://wieplay-dev.kscw.ch' }}
           # Member app only — the old wiedisync-spielplanung project set NONE of these,
           # and the scheduling bundle must keep behaving exactly as it does today
           # (no runtime Sentry, no Maps key).

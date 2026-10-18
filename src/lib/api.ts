@@ -129,6 +129,19 @@ export const MEMBER_APP_ORIGIN: string =
   (import.meta.env.VITE_MEMBER_APP_ORIGIN as string | undefined) ||
   (typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch')
 
+// WiePlay, the club's video analysis app (wieplay.kscw.ch, dev wieplay-dev.kscw.ch). Its login
+// goes through this Directus, so the two must match: set per branch in the Pages workflow, and
+// unset (local dev, previews) it follows API_URL — prod Directus → prod WiePlay, else dev.
+export const WIEPLAY_ORIGIN: string = (
+  (import.meta.env.VITE_WIEPLAY_ORIGIN as string | undefined) ||
+  (API_URL === 'https://directus.kscw.ch' ? 'https://wieplay.kscw.ch' : 'https://wieplay-dev.kscw.ch')
+).replace(/\/$/, '')
+
+/** WiePlay's page for a Wiedisync game: opens its video (after WiePlay's own login). */
+export function wieplayGameUrl(gameId: string | number): string {
+  return `${WIEPLAY_ORIGIN}/games/${encodeURIComponent(String(gameId))}`
+}
+
 /** ACCOUNTING_ORIGIN when it is another origin than this page's, else undefined. */
 export function externalAccountingOrigin(): string | undefined {
   if (typeof window === 'undefined') return undefined
