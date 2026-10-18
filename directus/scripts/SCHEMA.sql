@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-15T23:35:09.545Z
+-- Generated:   2026-10-18T10:01:49.297Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict asrfmcd53r2gbo0I2YZSWTRni961PH1dw5i3dohhCOxMaJEJICVXkGPLKdcIF2t
+\restrict kLxaeiw1JLkQdHmGU16VcgKQvoihKA1oP5hh551gNJK97WCUb5Hr5bxb2Bfkwg6
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1705,6 +1705,27 @@ BEGIN
     PERFORM game_guests_resync_call_up(NEW.members_id, NEW.teams_id);
   END IF;
   RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: teams_wieplay_enabled_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.teams_wieplay_enabled_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF coalesce(current_setting('kscw.wieplay_enabled_write', true), '') = 'on' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    NEW.wieplay_enabled := false;
+  ELSE
+    NEW.wieplay_enabled := OLD.wieplay_enabled;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -4228,6 +4249,7 @@ CREATE TABLE public.teams (
     clubdesk_group text,
     open_for_girls boolean DEFAULT false,
     open_for_boys boolean DEFAULT false,
+    wieplay_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
     CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
 );
@@ -4287,6 +4309,13 @@ COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruit
 --
 
 COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
+
+
+--
+-- Name: COLUMN teams.wieplay_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.wieplay_enabled IS 'The team uses WiePlay (wieplay.kscw.ch): WiePlay asked for this team row on its last sync (GET /kscw/wieplay/v1/sync). Game cards link its games to WiePlay. Endpoint-owned: writes without the kscw.wieplay_enabled_write GUC are ignored (trigger teams_wieplay_enabled_guard). Migration 423.';
 
 
 --
@@ -17242,6 +17271,13 @@ CREATE TRIGGER members_normalize_trainer_licences_trg BEFORE INSERT OR UPDATE OF
 
 
 --
+-- Name: teams teams_wieplay_enabled_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER teams_wieplay_enabled_guard BEFORE INSERT OR UPDATE ON public.teams FOR EACH ROW EXECUTE FUNCTION public.teams_wieplay_enabled_guard();
+
+
+--
 -- Name: absences trg_absences_normalize_indefinite; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -20054,7 +20090,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict asrfmcd53r2gbo0I2YZSWTRni961PH1dw5i3dohhCOxMaJEJICVXkGPLKdcIF2t
+\unrestrict kLxaeiw1JLkQdHmGU16VcgKQvoihKA1oP5hh551gNJK97WCUb5Hr5bxb2Bfkwg6
 
 
 
@@ -20070,7 +20106,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 426 migration(s) already in the schema above.
+-- Migration tracker seed — 427 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20509,6 +20545,7 @@ FROM (VALUES
   ('419-finance-english.sql'),
   ('420-scheduling-events-basketball-english.sql'),
   ('421-halls-feedback-english.sql'),
-  ('422-board-scorer-leftovers-english.sql')
+  ('422-board-scorer-leftovers-english.sql'),
+  ('423-teams-wieplay-enabled.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
