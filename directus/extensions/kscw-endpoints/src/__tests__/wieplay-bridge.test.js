@@ -11,6 +11,7 @@ import {
   serviceTokenOk, parseStringList, sportAdminScopes, parseTeamIds, isoDate,
   hhmm, normalizeSets, adultOn, mergeRelations, buildRosterRows, registerWieplayBridge,
   markWieplayTeams, BRIDGE_BASE, TOKEN_AUDIENCE, SERVICE_TOKEN_HEADER, WIEPLAY_FLAG_GUC,
+  parseGameIds, isCalendarDay, parseClubGamesQuery, snapshotGame, teamMeta, MAX_CLUB_GAMES,
 } from '../wieplay-bridge.js'
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
@@ -19,7 +20,7 @@ const TOKEN = 'service-token-for-tests'
 const TOKEN_HASH = crypto.createHash('sha256').update(TOKEN).digest('hex')
 const RETURN = 'https://wieplay-dev.kscw.ch/api/auth/callback'
 const STATE = 'abcdefghijklmnopqrstuvwx'
-const ROUTES = ['authorize', 'teams', 'sync', 'adult-check', 'score-log']
+const ROUTES = ['authorize', 'teams', 'sync', 'adult-check', 'score-log', 'club-games']
 const HEADER = 'x-wieplay-service-token'
 const OLD_HEADER = 'x-nomal-service-token'
 const ENV_KEYS = ['JWT_PRIVATE_KEY', 'JWT_KID', 'RETURN_URLS', 'SYNC_TOKEN_HASH', 'JWT_ISSUER', 'LOGIN_URL']
@@ -114,6 +115,61 @@ describe('helpers', () => {
   })
 })
 
+describe('club games: query and shapes', () => {
+  it('game ids: numeric, de-duplicated, 1–100', () => {
+    expect(parseGameIds('572, 571,572')).toEqual([572, 571])
+    expect(() => parseGameIds('')).toThrow(/1–100/)
+    expect(() => parseGameIds('1,x')).toThrow(/numeric/)
+    expect(() => parseGameIds('1234567890')).toThrow(/numeric/)
+    expect(parseGameIds(Array.from({ length: 100 }, (_, i) => i + 1).join(','))).toHaveLength(100)
+    expect(() => parseGameIds(Array.from({ length: 101 }, (_, i) => i + 1).join(','))).toThrow(/1–100/)
+  })
+
+  it('calendar days only', () => {
+    expect(isCalendarDay('2026-09-17')).toBe(true)
+    expect(isCalendarDay('2028-02-29')).toBe(true)
+    expect(isCalendarDay('2026-02-29')).toBe(false)
+    expect(isCalendarDay('2026-13-01')).toBe(false)
+    expect(isCalendarDay('17.09.2026')).toBe(false)
+    expect(isCalendarDay(undefined)).toBe(false)
+  })
+
+  it('exactly one of date and ids; sport optional, from the two sports', () => {
+    expect(parseClubGamesQuery({ date: '2026-09-17' }))
+      .toEqual({ date: '2026-09-17', ids: null, sports: ['volleyball', 'basketball'] })
+    expect(parseClubGamesQuery({ date: '2026-09-17', sport: 'volleyball' }).sports).toEqual(['volleyball'])
+    expect(parseClubGamesQuery({ ids: '572,571' })).toEqual({ date: null, ids: [572, 571], sports: ['volleyball', 'basketball'] })
+    const status = (query) => { try { parseClubGamesQuery(query); return 200 } catch (err) { return err.status } }
+    expect(status({})).toBe(400)
+    expect(status({ date: '', ids: ' ' })).toBe(400)
+    expect(status({ date: '2026-09-17', ids: '572' })).toBe(400)
+    expect(status({ date: '2026-02-30' })).toBe(400)
+    expect(status({ date: '2026-09-17', sport: 'football' })).toBe(400)
+    expect(status({ ids: '572;DROP' })).toBe(400)
+  })
+
+  it('a game: the result only once completed, the hall of the side we play on', () => {
+    const base = {
+      id: 572, kscw_team: 95, date: new Date(2026, 8, 17), time: '20:30:00', home_team: 'Volley S9',
+      away_team: 'KSC Wiedikon H1', type: 'away', league: 'Mobiliar Volley Cup — Tour 1, Spiel 34',
+      home_score: 0, away_score: 3, sets_json: [{ home: 13, away: 25 }, { home: 28, away: 30 }, { home: 21, away: 25 }],
+      away_hall_json: { name: 'Halle S9' }, hall: null,
+    }
+    expect(snapshotGame({ ...base, status: 'completed' })).toEqual({
+      id: 572, team: 95, date: '2026-09-17', time: '20:30', home_name: 'Volley S9', away_name: 'KSC Wiedikon H1',
+      our_side: 'away', league: 'Mobiliar Volley Cup — Tour 1, Spiel 34', hall_name: 'Halle S9',
+      home_score: 0, away_score: 3, sets: [[13, 25], [28, 30], [21, 25]],
+    })
+    expect(snapshotGame({ ...base, status: 'scheduled' })).toMatchObject({ home_score: null, away_score: null, sets: null })
+    expect(snapshotGame({ ...base, type: 'tournament', status: 'scheduled' }).our_side).toBeNull()
+  })
+
+  it('a team: metadata only', () => {
+    expect(teamMeta({ id: 95, name: 'H1', sport: 'volleyball', season: '2026/27', league: '1L', team_id: '', active: 1 }))
+      .toEqual({ id: 95, name: 'H1', sport: 'volleyball', season: '2026/27', league: '1L', team_key: null, active: false })
+  })
+})
+
 describe('adultOn', () => {
   it('needs a birthdate and an 18th birthday on or before the date', () => {
     expect(adultOn(null, '2026-10-18')).toEqual({ ok: false, reason: 'no_birthdate' })
@@ -196,6 +252,22 @@ function fakeDatabase(tables, inserts) {
 
 const NO_DATABASE = () => { throw new Error('database not expected') }
 
+/** A knex stand-in that records every builder call as [table, method, ...args]. */
+function recordingDatabase(tables) {
+  const calls = []
+  const db = (table) => {
+    const rows = tables[table] ?? []
+    const q = {
+      then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+    }
+    for (const method of ['join', 'leftJoin', 'where', 'whereIn', 'select', 'orderBy', 'limit']) {
+      q[method] = (...args) => { calls.push([table, method, ...args]); return q }
+    }
+    return q
+  }
+  return { db, calls }
+}
+
 /**
  * A knex transaction stand-in for teams.wieplay_enabled: records the GUC and every update with
  * its filters; `flags` is the column's current value per team id. `missing` = the column does
@@ -268,7 +340,7 @@ describe('routes', () => {
   })
   afterEach(() => { process.env = { ...saved } })
 
-  it('registers the five routes under /wieplay/v1 only', () => {
+  it('registers the six routes under /wieplay/v1 only', () => {
     expect(harness().paths.sort()).toEqual(ROUTES.map((r) => `/wieplay/v1/${r}`).sort())
   })
 
@@ -405,6 +477,86 @@ describe('routes', () => {
     expect(res.statusCode).toBe(400)
   })
 
+  describe('club-games', () => {
+    const CUP = {
+      id: 572, kscw_team: 95, date: '2026-09-17', time: '20:30:00', home_team: 'Volley S9',
+      away_team: 'KSC Wiedikon H1', type: 'away', league: 'Mobiliar Volley Cup — Tour 1, Spiel 34',
+      status: 'completed', home_score: 0, away_score: 3,
+      sets_json: '[{"home":13,"away":25},{"home":28,"away":30},{"home":21,"away":25}]',
+      away_hall_json: null, hall: null, team_name: 'H1', team_sport: 'volleyball',
+      team_season: '2026/27', team_league: '1L', team_key: 'vb-h1', team_active: true,
+    }
+    const LEAGUE = {
+      ...CUP, id: 569, kscw_team: 7, time: '20:00:00', home_team: 'KSC Wiedikon D2',
+      away_team: 'VBC Züri Unterland D3', type: 'home', league: 'Frauen 3. Liga Gruppe A',
+      status: 'scheduled', hall: 'Sporthalle Wiedikon', team_name: 'D2', team_key: 'vb-d2',
+    }
+
+    it('date: every team\'s games of that day, with the owning team, no rosters', async () => {
+      const { db, calls } = recordingDatabase({ games: [LEAGUE, CUP] })
+      const res = await harness(db)('/wieplay/v1/club-games', {
+        query: { date: '2026-09-17', sport: 'volleyball' }, headers: { [HEADER]: TOKEN },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.headers['Cache-Control']).toBe('no-store')
+      expect(calls).toContainEqual(['games', 'where', 'games.date', '2026-09-17'])
+      expect(calls).toContainEqual(['games', 'whereIn', 'teams.sport', ['volleyball']])
+      expect(calls).toContainEqual(['games', 'limit', MAX_CLUB_GAMES])
+      expect(calls.map((c) => c[0])).toEqual(calls.map(() => 'games')) // games and their teams only
+      expect(res.body.version).toBe(1)
+      expect(res.body.teams).toEqual([
+        { id: 7, name: 'D2', sport: 'volleyball', season: '2026/27', league: '1L', team_key: 'vb-d2', active: true },
+        { id: 95, name: 'H1', sport: 'volleyball', season: '2026/27', league: '1L', team_key: 'vb-h1', active: true },
+      ])
+      expect(res.body.games).toEqual([
+        {
+          id: 569, team: 7, team_name: 'D2', date: '2026-09-17', time: '20:00', home_name: 'KSC Wiedikon D2',
+          away_name: 'VBC Züri Unterland D3', our_side: 'home', league: 'Frauen 3. Liga Gruppe A',
+          hall_name: 'Sporthalle Wiedikon', home_score: null, away_score: null, sets: null,
+        },
+        {
+          id: 572, team: 95, team_name: 'H1', date: '2026-09-17', time: '20:30', home_name: 'Volley S9',
+          away_name: 'KSC Wiedikon H1', our_side: 'away', league: 'Mobiliar Volley Cup — Tour 1, Spiel 34',
+          hall_name: null, home_score: 0, away_score: 3, sets: [[13, 25], [28, 30], [21, 25]],
+        },
+      ])
+    })
+
+    it('ids: those games, both sports', async () => {
+      const { db, calls } = recordingDatabase({ games: [CUP] })
+      const res = await harness(db)('/wieplay/v1/club-games', { query: { ids: '572,572' }, headers: { [HEADER]: TOKEN } })
+      expect(res.statusCode).toBe(200)
+      expect(calls).toContainEqual(['games', 'whereIn', 'games.id', [572]])
+      expect(calls).toContainEqual(['games', 'whereIn', 'teams.sport', ['volleyball', 'basketball']])
+      expect(calls.some((c) => c[1] === 'where' && c[2] === 'games.date')).toBe(false)
+      expect(res.body.games.map((g) => g.id)).toEqual([572])
+    })
+
+    it('a day without games: empty lists', async () => {
+      const { db } = recordingDatabase({ games: [] })
+      const res = await harness(db)('/wieplay/v1/club-games', { query: { date: '2026-09-18' }, headers: { [HEADER]: TOKEN } })
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toEqual({ version: 1, teams: [], games: [] })
+    })
+
+    it('rejects a bad query before touching the database', async () => {
+      const call = harness()
+      for (const query of [{}, { date: '17.09.2026' }, { date: '2026-09-17', ids: '572' }, { ids: '1;DROP' }, { date: '2026-09-17', sport: 'x' }]) {
+        const res = await call('/wieplay/v1/club-games', { query, headers: { [HEADER]: TOKEN } })
+        expect(res.statusCode).toBe(400)
+      }
+    })
+
+    it('token required, never through Cloudflare', async () => {
+      const call = harness()
+      expect((await call('/wieplay/v1/club-games', { query: { date: '2026-09-17' } })).statusCode).toBe(401)
+      const viaCf = await call('/wieplay/v1/club-games', {
+        query: { date: '2026-09-17' }, headers: { [HEADER]: TOKEN, 'cf-connecting-ip': '203.0.113.9' },
+      })
+      expect(viaCf.statusCode).toBe(404)
+    })
+  })
+
   describe('the pre-rename names (Nomal) are gone', () => {
     it('/nomal/v1/*: 404 on every route, even with the real token and a session', async () => {
       const call = harness()
@@ -420,7 +572,7 @@ describe('routes', () => {
 
     it('X-Nomal-Service-Token: 401, on every service route', async () => {
       const call = harness()
-      for (const r of ['teams', 'sync', 'adult-check', 'score-log']) {
+      for (const r of ['teams', 'sync', 'adult-check', 'score-log', 'club-games']) {
         const res = await call(`/wieplay/v1/${r}`, {
           query: { teams: '92', team: '92', date: '2026-10-18' }, headers: { [OLD_HEADER]: TOKEN },
         })
