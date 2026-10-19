@@ -63,7 +63,7 @@ import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
 import { combineClauseSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
-import { deriveMitgliederbeitrag, guestMemberIdSet, FEE_OVERRIDE_FIELDS } from './clubdesk-update.js'
+import { deriveMitgliederbeitrag, guestMemberIdSet, dutyFreeMemberIdSet, FEE_OVERRIDE_FIELDS } from './clubdesk-update.js'
 import { currentSeasonShort } from './season.js'
 import { applyMergeFields, mergeValues, usedMergeFields } from './merge-fields.js'
 import {
@@ -1315,7 +1315,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (ids.length === 0) return recipients
     const season = currentSeasonShort()
 
-    const [rows, teamRows, guests] = await Promise.all([
+    const [rows, teamRows, guests, dutyFree] = await Promise.all([
       database('members').whereIn('id', ids).select(
         'id', 'fee_category', 'birthdate',
         // The licence flags deriveMitgliederbeitrag reads for the
@@ -1336,6 +1336,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         .select('member_teams.member', 'teams.name')
         .orderBy('teams.name'),
       guestMemberIdSet(database, ids, season),
+      dutyFreeMemberIdSet(database, ids, season),
     ])
 
     const byId = new Map(rows.map((r) => [Number(r.id), r]))
@@ -1354,7 +1355,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       return {
         ...r,
         fee_category: category ? feeCategoryLabel(category) : '', // the wording members know
-        fee_amount: category ? deriveMitgliederbeitrag(category, m, { isGuest: guests.has(id) }) : '',
+        fee_amount: category ? deriveMitgliederbeitrag(category, m, { isGuest: guests.has(id), dutyFree: dutyFree.has(id) }) : '',
         teams: (teamsById.get(id) || []).join(', '),
       }
     })

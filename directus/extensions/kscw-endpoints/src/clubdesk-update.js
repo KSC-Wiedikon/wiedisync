@@ -995,6 +995,25 @@ export function isU16Plus(member, refYear = new Date().getFullYear()) {
 
 /** CHF added when a member owes scorer/table duty but holds no licence. */
 export const NO_LICENCE_SURCHARGE = 100
+
+// Volleyball teams that are OUT of the duty system (never assigned a scorer /
+// scoreboard / referee duty) — so their players owe no duty and therefore no
+// no-licence surcharge (user 2026-10-19: "DU20 registrations do not have the
+// 100 CHF"). Same list as EXCLUDED_DUTY_TEAM_NAMES (scorer AssignmentAlgorithm.ts),
+// NEVER_ON_DUTY (season-health-checks-duties.js) and the copy in SURCHARGE_DUE
+// (season-health-checks-finance.js); change all four together.
+export const DUTY_FREE_VB_TEAMS = ['MiniVB', 'DU20']
+
+/**
+ * A registration's `team` text ("DU20", "H2, HU20") names ONLY duty-free
+ * teams. Volleyball only — the list holds volleyball team names, and a
+ * basketball team called the same would be a different squad.
+ */
+export function registrationDutyFree(reg) {
+  if (reg?.membership_type !== 'volleyball') return false
+  const names = String(reg?.team || '').split(',').map((t) => t.trim()).filter(Boolean)
+  return names.length > 0 && names.every((n) => DUTY_FREE_VB_TEAMS.includes(n))
+}
 /** CHF taken off a pure guest's category fee — a guest does no scorer duty. */
 export const GUEST_DISCOUNT = 110
 
@@ -1036,6 +1055,10 @@ function overrideNum(v) {
  *                                     discount of its own
  * A member row that predates the migrations — or a hand-built object in a test —
  * simply has none of those keys and behaves exactly as before.
+ *
+ * `opts.dutyFree === true` (dutyFreeMemberIdSet / registrationDutyFree: core
+ * only on DU20 / MiniVB) switches the surcharge RULE off — no duty, nothing to
+ * buy out. A per-member surcharge override still wins, as it does for guests.
  */
 export function feeBreakdown(kategorie, member = null, opts = {}) {
   // Slug since migration 417; a ClubDesk spelling is accepted and normalised.
@@ -1087,7 +1110,7 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
   let surcharge = 0
   if (memberSurcharge !== null) {
     surcharge = memberSurcharge
-  } else if (member) {
+  } else if (member && opts?.dutyFree !== true) {
     const isVb = feeCategorySport(k) === 'volleyball'
     const hasLicence = isVb
       ? member.scorer_vb === true
@@ -1145,7 +1168,7 @@ export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
   // to "this person pays something else", and a new ClubDesk contact created at
   // the derived amount would immediately need the same hand-correction the
   // override exists to remove.
-  const b = feeBreakdown(kategorie, member, { isGuest: opts?.isGuest === true })
+  const b = feeBreakdown(kategorie, member, { isGuest: opts?.isGuest === true, dutyFree: opts?.dutyFree === true })
   return b ? String(b.amount) : '' // unknown → empty, never guessed
 }
 
@@ -1166,6 +1189,28 @@ export async function guestMemberIdSet(database, memberIds, season) {
     .select(database.raw('bool_or(COALESCE(guest_level, 0) = 0) AS any_core'))
   const out = new Set()
   for (const r of rows) if (r.any_guest && !r.any_core) out.add(Number(r.member))
+  return out
+}
+
+// Resolve which of the given members owe NO scorer duty this season: core on at
+// least one team, and every core roster on a duty-free team (DUTY_FREE_VB_TEAMS).
+// A DU20 player who is also core on D4 owes duty through D4 and stays in the
+// surcharge rule; guest rosters are ignored (a pure guest is never surcharged
+// anyway). Same season key as guestMemberIdSet, so the two always agree.
+export async function dutyFreeMemberIdSet(database, memberIds, season) {
+  const ids = [...new Set((memberIds || []).map(Number).filter(Number.isInteger))]
+  if (!ids.length) return new Set()
+  const rows = await database('member_teams as mt')
+    .join('teams as t', 't.id', 'mt.team')
+    .whereIn('mt.member', ids).andWhere('mt.season', season)
+    .andWhereRaw('COALESCE(mt.guest_level, 0) = 0')
+    .groupBy('mt.member')
+    .select('mt.member')
+    .select(database.raw(
+      "bool_and(lower(t.sport) = 'volleyball' AND t.name = ANY(?)) AS all_free",
+      [DUTY_FREE_VB_TEAMS]))
+  const out = new Set()
+  for (const r of rows) if (r.all_free === true) out.add(Number(r.member))
   return out
 }
 
@@ -1534,7 +1579,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // Ehrenmitglied would otherwise land in the register as an ordinary one.
         registerStatusToClubdesk(String(m.register_status || '').trim() || m.cd_status || ''),
         deriveOffiziellenLizenz(m),
-        deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true }),
+        deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true, dutyFree: m.duty_free === true }),
         // Resolved by /up from the registration; a member with no approved
         // registration falls back to their own members.sektion.
         clubSectionToClubdesk(m.cd_sektion || String(m.club_section || '').trim()),
@@ -1643,7 +1688,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         registerCell('mitgliederbeitrag', {
           // `feeChanged`, not `changed` — a category change carries the amount.
           changed: feeChanged,
-          wiedi: deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true }),
+          wiedi: deriveMitgliederbeitrag(m.fee_category, m, { isGuest: m.is_guest === true, dutyFree: m.duty_free === true }),
           clubdesk: m.mitgliederbeitrag_cd,
         }),
         // Lizenznummer / Lizenzart, same fill-only precedence: the register's
@@ -2510,6 +2555,10 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
   // can never be resolved against different definitions.
   const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
   for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
+  // Same pass for the duty-free roster (DU20 / MiniVB only): no scorer duty,
+  // so no no-licence surcharge in the Mitgliederbeitrag cell.
+  const dutyFreeIds = await dutyFreeMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
+  for (const m of pushMembers) m.duty_free = dutyFreeIds.has(Number(m.id))
   // Lizenz bestellt (2026-09-24): derived across two registers, so resolved
   // in one query for the whole push rather than selected off the row.
   const lizenzBestellt = await loadLizenzBestellt(database, pushMembers.map((m) => Number(m.id)))
@@ -3155,6 +3204,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // roster-based resolution as the commit path so the number the superadmin
       // approves is exactly what gets pushed.
       const unlinkedGuests = await guestMemberIdSet(database, unlinkedRows.map((m) => m.id), getCurrentSeason())
+      const unlinkedDutyFree = await dutyFreeMemberIdSet(database, unlinkedRows.map((m) => m.id), getCurrentSeason())
       const unlinked = unlinkedRows.map((m) => {
         const e = (m.email || '').toLowerCase()
         const likelyNonMember = e.includes('@kscw.clubdesk.com') || e.startsWith('system@') || e.endsWith('@kscw.ch')
@@ -3169,7 +3219,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // the superadmin sees them before approving.
           beitragskategorie: mapKategorie(m.fee_category) || null,
           offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
-          mitgliederbeitrag: deriveMitgliederbeitrag(m.fee_category, m, { isGuest: unlinkedGuests.has(Number(m.id)) }) || null,
+          mitgliederbeitrag: deriveMitgliederbeitrag(m.fee_category, m, {
+            isGuest: unlinkedGuests.has(Number(m.id)), dutyFree: unlinkedDutyFree.has(Number(m.id)),
+          }) || null,
         }
       })
       return res.json({ changed, unlinked })
@@ -3442,6 +3494,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     // helper the push and the dues run use — a guest resolved differently here
     // would report every guest as a mismatch forever.
     const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
+    const dutyFreeIds = await dutyFreeMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
     // The SAME helper the dues run waives on, so the check can never report
     // "should be free" for somebody the run then bills — see resolveFeeWaivers.
     const waivers = await resolveFeeWaivers(database, res.rows.map((r) => r.id))
@@ -3495,7 +3548,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!kat) { findings.push({ ...row, kind: 'no_category' }); continue }
       // The member's own overrides apply — feeBreakdown is the one engine, and a
       // re-priced member must not report as a mismatch against the map amount.
-      const fee = feeBreakdown(kat, r, { isGuest: guestIds.has(Number(r.id)) })
+      const fee = feeBreakdown(kat, r, { isGuest: guestIds.has(Number(r.id)), dutyFree: dutyFreeIds.has(Number(r.id)) })
       if (!fee) { findings.push({ ...row, kind: 'unmapped_category' }); continue }
       if (registerAmount === null) {
         findings.push({ ...row, kind: 'no_register_amount', expected: fee.amount })

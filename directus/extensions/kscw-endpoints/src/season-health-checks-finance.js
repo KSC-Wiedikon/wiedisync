@@ -71,6 +71,8 @@ const SURCHARGE_YOUTH = [
   'vb_pupil_league', 'vb_pupil_tournament',
   'bb_youth_league', 'bb_2_trainings', 'bb_minis_tournament', 'bb_1_training',
 ]
+// DUTY_FREE_VB_TEAMS, same copy discipline.
+const DUTY_FREE_VB_TEAMS = ['MiniVB', 'DU20']
 const sqlList = (arr) => arr.map((s) => `'${s.replace(/'/g, "''")}'`).join(', ')
 /** feeBreakdown()'s trimmed category key. */
 const FEE_CAT = `btrim(COALESCE(m.fee_category, ''))`
@@ -79,7 +81,8 @@ const FEE_CAT = `btrim(COALESCE(m.fee_category, ''))`
  * it when fee_surcharge_override is NULL: category eligible (adult always,
  * youth only when U16+ — unknown birthdate never surcharges) AND no licence
  * flag for the category's sport (VB → scorer_vb, else any BB table licence;
- * all five flags are NOT NULL). Alias members as `m`.
+ * all five flags are NOT NULL) AND not duty-free (dutyFreeMemberIdSet: core
+ * this season, every core roster on DU20 / MiniVB). Alias members as `m`.
  */
 const SURCHARGE_DUE = `(
      (${FEE_CAT} IN (${sqlList(SURCHARGE_ADULT)})
@@ -88,6 +91,12 @@ const SURCHARGE_DUE = `(
           AND EXTRACT(YEAR FROM {{today}})::int - EXTRACT(YEAR FROM m.birthdate)::int >= 15))
  AND NOT (CASE WHEN ${FEE_CAT} LIKE 'vb\\_%' THEN m.scorer_vb
                ELSE (m.otr1_bb OR m.otr2_bb OR m.otn1_bb OR m.otn2_bb) END)
+ AND NOT (
+       EXISTS (SELECT 1 FROM member_teams dmt
+                WHERE dmt.member = m.id AND dmt.season = {{season}} AND COALESCE(dmt.guest_level, 0) = 0)
+   AND NOT EXISTS (SELECT 1 FROM member_teams dmt JOIN teams dt ON dt.id = dmt.team
+                    WHERE dmt.member = m.id AND dmt.season = {{season}} AND COALESCE(dmt.guest_level, 0) = 0
+                      AND NOT (lower(dt.sport) = 'volleyball' AND dt.name IN (${sqlList(DUTY_FREE_VB_TEAMS)}))))
 )`
 
 /**

@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_LAND_DEFAULT, kantonsschuleCell, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, nationalityPushCell, prependNationalityCode, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
+import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_LAND_DEFAULT, kantonsschuleCell, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, registrationDutyFree, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, nationalityPushCell, prependNationalityCode, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -1169,6 +1169,41 @@ describe('feeBreakdown', () => {
     // 'Gratis' is 0: reporting a 110 discount off nothing would be a lie.
     expect(feeBreakdown('Gratis', null, { isGuest: true }))
       .toEqual({ category: 'free', base: 0, surcharge: 0, discount: 0, guest_discount: 0, amount: 0 })
+  })
+
+  // DU20 / MiniVB are out of the duty system, so a player core only there owes
+  // no scorer duty and the CHF 100 that buys it out never applies (2026-10-19).
+  describe('duty-free roster (DU20 / MiniVB)', () => {
+    const du20Girl = { scorer_vb: false, birthdate: '2009-04-01' } // U16+ by the age gate
+
+    it('drops the rule surcharge on a U16+ youth category', () => {
+      expect(feeBreakdown('vb_pupil_league', du20Girl).surcharge).toBe(100)
+      expect(feeBreakdown('vb_pupil_league', du20Girl, { dutyFree: true }))
+        .toEqual({ category: 'vb_pupil_league', base: 310, surcharge: 0, discount: 0, guest_discount: 0, amount: 310 })
+      expect(deriveMitgliederbeitrag('vb_pupil_tournament', du20Girl, { dutyFree: true })).toBe('210')
+    })
+
+    it('a per-member surcharge override still wins', () => {
+      expect(feeBreakdown('vb_pupil_league', { ...du20Girl, fee_surcharge_override: true }, { dutyFree: true }).amount)
+        .toBe(410)
+    })
+
+    it('anything but true keeps the rule', () => {
+      for (const v of [undefined, null, false, 'true', 1]) {
+        expect(feeBreakdown('vb_pupil_league', du20Girl, { dutyFree: v }).surcharge, `dutyFree=${JSON.stringify(v)}`).toBe(100)
+      }
+    })
+
+    it('registrationDutyFree: only volleyball registrations naming DU20 / MiniVB alone', () => {
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: 'DU20' })).toBe(true)
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: ' DU20 , MiniVB ' })).toBe(true)
+      // Also on a team that does duty → owes it there.
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: 'DU20, D4' })).toBe(false)
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: 'HU20' })).toBe(false)
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: '' })).toBe(false)
+      expect(registrationDutyFree({ membership_type: 'volleyball', team: null })).toBe(false)
+      expect(registrationDutyFree({ membership_type: 'basketball', team: 'DU20' })).toBe(false)
+    })
   })
 
   it('baseOverride replaces the base but keeps the surcharge rules', () => {

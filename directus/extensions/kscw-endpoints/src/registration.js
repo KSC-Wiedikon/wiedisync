@@ -19,7 +19,7 @@ import {
   findDuplicateCandidates, findDuplicateCandidatesBatch, findBlockingMember,
   buildMergeDiff, buildMergePatch, mapLicences,
 } from './registration-duplicates.js'
-import { feeBreakdown, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
+import { feeBreakdown, registrationDutyFree, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 import { approvedFeeCategory } from './fee-category.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
@@ -2258,7 +2258,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid registration id' })
       const reg = await database('registrations').where('id', id).first(
-        'id', 'membership_type', 'fee_category', 'birthdate', 'officials_requested',
+        'id', 'membership_type', 'team', 'fee_category', 'birthdate', 'officials_requested',
         'fee_discount', 'fee_discount_pct', 'fee_discount_reason')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
 
@@ -2277,8 +2277,11 @@ export function registerRegistration(router, { database, logger, services, getSc
         fee_discount_pct: reg.fee_discount_pct,
       }
       const bare = { ...syntheticMember, fee_discount: null, fee_discount_pct: null }
-      const derived = feeBreakdown(reg.fee_category, bare, { isGuest: false })
-      const effective = feeBreakdown(reg.fee_category, syntheticMember, { isGuest: false })
+      // A DU20 / MiniVB-only registration owes no scorer duty → no surcharge;
+      // the push resolves the same from the roster approval creates.
+      const opts = { isGuest: false, dutyFree: registrationDutyFree(reg) }
+      const derived = feeBreakdown(reg.fee_category, bare, opts)
+      const effective = feeBreakdown(reg.fee_category, syntheticMember, opts)
 
       return res.json({
         registration: id,
