@@ -50,7 +50,7 @@ import { renderInvoicePdf, INVOICE_PDF_COLUMNS } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
-import { feeBreakdown, guestMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
+import { feeBreakdown, guestMemberIdSet, dutyFreeMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 // What a FREE member's membership would have cost — printed, never billed.
 import { pickRate, isExemptCategory, referenceBase } from './finance-dues-reference.js'
 import { normalizeFeeCategory, feeCategoryLabel } from './member-values.js'
@@ -977,6 +977,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // key equals the fiscal-year label ('2026/27') — member_teams.season uses
     // the same spelling, so a run for a past year resolves that year's guests.
     const guests = await guestMemberIdSet(database, members.map((m) => m.id), fy.label)
+    // Core only on DU20 / MiniVB → no scorer duty → no no-licence surcharge.
+    const dutyFree = await dutyFreeMemberIdSet(database, members.map((m) => m.id), fy.label)
 
     // Who owes nothing by RULE (Ehrenmitglied / Vorstand / coach) rather than by
     // category. They are NOT dropped from the run: the club wants a CHF 0
@@ -1053,6 +1055,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         : feeBreakdown(m.fee_category, m, {
             baseOverride: rate.amount_chf,
             isGuest,
+            dutyFree: dutyFree.has(Number(m.id)),
             // Capping lives in the fee model, where it is unit-tested.
             discount: discounts.get(Number(m.id)) || 0,
           })
@@ -1309,7 +1312,11 @@ export function registerFinance(router, { database, logger, services, getSchema 
         ? (await guestMemberIdSet(database, [id], fy.label)).has(Number(id))
         : false
 
-      const opts = { baseOverride: rate?.amount_chf, isGuest }
+      const dutyFree = fy
+        ? (await dutyFreeMemberIdSet(database, [id], fy.label)).has(Number(id))
+        : false
+
+      const opts = { baseOverride: rate?.amount_chf, isGuest, dutyFree }
       // Same engine, twice: once with the member's overrides stripped so the UI
       // can show what the rules WOULD say, once as it actually bills.
       const bare = { ...m }
