@@ -16,6 +16,12 @@
  *   GET /kscw/wieplay/v1/score-log?game=<games.id> service: the club scoreboard's point-by-point
  *                                                  history of that game (team names and scores
  *                                                  only; wieplay-score-log.js), read-only
+ *   GET /kscw/wieplay/v1/club-games?date=YYYY-MM-DD[&sport=]  service: every KSCW team's games of
+ *   GET /kscw/wieplay/v1/club-games?ids=1,2,3                 that day (or those ids), in the
+ *                                                  /sync game shape plus the owning team's name
+ *                                                  and metadata. No rosters, no members: a video
+ *                                                  of a shared cup team is linked to the game it
+ *                                                  is filed under (WiePlay "borrowed" games).
  *
  * The pre-rename names (the /kscw/nomal/v1/* routes, aud "nomal", the X-Nomal-Service-Token
  * header and the NOMAL_* env keys) were removed on 18.10.2026, after WiePlay's cutover: they
@@ -49,6 +55,15 @@ import { loadScoreLog, scoreLogDeps } from './wieplay-score-log.js'
 const TOKEN_TTL_SECONDS = 60
 const MAX_SYNC_TEAMS = 20
 const SPORTS = ['volleyball', 'basketball']
+
+/** /club-games: at most this many ids per call, and this many games per answer. */
+export const MAX_CLUB_GAME_IDS = 100
+export const MAX_CLUB_GAMES = 200
+
+/** The games columns snapshotGame() reads (with `halls` left-joined on games.hall). */
+const GAME_COLUMNS = ['games.id', 'games.kscw_team', 'games.date', 'games.time', 'games.home_team',
+  'games.away_team', 'games.type', 'games.league', 'games.status', 'games.home_score',
+  'games.away_score', 'games.sets_json', 'games.away_hall_json', 'halls.name as hall']
 
 /** Route base under /kscw. */
 export const BRIDGE_BASE = '/wieplay/v1'
@@ -137,6 +152,43 @@ export function parseTeamIds(raw) {
   return [...new Set(parts.map(Number))]
 }
 
+const badRequest = (message) => Object.assign(new Error(message), { status: 400 })
+
+/** "1,2,3" → [1, 2, 3] game ids; 400 on junk or more than MAX_CLUB_GAME_IDS. */
+export function parseGameIds(raw) {
+  const parts = String(raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (!parts.length || parts.length > MAX_CLUB_GAME_IDS || !parts.every((p) => /^\d{1,9}$/.test(p))) {
+    throw badRequest(`ids must be 1–${MAX_CLUB_GAME_IDS} numeric ids`)
+  }
+  return [...new Set(parts.map(Number))]
+}
+
+/** A real calendar day as YYYY-MM-DD ("2026-02-30" is not one). */
+export function isCalendarDay(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ''))) return false
+  const [y, m, d] = value.split('-').map(Number)
+  const day = new Date(Date.UTC(y, m - 1, d))
+  return day.getUTCFullYear() === y && day.getUTCMonth() === m - 1 && day.getUTCDate() === d
+}
+
+/**
+ * The /club-games query: exactly one of `date` (YYYY-MM-DD) and `ids` (1–100 game ids), and
+ * optionally `sport` (volleyball | basketball; default both). Throws 400 otherwise.
+ */
+export function parseClubGamesQuery(query = {}) {
+  const given = (v) => v != null && String(v).trim() !== ''
+  if (given(query.date) === given(query.ids)) throw badRequest('give either date or ids')
+  const sport = given(query.sport) ? String(query.sport).trim() : null
+  if (sport !== null && !SPORTS.includes(sport)) throw badRequest(`sport must be one of ${SPORTS.join(', ')}`)
+  const sports = sport ? [sport] : SPORTS
+  if (given(query.date)) {
+    const date = String(query.date).trim()
+    if (!isCalendarDay(date)) throw badRequest('date must be YYYY-MM-DD')
+    return { date, ids: null, sports }
+  }
+  return { date: null, ids: parseGameIds(query.ids), sports }
+}
+
 /** pg returns `date` columns as Date objects at local midnight; keep the calendar day. */
 export function isoDate(value) {
   if (value == null) return null
@@ -161,6 +213,37 @@ export function normalizeSets(json) {
     .map((s) => [Number(s.home), Number(s.away)])
     .filter(([h, a]) => Number.isFinite(h) && Number.isFinite(a))
   return sets.length ? sets : null
+}
+
+/** A team row's metadata as /teams and /club-games give it (no personal data). */
+export function teamMeta(t) {
+  return {
+    id: t.id, name: t.name, sport: t.sport, season: t.season, league: t.league,
+    team_key: t.team_id || null, active: t.active === true,
+  }
+}
+
+/**
+ * A game as /sync and /club-games give it. The result (scores, sets) only once the game is
+ * completed: before that Wiedisync may hold a provisional one.
+ */
+export function snapshotGame(g) {
+  const official = g.status === 'completed'
+  const awayHall = typeof g.away_hall_json === 'object' ? g.away_hall_json?.name : null
+  return {
+    id: g.id,
+    team: g.kscw_team,
+    date: isoDate(g.date),
+    time: hhmm(g.time),
+    home_name: g.home_team,
+    away_name: g.away_team,
+    our_side: g.type === 'home' || g.type === 'away' ? g.type : null,
+    league: g.league,
+    hall_name: (g.type === 'away' ? awayHall || g.hall : g.hall || awayHall) || null,
+    home_score: official ? g.home_score : null,
+    away_score: official ? g.away_score : null,
+    sets: official ? normalizeSets(g.sets_json) : null,
+  }
 }
 
 /** Adults-only rule (WiePlay PLAN §5.3): a birthdate must exist and be 18+ years before `on`. */
@@ -327,10 +410,7 @@ export function registerWieplayBridge(router, { database, logger }) {
     res.json({
       version: 1,
       seasons,
-      teams: rows.map((t) => ({
-        id: t.id, name: t.name, sport: t.sport, season: t.season, league: t.league,
-        team_key: t.team_id || null, active: t.active === true,
-      })),
+      teams: rows.map(teamMeta),
     })
   }
 
@@ -361,9 +441,7 @@ export function registerWieplayBridge(router, { database, logger }) {
         : [],
       database('games').whereIn('games.kscw_team', ids)
         .leftJoin('halls', 'halls.id', 'games.hall')
-        .select('games.id', 'games.kscw_team', 'games.date', 'games.time', 'games.home_team',
-          'games.away_team', 'games.type', 'games.league', 'games.status', 'games.home_score',
-          'games.away_score', 'games.sets_json', 'games.away_hall_json', 'halls.name as hall'),
+        .select(...GAME_COLUMNS),
       database('trainings').whereIn('trainings.team', ids).where('trainings.cancelled', false)
         .leftJoin('halls', 'halls.id', 'trainings.hall')
         .select('trainings.id', 'trainings.team', 'trainings.date', 'trainings.start_time',
@@ -382,24 +460,7 @@ export function registerWieplayBridge(router, { database, logger }) {
         active: m.kscw_membership_active !== false,
       })),
       memberships: roster.map((r) => ({ team: r.team, member: r.member, rel: r.rel, guest: r.guest === true })),
-      games: games.map((g) => {
-        const official = g.status === 'completed'
-        const awayHall = typeof g.away_hall_json === 'object' ? g.away_hall_json?.name : null
-        return {
-          id: g.id,
-          team: g.kscw_team,
-          date: isoDate(g.date),
-          time: hhmm(g.time),
-          home_name: g.home_team,
-          away_name: g.away_team,
-          our_side: g.type === 'home' || g.type === 'away' ? g.type : null,
-          league: g.league,
-          hall_name: (g.type === 'away' ? awayHall || g.hall : g.hall || awayHall) || null,
-          home_score: official ? g.home_score : null,
-          away_score: official ? g.away_score : null,
-          sets: official ? normalizeSets(g.sets_json) : null,
-        }
-      }),
+      games: games.map(snapshotGame),
       trainings: trainings.map((t) => ({
         id: t.id,
         team: t.team,
@@ -444,9 +505,43 @@ export function registerWieplayBridge(router, { database, logger }) {
     res.json(found)
   }
 
+  // Every KSCW team's games of a day (or by id), without rosters: WiePlay links a video of a
+  // shared cup team to the game Wiedisync files under another team, and refreshes those games'
+  // results hourly by id. Names, league, hall and the official result only.
+  const clubGamesRoute = async (req, res) => {
+    const { date, ids, sports } = parseClubGamesQuery(req.query)
+    const query = database('games')
+      .join('teams', 'teams.id', 'games.kscw_team')
+      .leftJoin('halls', 'halls.id', 'games.hall')
+      .whereIn('teams.sport', sports)
+    if (date) query.where('games.date', date)
+    else query.whereIn('games.id', ids)
+    const rows = await query
+      .select(...GAME_COLUMNS, 'teams.name as team_name', 'teams.sport as team_sport',
+        'teams.season as team_season', 'teams.league as team_league', 'teams.team_id as team_key',
+        'teams.active as team_active')
+      .orderBy([{ column: 'games.date' }, { column: 'games.time' }, { column: 'games.id' }])
+      .limit(MAX_CLUB_GAMES)
+    const teams = new Map()
+    for (const g of rows) {
+      if (teams.has(g.kscw_team)) continue
+      teams.set(g.kscw_team, teamMeta({
+        id: g.kscw_team, name: g.team_name, sport: g.team_sport, season: g.team_season,
+        league: g.team_league, team_id: g.team_key, active: g.team_active,
+      }))
+    }
+    log.info(`wieplay club-games: ${date ? `date ${date}` : `${ids.length} ids`} → ${rows.length} games`)
+    res.json({
+      version: 1,
+      teams: [...teams.values()],
+      games: rows.map((g) => ({ ...snapshotGame(g), team_name: g.team_name })),
+    })
+  }
+
   router.get(`${BRIDGE_BASE}/authorize`, authorize)
   router.get(`${BRIDGE_BASE}/teams`, service('GET wieplay/teams', teamsRoute))
   router.get(`${BRIDGE_BASE}/sync`, service('GET wieplay/sync', syncRoute))
   router.get(`${BRIDGE_BASE}/adult-check`, service('GET wieplay/adult-check', adultCheckRoute))
   router.get(`${BRIDGE_BASE}/score-log`, service('GET wieplay/score-log', scoreLogRoute))
+  router.get(`${BRIDGE_BASE}/club-games`, service('GET wieplay/club-games', clubGamesRoute))
 }
