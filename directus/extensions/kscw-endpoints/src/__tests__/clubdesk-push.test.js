@@ -29,7 +29,7 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — 15 contact columns, 11 fill-only cells, the register triple, no groups', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns, 12 fill-only cells, the register triple, no groups', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
     // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
@@ -43,7 +43,7 @@ describe('buildPushCsv (update set)', () => {
     // Offiziellen Lizenz joined on 2026-08-14, fill-only and ungated; Telefon
     // Mobil / Land / Mittelschule ZH closed the list on 2026-09-13 under the
     // same rule.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt;Offiziellen Lizenz;Telefon Mobil;Land;Mittelschule ZH;Sektion;Lizenz bestellt')
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt;Offiziellen Lizenz;Telefon Mobil;Land;Mittelschule ZH;Sektion;Lizenz bestellt;E-Mail Alternativ')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
@@ -52,7 +52,7 @@ describe('buildPushCsv (update set)', () => {
     // (proven 2026-07-06), so the column would be pure noise on an update row.
     expect(header).not.toContain('Gruppen')
     const cells = row.split(';')
-    expect(cells).toHaveLength(29)
+    expect(cells).toHaveLength(30)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -641,13 +641,13 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart;Austritt;Land;Mittelschule ZH;Lizenz bestellt')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart;Austritt;Land;Mittelschule ZH;Lizenz bestellt;E-Mail Alternativ')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(32)
+    expect(cells).toHaveLength(33)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     // [10..14] = Anrede/Nationalität/Federation of Origin/Trainer Lizenz/AHV Nummer (empty on this fixture); [15] = Wiedisync ID; [16] = Gast; create extras start at [17]
     expect(cells[17]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
@@ -715,7 +715,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(32)
+    expect(cells).toHaveLength(33)
     expect(cells[20]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
@@ -1553,6 +1553,31 @@ describe('buildPushCsv — Sektion + Lizenz bestellt', () => {
     const h = header.split(';'); const c = row.split(';')
     expect(c[h.indexOf('Lizenz bestellt')]).toBe('12.09.2026')
     expect(c[h.indexOf('Sektion')]).toBe('KSCW')
+  })
+})
+
+// ── E-Mail Alternativ (2026-10-20) ──────────────────────────────────────────
+describe('buildPushCsv — E-Mail Alternativ from billing_email', () => {
+  const base = { id: 120, uuid: 'u', first_name: 'Lena', last_name: 'Bachmann', clubdesk_id: '1000120', email: 'lena@example.com' }
+  const updateCells = (m) => {
+    const [header, row] = buildPushCsv([{ ...base, ...m }]).trim().split('\n')
+    const h = header.split(';'); const c = row.split(';')
+    return (name) => c[h.indexOf(name)]
+  }
+  it('fills an empty register cell with the billing email, lowercased', () => {
+    expect(updateCells({ billing_email: ' Parent@Example.CH ' })('E-Mail Alternativ')).toBe('parent@example.ch')
+  })
+  it("never overwrites the register's own alternative address", () => {
+    expect(updateCells({ billing_email: 'parent@example.ch', email_alternativ_cd: 'other@example.ch' })('E-Mail Alternativ')).toBe('other@example.ch')
+  })
+  it('stays empty when there is no billing email, it is malformed, or it repeats the main E-Mail', () => {
+    expect(updateCells({})('E-Mail Alternativ')).toBe('')
+    expect(updateCells({ billing_email: 'not-an-address' })('E-Mail Alternativ')).toBe('')
+    expect(updateCells({ billing_email: 'LENA@example.com' })('E-Mail Alternativ')).toBe('')
+  })
+  it('carries the billing email on a CREATE', () => {
+    const [header, row] = buildPushCsv([{ ...base, clubdesk_id: null, billing_email: 'parent@example.ch' }], { create: true }).trim().split('\n')
+    expect(row.split(';')[header.split(';').indexOf('E-Mail Alternativ')]).toBe('parent@example.ch')
   })
 })
 

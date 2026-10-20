@@ -389,7 +389,14 @@ export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verst
 // ACTIVATION date in Volleymanager, basketball = the day the licence was set to
 // "ordered" in wiedisync (members.licence_ordered_at, migration 373) — see
 // LIZENZ_BESTELLT_SQL. The register's own cell wins wherever it is set.
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz', 'Telefon Mobil', 'Land', 'Mittelschule ZH', 'Sektion', 'Lizenz bestellt']
+// ── E-Mail Alternativ (2026-10-20) ─────────────────────────────────────────
+// members.billing_email → ClubDesk's E-Mail Alternativ, same fill-only regime as
+// the cells above: the register's own address always wins, an empty cell gets
+// ours. ClubDesk mails the alternative address too (club setting "auch an
+// alternative E-Mail Adressen senden"), so this is how a parent keeps getting
+// invoices and mailings once a junior's own address became the main E-Mail
+// (DU18 Fire, 20.10.2026). An address equal to the main E-Mail is not sent.
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz', 'Telefon Mobil', 'Land', 'Mittelschule ZH', 'Sektion', 'Lizenz bestellt', 'E-Mail Alternativ']
 
 /**
  * SQL expression (over a `members m` alias) for the member's `Lizenz bestellt`
@@ -528,7 +535,7 @@ export function kantonsschuleCell(v) {
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
 // the shared contact columns, then the create-only extras. Land + Mittelschule
 // ZH (2026-09-13) close the list — see the CD_PUSH_HEADERS note.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt', 'Land', 'Mittelschule ZH', 'Lizenz bestellt']
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt', 'Land', 'Mittelschule ZH', 'Lizenz bestellt', 'E-Mail Alternativ']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -1436,6 +1443,18 @@ function fmtBirthdateDDMMYYYY(v) {
 // fields on every committed push ('+41 …; found 2026-07-06 on 10 contacts,
 // repaired via the backfill import). '=', '@', tab, CR and '+'/'-' followed by
 // anything else (e.g. +HYPERLINK(…)) stay guarded.
+/**
+ * E-Mail Alternativ cell from members.billing_email: canonical (lowercase) or
+ * empty, and empty when it would just repeat the main E-Mail cell (`mainOut`,
+ * already normalised) — ClubDesk would mail the same person twice.
+ */
+export function alternativeEmailCell(billingEmail, mainOut) {
+  const n = normalizeEmail(billingEmail)
+  const alt = n.ok && n.value ? n.value : ''
+  if (!alt) return ''
+  return alt === String(mainOut ?? '').trim().toLowerCase() ? '' : alt
+}
+
 function cdCell(val) {
   let s = String(val ?? '')
   if (/^[=@\t\r]/.test(s) || /^[+-](?![\d( ])/.test(s)) s = `'${s}`
@@ -1745,6 +1764,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         CD_LAND_DEFAULT,
         kantonsschuleCell(m.cantonal_school),
         m.lizenz_bestellt || '', // resolved by /up (loadLizenzBestellt)
+        alternativeEmailCell(m.billing_email, emailOut), // E-Mail Alternativ (2026-10-20)
       )
     } else {
       // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
@@ -1865,6 +1885,8 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // Sektion / Lizenz bestellt (2026-09-24) — same fill-only regime.
         String(m.sektion_cd || '').trim() || clubSectionToClubdesk(String(m.club_section || '').trim()),
         String(m.lizenz_bestellt_cd || '').trim() || m.lizenz_bestellt || '',
+        // E-Mail Alternativ (2026-10-20) — fill-only like the rest of this tail.
+        String(m.email_alternativ_cd || '').trim() || alternativeEmailCell(m.billing_email, emailOut),
       )
     }
     return cells.map(cdCell).join(';')
@@ -1883,6 +1905,8 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
 const PUSH_FIELDS = [
   'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'address', 'postal_code',
   'city', 'birthdate', 'sex', 'iban', 'salutation', 'nationality_codes',
+  // E-Mail Alternativ (2026-10-20), fill-only — see CD_PUSH_HEADERS.
+  'billing_email',
   'federation_of_origin', 'trainer_licences', 'ahv_number',
   'clubdesk_id', 'clubdesk_push_changes',
   'fee_category', 'wiedisync_active',
@@ -2587,7 +2611,8 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
              trainer_licence, phone_private, address, postal_code, city,
              fee_category, joined_on, membership_fee, licence_no, licence_type,
              status, left_on, official_licence,
-             phone_mobile, country, cantonal_school, section, licence_ordered
+             phone_mobile, country, cantonal_school, section, licence_ordered,
+             email_alternative
       FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
     `, [cdids]) : { rows: [] }
     const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -2666,6 +2691,8 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
       // Sektion / Lizenz bestellt (2026-09-24) — same unconditional stash.
       m.sektion_cd = String(cd.section || '').trim()
       m.lizenz_bestellt_cd = String(cd.licence_ordered || '').trim()
+      // E-Mail Alternativ (2026-10-20) — same unconditional stash.
+      m.email_alternativ_cd = String(cd.email_alternative || '').trim()
     }
   }
   const pushMembers = [...updates, ...creates]
