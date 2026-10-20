@@ -21,6 +21,7 @@
  *            commit  → click OK (writes the assignment to the legal register).
  *
  * Output: one JSON line on stdout: {"mode":"preview","done":[…],"results":[{…per row}]}
+ *         plus "fatal":"<message>" when the run died before finishing the worklist
  * Per-row status: assigned | previewed | skip_ambiguous | skip_no_contact |
  *                 skip_filter_failed | skip_no_selection | skip_ok_disabled |
  *                 skip_group_not_found | skip_funktion_not_found | error
@@ -347,6 +348,10 @@ async function pickCombo(page, triggerX, triggerY, value) {
 async function run() {
   const browser = await launchBrowser()
   const results = []
+  // A run that dies (no "Wiedisync ID" column, login refused…) reports fewer rows
+  // than it was given. The reason goes into the summary too, so the dispatcher can
+  // put it on the job row instead of only in the log (20.10.2026).
+  let fatal = null
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 } })
     const page = await ctx.newPage(); page.setDefaultTimeout(45000)
@@ -459,7 +464,16 @@ async function run() {
           r.status = 'assigned'; log(`✓ ${row.name} → ${row.group} (${row.funktion})`)
         } else {
           await clickExact(page, 'Abbrechen'); await sleep(800)
-          r.status = 'previewed'; log(`◦ ${row.name} → ${row.group} (${row.funktion}) [preview OK]`)
+          // ⚠ Same verdict as the commit branch above (20.10.2026). A preview that
+          // reported a disabled-OK row as 'previewed' counted it as writable at all
+          // three layers, unlocked the commit, and the commit then skipped it as
+          // skip_ok_disabled — a preview promising a write the commit cannot make.
+          // Reported as the skip here, so the endpoint holds the row back.
+          if (r.okEnabled === false) {
+            r.status = 'skip_ok_disabled'; log(`· ${row.name}: OK disabled (non-member player role? make them a member in ClubDesk)`)
+          } else {
+            r.status = 'previewed'; log(`◦ ${row.name} → ${row.group} (${row.funktion}) [preview OK]`)
+          }
         }
         results.push(r)
       } catch (e) {
@@ -469,9 +483,10 @@ async function run() {
       }
     }
   } catch (e) {
-    log('✗ fatal:', e.message); process.exitCode = 1
+    log('✗ fatal:', e.message); process.exitCode = 1; fatal = e.message
   } finally { await browser.close() }
   const summary = { mode: MODE, count: rows.length, results }
+  if (fatal) summary.fatal = fatal
   const tally = {}; for (const r of results) tally[r.status] = (tally[r.status] || 0) + 1
   summary.tally = tally
   process.stdout.write(JSON.stringify(summary) + '\n')

@@ -35,7 +35,10 @@
 #   a mis-wired cron can never silently write to ClubDesk. Commit is only ever reached
 #   after a superadmin approved the set in the modal (the endpoint stashed the CSV).
 set -uo pipefail
-DIR=/opt/clubdesk-sync
+# CLUBDESK_SYNC_DIR exists for the test harness only (directus/scripts/__tests__/
+# clubdesk-member-up-dispatch.test.mjs runs this script against a fake docker in
+# a temp dir). No cron sets it; production always runs from /opt/clubdesk-sync.
+DIR="${CLUBDESK_SYNC_DIR:-/opt/clubdesk-sync}"
 PG=kscw-postgres
 PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
 
@@ -330,4 +333,36 @@ fi
 DONE_MSG_ESC=${DONE_MSG//\'/\'\'}
 cdp 100 "$DONE_MSG"
 psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='${DONE_MSG_ESC}', up_result='${RES_ESC}'::jsonb, ${CLEAR_COLS} WHERE id=1"
+
+# 4. Queue the read-back sync-down (20.10.2026). A committed push leaves work
+#    that only a later down can reveal: a CREATE gets its ClubDesk [Id] read back
+#    and linked there, the pushed values are re-read as the new baseline, and the
+#    conflicts hook stages whatever still disagrees. Until now that down was the
+#    operator's step 4 — so a tab closed after the push, or an auto-sync push
+#    with no operator at all, left it owed, and the next person to open Data
+#    health inherited proposals and a group backlog nobody had looked at.
+#    Same shape as enqueueClubdeskDown (clubdesk-update.js): state + request
+#    time, message/finish cleared, and the progress trio cleared so the card
+#    does not render the PREVIOUS run's 100% bar for the minute before the
+#    claim. Same lock rule too: never over a down that is already queued or
+#    running (the path's own step 4 may have got there first — then that run
+#    IS the read-back, and the path adopts it either way: runSyncDown treats a
+#    down_in_progress 409 as "follow that run"), nor over a group fix, whose
+#    worklist was computed against the snapshot a down would replace.
+#    ⚠ Commit only. The dry-run branch above exited before here: a preview
+#    wrote nothing, so there is nothing to read back. Every failure branch
+#    exited too — a failed update set leaves its members flagged for the next
+#    push, and the operator decides when to sync.
+#    ⚠ Best effort: the push already landed and up_state already says so. A
+#    failed queue only costs the automation; the path's step 4 still offers it.
+#    The audit row is written by the SAME statement, only when the queue took,
+#    with user NULL — no person asked for this down (as every other automated
+#    sync appears in user_logs). ⚠ "user" stays quoted: bare `user` is
+#    CURRENT_USER in Postgres.
+READBACK=$(psqlc "WITH q AS (UPDATE clubdesk_member_sync SET down_state='queued', down_requested_at=now(), down_message=NULL, down_finished_at=NULL, down_phase=NULL, down_progress=0, down_log=NULL WHERE id=1 AND COALESCE(down_state,'idle') NOT IN ('queued','running') AND COALESCE(grp_state,'idle') NOT IN ('queued','running') RETURNING 1), l AS (INSERT INTO user_logs (action, collection_name, record_id, data, \"user\", date_created) SELECT 'update', 'clubdesk_member_sync', '1', '{\"kind\":\"clubdesk_member_sync_request\",\"direction\":\"down\",\"source\":\"up_readback\"}'::json, NULL, now() FROM q RETURNING 1) SELECT count(*) FROM l" 2>&1)
+case "$READBACK" in
+  1) echo "up-dispatch: read-back sync-down queued" ;;
+  0) echo "up-dispatch: read-back sync-down NOT queued — a down or group fix already holds the lock (that down is the read-back)" ;;
+  *) echo "up-dispatch: WARNING could not queue the read-back sync-down: $READBACK" >&2 ;;
+esac
 echo "=== up-dispatch: done${WARN:+ (with warning: $WARN)} ==="

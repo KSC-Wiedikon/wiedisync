@@ -678,7 +678,7 @@ export default function DataHealthPage() {
     // together — but NOT under a single Promise.all: one failing ClubDesk endpoint
     // must not blank the games/scorer findings (the Promise.all-fails-all pattern
     // in CLAUDE.md). Each settles on its own and reports its own failure.
-    const [checks, group, needs, facetRes] = await Promise.allSettled([
+    const [checks, group, needs, facetRes, proposals] = await Promise.allSettled([
       runAllChecks(),
       kscwApi<GroupCheckResp>('/clubdesk-group-sync'),
       kscwApi<{
@@ -686,7 +686,21 @@ export default function DataHealthPage() {
         last_down: string | null; last_up: string | null
       }>('/clubdesk-needs-sync'),
       kscwApi<MemberFacets>('/clubdesk-member-facets'),
+      kscwApi<{ total: number }>('/clubdesk-sync/proposals'),
     ])
+
+    // ⚠⚠ The open-proposal count from the SERVER, on every refresh. It used to be
+    // written only by the proposals table — which is mounted only while the
+    // decide dialog is open — so "2. Decide (n)", its tick and the path's gate
+    // read whatever the table last said. On 20.10.2026 that was 0 while the
+    // read-back sync-down had just staged 7, and the path finished green over
+    // them. Only a SUCCESSFUL read overwrites it; a failed one keeps the last
+    // known count rather than reporting "nothing to decide".
+    if (proposals.status === 'fulfilled') {
+      const n = Number(proposals.value?.total) || 0
+      setPendingProposals(n)
+      gateRef.current.pendingProposals = n
+    }
 
     if (checks.status === 'fulfilled') setResults(checks.value)
     else toast.error(String(checks.reason))
@@ -775,18 +789,15 @@ export default function DataHealthPage() {
   // would make the two refetch each other.
   const afterSyncJob = useCallback(async (): Promise<GateCounts> => {
     setProposalsReload((n) => n + 1)
-    // ⚠ The proposals count is fetched HERE rather than waited for from the
-    // table's own reload above. The table reports it through a prop, which the
-    // sync path would read one render after it decides which step comes next —
-    // and deciding "no proposals" over a queue that has just been staged skips
-    // the one step that is a human's.
-    const [, proposals] = await Promise.all([
-      runChecks(),
-      kscwApi<{ total: number }>('/clubdesk-sync/proposals')
-        .then((r) => Number(r.total) || 0)
-        .catch(() => null),
-    ])
-    if (proposals !== null) gateRef.current.pendingProposals = proposals
+    // ⚠ The proposals count is fetched by runChecks itself rather than waited
+    // for from the table's own reload above. The table reports it through a
+    // prop, which the sync path would read one render after it decides which
+    // step comes next — and deciding "no proposals" over a queue that has just
+    // been staged skips the one step that is a human's. runChecks writes it to
+    // BOTH the ref (this hand-over) and the state (the label, the tick, the
+    // decide dialog's own gate), so the loop back to decide opens on the count
+    // that sent it there.
+    await runChecks()
     return { ...gateRef.current }
   }, [runChecks])
 

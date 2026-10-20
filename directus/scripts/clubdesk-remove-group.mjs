@@ -215,6 +215,8 @@ async function openDetailConfirmed(page, uuid, cell) {
 async function run() {
   const browser = await launchBrowser()
   const results = []
+  // Why the run died, if it did — into the summary, not only the log (20.10.2026).
+  let fatal = null
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 } })
     const page = await ctx.newPage(); page.setDefaultTimeout(45000)
@@ -252,8 +254,8 @@ async function run() {
         results.push(r)
       } catch (e) { r.status = 'error'; r.detail = e.message; results.push(r); log(`✗ ${row.name}:`, e.message); await closeDetail(page).catch(() => {}); for (let i = 0; i < 2; i++) { await page.keyboard.press('Escape').catch(() => {}); await sleep(300) } }
     }
-  } catch (e) { log('✗ fatal:', e.message); process.exitCode = 1 } finally { await browser.close() }
+  } catch (e) { log('✗ fatal:', e.message); process.exitCode = 1; fatal = e.message } finally { await browser.close() }
   const tally = {}; for (const x of results) tally[x.status] = (tally[x.status] || 0) + 1
-  process.stdout.write(JSON.stringify({ mode: MODE, count: rows.length, tally, results }) + '\n')
+  process.stdout.write(JSON.stringify({ mode: MODE, count: rows.length, tally, results, ...(fatal ? { fatal } : {}) }) + '\n')
 }
 run()

@@ -634,6 +634,154 @@ export function changedPushFields(raw) {
   return new Set(pushChangeList(raw).map((c) => c.field).filter(Boolean))
 }
 
+// ── Edit-time push flag (2026-10-20) ────────────────────────────────────────
+// The contact cells every UPDATE row carries with wiedisync's own value
+// (buildPushCsv → E-Mail / Telefon Privat / Adresse / PLZ / Ort / Geburtsdatum,
+// the same set /clubdesk-update's EDITABLE accepts). An edit to one of these
+// must queue a push AT EDIT TIME, naming the field in clubdesk_push_changes —
+// otherwise the next sync-down sees ClubDesk's old cell next to our new value,
+// stages a direction-less `conflict` proposal (step 2 of the sync path) and
+// the operator has to "refuse" their own edit to get it pushed. That is what
+// the 7 DU18 emails rewritten by raw SQL on 20.10.2026 cost: a whole extra
+// decide round, and the refusals read like undoing the work.
+export const CD_PUSH_FLAG_CONTACT_FIELDS = ['email', 'phone', 'address', 'postal_code', 'city', 'birthdate']
+
+// Everything flagClubdeskPush may name. The register/fill-only fields are the
+// members.items.update hook's long-standing list (see the comment there for
+// why each one is in it); the contact cells above joined on 2026-10-20.
+// ⚠ A whitelist, not a convenience: the names become column identifiers in the
+// fallback read below, so nothing outside this set is ever selected.
+export const CD_PUSH_FLAG_FIELDS = [
+  ...CD_PUSH_FLAG_CONTACT_FIELDS,
+  'iban', 'ahv_number', 'register_status', 'joined_on', 'left_on', 'fee_category',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
+  'license_nr', 'licence_category', 'club_section', 'licence_ordered_at', 'cantonal_school',
+]
+const CD_PUSH_FLAG_FIELD_SET = new Set(CD_PUSH_FLAG_FIELDS)
+
+/**
+ * The `new_value` a push-change entry records for `field`, or '' when the value
+ * is empty (and therefore must not flag — the push cannot blank a register
+ * cell, ClubDesk's import ignores empty cells). `false` reads as empty, which is
+ * exactly right for the officials booleans (a downgrade is unpushable).
+ * Birthdate is rendered dd.mm.yyyy — the form /clubdesk-update records and the
+ * sync-up modal shows; everything else is the trimmed string, as before.
+ */
+export function pushFlagValue(field, v) {
+  const s = String(v || '').trim()
+  if (!s) return ''
+  if (field === 'birthdate') return fmtBirthdateDDMMYYYY(v instanceof Date ? v : s) || s
+  return s
+}
+
+/**
+ * Did an edit actually change a contact field? Used by the hook so a profile
+ * save that re-sends an unchanged address (ProfileEditForm sends the whole
+ * block every time) does not mark the member push-pending for nothing.
+ * Email compares case-insensitively (it is matched that way everywhere), a
+ * birthdate on its calendar day (knex hands a `date` back as a Date object,
+ * the payload carries 'YYYY-MM-DD').
+ */
+export function contactValueChanged(field, before, after) {
+  const norm = (v) => {
+    if (v == null) return ''
+    if (field === 'birthdate') {
+      return (v instanceof Date ? (Number.isNaN(v.getTime()) ? '' : v.toISOString()) : String(v)).trim().slice(0, 10)
+    }
+    const s = String(v).trim()
+    return field === 'email' ? s.toLowerCase() : s
+  }
+  return norm(before) !== norm(after)
+}
+
+/** Replace any entry for the same field(s), keep the rest — never stringify over the top. */
+export function mergePushChanges(raw, entries) {
+  const names = new Set(entries.map((e) => e.field))
+  return pushChangeList(raw).filter((c) => c.field && !names.has(c.field)).concat(entries)
+}
+
+/**
+ * Flag members for the next ClubDesk sync-up push and NAME the fields in
+ * clubdesk_push_changes. The one writer every edit path should go through:
+ * the members.items.update hook, custom endpoints, and — the case this exists
+ * for — raw-SQL writers and one-off admin scripts, which bypass the hook
+ * entirely. Call it with the same knex/trx that made the edit so the flag
+ * commits (or rolls back) with it.
+ *
+ * Naming the field is not bookkeeping: for the register fields `registerCell`
+ * reads it as the licence to overwrite a cell ClubDesk already holds, and for
+ * every field it is what keeps the next sync-down from staging the edit as a
+ * conflict (dropPushQueuedConflicts).
+ *
+ *   values   the values just written ({ field: value }, e.g. the items payload).
+ *            Omitted → read back from `members` (raw-SQL callers: update first,
+ *            then call this).
+ *   before   optional previous values, recorded as old_value.
+ *   source / accountability / log → the user_logs row (writeUserLog no-ops
+ *            without an acting user, e.g. a script or the hook).
+ *
+ * Rules, unchanged from the hook loop it was lifted out of: unlinked members
+ * are skipped (their values ride the CREATE push), empty values never flag.
+ * Throws on a DB error — a caller inside a transaction wants the rollback; the
+ * hook catches and logs.
+ */
+export async function flagClubdeskPush(database, memberIds, fields, {
+  values = null, before = null, source = null, accountability = null, log = null,
+} = {}) {
+  const ids = [...new Map((Array.isArray(memberIds) ? memberIds : [memberIds])
+    .filter((id) => id != null && String(id).trim() !== '')
+    .map((id) => [String(id), id])).values()]
+  const wanted = [...new Set(Array.isArray(fields) ? fields : [])]
+    .filter((f) => CD_PUSH_FLAG_FIELD_SET.has(f) && (!values || f in values))
+  if (!ids.length || !wanted.length) return { flagged: 0, members: [] }
+
+  const rows = await database('members').whereIn('id', ids)
+    .select('id', 'clubdesk_id', 'clubdesk_push_changes', ...(values ? [] : wanted))
+  const flagged = []
+  for (const r of rows) {
+    if (!r.clubdesk_id) continue
+    const src = values ?? r
+    const entries = []
+    for (const field of wanted) {
+      const next = pushFlagValue(field, src[field])
+      if (!next) continue
+      const prev = before && field in before ? pushFlagValue(field, before[field]) : ''
+      entries.push({ field, old_value: prev || null, new_value: next })
+    }
+    if (!entries.length) continue
+    await database('members').where('id', r.id).update({
+      clubdesk_push_pending: true,
+      clubdesk_push_changes: JSON.stringify(mergePushChanges(r.clubdesk_push_changes, entries)),
+      // ⚠⚠ Stamped HERE, not left to the caller. The up dispatcher clears the flag
+      // after a commit only for members WHERE date_updated <= up_requested_at
+      // ("not edited since the CSV was stashed"), and raw knex/SQL never bumps
+      // date_updated (no trigger — see migration 405). So a raw-SQL edit flagged
+      // while a push was in flight — stashed with the OLD value — had its flag and
+      // its named field wiped by that clear, and the next sync-down staged it as a
+      // conflict again (or, for a register cell, reverted it silently). The items
+      // API path already stamped it; re-stamping is harmless.
+      date_updated: new Date(),
+    })
+    await writeUserLog(database, log, {
+      accountability, action: 'update', collection: 'members', recordId: r.id,
+      data: { kind: 'clubdesk_push_flag', fields: entries.map((e) => e.field), ...(source ? { source } : {}) },
+    })
+    flagged.push(r.id)
+  }
+  return { flagged: flagged.length, members: flagged }
+}
+
+/**
+ * Conflict candidates minus the fields a member already has queued for push
+ * (`pushStaged`: member_id → Set of field names from clubdesk_push_changes).
+ * See the ⚠⚠ in stageConflictProposals for why a queued edit is a push, not a
+ * disagreement. Pure, so the rule is unit-tested rather than trusted.
+ */
+export function dropPushQueuedConflicts(wanted, pushStaged) {
+  if (!pushStaged?.size) return wanted
+  return wanted.filter((w) => !pushStaged.get(w.member_id)?.has(w.field))
+}
+
 // ⚠⚠ THE WHITELIST IS A SECURITY BOUNDARY, not a convenience. `field` reaches
 // this code from a database row that a SQL detection pass wrote, but the accept
 // path turns it into a column name — so it is validated against this map and
@@ -2929,6 +3077,115 @@ export async function linkBackAutoSyncedMembers(database, log) {
   }
 }
 
+// ── Group backlog SQL, shared (20.10.2026) ─────────────────────────────────
+// Lifted out of computeGroupChecks() (inside registerClubdeskUpdate) so the
+// ClubDesk status poll can report how many linked members are missing their
+// expected ClubDesk group WITHOUT a forked copy of the predicate — the rule in
+// computeGroupChecks' own header ("never re-derive these predicates anywhere
+// else") is kept by both callers reading these three. The backlog it counts
+// grew to 16 adds between 02.10 and 20.10.2026 while every Fix groups run was
+// silently skipping all rows, and nothing on any page said so.
+
+// team → ClubDesk group token, now read from teams.clubdesk_group
+// (migration 205) instead of a hardcoded CASE. Three-state by design:
+//   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
+//   ''   → intentionally no CD group (league umbrellas) → excluded
+//   else → the exact CD group token.
+// Only the '' rows are excluded here; NULL rows are excluded from the group
+// maths too but get reported, which is the whole point of the column.
+// ⚠ t.active: this CTE feeds `strays`, which is the operator's work list
+// for STRIPPING people from a group in the club's legal register — the one
+// output here that drives a destructive proposal. Without it an archived
+// team's roster competes with the live one and a season-lagged player is
+// both invisible to `missing` and present in `strays`.
+export const GROUP_TEAM_CTE = `
+  tg AS (
+    SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
+    FROM teams t
+    WHERE t.clubdesk_group IS NOT NULL AND t.active
+  )`
+
+// A member who has LEFT is never "missing" a group or holding the "wrong"
+// Funktion (2026-09-24). Without this the worklist, built from roster rows
+// that outlive the departure until deactivation, ADDED player groups to four
+// members already marked "Kein Mitglied" (10:55) — which the next preview
+// then proposed removing again. "Left" = the same membership fact the stray
+// check's auto_removable uses: inactive in wiedisync, or a departed status /
+// exit date in the register.
+export const GROUP_DEPARTED_GUARD_SQL = `AND m.kscw_membership_active
+      AND NOT EXISTS (SELECT 1 FROM clubdesk_export ce_d
+                       WHERE BTRIM(ce_d.clubdesk_id) = m.clubdesk_id
+                         AND (ce_d.status IN (${DEPARTED_STATUSES.map((x) => `'${x}'`).join(', ')})
+                              OR COALESCE(BTRIM(ce_d.left_on), '') <> ''))`
+
+// Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
+// subgroup, core players in '<group> (Spieler*in)' — one row per
+// member_teams entry, so someone who is a guest on team A and core on
+// team B is checked for both tokens independently.
+// `uuid` + the bare Funktion ride along because this list IS the ADD worklist for
+// clubdesk-scrape-groups.mjs: it filters the ClubDesk grid by the Wiedisync uuid
+// (unique, accent- and drift-proof — the clubdesk_id is NOT grid-searchable) and
+// picks Gruppe + Funktion as two separate combos, so the bracketed token has to
+// come apart again. See CLAUDE.md → ClubDesk contact matching in the UI.
+export function groupMissingSql() {
+  return `
+  WITH ${GROUP_TEAM_CTE}, expected AS (
+    SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
+           tg.clubdesk_group AS grp_base,
+           CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                THEN '${CD_GUEST_FUNKTION}' ELSE 'Spieler*in' END AS funktion,
+           (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                      THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
+    FROM member_teams mt
+    JOIN tg ON tg.id = mt.team
+    JOIN members m ON m.id = mt.member
+    -- No mt.season predicate: tg is active-teams-only, and a teams row
+    -- belongs to exactly one season, so the join already pins it.
+    WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+      ${GROUP_DEPARTED_GUARD_SQL}
+  )
+  SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.grp, e.grp_base,
+         e.funktion, e.sport,
+         NULLIF(BTRIM(COALESCE(ce.first_name, '')), '') AS cd_vorname,
+         NULLIF(BTRIM(COALESCE(ce.last_name, '')), '') AS cd_nachname
+  FROM expected e
+  LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+  WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.groups_bracketed, ''), ', ')))
+  ORDER BY e.last_name, e.first_name, e.grp`
+}
+
+/**
+ * Linked members who miss at least one expected ClubDesk group token — the
+ * row count of computeGroupChecks().missing, which folds per member. Read-only.
+ */
+export async function countGroupMissingMembers(database) {
+  const r = await database.raw(`SELECT count(DISTINCT gm.member_id)::int AS n FROM (${groupMissingSql()}) gm`)
+  return Number(r.rows?.[0]?.n) || 0
+}
+
+/**
+ * The group backlog for GET /clubdesk-member-sync (20.10.2026): how many linked
+ * members are missing an expected ClubDesk group — the rows "Fix groups" would
+ * add. The Data health card shows it while the path is idle, so a backlog that
+ * builds up between runs (auto-synced registrations are created and linked with
+ * no group at all) is in sight before anyone starts a sync.
+ *
+ * Counted only while the pipeline is IDLE: a running down is about to replace
+ * the snapshot it reads, and a group fix is about to change the answer.
+ * ⚠ Never throws. That route is the sync path's lock poll, and a failing count
+ * must not blind the runner to the lock. null = not counted (busy, or the query
+ * failed), never zero — a zero would read as "nothing missing".
+ */
+export async function groupBacklogWhenIdle(database, s, log) {
+  if ([s?.down_state, s?.up_state, s?.grp_state].some((st) => DOWN_BUSY.includes(st))) return null
+  try {
+    return await countGroupMissingMembers(database)
+  } catch (err) {
+    try { log?.warn?.({ msg: `clubdesk-member-sync group backlog: ${err.message}`, endpoint: 'clubdesk-member-sync' }) } catch { /* ignore */ }
+    return null
+  }
+}
+
 /**
  * Who may read the per-member /clubdesk-sync-status verdicts → null when
  * refused, else `{ sportScope }`. Global admins, the board and sport admins; a
@@ -2940,6 +3197,94 @@ export function syncStatusAccess(roles, { directusAdmin = false } = {}) {
   const list = parseRoles(roles)
   if (!['superuser', 'admin', 'board', 'vb_admin', 'bb_admin'].some((r) => list.includes(r))) return null
   return { sportScope: callerSportScope(list) }
+}
+
+// ── "Fix groups" commit gate (pure; exported for the test) ─────────────────────
+
+/**
+ * ⚠⚠ The per-row statuses that mean a group tool DID what was asked:
+ *   assigned  — add tool, commit (ClubDesk accepted the dialog's OK)
+ *   previewed — either tool, preview (every step worked, cancelled at the end)
+ *   removed   — remove tool, commit (chip gone, re-read, saved)
+ * Everything else — skip_*, error — is a row that was NOT written / not writable.
+ * The same set is spelled out once in each of the other two layers; keep all
+ * three identical:
+ *   directus/scripts/clubdesk-group-fix-outcome.sh → GRP_OK_STATUSES
+ *   src/modules/admin/utils/groupFixOutcome.ts     → OK_STATUSES
+ * (__tests__/clubdesk-group-fix.test.js fails when they drift.)
+ */
+export const GROUP_FIX_OK_STATUSES = Object.freeze(['assigned', 'previewed', 'removed'])
+const GROUP_FIX_OK = new Set(GROUP_FIX_OK_STATUSES)
+
+/**
+ * Identity of one worklist row, in the ONE shape both sides can produce.
+ *
+ * The scrapers echo back a subset of the worklist row (the add tool keeps
+ * `group`/`funktion`/`clubdesk_id`, the remove tool keeps `uuid`/`group_label`),
+ * so the key is built from exactly the fields that survive the round trip.
+ */
+export const groupFixAddRowKey = (r) => `add|${String(r.clubdesk_id || '').trim()}|${r.group || ''}|${r.funktion || ''}`
+export const groupFixRemoveRowKey = (r) => `remove|${String(r.uuid || '').trim()}|${r.group_label || ''}`
+
+/** Every row a preview reported — INCLUDING its skips, which were on screen too. */
+export function previewedRowKeys(result, { okOnly = false } = {}) {
+  const keys = new Set()
+  const take = (r) => !okOnly || GROUP_FIX_OK.has(r?.status)
+  for (const r of result?.add?.results || []) if (take(r)) keys.add(groupFixAddRowKey(r))
+  for (const r of result?.remove?.results || []) if (take(r)) keys.add(groupFixRemoveRowKey(r))
+  return keys
+}
+
+/** Only the rows the preview reported as WRITABLE — the commit's allow-list. */
+export function previewedOkRowKeys(result) {
+  return previewedRowKeys(result, { okOnly: true })
+}
+
+/**
+ * Decide what a commit may write, from the preview the operator approved and the
+ * worklist recomputed from the current findings. → `{ error }` (a 409 body) or
+ * `{ add, remove, heldBack }`.
+ *
+ *  • `preview_nothing_writable` — the preview has no OK row. On 20.10.2026 a
+ *    preview in which all 17 rows came back skip_filter_failed authorised a
+ *    commit: the gate only asked "was there a preview", and an 8-minute commit then
+ *    skipped the same 17 rows and was reported as done.
+ *  • `preview_stale` — the recomputed worklist holds a row the preview never
+ *    showed (another class ticked, a roster edit in between). Unchanged.
+ *  • Otherwise the commit is the recomputed worklist CUT DOWN to the preview's OK
+ *    rows. A row that was skipped in the preview is held back (`heldBack`), never
+ *    committed on the strength of a preview that could not do it — it needs a fresh
+ *    preview once whatever skipped it is fixed. A row that dropped out of the
+ *    worklist since (fixed elsewhere) simply is not written.
+ */
+export function planGroupFixCommit(previewResult, { add = [], remove = [] } = {}) {
+  const seen = previewedRowKeys(previewResult)
+  const ok = previewedOkRowKeys(previewResult)
+  if (!ok.size) {
+    return {
+      error: {
+        error: 'The preview found nothing that can be written — fix what skipped it, then run the preview again',
+        code: 'preview_nothing_writable',
+      },
+    }
+  }
+  const unseen = [...add.map(groupFixAddRowKey), ...remove.map(groupFixRemoveRowKey)]
+    .filter((k) => !seen.has(k))
+  if (unseen.length) {
+    return {
+      error: {
+        error: `${unseen.length} of these changes were not in the preview — run the preview again`,
+        code: 'preview_stale', unseen: unseen.length,
+      },
+    }
+  }
+  const keepAdd = add.filter((r) => ok.has(groupFixAddRowKey(r)))
+  const keepRemove = remove.filter((r) => ok.has(groupFixRemoveRowKey(r)))
+  return {
+    add: keepAdd,
+    remove: keepRemove,
+    heldBack: add.length + remove.length - keepAdd.length - keepRemove.length,
+  }
 }
 
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
@@ -3024,7 +3369,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const s = await database('clubdesk_member_sync').where('id', 1)
         .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at',
           'down_last_success_at', 'down_phase', 'down_progress', 'down_log',
-          'up_state', 'up_phase', 'up_progress', 'up_log')
+          'up_state', 'up_phase', 'up_progress', 'up_log', 'grp_state')
+      // The group backlog the Data health card hints at — see groupBacklogWhenIdle.
+      const groupMissing = await groupBacklogWhenIdle(database, s, log)
       return res.json({
         state: s?.down_state || 'idle',
         message: s?.down_message || null,
@@ -3056,6 +3403,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         up_phase: s?.up_phase || null,
         up_progress: s?.up_progress == null ? null : Number(s.up_progress),
         up_log: s?.up_log || null,
+        grp_state: s?.grp_state || 'idle',
+        group_missing: groupMissing,
       })
     } catch (err) {
       log.error({ msg: `clubdesk-member-sync status: ${err.message}`, endpoint: 'clubdesk-member-sync', stack: err.stack })
@@ -3735,6 +4084,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     // `clubdesk_push_pending`, so it is counted by step 3 instead of step 2, which
     // is where it belongs. If the push is refused or the value comes back
     // different afterwards, the next detection stages it for real.
+    // Since 2026-10-20 this covers the contact cells too (email, phone,
+    // address, PLZ, city, birthdate): the members.items.update hook names them
+    // at edit time via flagClubdeskPush, and raw-SQL writers are expected to
+    // call it as well — so an edited email reaches step 3 as a push instead of
+    // step 2 as a conflict.
     const pushStaged = new Map()
     for (const r of await database('members')
       .whereIn('id', [...new Set(wanted.map((w) => w.member_id))])
@@ -3744,7 +4098,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
     if (pushStaged.size) {
       const before = wanted.length
-      wanted = wanted.filter((w) => !pushStaged.get(w.member_id)?.has(w.field))
+      wanted = dropPushQueuedConflicts(wanted, pushStaged)
       // Counted BEFORE the cap, so a queue of pending pushes can never push a
       // normal run over it and stage nothing at all.
       if (before !== wanted.length) {
@@ -4816,75 +5170,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // echoed in the response. Its absence 500'd this whole endpoint.
   const season = getCurrentSeason()
 
-  // team → ClubDesk group token, now read from teams.clubdesk_group
-  // (migration 205) instead of a hardcoded CASE. Three-state by design:
-  //   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
-  //   ''   → intentionally no CD group (league umbrellas) → excluded
-  //   else → the exact CD group token.
-  // Only the '' rows are excluded here; NULL rows are excluded from the group
-  // maths too but get reported, which is the whole point of the column.
-  // ⚠ t.active: this CTE feeds `strays`, which is the operator's work list
-  // for STRIPPING people from a group in the club's legal register — the one
-  // output here that drives a destructive proposal. Without it an archived
-  // team's roster competes with the live one and a season-lagged player is
-  // both invisible to `missing` and present in `strays`.
-  const teamGroupCte = `
-    tg AS (
-      SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
-      FROM teams t
-      WHERE t.clubdesk_group IS NOT NULL AND t.active
-    )`
+  // The team → group CTE, the departed guard and the `missing` query live at
+  // module level since 20.10.2026 (GROUP_TEAM_CTE / GROUP_DEPARTED_GUARD_SQL /
+  // groupMissingSql) so the sync-status poll can count the same backlog without
+  // a second copy. Read their comments there.
+  const teamGroupCte = GROUP_TEAM_CTE
 
   // Non-playing fee categories: these legitimately have no roster row.
   // Anything else is a "playing" fee — being billed to play.
   const NON_PLAYING_KAT = ['passive', 'free', 'none'] // fee-category slugs (417)
 
-  // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
-  // subgroup, core players in '<group> (Spieler*in)' — one row per
-  // member_teams entry, so someone who is a guest on team A and core on
-  // team B is checked for both tokens independently.
-  // `uuid` + the bare Funktion ride along because this list IS the ADD worklist for
-  // clubdesk-scrape-groups.mjs: it filters the ClubDesk grid by the Wiedisync uuid
-  // (unique, accent- and drift-proof — the clubdesk_id is NOT grid-searchable) and
-  // picks Gruppe + Funktion as two separate combos, so the bracketed token has to
-  // come apart again. See CLAUDE.md → ClubDesk contact matching in the UI.
-  // A member who has LEFT is never "missing" a group or holding the "wrong"
-  // Funktion (2026-09-24). Without this the worklist, built from roster rows
-  // that outlive the departure until deactivation, ADDED player groups to four
-  // members already marked "Kein Mitglied" (10:55) — which the next preview
-  // then proposed removing again. "Left" = the same membership fact the stray
-  // check's auto_removable uses: inactive in wiedisync, or a departed status /
-  // exit date in the register.
-  const departedGuardSql = `AND m.kscw_membership_active
-        AND NOT EXISTS (SELECT 1 FROM clubdesk_export ce_d
-                         WHERE BTRIM(ce_d.clubdesk_id) = m.clubdesk_id
-                           AND (ce_d.status IN (${DEPARTED_STATUSES.map((x) => `'${x}'`).join(', ')})
-                                OR COALESCE(BTRIM(ce_d.left_on), '') <> ''))`
-
-  const missingSql = `
-    WITH ${teamGroupCte}, expected AS (
-      SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
-             tg.clubdesk_group AS grp_base,
-             CASE WHEN COALESCE(mt.guest_level, 0) > 0
-                  THEN '${CD_GUEST_FUNKTION}' ELSE 'Spieler*in' END AS funktion,
-             (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
-                                        THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
-      FROM member_teams mt
-      JOIN tg ON tg.id = mt.team
-      JOIN members m ON m.id = mt.member
-      -- No mt.season predicate: tg is active-teams-only, and a teams row
-      -- belongs to exactly one season, so the join already pins it.
-      WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
-        ${departedGuardSql}
-    )
-    SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.grp, e.grp_base,
-           e.funktion, e.sport,
-           NULLIF(BTRIM(COALESCE(ce.first_name, '')), '') AS cd_vorname,
-           NULLIF(BTRIM(COALESCE(ce.last_name, '')), '') AS cd_nachname
-    FROM expected e
-    LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
-    WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.groups_bracketed, ''), ', ')))
-    ORDER BY e.last_name, e.first_name, e.grp`
+  const departedGuardSql = GROUP_DEPARTED_GUARD_SQL
+  const missingSql = groupMissingSql()
 
   // stale_funktion — the member IS on the team, but their ClubDesk contact
   // carries the OTHER Funktion for that same group. Same `expected` CTE shape
@@ -5403,23 +5700,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return { add, remove, skipped_no_uuid }
   }
 
-  /**
-   * Identity of one worklist row, in the ONE shape both sides can produce.
-   *
-   * The scrapers echo back a subset of the worklist row (the add tool keeps
-   * `group`/`funktion`/`clubdesk_id`, the remove tool keeps `uuid`/`group_label`),
-   * so the key is built from exactly the fields that survive the round trip.
-   */
-  const addRowKey = (r) => `add|${String(r.clubdesk_id || '').trim()}|${r.group || ''}|${r.funktion || ''}`
-  const removeRowKey = (r) => `remove|${String(r.uuid || '').trim()}|${r.group_label || ''}`
-
-  /** Every row a preview reported — INCLUDING its skips, which were on screen too. */
-  function previewedRowKeys(result) {
-    const keys = new Set()
-    for (const r of result?.add?.results || []) keys.add(addRowKey(r))
-    for (const r of result?.remove?.results || []) keys.add(removeRowKey(r))
-    return keys
-  }
+  // Row identity + the preview→commit allow-list live at module scope
+  // (groupFixAddRowKey / previewedOkRowKeys / planGroupFixCommit) so the test can
+  // reach them.
 
   router.get('/clubdesk-group-fix', async (req, res) => {
     try {
@@ -5489,9 +5772,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // POST mode=commit as its very first request and write straight to the legal
       // register with nothing reviewed. Mirrors the sync-up's dry-run-then-commit
       // gate (clubdesk-member-up-dispatch.sh).
-      let previewedKeys = null
+      let prev = null
       if (mode === 'commit') {
-        const prev = typeof s?.grp_result === 'string'
+        prev = typeof s?.grp_result === 'string'
           ? (() => { try { return JSON.parse(s.grp_result) } catch { return null } })()
           : s?.grp_result
         if (s?.grp_mode !== 'preview' || !prev) {
@@ -5500,33 +5783,42 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             code: 'preview_required',
           })
         }
-        previewedKeys = previewedRowKeys(prev)
+        // ⚠⚠ "There was a preview" is not "the preview could write anything"
+        // (20.10.2026: a 17/17 skip_filter_failed preview unlocked an 8-minute
+        // commit that skipped the same 17 rows). Refused before the findings are
+        // even recomputed — nothing that follows could change the answer.
+        if (!previewedOkRowKeys(prev).size) {
+          const { error } = planGroupFixCommit(prev)
+          return res.status(409).json(error)
+        }
       }
 
       const checks = await computeGroupChecks()
-      const { add, remove, skipped_no_uuid } = buildGroupFixWorklist(checks, classes)
-      const total = add.length + remove.length
+      const worklist = buildGroupFixWorklist(checks, classes)
+      const { skipped_no_uuid } = worklist
+      let { add, remove } = worklist
+      let heldBack = 0
 
-      // ⚠ A commit may only write rows the operator ACTUALLY SAW. The gate above
-      // asks "was the last run a preview", which is not the same question: the
-      // worklist is recomputed here from the CURRENT request, so ticking another
-      // class after a preview — or a roster edit landing in between — produced a
-      // commit of rows nobody had reviewed, with the confirm dialog still counting
-      // the old preview's rows. Comparing the recomputed worklist against the
-      // preview's own per-row result closes both, and is stricter than comparing
-      // the requested classes would be. A SHRUNK worklist is fine (those rows were
-      // fixed elsewhere); anything NEW means the preview no longer describes this
-      // run, so it has to be run again.
-      if (previewedKeys) {
-        const unseen = [...add.map(addRowKey), ...remove.map(removeRowKey)]
-          .filter((k) => !previewedKeys.has(k))
-        if (unseen.length) {
-          return res.status(409).json({
-            error: `${unseen.length} of these changes were not in the preview — run the preview again`,
-            code: 'preview_stale', unseen: unseen.length,
-          })
-        }
+      // ⚠ A commit may only write rows the operator ACTUALLY SAW — and that the
+      // preview showed it COULD write. The gate above asks "was the last run a
+      // preview", which is not the same question: the worklist is recomputed here
+      // from the CURRENT request, so ticking another class after a preview — or a
+      // roster edit landing in between — produced a commit of rows nobody had
+      // reviewed, with the confirm dialog still counting the old preview's rows.
+      // Comparing the recomputed worklist against the preview's own per-row result
+      // closes both (`preview_stale`), and is stricter than comparing the requested
+      // classes would be. A SHRUNK worklist is fine (those rows were fixed
+      // elsewhere); anything NEW means the preview no longer describes this run.
+      // Since 20.10.2026 the commit is also cut down to the preview's OK rows: a row
+      // the preview skipped is held back, not retried blind (see planGroupFixCommit).
+      if (mode === 'commit') {
+        const plan = planGroupFixCommit(prev, { add, remove })
+        if (plan.error) return res.status(409).json(plan.error)
+        add = plan.add
+        remove = plan.remove
+        heldBack = plan.heldBack
       }
+      const total = add.length + remove.length
       if (!total) {
         return res.status(409).json({ error: 'Nothing to fix', code: 'empty_worklist', skipped_no_uuid })
       }
@@ -5547,7 +5839,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         grp_mode: mode,
         grp_message: null,
         grp_finished_at: null,
-        grp_worklist: JSON.stringify({ add, remove, classes, skipped_no_uuid }),
+        // ⚠ `held_back` travels with the job (20.10.2026): those rows are cut out of
+        // the worklist above, so the dispatcher could never count them, and a commit
+        // of only the preview's writable rows ended "12 of 12 written" in green with
+        // 5 allocations never made. The dispatcher copies it into grp_result.
+        grp_worklist: JSON.stringify({ add, remove, classes, skipped_no_uuid, held_back: heldBack }),
         // Cleared on queue so the UI can never show a previous run's outcome next
         // to a new run's state — and so the commit gate above cannot be satisfied
         // twice by one preview.
@@ -5569,9 +5865,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update',
         collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_group_fix_request', mode, classes, add: add.length, remove: remove.length },
+        data: { kind: 'clubdesk_group_fix_request', mode, classes, add: add.length, remove: remove.length, held_back: heldBack },
       })
-      return res.json({ state: 'queued', mode, counts: { add: add.length, remove: remove.length }, skipped_no_uuid })
+      return res.json({ state: 'queued', mode, counts: { add: add.length, remove: remove.length }, held_back: heldBack, skipped_no_uuid })
     } catch (err) {
       log.error({ msg: `clubdesk-group-fix trigger: ${err.message}`, endpoint: 'clubdesk-group-fix', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

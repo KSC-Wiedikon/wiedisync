@@ -25,7 +25,10 @@
  *                   and the linker reads the pushed Wiedisync ID back to set
  *                   members.clubdesk_id. Until then the member sits at
  *                   "pushed, awaiting link" and is deliberately excluded from the
- *                   create set so it cannot be duplicated.
+ *                   create set so it cannot be duplicated. Since 20.10.2026 the
+ *                   up dispatcher QUEUES this down itself after a committed
+ *                   push, so it runs even if this tab is closed; the step then
+ *                   adopts that run (see runSyncDown) instead of starting one.
  *   5. Fix groups   LAST. The scraper finds a contact by typing the wiedisync
  *                   UUID into ClubDesk's Filtern box, which needs the contact to
  *                   exist AND carry that ID — i.e. after the create was pushed
@@ -72,7 +75,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowDownToLine, ArrowUpFromLine, Check, ListChecks, Loader2, RotateCcw, Wrench } from 'lucide-react'
+import {
+  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Check, ListChecks, Loader2, RotateCcw, Wrench,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { kscwApi } from '../../../lib/api'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -80,7 +85,8 @@ import { detectClubdeskConflicts } from '../utils/clubdeskConflicts'
 import { classifySyncFailure, SYNC_FAILURE_KEY } from '../utils/syncFailure'
 import type { FixClass } from '../utils/clubdeskFindings'
 import {
-  resolveStep, stepAfter, STEPS, type GateCounts, type PathGates, type PathStep,
+  groupBacklogToShow, groupRowsNotWritten, MAX_READBACK_LOOPS, nothingLeft, outstandingWork, resolveStep,
+  stepAfter, STEPS, type GateCounts, type GroupFixOutcome, type PathGates, type PathStep,
 } from '../utils/syncPathSteps'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 import SyncJobProgress, { type JobProgress } from './SyncJobProgress'
@@ -109,6 +115,15 @@ interface SyncStatus {
   phase?: string | null
   progress?: number | null
   log?: string | null
+  /** The group-fix job's state — the third holder of the ClubDesk lock. */
+  grp_state?: string
+  /**
+   * Linked members missing an expected ClubDesk group (20.10.2026) — the rows
+   * "Fix groups" would add, counted server-side with the group check's own
+   * query. null while a job holds the lock or when the count failed; absent
+   * from a backend that predates it. Neither may ever read as zero.
+   */
+  group_missing?: number | null
 }
 
 /** The two states that hold the ClubDesk lock. */
@@ -222,6 +237,27 @@ export default function ClubdeskSyncPath({
    * already loaded). Same number, opposite answers.
    */
   const [pushed, setPushed] = useState(false)
+  /**
+   * How many times this run went back from the read-back down to 'decide'.
+   *
+   * ⚠ A ref, because only `advanceFrom` reads it and it must count the lap it is
+   * deciding on, not one render later. The render reads `readbackCapped` and
+   * `decideAfterPush` instead — a ref read during render is the impure read the
+   * React lint rules reject.
+   */
+  const readbackLoops = useRef(0)
+  /** The loop hit MAX_READBACK_LOOPS and the runner stopped going round. */
+  const [readbackCapped, setReadbackCapped] = useState(false)
+  /** Step 2 was reopened by the read-back — its label says why. */
+  const [decideAfterPush, setDecideAfterPush] = useState(false)
+  /**
+   * Group rows the last commit of this run did NOT write, off the job row's
+   * per-row result; null = no commit this run, or the row cannot tell.
+   *
+   * ⚠⚠ Not `groupsCommitted` alone: a commit that skipped 17 of 17 rows still
+   * finished, and the path painted "Done" over it (20.10.2026).
+   */
+  const [groupsUnwritten, setGroupsUnwritten] = useState<number | null>(null)
   /** Wall-clock start of the step this runner is polling — drives the elapsed read-out. */
   const [startedAt, setStartedAt] = useState<number | null>(null)
   /** Ticks only while a step is in flight — `elapsed` is derived from it below. */
@@ -233,9 +269,13 @@ export default function ClubdeskSyncPath({
    * percentage and log tail (migration 355) so the bar shows the JOB's progress.
    */
   const [lock, setLock] = useState<{
-    down: string; up: string; message: string | null; lastSuccess: string | null
+    down: string; up: string; grp: string; message: string | null; lastSuccess: string | null
     phase: string | null; progress: number | null; log: string | null
-  }>({ down: 'idle', up: 'idle', message: null, lastSuccess: null, phase: null, progress: null, log: null })
+    groupMissing: number | null
+  }>({
+    down: 'idle', up: 'idle', grp: 'idle', message: null, lastSuccess: null,
+    phase: null, progress: null, log: null, groupMissing: null,
+  })
   const alive = useRef(true)
   useEffect(() => () => { alive.current = false }, [])
 
@@ -251,6 +291,8 @@ export default function ClubdeskSyncPath({
       phase: s.phase ?? null,
       progress: s.progress ?? null,
       log: s.log ?? null,
+      grp: s.grp_state || 'idle',
+      groupMissing: typeof s.group_missing === 'number' ? s.group_missing : null,
     }))
   }, [])
 
@@ -303,7 +345,7 @@ export default function ClubdeskSyncPath({
 
   // Poll a job to completion. The server refuses concurrent jobs, so the runner
   // must not offer the next step until this settles.
-  const runSyncDown = useCallback(async (): Promise<boolean> => {
+  const runSyncDown = useCallback(async (which: 'down1' | 'down2' = 'down1'): Promise<boolean> => {
     setRunning(true)
     setDownDone(false)
     setStartedAt(Date.now())
@@ -322,7 +364,13 @@ export default function ClubdeskSyncPath({
         // very job this step wanted. Refusing here would leave the runner parked
         // on step 1 while the thing it asked for completes in the background.
         // Fall through to the same poll loop and follow that run home.
-        if (held === 'down') toast.info(t('dhPathAdoptedRun'))
+        // ⚠ Step 4 adopts as a MATTER OF COURSE since 20.10.2026: the up
+        // dispatcher queues the read-back down itself the moment a push
+        // commits (so it happens even when this tab is closed), and by the time
+        // the path asks for step 4 that down is usually already queued. Same
+        // poll, same outcome — but "a sync down was already running" read as if
+        // someone else had got in the way, so step 4 says what it actually is.
+        if (held === 'down') toast.info(t(which === 'down2' ? 'dhPathReadbackAdopted' : 'dhPathAdoptedRun'))
         // ⚠ Anything else is a real failure and must carry the server's own
         // sentence, never `API /clubdesk-member-sync: 409`.
         else { toast.error(apiMessage(e)); return false }
@@ -380,7 +428,7 @@ export default function ClubdeskSyncPath({
    * carries on; the next down re-detects.
    */
   const runDownStep = useCallback(async (which: 'down1' | 'down2') => {
-    const ok = await runSyncDown()
+    const ok = await runSyncDown(which)
     if (!ok) return
     try {
       const r = await detectClubdeskConflicts()
@@ -435,11 +483,71 @@ export default function ClubdeskSyncPath({
     // decision, not one render later, or step 4 reads as unearned and is skipped.
     const justPushed = pushed || from === 'up'
     if (from === 'up') setPushed(true)
-    const nx = stepAfter(from, { ...gates, ...fresh, pushed: justPushed })
+    const g: PathGates = { ...gates, ...fresh, pushed: justPushed }
+    let nx = stepAfter(from, g)
+    // The read-back down staged new decisions, so the path goes round again:
+    // decide → (push, if a refusal queued one) → read-back → groups.
+    if (from === 'down2' && nx === 'decide') {
+      if (readbackLoops.current >= MAX_READBACK_LOOPS) {
+        // Stop instead of a fourth lap — something is editing one side while the
+        // path runs, and going round again will not out-run it. The open
+        // decisions stay on the "Done" card with their own button.
+        setReadbackCapped(true)
+        nx = resolveStep('groups', g)
+      } else {
+        readbackLoops.current += 1
+        // ⚠ The push this read-back answered for is now read back. Left true, a
+        // decide that only ACCEPTS would still earn a second scrape of an export
+        // that has not changed; a refusal re-earns it through step 3.
+        setPushed(false)
+        setDecideAfterPush(true)
+      }
+    }
     setStep(nx)
     if (nx === 'done') { setOpenStep(null); return }
     openAt(nx)
   }, [gates, openAt, pushed])
+
+  /**
+   * Re-read what the last group-fix commit actually wrote.
+   *
+   * ⚠ Read off GET /clubdesk-group-fix rather than handed over by the dialog:
+   * the dialog's own "committed" signal is about the job finishing, and this
+   * card has to say how many rows did NOT go through. Best-effort — a failed
+   * read leaves the count unknown (null), which lists nothing rather than zero.
+   */
+  const loadGroupOutcome = useCallback(async () => {
+    try {
+      const s = await kscwApi<GroupFixOutcome>('/clubdesk-group-fix')
+      if (alive.current) setGroupsUnwritten(groupRowsNotWritten(s))
+    } catch {
+      if (alive.current) setGroupsUnwritten(null)
+    }
+  }, [])
+
+  /**
+   * Open one step straight from the "Done" card, without "Run again".
+   *
+   * ⚠ "Run again" starts from a fresh sync down — two minutes of scraping a
+   * register that step 1 or 4 loaded minutes ago — and that cost is what turned
+   * 7 open decisions into a second full run on 20.10.2026. The step's own body
+   * carries its own checks (the push previews before it commits, the group fix
+   * previews before it writes), so opening it directly skips nothing.
+   */
+  const reopen = useCallback((s: 'decide' | 'up' | 'groups') => {
+    // The operator chose to go round again — not the loop the cap guards.
+    readbackLoops.current = 0
+    setReadbackCapped(false)
+    // ⚠ Any push of this run has already been read back by the time the Done card
+    // shows (a push always earns step 4 before 'done'). Left true, a reopened
+    // decide that only ACCEPTS resolved up → down2 and started another ~2-minute
+    // ClubDesk scrape that could find nothing new — the same reason the read-back
+    // loop in advanceFrom resets it. A refusal re-earns step 4 through step 3.
+    setPushed(false)
+    if (s === 'groups') { setGroupsCommitted(false); setGroupsUnwritten(null) }
+    setStep(s)
+    openAt(s)
+  }, [openAt])
 
   /**
    * ⚠ A ref, and only for `runDownStep` → `advanceFrom`. The two call each other
@@ -455,7 +563,11 @@ export default function ClubdeskSyncPath({
 
   const label = useMemo(() => ({
     down1: t('dhPathStep1'),
-    decide: t('dhPathStep2', { count: pendingProposals }),
+    // Says why step 2 reopened after the push — without it a path that walks
+    // backwards reads as a path that broke.
+    decide: decideAfterPush
+      ? t('dhPathStep2AfterPush', { count: pendingProposals })
+      : t('dhPathStep2', { count: pendingProposals }),
     up: pendingPush === 0 ? t('dhPathStep3Empty') : t('dhPathStep3'),
     // ⚠ Says WHY it is being stepped over rather than quietly ticking green: the
     // read-back down is mandatory after a push and pointless without one, and a
@@ -464,7 +576,7 @@ export default function ClubdeskSyncPath({
     down2: pendingPush === 0 && !pushed ? t('dhPathStep4Empty') : t('dhPathStep4'),
     groups: fixableCount === 0 ? t('dhPathStep5Empty') : t('dhPathStep5', { count: fixableCount }),
     done: t('dhPathDone'),
-  }), [t, pendingProposals, fixableCount, pendingPush, pushed])
+  }), [t, pendingProposals, fixableCount, pendingPush, pushed, decideAfterPush])
 
   /** The step's one-line "what this does", shown under its title in the dialog. */
   const stepHint: Record<PathStep, string> = useMemo(() => ({
@@ -480,6 +592,50 @@ export default function ClubdeskSyncPath({
   // every step as still-pending at the exact moment they are all complete.
   const stepIndex = current === 'done' ? STEPS.length : STEPS.indexOf(current)
   const blocked = current === 'decide' && pendingProposals > 0
+
+  /**
+   * What is still open — the "Done" card's lines, and what keeps a finished
+   * step's tick from turning green.
+   *
+   * ⚠ Only counts that come back LIVE: pendingProposals from the server on every
+   * refresh (not only while the decide dialog is mounted), pendingPush off the
+   * push's own predicate, and the group rows off the last commit's result.
+   * ⓘ The push count includes members the push holds back on purpose (a
+   * would-duplicate create); the step's own preview names them, which is why the
+   * line points there rather than calling them errors.
+   */
+  const openWork = outstandingWork(
+    { pendingProposals, pendingPush }, groupsCommitted ? groupsUnwritten : null)
+  const allClear = nothingLeft(openWork)
+  // A commit landed but its rows could not be read back (yet, or at all): not
+  // claimed as clear, not listed as open either — the plain "Done" it used to say.
+  const groupsUnknown = groupsCommitted && groupsUnwritten === null
+  // ⚠ A sync that FAILED since (the up dispatcher queues its own read-back down
+  // after every committed push, registration auto-sync included) is not "nothing
+  // left": the card stays neutral and shows the failure line below the summary,
+  // never a green "Done" over it.
+  const plainDone = allClear && (groupsUnknown || !!lock.message)
+  const lastSyncSuffix = lock.lastSuccess
+    ? ` · ${t('clubdeskLastSync', { time: formatDateTimeCompact(lock.lastSuccess) })}`
+    : ''
+  // The lock's own line — another job holding it, or the last sync failing. Shown
+  // in BOTH branches of the card: dropping it from the Done card hid a background
+  // read-back that failed while the page sat at "Done — nothing left to do".
+  const lockLine = upHolding ? (
+    <span className="text-amber-700 dark:text-amber-300">{t('clubdeskSyncBlockedByUp')}</span>
+  ) : lock.message ? (
+    // Explanation AND the raw line: a classifier that swallowed the
+    // original would be a prettier version of the problem it exists to fix.
+    <span className="text-red-600 dark:text-red-400">
+      {t(SYNC_FAILURE_KEY[classifySyncFailure(lock.message)])}
+      <span className="ml-1 break-words text-[11px] text-muted-foreground" title={lock.message}>
+        {lock.message}
+      </span>
+    </span>
+  ) : null
+  const stepOpenCount: Partial<Record<PathStep, number>> = {
+    decide: openWork.decisions, up: openWork.push, groups: openWork.groups,
+  }
 
   // Path progress — where you are in the FIVE STEPS. Deliberately not the same
   // number as the running job's own percentage: when a job is running the card
@@ -521,6 +677,26 @@ export default function ClubdeskSyncPath({
 
   const isDownStep = openStep === 'down1' || openStep === 'down2'
 
+  /**
+   * The group backlog, shown while the path is idle (20.10.2026).
+   *
+   * Registrations that auto-sync to ClubDesk are created and linked with NO
+   * group, and between 02.10 and 20.10.2026 that backlog reached 16 adds while
+   * every Fix groups run skipped all of them — visible only inside step 5, which
+   * nobody reaches without a reason to sync. Saying it on the card IS the reason.
+   *
+   * ⚠ Idle only: while a job runs the card shows that job, and the count is not
+   * sent then anyway (the snapshot it reads is about to change). Hidden after a
+   * group commit in this session, because the count reads the register as of the
+   * last sync down and still holds what the commit just wrote — the Done card
+   * reads the commit's own rows (`groupRowsNotWritten`) instead.
+   */
+  const groupBacklog = groupBacklogToShow({
+    idle: !running && !foreignDown && !upHolding && !isBusy(lock.grp) && openStep === null,
+    groupsCommitted,
+    groupMissing: lock.groupMissing,
+  })
+
   return (
     <div className="rounded-2xl border border-hairline bg-card shadow-card px-4 py-3">
       <div className="flex flex-wrap items-start gap-3">
@@ -534,6 +710,8 @@ export default function ClubdeskSyncPath({
             onClick={() => {
               setStep('down1'); setActive(false); setDownDone(false)
               setGroupsCommitted(false); setPushed(false)
+              readbackLoops.current = 0
+              setReadbackCapped(false); setDecideAfterPush(false); setGroupsUnwritten(null)
             }}
             className="gap-1.5"
           >
@@ -544,7 +722,11 @@ export default function ClubdeskSyncPath({
           <Button
             type="button" size="sm"
             variant={active ? 'default' : 'outline'}
-            disabled={running || blocked || lockHeld}
+            // ⚠ NOT disabled while `blocked` (20.10.2026): the decisions live in
+            // the step dialog this button opens, so a disabled "Your turn" left
+            // no way back to them once that dialog was closed — and the
+            // read-back loop now lands on decide far more often.
+            disabled={running || lockHeld}
             aria-busy={running}
             onClick={() => openAt(current)}
             className="gap-1.5"
@@ -566,6 +748,10 @@ export default function ClubdeskSyncPath({
           const Icon = ICON[s]
           const done = i < stepIndex
           const isCurrent = i === stepIndex
+          // ⚠ Passed is not the same as clear: a decide step behind the marker
+          // with proposals still open is not green (20.10.2026 — the tick stayed
+          // green over 7 new decisions the read-back had just staged).
+          const passedOpen = done && (stepOpenCount[s] ?? 0) > 0
           return (
             <li
               key={s}
@@ -573,14 +759,18 @@ export default function ClubdeskSyncPath({
               className={`flex min-h-11 items-center gap-1.5 text-xs sm:min-h-0 ${
                 isCurrent
                   ? 'font-medium text-foreground'
-                  : done
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-muted-foreground/80'
+                  : passedOpen
+                    ? 'text-amber-700 dark:text-amber-300'
+                    : done
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-muted-foreground/80'
               }`}
             >
-              {done
-                ? <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                : <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+              {passedOpen
+                ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                : done
+                  ? <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  : <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
               <span>{label[s]}</span>
               {isCurrent && blocked && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
@@ -610,35 +800,98 @@ export default function ClubdeskSyncPath({
             >
               <div
                 className={`h-full rounded-full transition-[width] duration-500 ${
-                  current === 'done' ? 'bg-green-500' : 'bg-stone-400 dark:bg-gray-500'
+                  current !== 'done' || plainDone
+                    ? 'bg-stone-400 dark:bg-gray-500'
+                    : allClear ? 'bg-green-500' : 'bg-amber-500'
                 }`}
                 style={{ width: `${pathPct}%` }}
               />
             </div>
-            <p className="mt-1.5 text-xs" aria-live="polite">
-              {/* ⚠ First, because it is the one state that looks like a failure and
-                  is not: ClubDesk has been written, and the group findings keep
-                  showing the old allocations until a sync down re-reads them. */}
-              {groupsCommitted && fixableCount > 0 ? (
-                <span className="text-muted-foreground">{t('dhPathGroupsWritten')}</span>
-              ) : upHolding ? (
-                <span className="text-amber-700 dark:text-amber-300">{t('clubdeskSyncBlockedByUp')}</span>
-              ) : lock.message ? (
-                // Explanation AND the raw line: a classifier that swallowed the
-                // original would be a prettier version of the problem it exists to fix.
-                <span className="text-red-600 dark:text-red-400">
-                  {t(SYNC_FAILURE_KEY[classifySyncFailure(lock.message)])}
-                  <span className="ml-1 break-words text-[11px] text-muted-foreground" title={lock.message}>
-                    {lock.message}
+            {readbackCapped && (
+              <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+                {t('dhPathReadbackCapped', { count: MAX_READBACK_LOOPS })}
+              </p>
+            )}
+            {/* ⚠⚠ The end of the path is a SUMMARY, not a word. A bare green
+                "Done" stood over 7 open decisions and a group fix that wrote 0 of
+                17 rows on 20.10.2026, and the only way back to either was "Run
+                again" — a fresh ClubDesk scrape first. Green only when nothing is
+                left; otherwise each open item opens its own step. */}
+            {current === 'done' ? (
+              <div className="mt-1.5 text-xs" aria-live="polite">
+                {plainDone ? (
+                  <p className="text-muted-foreground">{t('dhPathDone')}{lastSyncSuffix}</p>
+                ) : allClear ? (
+                  <p className="text-green-700 dark:text-green-400">
+                    {t('dhPathDoneClear')}
+                    <span className="text-muted-foreground">{lastSyncSuffix}</span>
+                  </p>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/40">
+                    <p className="font-medium text-amber-900 dark:text-amber-200">{t('dhPathDoneOpen')}</p>
+                    <ul className="mt-1.5 flex flex-col gap-2">
+                      {openWork.decisions > 0 && (
+                        <li className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                          <span className="min-w-0 flex-1 text-amber-900 dark:text-amber-200">
+                            {t('dhPathOpenDecisions', { count: openWork.decisions })}
+                          </span>
+                          <Button
+                            type="button" size="sm" variant="outline" className="shrink-0 self-start gap-1.5 sm:self-auto"
+                            disabled={running} onClick={() => reopen('decide')}
+                          >
+                            <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+                            {t('dhPathOpenDecide')}
+                          </Button>
+                        </li>
+                      )}
+                      {openWork.push > 0 && (
+                        <li className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                          <span className="min-w-0 flex-1 text-amber-900 dark:text-amber-200">
+                            {t('dhPathOpenPush', { count: openWork.push })}
+                          </span>
+                          <Button
+                            type="button" size="sm" variant="outline" className="shrink-0 self-start gap-1.5 sm:self-auto"
+                            disabled={running} onClick={() => reopen('up')}
+                          >
+                            <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
+                            {t('dhPathOpenUp')}
+                          </Button>
+                        </li>
+                      )}
+                      {openWork.groups > 0 && (
+                        <li className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                          <span className="min-w-0 flex-1 text-amber-900 dark:text-amber-200">
+                            {t('dhPathOpenGroups', { count: openWork.groups })}
+                          </span>
+                          <Button
+                            type="button" size="sm" variant="outline" className="shrink-0 self-start gap-1.5 sm:self-auto"
+                            disabled={running} onClick={() => reopen('groups')}
+                          >
+                            <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+                            {t('dhPathOpenGroupsAction')}
+                          </Button>
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+                {lockLine && <p className="mt-1.5">{lockLine}</p>}
+              </div>
+            ) : (
+              <p className="mt-1.5 text-xs" aria-live="polite">
+                {lockLine ?? (
+                  <span className="text-muted-foreground">
+                    {progressText}
+                    {lastSyncSuffix}
                   </span>
-                </span>
-              ) : (
-                <span className="text-muted-foreground">
-                  {progressText}
-                  {lock.lastSuccess ? ` · ${t('clubdeskLastSync', { time: formatDateTimeCompact(lock.lastSuccess) })}` : ''}
-                </span>
-              )}
-            </p>
+                )}
+              </p>
+            )}
+            {groupBacklog > 0 && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                {t('dhPathGroupBacklog', { count: groupBacklog })}
+              </p>
+            )}
           </>
         )}
       </div>
@@ -750,7 +1003,9 @@ export default function ClubdeskSyncPath({
         title={label.groups}
         description={stepHint.groups}
         available={fixAvailable}
-        onCommitted={() => setGroupsCommitted(true)}
+        // The commit landed — and how many of its rows did NOT go through is
+        // read straight back, so the "Done" card cannot round 0-of-17 up to done.
+        onCommitted={() => { setGroupsCommitted(true); void loadGroupOutcome() }}
         onDone={onDone}
       />
     </div>

@@ -1368,4 +1368,8 @@ export default {
   auditLastPage: 'Letschti Siite',
   previousPage: 'Vorherigi Siite',
   nextPage: 'Nächschti Siite',
+  // ClubDesk sync path (20.10.2026) — the rest of the path falls back to English.
+  dhPathReadbackAdopted: 'De Push hät sin Sync-down zum Zruggläse scho iigreiht — dä Schritt folgt ihm.',
+  dhPathGroupBacklog_one: 'Bi 1 Kontakt fehlt d ClubDesk-Gruppe — mach de Ablauf bis «Gruppe korrigiere» dure.',
+  dhPathGroupBacklog_other: 'Bi {{count}} Kontäkt fehlt d ClubDesk-Gruppe — mach de Ablauf bis «Gruppe korrigiere» dure.',
 } as const

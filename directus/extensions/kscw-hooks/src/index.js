@@ -46,7 +46,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
-import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers, flagClubdeskFillOnlyGaps } from '../../kscw-endpoints/src/clubdesk-update.js'
+import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers, flagClubdeskFillOnlyGaps, flagClubdeskPush, contactValueChanged, CD_PUSH_FLAG_FIELDS, CD_PUSH_FLAG_CONTACT_FIELDS } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
@@ -1038,6 +1038,41 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (pendingNationalityPush.size > 500) pendingNationalityPush.clear()
   })
 
+  // ── Contact cells → ClubDesk push, at edit time (2026-10-20) ──────────────
+  // email / phone / address / PLZ / city / birthdate ride every UPDATE row with
+  // wiedisync's own value, but until now only the member's own profile save
+  // (POST /clubdesk-update) flagged them. An admin edit through the Data
+  // Explorer or the member editor set the column and queued nothing, so the
+  // next sync-down found ClubDesk's old cell and staged a direction-less
+  // conflict instead of a push. The flag loop in the action below now names
+  // them too — but ONLY when the value really changed: ProfileEditForm re-sends
+  // the whole address block on every save, and flagging that would mark half
+  // the club push-pending for nothing. Same filter/action split as the
+  // nationality pair above: only the filter sees the old value.
+  const pendingContactBefore = new Map()
+
+  filter('members.items.update', async (payload, meta, context) => {
+    if (!payload || !CD_PUSH_FLAG_CONTACT_FIELDS.some((f) => f in payload)) return payload
+    const keys = Array.isArray(meta?.keys) ? meta.keys : []
+    if (keys.length === 0) return payload
+    const sent = CD_PUSH_FLAG_CONTACT_FIELDS.filter((f) => f in payload)
+    try {
+      // context.database, never the global pool — see the filter-hook deadlock note.
+      const db = context?.database ?? database
+      const rows = await db('members').whereIn('id', keys).select('id', 'clubdesk_id', ...sent)
+      for (const r of rows) {
+        if (!r.clubdesk_id) continue // unlinked: the values ride the CREATE push
+        const before = {}
+        for (const f of sent) before[f] = r[f]
+        pendingContactBefore.set(String(r.id), before)
+      }
+    } catch (err) {
+      // Never block the member's edit over a push flag.
+      logWarning('clubdesk_contact_flag', err.message, { stage: 'capture', stack: err.stack })
+    }
+    return payload
+  })
+
   // Sync when members.role array changes
   action('members.items.update', async ({ keys, payload }) => {
     if (payload && 'role' in payload) {
@@ -1116,30 +1151,28 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // cells are fill-only (the register's own value wins), so the entry only
     // queues the push. Raw-SQL writers (VM / Basketplan syncs) bypass this
     // hook — flagClubdeskFillOnlyGaps sweeps those daily.
-    for (const field of ['iban', 'ahv_number', 'register_status', 'joined_on', 'left_on', 'fee_category',
-      'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
-      'license_nr', 'licence_category', 'club_section', 'licence_ordered_at', 'cantonal_school']) {
-      if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
-      for (const id of keys) {
-        try {
-          const m = await database('members').where('id', id).select('clubdesk_id', 'clubdesk_push_changes').first()
-          if (!m?.clubdesk_id) continue
-          let changes = []
-          try {
-            changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes
-              : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : [])
-          } catch { changes = [] }
-          changes = changes.filter((c) => c?.field !== field)
-          changes.push({ field, old_value: null, new_value: String(payload[field]).trim() })
-          await database('members').where('id', id).update({
-            clubdesk_push_pending: true,
-            clubdesk_push_changes: JSON.stringify(changes),
-          })
-        } catch (err) {
-          logWarning('clubdesk_contact_flag', err.message, { memberId: id, field, stack: err.stack })
-        }
+    // The contact cells (CD_PUSH_FLAG_CONTACT_FIELDS) joined on 2026-10-20, but
+    // only when the filter above saw the value actually change. The loop body
+    // lives in kscw-endpoints (flagClubdeskPush) since the same day, so raw-SQL
+    // writers and admin scripts can flag through the exact same rules.
+    const registerFlagFields = payload
+      ? CD_PUSH_FLAG_FIELDS.filter((f) => !CD_PUSH_FLAG_CONTACT_FIELDS.includes(f) && f in payload)
+      : []
+    for (const id of (payload ? keys : [])) {
+      const before = pendingContactBefore.get(String(id))
+      pendingContactBefore.delete(String(id))
+      const contactFlagFields = before
+        ? CD_PUSH_FLAG_CONTACT_FIELDS.filter((f) => f in before && f in payload && contactValueChanged(f, before[f], payload[f]))
+        : []
+      const fields = [...registerFlagFields, ...contactFlagFields]
+      if (!fields.length) continue
+      try {
+        await flagClubdeskPush(database, [id], fields, { values: payload, before, source: 'members.items.update' })
+      } catch (err) {
+        logWarning('clubdesk_contact_flag', err.message, { memberId: id, fields, stack: err.stack })
       }
     }
+    if (pendingContactBefore.size > 500) pendingContactBefore.clear()
     // Auto-confirm opt-in flipped on (migration 077) → backfill existing
     // upcoming activities of that type. Idempotent (NOT EXISTS), so a no-op
     // when the flag was already on or nothing is outstanding.

@@ -26,36 +26,35 @@
 // has to click again with the per-row outcome in front of them. The 2026-07-16
 // incident — 29 DU20 girls stripped out of ClubDesk by a bad departure test — is
 // why nothing here is one-click.
+//
+// ⚠⚠ JUDGED BY ROWS WRITTEN, NOT BY THE RUN FINISHING (20.10.2026). A run whose
+// every row was skipped used to read as a success at every layer: the dispatcher
+// stored it as done, this dialog offered the commit, and after the commit it said
+// "Done … Nothing else to do here." in green. The dispatcher now stores a run with
+// no OK row as 'failed' (keeping its per-row result), the server refuses a commit
+// on such a preview and commits only the preview's OK rows, and this dialog reads
+// the outcome through summarizeGroupFixResult (utils/groupFixOutcome.ts).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, Check, Loader2, Wrench, X } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, Wrench, X, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { kscwApi } from '../../../lib/api'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { FIX_CLASSES, type FixClass } from '../utils/clubdeskFindings'
+import {
+  isOkStatus, statusReasonKey, summarizeGroupFixResult, NOT_ATTEMPTED, type GroupFixResult,
+} from '../utils/groupFixOutcome'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 
 type JobState = 'idle' | 'queued' | 'running' | 'done' | 'failed'
 const BUSY: JobState[] = ['queued', 'running']
+/** A run that ended — a 'failed' one still carries its per-row result now. */
+const FINISHED: JobState[] = ['done', 'failed']
 
-interface ScrapeRow {
-  name?: string
-  group?: string
-  funktion?: string
-  group_label?: string
-  status?: string
-  detail?: string
-}
-interface ScrapeSummary {
-  mode?: string
-  count?: number
-  tally?: Record<string, number>
-  results?: ScrapeRow[]
-}
 interface FixStatus {
   state: JobState
   message: string | null
@@ -63,7 +62,7 @@ interface FixStatus {
   finished_at: string | null
   requested_by: string | null
   counts: { add: number; remove: number } | null
-  result: { mode?: string; add: ScrapeSummary | null; remove: ScrapeSummary | null } | null
+  result: GroupFixResult | null
   down_state: JobState
   up_state: JobState
   /** Live progress of the group fix itself (migration 355) — advisory, may be null. */
@@ -71,9 +70,6 @@ interface FixStatus {
   progress?: number | null
   log?: string | null
 }
-
-/** Statuses the scrapers report for a row that did NOT do what was asked. */
-const OK_STATUSES = new Set(['assigned', 'previewed', 'removed', 'preview_ok'])
 
 interface Props {
   /** Findings counts per class, so the dialog can say what it is about to touch. */
@@ -92,6 +88,11 @@ interface Props {
    * the register still shows the old groups — so a step gated on "no findings left"
    * stays open forever after a run that did exactly what was asked (08.09.2026:
    * 7 assigned, 2 removed, zero skips, and the path still read "5. Fix groups (9)").
+   * (The dispatcher's mirror patch now updates that copy for the rows it wrote, so
+   * what stays listed afterwards is what was NOT written.)
+   *
+   * ⚠ Fired only for a commit that wrote at least one row (20.10.2026). A commit
+   * that skipped all 17 rows used to fire it too, and the path then read "Done".
    */
   onCommitted?: () => void
   /** Open state — owned by the sync path, which is the only thing that opens it. */
@@ -156,12 +157,18 @@ export default function ClubdeskFixGroups({
       // Refresh the page's findings when a COMMIT lands: the rows it fixed should
       // disappear. A preview changes nothing, so it must not trigger a rescan.
       if (!primed.current) { primed.current = true; lastFinished.current = s.finished_at; return }
-      if (s.state === 'done' && s.finished_at && s.finished_at !== lastFinished.current) {
+      // ⚠ 'failed' counts as finished too. A run with no OK row is stored as failed
+      // WITH its per-row result (20.10.2026), and the table of why is the whole
+      // point; watching only 'done' left a failed run looking like an earlier one's.
+      if (FINISHED.includes(s.state) && s.finished_at && s.finished_at !== lastFinished.current) {
         lastFinished.current = s.finished_at
         // Every finish this dialog witnessed, preview or commit — that is what
         // makes the panels below this run's rather than some earlier one's.
         setSessionRunAt(s.finished_at)
         if (s.mode !== 'commit') return
+        // ⚠ Only a commit that WROTE something closes step 5 and rescans. One that
+        // skipped every row changed nothing in ClubDesk or in our mirror of it.
+        if (summarizeGroupFixResult(s.result).ok === 0) return
         onCommitted?.()
         void onDone?.()
       }
@@ -186,21 +193,39 @@ export default function ClubdeskFixGroups({
   )
   /** Did THIS dialog watch the run whose result is on the row right now? */
   const ownRun = !!status?.finished_at && status.finished_at === sessionRunAt
+  /** A run this dialog watched end, with a per-row result to show. */
+  const finishedOwn = FINISHED.includes(status?.state as JobState) && ownRun && !!status?.result
+  // What the run on the row actually did — rows, not "it finished".
+  const outcome = summarizeGroupFixResult(status?.result)
+  const resultRows = outcome.rows
+  const failedRows = resultRows.filter((r) => !isOkStatus(r.status))
+  // Skipped + never reached + held back from the commit by the server — the same
+  // number the sync path's Done card reads (groupRowsNotWritten), by construction.
+  const notWritten = outcome.notWritten
+  /** A preview we watched that found NOTHING writable — the 20.10.2026 run. */
+  const previewNothingWritable = finishedOwn && status?.mode === 'preview' && outcome.ok === 0
   // A commit is only offered once a preview of the *current* job succeeded — the
-  // server enforces this too ('preview_required', and row-by-row 'preview_stale');
-  // this just makes it visible. ⚠ `ownRun` is part of that: a preview from an
-  // earlier session enabled the commit button off results the operator had not
-  // watched being produced, and the server would then refuse the write as stale —
-  // a button that is offered and then bounces is worse than one that is not there.
+  // server enforces this too ('preview_required', 'preview_nothing_writable', and
+  // row-by-row 'preview_stale'); this just makes it visible. ⚠ `ownRun` is part of
+  // that: a preview from an earlier session enabled the commit button off results
+  // the operator had not watched being produced, and the server would then refuse
+  // the write as stale — a button that is offered and then bounces is worse than
+  // one that is not there. ⚠⚠ And the preview must have found at least one row it
+  // COULD write: on 20.10.2026 a 17/17 skip_filter_failed preview offered the
+  // commit, which ran for eight minutes and skipped the same 17 rows.
   const canCommit = status?.state === 'done' && status.mode === 'preview' && !!status.result
-    && ownRun && !selectionChanged
+    && ownRun && !selectionChanged && outcome.ok > 0
+  /** A commit this dialog watched end, whatever it managed to write. */
+  const commitFinished = finishedOwn && status?.mode === 'commit'
   // ⚠ A finished commit had NO terminal state: the result table rendered, the
   // commit button greyed out (canCommit needs a FRESH preview), and the footer
   // still offered only "Run preview" / "Commit to ClubDesk" — so the operator
   // was left asking "why doesn't it say complete, what do I click?" (2026-08-30)
-  // with the work already done. A commit that succeeded says so and offers the
-  // way out.
-  const committed = status?.state === 'done' && status.mode === 'commit' && ownRun
+  // with the work already done. A commit that wrote something says so and offers
+  // the way out. ⚠ One that wrote NOTHING is not "done" (20.10.2026): it stays on
+  // the preview stage, under a red notice, so the next thing on offer is another
+  // preview once the cause is fixed — not a Close button over a green banner.
+  const committed = commitFinished && outcome.ok > 0
 
   // ⚠ THE DIALOG HAS THREE STAGES, and used to render as one flat panel that never
   // moved: after a preview succeeded it still read "Preview first, then commit",
@@ -222,27 +247,23 @@ export default function ClubdeskFixGroups({
     })
   }
 
-  // Flatten both scrapers' per-row results into one reviewable table. `kind` keeps
-  // an add and a removal of the same group on the same member distinguishable.
-  const resultRows: (ScrapeRow & { kind: 'add' | 'remove' })[] = [
-    ...(status?.result?.remove?.results || []).map((r) => ({ ...r, kind: 'remove' as const })),
-    ...(status?.result?.add?.results || []).map((r) => ({ ...r, kind: 'add' as const })),
-  ]
-  const failedRows = resultRows.filter((r) => !OK_STATUSES.has(r.status || ''))
-  const okRows = resultRows.filter((r) => OK_STATUSES.has(r.status || ''))
+  /** One line of explanation for a status, or none for one we do not know. */
+  const reason = (s: string) => {
+    const key = statusReasonKey(s)
+    return key ? t(key) : ''
+  }
 
   async function run(mode: 'preview' | 'commit') {
     if (mode === 'commit') {
-      // ⚠ `counts` is null on a FINISHED job: the host dispatcher nulls
-      // grp_worklist on write-back (it carries names + uuids), so the column the
-      // endpoint counts is gone by the time a commit is offered — which made this
-      // dialog say "0 changes" over a table of 6. Fall back to the previewed rows,
-      // which are what the operator is actually approving. Either way the number
-      // is an ESTIMATE: the server recomputes the worklist from the current
-      // findings at queue time and never trusts a client-supplied one.
-      const n = status?.counts
-        ? status.counts.add + status.counts.remove
-        : resultRows.length
+      // ⚠ Counted from the preview's OK rows, because that is exactly what the
+      // server will write: it cuts the commit down to the rows the preview could
+      // write and holds back the ones it skipped (20.10.2026). This used to fall
+      // back to EVERY previewed row — skips included — so the dialog asked "Write 17
+      // group changes?" over a preview that could write none. (`counts` is no help
+      // here: the dispatcher nulls grp_worklist on write-back, it carries names +
+      // uuids.) Still an upper bound: the server recomputes the worklist from the
+      // current findings at queue time and never trusts a client-supplied one.
+      const n = outcome.ok
       const ok = await confirm({
         message: t('cdFixConfirmCommit', { count: n }),
         danger: true,
@@ -265,6 +286,7 @@ export default function ClubdeskFixGroups({
       else if (code === 'cap_exceeded') toast.error(body?.error || t('cdFixCapExceeded'))
       else if (code === 'preview_required') toast.warning(t('cdFixPreviewRequired'))
       else if (code === 'preview_stale') toast.warning(t('cdFixPreviewStale'))
+      else if (code === 'preview_nothing_writable') toast.warning(t('cdFixPreviewNothingWritable'))
       else if (code === 'down_in_progress' || code === 'up_in_progress') toast.info(t('cdFixBlockedBySync'))
       else if (code === 'grp_in_progress') toast.info(t('cdFixAlreadyRunning'))
       else toast.error(body?.error || (e as Error)?.message || t('cdFixFailed'))
@@ -358,68 +380,117 @@ export default function ClubdeskFixGroups({
             </p>
           )}
 
-          {committed && (
+          {/* ⚠⚠ THE OUTCOME, IN ONE OF THREE COLOURS (20.10.2026). Green only when
+              every row was written. It used to be green for ANY finished commit —
+              "Done — 0 group allocations written to ClubDesk. Nothing else to do
+              here." over 17 skipped rows — next to a line telling the operator the
+              page would catch up at the next sync down, so they synced down and ran
+              everything again. That line is gone: the dispatcher's mirror patch
+              updates wiedisync's copy of the groups for every row it wrote, so
+              what is still listed afterwards really was not written. */}
+          {committed && notWritten === 0 && (
             <p className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
               <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>
-                {t('cdFixCommitted', { count: okRows.length })}
-                {/* ⚠ Said out loud, because the page appears not to have changed: the
-                    findings are computed from the last sync DOWN and a commit writes
-                    to ClubDesk, so wiedisync's copy of the groups is one sync behind
-                    until the next one. */}
-                <span className="mt-1 block text-xs opacity-90">{t('cdFixCommittedStale')}</span>
-              </span>
+              <span>{t('cdFixCommitted', { count: outcome.ok })}</span>
             </p>
+          )}
+          {committed && notWritten > 0 && (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{t('cdFixCommittedPartial', { written: outcome.ok, notWritten })}</span>
+            </p>
+          )}
+          {/* Nothing written / nothing writable: red, the cause in words, and no
+              commit button (canCommit needs an OK row). */}
+          {(previewNothingWritable || (commitFinished && outcome.ok === 0)) && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium">
+                  {previewNothingWritable ? t('cdFixPreviewNothingWritable') : t('cdFixCommitNothingWritten')}
+                </p>
+                {outcome.dominant && (
+                  <p className="text-xs">
+                    {t(outcome.dominant === 'skip_filter_failed' || outcome.dominant === NOT_ATTEMPTED
+                      ? `cdFixCause_${outcome.dominant}`
+                      : 'cdFixCause_other', { status: outcome.dominant })}
+                  </p>
+                )}
+                {/* The tool's own words, unparaphrased — same reasoning as the sync
+                    path's raw failure line. */}
+                {outcome.fatal && (
+                  <p className="break-words text-[11px] opacity-80">{outcome.fatal}</p>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Per-row outcome — this IS what the operator approves before committing. */}
-          {status?.state === 'done' && ownRun && resultRows.length > 0 && (
+          {finishedOwn && (resultRows.length > 0 || outcome.notWritten > 0) && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
-                {status.mode === 'commit' ? t('cdFixResultCommit') : t('cdFixResultPreview')}
+                {status?.mode === 'commit' ? t('cdFixResultCommit') : t('cdFixResultPreview')}
                 {failedRows.length > 0 && (
                   <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                     {t('cdFixSkippedCount', { count: failedRows.length })}
                   </span>
                 )}
               </p>
-              <div className="max-h-72 overflow-y-auto rounded-xl border border-hairline">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>{t('cdFixColAction')}</TableHead>
-                      <TableHead>{t('clubdeskGroupColName')}</TableHead>
-                      <TableHead>{t('clubdeskColGroup')}</TableHead>
-                      <TableHead>{t('cdFixColOutcome')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {resultRows.map((r, i) => {
-                      const ok = OK_STATUSES.has(r.status || '')
-                      return (
-                        <TableRow key={`${r.kind}-${r.name}-${r.group || r.group_label}-${i}`} className="min-h-11">
-                          <TableCell className="whitespace-nowrap">
-                            {r.kind === 'add' ? t('cdFixActionAdd') : t('cdFixActionRemove')}
-                          </TableCell>
-                          <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
-                          <TableCell className="whitespace-normal break-words">
-                            {r.group_label || [r.group, r.funktion].filter(Boolean).join(' · ')}
-                          </TableCell>
-                          <TableCell className="whitespace-normal break-words">
-                            <span className={`inline-flex items-center gap-1 text-xs ${ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}`}>
-                              {ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                              {r.status}
-                            </span>
-                            {r.detail && (
-                              <span className="block text-xs text-muted-foreground">{r.detail}</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              {/* The run in one glance, grouped by outcome, BEFORE the row-by-row
+                  table: "17 skip_filter_failed — the contact grid never filtered"
+                  says in one line what seventeen identical rows only imply. */}
+              <ul className="space-y-0.5 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-xs">
+                <li className={outcome.ok > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}>
+                  {status?.mode === 'commit'
+                    ? t('cdFixSummaryWritten', { count: outcome.ok })
+                    : t('cdFixSummaryWritable', { count: outcome.ok })}
+                </li>
+                {outcome.byStatus.map(({ status: s, count }) => (
+                  <li key={s} className="text-amber-700 dark:text-amber-300">
+                    <span className="font-medium">{count} × {s}</span>
+                    {reason(s) && <span className="block text-muted-foreground">{reason(s)}</span>}
+                  </li>
+                ))}
+              </ul>
+              {resultRows.length > 0 && (
+                <div className="max-h-72 overflow-y-auto rounded-xl border border-hairline">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>{t('cdFixColAction')}</TableHead>
+                        <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                        <TableHead>{t('clubdeskColGroup')}</TableHead>
+                        <TableHead>{t('cdFixColOutcome')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {resultRows.map((r, i) => {
+                        const ok = isOkStatus(r.status)
+                        return (
+                          <TableRow key={`${r.kind}-${r.name}-${r.group || r.group_label}-${i}`} className="min-h-11">
+                            <TableCell className="whitespace-nowrap">
+                              {r.kind === 'add' ? t('cdFixActionAdd') : t('cdFixActionRemove')}
+                            </TableCell>
+                            <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
+                            <TableCell className="whitespace-normal break-words">
+                              {r.group_label || [r.group, r.funktion].filter(Boolean).join(' · ')}
+                            </TableCell>
+                            <TableCell className="whitespace-normal break-words">
+                              <span className={`inline-flex items-center gap-1 text-xs ${ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}`}>
+                                {ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                {r.status}
+                              </span>
+                              {r.detail && (
+                                <span className="block text-xs text-muted-foreground">{r.detail}</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
           )}
 

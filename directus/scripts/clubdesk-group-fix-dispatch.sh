@@ -21,7 +21,8 @@
 #   * * * * * CLUBDESK_ENV=dev  DB=directus_kscw_dev     /opt/clubdesk-sync/clubdesk-group-fix-dispatch.sh >> /opt/clubdesk-sync/group-fix-dev.log 2>&1
 #
 # ⚠ COMMIT WRITES TO THE CLUB'S LEGAL MEMBER REGISTER. Three independent gates:
-#     1. the endpoint refuses mode=commit unless a preview of the same job succeeded;
+#     1. the endpoint refuses mode=commit unless a preview of the same job succeeded,
+#        and commits only the rows that preview reported as writable (20.10.2026);
 #     2. CLUBDESK_GRPFIX_COMMIT=1 must be set on the cron (default = force preview);
 #     3. CLUBDESK_ENV must be prod — there is NO dev ClubDesk instance (one shared
 #        account), so any other env is forced to preview even with the flag set.
@@ -79,6 +80,17 @@ else
   cd_mirror_patch() { :; }
 fi
 
+# How a finished run is judged — rows written, not "the tools exited" (20.10.2026).
+# NOT best effort, unlike the two helpers above: without it the run cannot say
+# whether it did anything, and a run that cannot say so must not report "done".
+# Checked after the claim (below), so the button shows WHY instead of a job that
+# sits queued forever.
+GRP_OUTCOME_OK=
+if [ -r "$DIR/clubdesk-group-fix-outcome.sh" ]; then
+  # shellcheck source=clubdesk-group-fix-outcome.sh
+  . "$DIR/clubdesk-group-fix-outcome.sh" && GRP_OUTCOME_OK=1
+fi
+
 # Recover a stuck 'running' so it can't block the button forever. KEEP
 # grp_requested_at: the claim below requires it IS NOT NULL, so nulling it here
 # would silently drop a request that was queued while the run was wedged.
@@ -100,6 +112,8 @@ fail() {
   echo "=== group-fix: FAILED — $1 ==="
   exit 0
 }
+
+[ -n "$GRP_OUTCOME_OK" ] || fail "clubdesk-group-fix-outcome.sh is missing on the host — run npm run clubdesk:deploy"
 
 # ── Commit gating ───────────────────────────────────────────────────────────────
 # (2) explicit flag, (3) hard env guard. Gate (1) — "a preview succeeded first" —
@@ -139,7 +153,14 @@ psqlc "SELECT COALESCE(grp_worklist->>'remove','[]') FROM clubdesk_member_sync W
 N_ADD=$(psqlc "SELECT COALESCE(jsonb_array_length(grp_worklist->'add'),0) FROM clubdesk_member_sync WHERE id=1" 2>/dev/null || echo 0)
 N_REM=$(psqlc "SELECT COALESCE(jsonb_array_length(grp_worklist->'remove'),0) FROM clubdesk_member_sync WHERE id=1" 2>/dev/null || echo 0)
 TOTAL=$(( N_ADD + N_REM ))
-echo "Worklist: $N_ADD add, $N_REM remove (mode=$MODE)"
+# Rows the endpoint cut out of a COMMIT because its preview skipped them
+# (planGroupFixCommit). They are not in this worklist, so nothing below would ever
+# count them — and a commit of only the writable rows then read "12 of 12 written"
+# in green with 5 allocations never made (20.10.2026). Carried into RESULT and the
+# message so every layer counts them as not written.
+HELD=$(psqlc "SELECT COALESCE((grp_worklist->>'held_back')::int,0) FROM clubdesk_member_sync WHERE id=1" 2>/dev/null || echo 0)
+case "$HELD" in ''|*[!0-9]*) HELD=0 ;; esac
+echo "Worklist: $N_ADD add, $N_REM remove, $HELD held back (mode=$MODE)"
 
 [ "$TOTAL" -eq 0 ] && fail "empty worklist"
 # Backstop cap — the endpoint caps too; this catches a hand-edited grp_worklist.
@@ -163,12 +184,21 @@ run_tool() { # run_tool <script> <worklist-file> <base> <span> → JSON summary 
     node "$1" "$(basename "$2")" "$MODE" 2> >(cdp_stream >&2) | tail -1
 }
 
+# ⚠ A tool that was GIVEN rows and printed nothing is not the same as a tool that
+# had nothing to do: both used to land in RESULT as `null`, and every reader counts
+# a null half as zero rows — so the add half crashing on login after a clean remove
+# read "Done … Nothing else to do here" in the dialog and on the path. Such a half
+# becomes a summary of N rows with none reported, which the UI and the judge count
+# as "not attempted".
+no_output() { printf '{"count":%s,"results":[],"fatal":"%s produced no output — see group-fix.log"}' "$1" "$2"; }
+ANY_OUTPUT=
+
 RES_REM='null'
 if [ "$N_REM" -gt 0 ]; then
   echo "--- remove ($N_REM) ---"
   cdp 10 "Removing $N_REM group allocation(s)…"
   RES_REM=$(run_tool clubdesk-remove-group.mjs "$WL_REM" 10 40)
-  [ -z "$RES_REM" ] && RES_REM='null'
+  if [ -z "$RES_REM" ]; then RES_REM=$(no_output "$N_REM" "remove tool"); else ANY_OUTPUT=1; fi
   echo "remove result: $RES_REM"
 fi
 
@@ -177,34 +207,60 @@ if [ "$N_ADD" -gt 0 ]; then
   echo "--- add ($N_ADD) ---"
   cdp 50 "Adding $N_ADD group allocation(s)…"
   RES_ADD=$(run_tool clubdesk-scrape-groups.mjs "$WL_ADD" 50 42)
-  [ -z "$RES_ADD" ] && RES_ADD='null'
+  if [ -z "$RES_ADD" ]; then RES_ADD=$(no_output "$N_ADD" "add tool"); else ANY_OUTPUT=1; fi
   echo "add result: $RES_ADD"
 fi
 
 # ── Write back ──────────────────────────────────────────────────────────────────
-# A tool that produced no parseable summary is a FAILURE, not an empty success: the
-# button would otherwise report "done · 0 changes" for a run that crashed on login.
-if [ "$RES_ADD" = "null" ] && [ "$RES_REM" = "null" ]; then
+# A run where NO tool produced a parseable summary is a FAILURE, not an empty
+# success: the button would otherwise report "done · 0 changes" for a run that
+# crashed on login.
+if [ -z "$ANY_OUTPUT" ]; then
   cdp_fail "Scraper produced no result — see group-fix.log"
   psqlc "UPDATE clubdesk_member_sync SET grp_state='failed', grp_requested_at=NULL, grp_finished_at=now(), grp_message='Scraper produced no result — see group-fix.log', grp_worklist=NULL WHERE id=1"
   echo "=== group-fix: FAILED (no scraper output) ==="
   exit 0
 fi
 
-RESULT=$(printf '{"mode":"%s","add":%s,"remove":%s}' "$MODE" "$RES_ADD" "$RES_REM")
-MSG="$MODE: $N_ADD add, $N_REM remove"
+RESULT=$(printf '{"mode":"%s","held_back":%s,"add":%s,"remove":%s}' "$MODE" "$HELD" "$RES_ADD" "$RES_REM")
+
+# ⚠⚠ Judge the run by its ROWS (see clubdesk-group-fix-outcome.sh). This used to
+# write grp_state='done' with "$MODE: $N_ADD add, $N_REM remove" — the worklist,
+# not the outcome — so on 20.10.2026 two previews and two commits in which all 17
+# rows came back skip_filter_failed were each stored as done, the commit was
+# offered, and the UI said "Done" in green. Now 0 OK rows out of >0 is 'failed',
+# and the message says what happened: "preview: 0 of 17 writable — 17
+# skip_filter_failed". grp_result is written on BOTH outcomes: the per-row table
+# is how the operator finds out why.
+OK_N=0
+OUTCOME=$(grp_outcome "$RESULT" 2>/dev/null) || OUTCOME=""
+if [ -z "$OUTCOME" ]; then
+  # The rows could not be counted. Never "done" on a guess — keep the result for
+  # the table and say so.
+  STATE=failed
+  MSG="$MODE: could not count the outcome rows — see group-fix.log"
+else
+  IFS='|' read -r OK_N ATT_N TALLY FATAL <<< "$OUTCOME"
+  { read -r STATE; read -r MSG; } < <(grp_outcome_judge "$MODE" "$TOTAL" "${OK_N:-0}" "${ATT_N:-0}" "$TALLY" "$FATAL" "$HELD")
+fi
 # Say so on the row the operator reads, not only in a log nobody opens.
 [ -n "$DOWNGRADED" ] && MSG="$MSG — $DOWNGRADED"
-cdp 100 "$MSG"
-psqlc "UPDATE clubdesk_member_sync SET grp_state='done', grp_requested_at=NULL, grp_finished_at=now(), grp_message=\$m\$$MSG\$m\$, grp_result=\$r\$$RESULT\$r\$, grp_worklist=NULL WHERE id=1" \
-  || fail "write-back failed"
 
 # ── Keep our copy of the register in step ───────────────────────────────────────
 # Only after a real commit, and only for the rows the tools reported as written.
 # Without this the page recomputes its findings from a snapshot taken BEFORE the
 # run and lists everything it just fixed — which is what made the button look
 # broken and got it run three times over (08.09.2026).
-if [ "$MODE" = "commit" ]; then
-  cd_mirror_patch "$RESULT" | sed 's/^/  /'
+# ⚠ BEFORE the state write below, not after it: the dialog polls every 3 s and
+# rescans the findings the moment it sees the commit finish, so publishing 'done'
+# first let that rescan read the unpatched mirror and list every row just written
+# — on a page that now tells the operator a listed row really was not written.
+# Best effort: a failed patch never blocks the state write.
+if [ "$MODE" = "commit" ] && [ "${OK_N:-0}" -gt 0 ]; then
+  cd_mirror_patch "$RESULT" | sed 's/^/  /' || true
 fi
-echo "=== group-fix: done ($MSG) $(TZ=Europe/Zurich date +'%d.%m.%Y %H:%M:%S') ==="
+
+if [ "$STATE" = "failed" ]; then cdp_fail "$MSG"; else cdp 100 "$MSG"; fi
+psqlc "UPDATE clubdesk_member_sync SET grp_state=\$s\$$STATE\$s\$, grp_requested_at=NULL, grp_finished_at=now(), grp_message=\$m\$$MSG\$m\$, grp_result=\$r\$$RESULT\$r\$, grp_worklist=NULL WHERE id=1" \
+  || fail "write-back failed"
+echo "=== group-fix: $STATE ($MSG) $(TZ=Europe/Zurich date +'%d.%m.%Y %H:%M:%S') ==="
