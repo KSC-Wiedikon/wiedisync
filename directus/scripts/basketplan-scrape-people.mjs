@@ -35,8 +35,11 @@ import { spawnSync } from 'node:child_process'
 
 const BASE = 'https://www.basketplan.ch'
 const CLUB_ID = 166
-/** 2025/2026. The season picker is a plain GET; bump when the season rolls. */
-const SEASON_ID = 30
+/**
+ * Basketplan's own season id (30 = 2025/26, 31 = 2026/27). The season picker is
+ * a plain GET; bump when the season rolls, or override with BP_SEASON_ID.
+ */
+const SEASON_ID = Number(process.env.BP_SEASON_ID || 31)
 
 /**
  * The ONLY two URL shapes this script may navigate to. Anything else — in
