@@ -193,6 +193,12 @@ export function registerContactForm(router, { database, logger, services, getSch
         return res.status(400).json({ error: 'Captcha verification failed' })
       }
 
+      // The website's Subject dropdown IS the sport for its volleyball/basketball
+      // options, and until 2026-10-20 the form never sent `sport` — so every
+      // "Basketball, no team" enquiry fell through to kontakt@ instead of the
+      // sport contact. Accept either.
+      const sportKey = SPORT_EMAILS[sport] ? sport : (SPORT_EMAILS[subject] ? subject : null)
+
       // Determine recipient — M2M: teams_coaches/teams_responsibles
       // (teams_id, members_id) join → members.email
       let toEmail = GENERAL_EMAIL
@@ -260,10 +266,14 @@ export function registerContactForm(router, { database, logger, services, getSch
           // Dedupe — a member may be both coach and TR on the same team
           const unique = Array.from(new Set(recipients))
           if (unique.length > 0) toEmail = unique.join(',')
-          else if (sport && SPORT_EMAILS[sport]) toEmail = SPORT_EMAILS[sport]
+          else {
+            // A team with nobody to write to goes to its own sport's contact.
+            const teamSport = SPORT_EMAILS[teamRow?.sport] ? teamRow.sport : sportKey
+            if (teamSport) toEmail = SPORT_EMAILS[teamSport]
+          }
         }
-      } else if (sport && SPORT_EMAILS[sport]) {
-        toEmail = SPORT_EMAILS[sport]
+      } else if (sportKey) {
+        toEmail = SPORT_EMAILS[sportKey]
       }
 
       const schema = await getSchema()
@@ -287,6 +297,10 @@ export function registerContactForm(router, { database, logger, services, getSch
           : tt.subject(subject, name)
         await mail.send({
           to: tos.join(','),
+          // Reply goes to the sender — the From (EMAIL_FROM) is a no-reply
+          // address with no mailbox. `email` passed the format + control-char
+          // checks above, so it cannot inject a header.
+          replyTo: email,
           subject: mailSubject,
           text: `${tt.nameLabel}: ${name}\n${tt.emailLabel}: ${email}\n${tt.subjectLabel}: ${subject || '-'}\n\n${message}`,
         })
