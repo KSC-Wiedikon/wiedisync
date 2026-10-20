@@ -51,3 +51,24 @@ export function pickExact({ exact, lowest = true }) {
   const r = (lowest ? c.sort((a, b) => b.top - a.top) : c.sort((a, b) => a.top - b.top))[0]
   return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
 }
+
+/**
+ * Whether the contact grid shows a column headed `label` — checked in the grid's
+ * header band (below the toolbar and the "Alle Kontakte (…)" title, left of the
+ * group tree's right edge excluded).
+ *
+ * ClubDesk's Filtern box is a substring match over the VISIBLE columns only. The
+ * group tools filter by Wiedisync ID, so a view without that column finds nobody:
+ * on 20.10.2026 the service account's grid had fallen back to ClubDesk's six
+ * default columns and Fix groups reported every row as `skip_filter_failed`
+ * ("the contact grid never filtered") for a run of 17. Asking for the column up
+ * front turns that into one clear error instead of N identical skips.
+ */
+export function gridHasColumn({ label }) {
+  return [...document.querySelectorAll('*')].some((e) => {
+    let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent
+    if (t.trim() !== label) return false
+    const r = e.getBoundingClientRect()
+    return r.width > 0 && r.height > 0 && r.top > 280 && r.top < 340 && r.left > 240
+  })
+}

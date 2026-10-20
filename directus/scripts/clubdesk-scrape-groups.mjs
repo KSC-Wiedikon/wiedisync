@@ -29,6 +29,7 @@
  * ⚠ 'commit' writes to the club's legal member record — gate behind a human OK.
  */
 import { launchBrowser } from './clubdesk-browser.mjs'
+import { gridHasColumn } from './clubdesk-dom.mjs'
 import { readFileSync } from 'node:fs'
 
 const USER = process.env.CLUBDESK_USER
@@ -147,6 +148,11 @@ async function openKontakte(page) {
     return null
   })
   if (ak) { await page.mouse.click(ak.x, ak.y); await sleep(1600) }
+  // The Filtern box only searches VISIBLE columns, and every lookup here is by
+  // Wiedisync ID — without that column the whole run would skip row by row.
+  if (!(await page.evaluate(gridHasColumn, { label: 'Wiedisync ID' }))) {
+    throw new Error('ClubDesk contact grid has no "Wiedisync ID" column — log in as the service account, Alle Kontakte → any column header ▾ → Spalten → tick "Wiedisync ID"')
+  }
 }
 
 // Set the grid Filtern box reliably: focus the input via JS (coordinate clicks

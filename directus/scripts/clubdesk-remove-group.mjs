@@ -19,6 +19,7 @@
  * ⚠ 'commit' edits the club's legal member record.
  */
 import { launchBrowser } from './clubdesk-browser.mjs'
+import { gridHasColumn } from './clubdesk-dom.mjs'
 import { readFileSync } from 'node:fs'
 const USER = process.env.CLUBDESK_USER, PASS = process.env.CLUBDESK_PASS
 const WORKLIST = process.argv[2], MODE = process.argv[3] || 'preview'
@@ -155,6 +156,11 @@ async function openKontakte(page) {
   await page.mouse.click(navBtn.x, navBtn.y); await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 }); await sleep(1200)
   const ak = await page.evaluate(() => { const o = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }; for (const e of document.querySelectorAll('*')) if (o(e) === 'Alle Kontakte') { const r = e.getBoundingClientRect(); if (r.left < 300 && r.width > 0) return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } } return null })
   if (ak) { await page.mouse.click(ak.x, ak.y); await sleep(1600) }
+  // The Filtern box only searches VISIBLE columns, and every lookup here is by
+  // Wiedisync ID — without that column the whole run would skip row by row.
+  if (!(await page.evaluate(gridHasColumn, { label: 'Wiedisync ID' }))) {
+    throw new Error('ClubDesk contact grid has no "Wiedisync ID" column — log in as the service account, Alle Kontakte → any column header ▾ → Spalten → tick "Wiedisync ID"')
+  }
 }
 
 // True while a contact-detail tab is open (its "Gruppen:" form label is present).

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { pickExact } from '../clubdesk-dom.mjs';
+import { pickExact, gridHasColumn } from '../clubdesk-dom.mjs';
 
 // The ClubDesk import wizard at its confirmation step, as the 19:29 15.09.2026
 // commit run saw it (up-shots-prod/create-commit/import-2-summary.png):
@@ -107,3 +107,42 @@ test('the import scraper runs pickExact from clubdesk-dom.mjs, not an inline cop
   assert.match(src, /import \{ pickExact \} from '\.\/clubdesk-dom\.mjs'/);
   assert.match(src, /page\.evaluate\(pickExact, \{ exact, lowest \}\)/);
 });
+
+// The Kontakte screen as the service account saw it on 20.10.2026: grid header at
+// top ≈ 310, group tree on the left (whose "Gruppen" etc. must not count), and the
+// contact-detail form's "Wiedisync ID:" label further down (a different string).
+const GRID = (cols) => `<!doctype html><html><body style="margin:0;font:14px sans-serif">
+<div style="position:absolute;top:300px;left:0;width:240px">Wiedisync ID</div>
+<div style="position:absolute;top:262px;left:260px">Alle Kontakte (1207 Einträge)</div>
+${cols.map((c, i) => `<div style="position:absolute;top:304px;left:${255 + i * 150}px">${c}</div>`).join('')}
+<div style="position:absolute;top:640px;left:860px">Wiedisync ID:</div>
+</body></html>`;
+
+async function withGrid(cols, fn) {
+  let chromium;
+  try { ({ chromium } = await import('@playwright/test')); } catch { return null; }
+  let browser;
+  try { browser = await chromium.launch(); } catch { return null; }
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
+    await page.setContent(GRID(cols));
+    return await fn(page);
+  } finally {
+    await browser.close();
+  }
+}
+
+test('gridHasColumn: the default six-column view has no Wiedisync ID column', async (t) => {
+  const r = await withGrid(['Name (vollständig)', 'Adresse', 'PLZ', 'Ort', 'Telefon Privat', 'Telefon Mobil'],
+    (page) => page.evaluate(gridHasColumn, { label: 'Wiedisync ID' }));
+  if (r === null) return t.skip('no Chromium available');
+  assert.equal(r, false);
+});
+
+test('gridHasColumn: finds the Wiedisync ID header once the column is shown', async (t) => {
+  const r = await withGrid(['Name (vollständig)', 'Adresse', 'PLZ', 'Ort', 'Telefon Privat', 'Telefon Mobil', 'Wiedisync ID'],
+    (page) => page.evaluate(gridHasColumn, { label: 'Wiedisync ID' }));
+  if (r === null) return t.skip('no Chromium available');
+  assert.equal(r, true);
+});
+
