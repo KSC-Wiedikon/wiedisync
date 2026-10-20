@@ -119,7 +119,7 @@ strays AS (
   JOIN team_groups tgr ON tgr.grp = cg.grp
   JOIN members m ON m.clubdesk_id = cg.clubdesk_id
   WHERE m.uuid IS NOT NULL
-    -- ⚠⚠ PER GROUP. Was "no roster row this season at all", which made a player
+    -- ⚠⚠ PER GROUP. Was 'no roster row this season at all', which made a player
     -- token for a team the member only COACHES invisible whenever they play
     -- somewhere else. A token for team X is stray when there is no roster row
     -- for team X. Mirrors straySql — the two must move together.
@@ -162,9 +162,16 @@ removals AS (
   SELECT id, uuid, nm, grp FROM stale
 )"
 
-CNT=$(psqlc "$CTE SELECT count(*) FROM removals" 2>/dev/null || echo -1)
-if [ "${CNT:-0}" = "0" ]; then echo "Nothing to remove (0 rows in the auto-remove envelope)."; exit 0; fi
-if [ "${CNT:-0}" -lt 0 ]; then echo "ABORT: removal query failed."; exit 1; fi
+# ⚠⚠ The CTE above is ONE double-quoted shell string — a literal " inside it (even
+# in an SQL comment) ends it early. Until 20.10.2026 a quoted phrase in the PER
+# GROUP comment did exactly that: bash ran `roster` as a command, CTE was never
+# set, and every Sunday since at least 06.09 reported "Nothing to remove". So:
+# refuse an empty CTE, and accept only a bare integer as the count — an error or
+# empty reply used to fall through `${CNT:-0}` and read as zero.
+case "$CTE" in *"FROM stale"*) ;; *) echo "ABORT: removal CTE is empty or truncated (a stray double quote in it?)."; exit 1 ;; esac
+CNT=$(psqlc "$CTE SELECT count(*) FROM removals" 2>&1)
+if ! [[ "$CNT" =~ ^[0-9]+$ ]]; then echo "ABORT: removal query failed: $CNT"; exit 1; fi
+if [ "$CNT" = "0" ]; then echo "Nothing to remove (0 rows in the auto-remove envelope)."; exit 0; fi
 # Runaway guard 2: cap.
 if [ "$CNT" -gt "$CAP" ]; then
   echo "ABORT: $CNT removals exceed CAP=$CAP — refusing to auto-remove (raise CLUBDESK_CLEANUP_CAP to override after review)."

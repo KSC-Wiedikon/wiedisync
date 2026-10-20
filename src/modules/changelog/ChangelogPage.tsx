@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.38.0'
+const APP_VERSION = '2.39.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.39.0',
+    date: '20.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "The ClubDesk sync on Data health now gets you through in one pass. If checking ClubDesk after a push finds new disagreements, it takes you back to the decisions instead of saying it is done, and the final card lists anything still open: decisions, members waiting to be pushed and group changes that were not written.",
+          "Fix groups reports what it actually wrote. A run that writes nothing is shown as failed with the reason, Commit is only offered when the preview has something to write, and a summary per outcome replaces long lists of identical rows.",
+          "Changing a member's email, phone, address or birth date as an admin now queues it for ClubDesk straight away, instead of coming back as a disagreement after the next sync.",
+          "After a push, ClubDesk is read back automatically, and Data health shows how many members are missing their ClubDesk group.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.38.0',
     date: '18.10.2026',
