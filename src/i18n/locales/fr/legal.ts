@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Politique de confidentialite',
-  lastUpdated: 'Derniere mise a jour : 15 septembre 2026',
+  lastUpdated: 'Derniere mise a jour : 22 octobre 2026',
 
   controllerTitle: '1. Responsable du traitement',
   controllerText:
@@ -14,6 +14,9 @@ export default {
   dataRosterTitle: 'Donnees d\'effectif (publiques)',
   dataRosterText:
     'Sur les pages d\'equipe accessibles au public, les noms des joueurs, numeros de maillot, postes et photos sont affiches. Ces informations correspondent aux donnees egalement publiees publiquement par Swiss Volley.',
+  dataLiveTitle: 'Resultats en direct',
+  dataLiveText:
+    'Lors des matchs a domicile, le tableau d\'affichage du club affiche le score en direct. Sont visibles publiquement sur kscw.ch/live et dans le deroulement du match : les noms des equipes, le score par set et par point, ainsi que, pour le beach-volley, les noms de famille des deux joueuses ou joueurs d\'une paire, y compris ceux des adversaires issus d\'autres clubs. Pour le service de saisie, le tableau d\'affichage peut charger la liste des joueurs du match avec leurs dates de naissance. Celle-ci n\'est accessible qu\'avec le code PIN du saisisseur et est supprimee du tableau d\'affichage au plus tard trois heures apres le debut du match. Les donnees en direct sont exclusivement enregistrees dans la base de donnees du club.',
   dataInternalTitle: 'Donnees internes du club',
   dataInternalText:
     'La presence aux entrainements, les absences (y compris le motif), les attributions de marqueur et les resultats des matchs sont enregistres en interne pour la gestion du club et ne sont visibles que par les membres connectes ou les entraineurs.',

@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Informativa sulla privacy',
-  lastUpdated: 'Ultimo aggiornamento: 15 settembre 2026',
+  lastUpdated: 'Ultimo aggiornamento: 22 ottobre 2026',
 
   controllerTitle: '1. Titolare del trattamento',
   controllerText:
@@ -14,6 +14,9 @@ export default {
   dataRosterTitle: 'Dati del roster (pubblici)',
   dataRosterText:
     'Nelle pagine delle squadre accessibili al pubblico vengono visualizzati nomi dei giocatori, numeri di maglia, posizioni e foto. Queste informazioni corrispondono ai dati pubblicati anche da Swiss Volley.',
+  dataLiveTitle: 'Risultati in tempo reale',
+  dataLiveText:
+    'Nelle partite in casa, il tabellone della società trasmette il punteggio in tempo reale. Sono visibili al pubblico su kscw.ch/live e nella cronaca della partita: i nomi delle squadre, il punteggio per set e per punto, nonché, nel beach volley, i cognomi delle due giocatrici o dei due giocatori di ogni coppia, compresi gli avversari di altre società. Per il servizio di segreteria, il tabellone può caricare la lista dei giocatori della partita con le date di nascita. Questa è accessibile solo con il PIN del segretario e viene cancellata dal tabellone al più tardi tre ore dopo l’inizio della partita. I dati in tempo reale vengono memorizzati esclusivamente nel database della società.',
   dataInternalTitle: 'Dati interni del club',
   dataInternalText:
     'Presenze agli allenamenti, assenze (incluso il motivo), incarichi di segnapunti e risultati delle partite vengono registrati internamente per la gestione del club e sono visibili solo ai membri con accesso o agli allenatori.',

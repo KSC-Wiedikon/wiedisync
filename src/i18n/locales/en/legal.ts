@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Privacy policy',
-  lastUpdated: 'Last updated: September 15, 2026',
+  lastUpdated: 'Last updated: October 22, 2026',
 
   controllerTitle: '1. Data controller',
   controllerText:
@@ -14,6 +14,9 @@ export default {
   dataRosterTitle: 'Roster data (public)',
   dataRosterText:
     'On the publicly accessible team pages, player names, jersey numbers, positions, and photos are displayed. This information corresponds to data also published publicly by Swiss Volley.',
+  dataLiveTitle: 'Live results',
+  dataLiveText:
+    'During home matches, the club’s scoreboard displays the score live. The following information is publicly visible on kscw.ch/live and in the match progress feed: the team names, the set and point scores, and, in the case of beach volleyball, the surnames of the two players in each pair, including opponents from other clubs. For the scorekeeper’s duties, the scoreboard can load the match squad list, including dates of birth. This is accessible only with the scorekeeper’s PIN and is deleted from the scoreboard no later than three hours after the start of the match. The live data is stored exclusively in the club’s database.',
   dataInternalTitle: 'Internal club data',
   dataInternalText:
     'Training attendance, absences (including reason), scorer duty assignments, and game results are recorded internally for club management and are only visible to logged-in members or coaches.',

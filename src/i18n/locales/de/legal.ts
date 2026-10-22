@@ -1,7 +1,7 @@
 export default {
   // Datenschutz page
   privacyTitle: 'Datenschutzerklärung',
-  lastUpdated: 'Stand: 15. September 2026',
+  lastUpdated: 'Stand: 22. Oktober 2026',
 
   controllerTitle: '1. Verantwortliche Stelle',
   controllerText:
@@ -14,6 +14,9 @@ export default {
   dataRosterTitle: 'Kaderdaten (öffentlich)',
   dataRosterText:
     'Auf den öffentlich zugänglichen Teamseiten werden Name, Trikotnummer, Position und Foto der Spielerinnen und Spieler angezeigt. Diese Angaben entsprechen den Daten, die auch von Swiss Volley öffentlich publiziert werden.',
+  dataLiveTitle: 'Live-Resultate',
+  dataLiveText:
+    'Bei Heimspielen überträgt die Anzeigetafel des Vereins den Spielstand live. Öffentlich sichtbar sind auf kscw.ch/live und im Spielverlauf: die Teamnamen, der Satz- und Punktestand sowie bei Beachvolleyball die Nachnamen der beiden Spielerinnen oder Spieler eines Paares, auch von Gegnern aus anderen Vereinen. Für den Schreiberdienst kann die Anzeigetafel die Kaderliste des Spiels mit Geburtsdaten laden. Diese ist nur mit der Schreiber-PIN abrufbar und wird spätestens drei Stunden nach Spielbeginn von der Anzeigetafel gelöscht. Die Live-Daten werden ausschliesslich in der Datenbank des Vereins gespeichert.',
   dataInternalTitle: 'Interne Vereinsdaten',
   dataInternalText:
     'Trainingsanwesenheiten, Absenzen (inkl. Grund), Schreiberdienst-Einteilungen und Spielresultate werden intern für die Vereinsverwaltung erfasst und sind nur für eingeloggte Mitglieder bzw. Trainer sichtbar.',

@@ -50,6 +50,14 @@ export default function DatenschutzPage() {
         </h3>
         <p className="mb-4">{t('dataRosterText')}</p>
 
+        {/* Added 2026-10-22. The club's LED scoreboard publishes live scores to the
+            public kscw.ch/live page, including beach pair surnames of players from
+            other clubs, and can load the match roster with birthdates for the scorer. */}
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
+          {t('dataLiveTitle')}
+        </h3>
+        <p className="mb-4">{t('dataLiveText')}</p>
+
         <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataInternalTitle')}
         </h3>
