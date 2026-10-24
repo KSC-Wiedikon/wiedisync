@@ -10,7 +10,8 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
-import { todayLocal, toZurichDateString, formatDate } from '../../utils/dateHelpers'
+import { todayLocal, toZurichDateString, formatDate, hasEventEnded } from '../../utils/dateHelpers'
+import { useNow } from '../../hooks/useNow'
 import { useMyDuties, type MyDuty } from '../../hooks/useMyDuties'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -138,7 +139,13 @@ export default function EventsPage() {
     fields: ['*', 'teams.id', 'teams.teams_id.*', 'teams.teams_id.coach.members_id', 'teams.teams_id.team_responsible.members_id', 'invited_members.id', 'invited_members.members_id', 'invited_roles', 'send_email_invite'],
     enabled: !teamsLoading && (effectiveIsAdmin || !eventIdsLoading),
   })
-  const events = eventsRaw ?? []
+  // The query cuts at the day; without "show past" this also drops events that
+  // already finished today.
+  const now = useNow()
+  const events = useMemo(
+    () => (showPast ? eventsRaw ?? [] : (eventsRaw ?? []).filter((ev) => !hasEventEnded(now, ev))),
+    [eventsRaw, showPast, now],
+  )
 
   const visibleEvents = useMemo(() => {
     if (effectiveIsAdmin) return events  // Admins see everything

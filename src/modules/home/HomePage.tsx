@@ -10,7 +10,7 @@ import { fetchSeasons } from '../../lib/api'
 import { CLUB_WEBSITE_URL } from '../../lib/clubWebsite'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotificationsContext } from '../../hooks/NotificationsContext'
-import { formatTime, formatWeekday, formatDayMonthZurich, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { formatTime, formatWeekday, formatDayMonthZurich, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich, hasGameEnded, hasTrainingEnded, hasEventEnded } from '../../utils/dateHelpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import TruncatedText from '@/components/TruncatedText'
@@ -177,6 +177,10 @@ export default function HomePage() {
   }, [announcements, allNotifs])
 
   const today = useMemo(() => todayLocal(), [])
+  // The queries below cut at `date >= today`; this drops what already finished
+  // today (the 09:00–11:00 training at noon), and keeps doing so as the page
+  // stays open.
+  const now = useNow()
 
   // Sport filter for Directus queries (filter via kscw_team relation)
   const sportFilter = useMemo((): Record<string, unknown> | null => {
@@ -273,10 +277,10 @@ export default function HomePage() {
     filter: allGamesFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
-    limit: 5,
+    limit: 8,
     enabled: showAllGames || !hasOwnGames,
   })
-  const allNextGames = allNextGamesRaw ?? []
+  const allNextGames = useMemo(() => (allNextGamesRaw ?? []).filter((g) => !hasGameEnded(now, g)).slice(0, 5), [allNextGamesRaw, now])
 
   // Next 5 upcoming games (my teams only)
   const myGamesFilter = useMemo((): Record<string, unknown> => {
@@ -289,10 +293,10 @@ export default function HomePage() {
     filter: myGamesFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
-    limit: 5,
+    limit: 8,
     enabled: hasOwnGames && !showAllGames,
   })
-  const myNextGames = myNextGamesRaw ?? []
+  const myNextGames = useMemo(() => (myNextGamesRaw ?? []).filter((g) => !hasGameEnded(now, g)).slice(0, 5), [myNextGamesRaw, now])
 
   // Latest 5 results (all) — only fetch when user toggled "show all" or has no teams
   const allResultsFilter = useMemo((): Record<string, unknown> => {
@@ -345,7 +349,7 @@ export default function HomePage() {
     limit: 10,
     enabled: hasTeams,
   })
-  const nextTrainings = nextTrainingsRaw ?? []
+  const nextTrainings = useMemo(() => (nextTrainingsRaw ?? []).filter((tr) => !hasTrainingEnded(now, tr)), [nextTrainingsRaw, now])
 
   // Decide which games/results to show
   const nextGames = hasOwnGames && !showAllGames ? myNextGames : allNextGames
@@ -384,7 +388,7 @@ export default function HomePage() {
     limit: 10,
     enabled: !eventIdsLoading,
   })
-  const events = eventsRaw ?? []
+  const events = useMemo(() => (eventsRaw ?? []).filter((ev) => !hasEventEnded(now, ev)), [eventsRaw, now])
 
   // Duty games the member is assigned to — surfaced as virtual "duty" appointments
   // (and the yellow banner). NOT sport-filtered: a duty is a personal obligation,
