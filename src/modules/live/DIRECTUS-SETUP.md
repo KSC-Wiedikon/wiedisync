@@ -53,6 +53,8 @@ physical scoreboard → one row it keeps overwriting.
 | `serving_team` | String (nullable) | `varchar` | `left` \| `right`; basketball reuses it as the **possession arrow** |
 | `set_results` | JSON | `jsonb` | `[{ "a": 25, "b": 20, "dur": 1440 }, …]` completed sets; optional `dur` = set playing time in whole seconds (board monotonic clock), absent when the set start wasn't observed |
 | `date_updated` | Timestamp (system, "Date Updated") | `timestamptz` | auto |
+| `game_id` | Integer (nullable) | `integer` | FK `games(id)`: the fixture of a `game-<id>` row (migration 394). NULL on a board's own row |
+| `source` | String (nullable) | `varchar(64)` | `board:<channel>` when the hall board wrote a `game-<id>` row; NULL for phone scoring (migration 424) |
 
 `CHECK` constraints pin `sport`, `status` and `serving_team` to the values above —
 a typo from the board is rejected rather than silently mis-rendered. The push is
