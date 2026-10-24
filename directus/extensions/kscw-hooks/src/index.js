@@ -46,6 +46,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
+import { sendFineIssuedEmail } from '../../kscw-endpoints/src/fine-email.js'
 import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers, flagClubdeskFillOnlyGaps, flagClubdeskPush, contactValueChanged, CD_PUSH_FLAG_FIELDS, CD_PUSH_FLAG_CONTACT_FIELDS } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
@@ -4515,7 +4516,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                to_char(a.date, 'YYYY-MM-DD')        AS adate_iso,
                to_char(a.date, 'DD.MM.YYYY')        AS adate_label,
                COALESCE(tm.name, '')                AS team_name,
-               mt.member                            AS member
+               mt.member                            AS member,
+               mt.guest_level                       AS guest_level
         FROM ${table} a
         JOIN LATERAL ${teamPeopleSql(teamCol)} mt ON true
         LEFT JOIN teams tm ON tm.id = ${teamCol}
@@ -4547,7 +4549,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         SELECT member, atype, aid, 'declined', '', 0, false, true FROM cand
         RETURNING member, activity_type, activity_id
       )
-      SELECT c.atype, c.aid, c.team_id, c.adate_iso, c.adate_label, c.team_name, c.member
+      SELECT c.atype, c.aid, c.team_id, c.adate_iso, c.adate_label, c.team_name, c.member, c.guest_level
       FROM cand c
       JOIN ins i
         ON i.member = c.member
@@ -4586,7 +4588,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     let fined = 0
     for (const row of declined) {
       let amountStr = null
-      try {
+      // Guest players (member_teams.guest_level > 0) are declined like everyone
+      // else, so the roster stays honest, but never fined: a guest is invited to
+      // the team's trainings, not expected at them, and the deadline fine prices
+      // a commitment they never made. 30 of the first 50 auto fines on prod went
+      // to guests (2026-10-24); migration 426 waived those. Games never reach
+      // here with a guest (guestClause), so this only bites trainings.
+      const isGuest = Number(row.guest_level) > 0
+      if (!isGuest) try {
         const fineId = await finesService.createOne({
           member: Number(row.member),
           team: Number(row.team_id),
@@ -9448,7 +9457,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //   waive metadata remain editable. Admins (accountability.admin) bypass.
   //
   // action('fines.items.create'):
-  //   Push + email the member: "{team} • CHF X: {reason}".
+  //   Bell/news entry + email the member (fine-email.js); push unless the
+  //   deadline sweep issued it (the sweep pushes once itself).
   // action('fines.items.update'):
   //   Push the member on status → paid or waived.
   //
@@ -9639,7 +9649,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       if (!key) return
       const fine = await database('fines').where('id', key).first(
-        'id', 'member', 'team', 'category', 'amount', 'currency', 'reason', 'auto_issued',
+        'id', 'member', 'team', 'category', 'amount', 'currency', 'reason', 'auto_issued', 'activity_date',
       )
       if (!fine) return
       if (!fine.member) { await notifyTeamFine(fine, 'issued'); return }
@@ -9659,6 +9669,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         team: fine.team,
         read: false,
       })
+
+      // Email (always, auto-issued included): a fine is money owed, and the
+      // bell entry only reaches someone who opens the app.
+      await sendFineIssuedEmail({ database, services, getSchema, log, fine, teamName })
 
       // Push to the recipient — EXCEPT for the deadline sweep's own fines.
       // That sweep declines the member and fines them in one stroke, and
