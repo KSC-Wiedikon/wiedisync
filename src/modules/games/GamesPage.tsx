@@ -14,7 +14,8 @@ import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useQuery } from '@tanstack/react-query'
 import { useKscwRankingTeams } from '../../hooks/useKscwRankingTeams'
-import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
+import { todayLocal, getCurrentSeason, formatSeasonLong, hasGameEnded } from '../../utils/dateHelpers'
+import { useNow } from '../../hooks/useNow'
 import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
 import { dedupeProvisionalGames, NON_STANDINGS_LEAGUE } from '../../utils/gameResult'
@@ -292,7 +293,18 @@ export default function GamesPage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     enabled: !!gameQuery && !teamsLoading,
   })
-  const games = combined?.items ?? []
+  const fetchedGames = useMemo(() => combined?.items ?? [], [combined])
+  // Upcoming cuts at `date >= today`, so a game played this morning would sit at
+  // the top until its result syncs. Once it is over (kickoff + an assumed length)
+  // it moves down into the greyed "past" block instead.
+  const now = useNow()
+  const { games, endedToday } = useMemo(() => {
+    if (activeTab !== 'upcoming') return { games: fetchedGames, endedToday: [] as Game[] }
+    const live: Game[] = []
+    const ended: Game[] = []
+    for (const g of fetchedGames) (hasGameEnded(now, g) ? ended : live).push(g)
+    return { games: live, endedToday: ended.reverse() }
+  }, [fetchedGames, activeTab, now])
   const allParticipations = combined?.participations ?? []
 
   // Upcoming tab: this season's already-played fixtures, greyed out BELOW the future
@@ -313,7 +325,7 @@ export default function GamesPage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     enabled: activeTab === 'upcoming' && !teamsLoading,
   })
-  const pastGames = pastGamesRaw ?? []
+  const pastGames = useMemo(() => [...endedToday, ...(pastGamesRaw ?? [])], [endedToday, pastGamesRaw])
 
   // Same two guards as TrainingsPage: debounce the burst, and ignore RSVPs that cannot
   // belong to this page. `perPage` reaches 500 after "show all", so an unguarded
@@ -561,7 +573,7 @@ export default function GamesPage() {
             ) : (
               <>
                 {renderGameSections('card')}
-                {!showAll && games.length >= INITIAL_LIMIT && (
+                {!showAll && fetchedGames.length >= INITIAL_LIMIT && (
                   <Button type="button" variant="outline" onClick={() => setShowAll(true)} className="mt-4 w-full">
                     {t('showMore')}
                   </Button>
@@ -597,7 +609,7 @@ export default function GamesPage() {
             ) : (
               <>
                 {renderGameSections('compact')}
-                {!showAll && games.length >= INITIAL_LIMIT && (
+                {!showAll && fetchedGames.length >= INITIAL_LIMIT && (
                   <Button type="button" variant="outline" onClick={() => setShowAll(true)} className="mt-4 w-full">
                     {t('showMore')}
                   </Button>

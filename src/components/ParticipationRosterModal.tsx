@@ -825,6 +825,9 @@ export default function ParticipationRosterModal({
         // Staff aren't on the roster the fine would be issued against — a
         // late-signin fine is a player rule, not a coach one.
         && !staffMemberIdSet.has(String(memberId))
+        // Guests are invited, not expected — late sign-in fines don't apply
+        // to them (the deadline sweep skips them the same way).
+        && !guestLevels.has(String(memberId))
         && lateSigninRuleEnabled
         && respondBy
         && new Date() > new Date(respondBy)
@@ -847,7 +850,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, sessionTargets, staffMemberIdSet, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, sessionTargets, staffMemberIdSet, guestLevels, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member

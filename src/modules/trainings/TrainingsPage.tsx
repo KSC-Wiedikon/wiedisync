@@ -10,7 +10,8 @@ import { useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useMutation } from '../../hooks/useMutation'
-import { todayLocal, formatDate } from '../../utils/dateHelpers'
+import { todayLocal, formatDate, hasTrainingEnded } from '../../utils/dateHelpers'
+import { useNow } from '../../hooks/useNow'
 import TeamFilter from '../../components/TeamFilter'
 import EmptyState from '../../components/EmptyState'
 import VolleyballIcon from '../../components/VolleyballIcon'
@@ -120,7 +121,13 @@ export default function TrainingsPage() {
     fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*', 'coach.*'],
     enabled: !teamsLoading,
   })
-  const trainings = combined?.items ?? []
+  // The query cuts at `date >= today`; without "show past" this also drops the
+  // ones that already finished today.
+  const now = useNow()
+  const trainings = useMemo(() => {
+    const items = combined?.items ?? []
+    return showPast ? items : items.filter((tr) => !hasTrainingEnded(now, tr))
+  }, [combined, showPast, now])
   const allParticipations = combined?.participations ?? []
 
   // Build maps: activityId → participations[], activityId → user's participation

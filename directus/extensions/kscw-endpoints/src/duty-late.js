@@ -29,6 +29,7 @@ import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, FRONTEND_
 import { writeUserLog } from './activity-log.js'
 import { sendPushToMembers } from './web-push.js'
 import { sendLocalizedPush } from './push-i18n.js'
+import { sendFineIssuedEmail } from './fine-email.js'
 
 // Club admin who is cc'd on every late alarm (you). Env override, else the
 // same personal inbox the hooks use for owner routing.
@@ -318,7 +319,7 @@ export function registerDutyLate(router, ctx) {
       data: { member: official.id, team: teamId, category: 'no_show', amount, game: game.id, role },
     })
 
-    // Notify the fined member (in-app + push), mirroring the fines create hook.
+    // Notify the fined member (in-app + push + email), mirroring the fines create hook.
     try {
       const team = await database('teams').where('id', teamId).first('name')
       const teamName = team?.name || `Team ${teamId}`
@@ -341,6 +342,12 @@ export function registerDutyLate(router, ctx) {
         'fineIssued.title', 'fineIssued.body',
         { team: teamName, amount: amountStr, reason: NO_SHOW_FINE_REASON },
       )
+
+      // Raw insert above, so the fines create hook (which emails) never runs.
+      await sendFineIssuedEmail({
+        database, services, getSchema, log, teamName,
+        fine: { id: fineId, member: official.id, amount, currency: 'CHF', category: 'no_show', reason: NO_SHOW_FINE_REASON, activity_date: /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null },
+      })
     } catch (e) {
       log.error({ msg: `duty-late: fine notify failed: ${e.message}`, gameId: game.id, stack: e.stack })
     }
