@@ -98,12 +98,17 @@ Declared in `setup-permissions.mjs` §5b:
 ```js
 const LEDBOX_POLICY = await findOrCreatePolicy('KSCW LedBox Publisher', { icon: 'scoreboard', app_access: false })
 await clearPolicyPermissions(LEDBOX_POLICY, 'LedBox Publisher')
-await setPerm(LEDBOX_POLICY, 'live_scores', 'create')   // self-heals a missing row
-await setPerm(LEDBOX_POLICY, 'live_scores', 'read')     // PATCH reads the row back
-await setPerm(LEDBOX_POLICY, 'live_scores', 'update')   // every score change
+const LEDBOX_ROWS = { _or: [{ channel: { _eq: 'kscw' } }, { channel: { _starts_with: 'game-' } }] }
+await setPerm(LEDBOX_POLICY, 'live_scores', 'create', null, null, LEDBOX_ROWS)           // self-heals a missing row
+await setPerm(LEDBOX_POLICY, 'live_scores', 'read')                                     // PATCH reads the row back
+await setPerm(LEDBOX_POLICY, 'live_scores', 'update', LEDBOX_ROWS, null, LEDBOX_ROWS)   // every score change
 ```
 
-No delete, no app access, and no *granted* permission outside `live_scores`.
+Two kinds of row: the board's own (`kscw`, team A = left) and, while the board knows
+the fixture, that game's row `game-<games.id>` (team A = home) — the one "Watch live"
+and the result entry's prefill read. `live_history` and `live_match_logs` stay on `kscw`.
+
+No delete, no app access, and no *granted* write outside the board's archive collections and `live_scores`.
 Verified on both: `DELETE /items/live_scores/kscw` → 403.
 
 ⚠️ **What the token can nonetheless read.** Directus policies are additive and the
