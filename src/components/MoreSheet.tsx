@@ -22,6 +22,7 @@ import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { CLUB_WEBSITE_URL } from '../lib/clubWebsite'
+import HostedByInfomaniak from './HostedByInfomaniak'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useShowTournaments } from '../modules/tournaments/tournamentsApi'
 
@@ -354,6 +355,26 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
 
         {/* Nav items */}
         <nav className="px-4 pb-2">
+          {/* Hosting partner — first thing in the sheet. */}
+          <div className="flex justify-center pb-1 pt-1.5">
+            <HostedByInfomaniak layout="inline" logoClassName="h-3.5" />
+          </div>
+          {/* Public club website — for everyone, signed in or not. Near the top of
+              the sheet since the home header's kscw.ch button gave its place to
+              the hosting partner. Mirrors the full-width gold "Wiedisync" button in
+              kscw.ch's phone menu. A new tab (in a PWA, the system browser). */}
+          <a
+            href={CLUB_WEBSITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={startClose}
+            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors"
+          >
+            <Globe className={iconClass} />
+            {t('clubWebsite')} · kscw.ch
+            <ExternalLink className="h-4 w-4 opacity-70" />
+          </a>
+          <div className="my-2 border-t border-border" />
           {/* Notifications row */}
           {user && isApproved && onOpenNotifications && (
             <>
@@ -485,21 +506,6 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               {superAdminItems.map(renderNavItem)}
             </>
           )}
-          {/* Public club website — for everyone, signed in or not. Mirrors the
-              full-width gold "Wiedisync" button in kscw.ch's phone menu. A new
-              tab (in a PWA, the system browser). */}
-          <div className="my-2 border-t border-border" />
-          <a
-            href={CLUB_WEBSITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={startClose}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm bg-gold-400 font-semibold text-brand-900 hover:bg-gold-500 transition-colors"
-          >
-            <Globe className={iconClass} />
-            {t('clubWebsite')} · kscw.ch
-            <ExternalLink className="h-4 w-4 opacity-70" />
-          </a>
         </nav>
 
         {/* Divider */}

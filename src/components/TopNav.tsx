@@ -16,6 +16,7 @@ import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
 import type { MemberTeam, Team } from '../types'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { CLUB_WEBSITE_URL } from '../lib/clubWebsite'
+import HostedByInfomaniak from './HostedByInfomaniak'
 import NotificationBell from './NotificationBell'
 import AdminToggle from './AdminToggle'
 import SwitchToggle from '@/components/SwitchToggle'
@@ -233,6 +234,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           className="h-8 w-auto"
         />
       </NavLink>
+
+      {/* Hosting partner — on every page, next to the logo. */}
+      <div className="mx-1.5 h-7 w-px shrink-0 bg-border" aria-hidden="true" />
+      <HostedByInfomaniak className="mr-3" />
 
       {/* Left: grouped categories */}
       <nav className="flex items-center gap-0.5">
