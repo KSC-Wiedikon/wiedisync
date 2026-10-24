@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-24T08:39:59.510Z
+-- Generated:   2026-10-24T10:59:25.692Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
+\restrict O5GAbakz8KWw0K9TOPE99sOGpT2JISzcx8fy89ef5M88RnrepY0aDGGO84OJobo
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -9297,6 +9297,7 @@ CREATE TABLE public.live_history (
     set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
     ts bigint DEFAULT 0 NOT NULL,
     finished_at timestamp with time zone DEFAULT now() NOT NULL,
+    game_id integer,
     CONSTRAINT live_history_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[])))
 );
 
@@ -9327,6 +9328,13 @@ COMMENT ON COLUMN public.live_history.ts IS 'The board''s own ms-epoch clock at 
 --
 
 COMMENT ON COLUMN public.live_history.finished_at IS 'Server clock at insert. The UI sorts on this, not on `ts`, so a board with a wrong clock cannot reorder the list.';
+
+
+--
+-- Name: COLUMN live_history.game_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_history.game_id IS 'The fixture this finished match belongs to, when the board knew it (team A = home then). NULL: not tied to a game, team A = the left side. Migration 425.';
 
 
 --
@@ -9522,7 +9530,7 @@ COMMENT ON COLUMN public.live_scores.game_id IS 'The fixture a game row belongs 
 -- Name: COLUMN live_scores.source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.live_scores.source IS 'Who wrote the row: board:<channel> for the hall scoreboard (point-hub livePush.js), NULL for phone live scoring and the board''s own channel row. Migration 424.';
+COMMENT ON COLUMN public.live_scores.source IS 'Who wrote the row: board:<channel> for the hall scoreboard (point-hub livePush.js), phone for phone live scoring (live-scoring.js), NULL for the board''s own channel row and rows written before migration 425.';
 
 
 --
@@ -16621,6 +16629,13 @@ CREATE INDEX live_history_channel_finished_idx ON public.live_history USING btre
 
 
 --
+-- Name: live_history_game_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_history_game_id_idx ON public.live_history USING btree (game_id) WHERE (game_id IS NOT NULL);
+
+
+--
 -- Name: live_match_logs_channel_key_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19337,6 +19352,14 @@ ALTER TABLE ONLY public.identity_documents
 
 
 --
+-- Name: live_history live_history_game_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_history
+    ADD CONSTRAINT live_history_game_id_fkey FOREIGN KEY (game_id) REFERENCES public.games(id) ON DELETE SET NULL;
+
+
+--
 -- Name: live_match_logs live_match_logs_game_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -20098,7 +20121,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
+\unrestrict O5GAbakz8KWw0K9TOPE99sOGpT2JISzcx8fy89ef5M88RnrepY0aDGGO84OJobo
 
 
 
@@ -20114,7 +20137,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 428 migration(s) already in the schema above.
+-- Migration tracker seed — 429 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20555,6 +20578,7 @@ FROM (VALUES
   ('421-halls-feedback-english.sql'),
   ('422-board-scorer-leftovers-english.sql'),
   ('423-teams-wieplay-enabled.sql'),
-  ('424-live-scores-source.sql')
+  ('424-live-scores-source.sql'),
+  ('425-live-history-game-id.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
