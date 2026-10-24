@@ -1784,9 +1784,17 @@ async function main() {
   // Audit 2026-09-28: the one board token writes only its own channel. With a
   // second board, give it its own service user + policy rather than widening this.
   const LEDBOX_CHANNEL = { channel: { _eq: 'kscw' } }
-  await setPerm(LEDBOX_POLICY, 'live_scores', 'create', null, null, LEDBOX_CHANNEL)
+  // 2026-10-24: plus the per-game rows `game-<games.id>` (migration 394). When the
+  // board knows the fixture it also writes that game's row, home/away (point-hub
+  // liveFixture.js) — the row the game modal's "Watch live" and the result entry's
+  // prefill (game-result.js liveOf) read. Pinned to 'kscw', the board's score never
+  // reached the result form (H3 v Einsiedeln, 23.10). A leaked token could rewrite
+  // any game's live row; the prefill still needs a member's tap before VM sees it.
+  // live_history / live_match_logs stay on 'kscw': the board archives there only.
+  const LEDBOX_ROWS = { _or: [LEDBOX_CHANNEL, { channel: { _starts_with: 'game-' } }] }
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'create', null, null, LEDBOX_ROWS)
   await setPerm(LEDBOX_POLICY, 'live_scores', 'read')
-  await setPerm(LEDBOX_POLICY, 'live_scores', 'update', LEDBOX_CHANNEL, null, LEDBOX_CHANNEL)
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'update', LEDBOX_ROWS, null, LEDBOX_ROWS)
   // History is APPEND-ONLY for the board: create, and deliberately NO update or
   // delete. A device in a hall may add a finished match; correcting or removing one
   // is an admin action.
