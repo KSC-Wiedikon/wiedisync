@@ -54,7 +54,7 @@ physical scoreboard → one row it keeps overwriting.
 | `set_results` | JSON | `jsonb` | `[{ "a": 25, "b": 20, "dur": 1440 }, …]` completed sets; optional `dur` = set playing time in whole seconds (board monotonic clock), absent when the set start wasn't observed |
 | `date_updated` | Timestamp (system, "Date Updated") | `timestamptz` | auto |
 | `game_id` | Integer (nullable) | `integer` | FK `games(id)`: the fixture of a `game-<id>` row (migration 394). NULL on a board's own row |
-| `source` | String (nullable) | `varchar(64)` | `board:<channel>` when the hall board wrote a `game-<id>` row; NULL for phone scoring (migration 424) |
+| `source` | String (nullable) | `varchar(64)` | `board:<channel>` when the hall board wrote a `game-<id>` row, `phone` for phone scoring (migrations 424/425). While a board wrote a game row in the last 10 min, phone scoring of that game is refused (409 `board_scoring`) |
 
 `CHECK` constraints pin `sport`, `status` and `serving_team` to the values above —
 a typo from the board is rejected rather than silently mis-rendered. The push is
@@ -108,7 +108,9 @@ await setPerm(LEDBOX_POLICY, 'live_scores', 'update', LEDBOX_ROWS, null, LEDBOX_
 
 Two kinds of row: the board's own (`kscw`, team A = left) and, while the board knows
 the fixture, that game's row `game-<games.id>` (team A = home) — the one "Watch live"
-and the result entry's prefill read. `live_history` and `live_match_logs` stay on `kscw`.
+and the result entry's prefill read. A derby's two `games` rows share the home copy's row.
+`live_history` and `live_match_logs` stay on `kscw`; a history row the board could tie to
+its fixture carries `game_id` (migration 425, team A = home then).
 
 No delete, no app access, and no *granted* write outside the board's archive collections and `live_scores`.
 Verified on both: `DELETE /items/live_scores/kscw` → 403.

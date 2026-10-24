@@ -78,6 +78,7 @@ export default {
   finishEarlyConfirm: "No team has won three sets yet. End the match anyway?",
   scoringHint: "Tap a team to give it the point. Everyone can follow the score on the Live page.",
   scoreChangedElsewhere: "The score was changed on another phone — check it and tap again.",
+  boardTookOver: "The hall scoreboard is publishing this game — scoring here is off.",
   backToGame: "Back to the game",
   sync_loading: "Loading…",
   sync_synced: "Saved",
@@ -93,6 +94,8 @@ export default {
   cannotScore_no_time: "This game has no kickoff time yet.",
   cannotScore_outside_window: "Live scoring opens 1 hour before kickoff and closes 4 hours after.",
   cannotScore_not_participant: "Only the players on the match sheet, the coaches and the scorer duty of this game can score it.",
+  cannotScoreTitle_board_scoring: "The scoreboard is scoring this game",
+  cannotScore_board_scoring: "Its score is live for everyone. Phone scoring opens again 10 minutes after the scoreboard's last change.",
 
   // Game result entry + VolleyManager report (/kscw/game-result, migration 395)
   result_title: "Result",

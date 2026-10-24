@@ -3,7 +3,7 @@
  * plausibility check on a published score and the short team codes.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { cleanState, shortName, channelFor, registerLiveScoring } from '../live-scoring.js'
+import { cleanState, shortName, channelFor, registerLiveScoring, boardHolds, liveGameId, BOARD_FRESH_MS } from '../live-scoring.js'
 
 const base = {
   points_a: 12, points_b: 10, sets_won_a: 1, sets_won_b: 0,
@@ -90,5 +90,109 @@ describe('who may score — the shared eligibility check', () => {
     expect(body).toMatchObject({ can_score: false, code: 'not_participant' })
     expect(seen).toContain('member_teams')
     expect(seen).not.toContain('svrz_games')
+  })
+})
+
+describe('the hall board holds a game row', () => {
+  const now = Date.UTC(2026, 9, 23, 19, 0)
+  const at = (msAgo) => new Date(now - msAgo).toISOString()
+  it('while it wrote the row in the last ten minutes', () => {
+    expect(boardHolds({ source: 'board:kscw', date_updated: at(60_000) }, now)).toBe(true)
+    expect(boardHolds({ source: 'board:kscw', date_updated: at(BOARD_FRESH_MS + 1) }, now)).toBe(false)
+  })
+  it('never for a phone row, an old row or no row', () => {
+    expect(boardHolds({ source: 'phone', date_updated: at(1000) }, now)).toBe(false)
+    expect(boardHolds({ source: null, date_updated: at(1000) }, now)).toBe(false)
+    expect(boardHolds({ source: 'board:kscw', date_updated: null }, now)).toBe(false)
+    expect(boardHolds(null, now)).toBe(false)
+  })
+})
+
+/** A knex stand-in: games by id, and `where('game_id')…where('type')…whereNot('id')` lookups. */
+function fakeDb({ games = [], live = {} } = {}) {
+  const writes = []
+  const db = (table) => {
+    const conds = []
+    const b = {}
+    b.where = (k, v) => { if (typeof k === 'object') for (const [kk, vv] of Object.entries(k)) conds.push([kk, vv]); else conds.push([k, v]); return b }
+    b.whereNot = (k, v) => { conds.push([k, v, 'not']); return b }
+    for (const m of ['whereRaw', 'join']) b[m] = () => b
+    const match = (row) => conds.every(([k, v, not]) => (not ? String(row[k]) !== String(v) : String(row[k]) === String(v)))
+    b.first = async () => {
+      if (table === 'games') return games.find(match)
+      if (table === 'live_scores') { const ch = conds.find(([k]) => k === 'channel')?.[1]; return live[ch] }
+      if (table === 'teams') return { sport: 'volleyball', id: 7 }
+      if (table === 'members') return { id: 12, first_name: 'Anna', last_name: 'Muster' }
+      return undefined
+    }
+    b.update = (cols) => { writes.push({ table, cols }); return { returning: async () => [{ ...cols }] } }
+    b.select = async () => []
+    b.pluck = async () => []
+    return b
+  }
+  db.raw = async (sql, params) => { writes.push({ table: 'raw', sql, params }); return { rows: [{ channel: params[0] }] } }
+  db.writes = writes
+  return db
+}
+
+describe('a derby publishes to ONE row: the home copy\'s', () => {
+  const home = { id: 800, game_id: 'vb_1', type: 'home' }
+  const away = { id: 801, game_id: 'vb_1', type: 'away' }
+  it('the away copy resolves to the home copy, every other game to itself', async () => {
+    const db = fakeDb({ games: [home, away] })
+    expect(await liveGameId(db, away)).toBe(800)
+    expect(await liveGameId(db, home)).toBe(800)
+    expect(await liveGameId(fakeDb({ games: [{ id: 5, game_id: 'vb_2', type: 'away' }] }), { id: 5, game_id: 'vb_2', type: 'away' })).toBe(5)
+    expect(await liveGameId(db, { id: 9, type: 'away', game_id: null })).toBe(9)
+  })
+})
+
+describe('phones stand down while the board publishes', () => {
+  afterEach(() => vi.useRealTimers())
+  const kickoff = Date.UTC(2026, 9, 23, 18, 0)
+  const game = { id: 455, game_id: 'vb_9', kscw_team: 7, type: 'home', status: 'scheduled', date: '2026-10-23', time: '20:00:00', home_team: 'KSC Wiedikon H3', away_team: 'VBC Einsiedeln H1' }
+
+  function setup(liveRow) {
+    const db = fakeDb({ games: [game], live: liveRow ? { 'game-455': liveRow } : {} })
+    const routes = {}
+    const router = { get: (p, h) => { routes[`GET ${p}`] = h }, post: (p, h) => { routes[`POST ${p}`] = h } }
+    const noop = () => {}
+    const logger = { child: () => logger, info: noop, warn: noop, error: noop }
+    registerLiveScoring(router, { database: db, logger })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(kickoff + 30 * 60_000)
+    const call = async (method, body) => {
+      const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this }, json(b) { this.body = b } }
+      // An admin: eligibility is not what these tests are about.
+      await routes[`${method} /live-scoring/game/:gameId`]({ accountability: { user: 'u-1', admin: true }, params: { gameId: '455' }, body }, res)
+      return res
+    }
+    return { db, call }
+  }
+  const boardRow = (msAgo) => ({ channel: 'game-455', source: 'board:kscw', ts: 5, date_updated: new Date(kickoff + 30 * 60_000 - msAgo).toISOString(), status: 'live' })
+  const state = { points_a: 1, points_b: 0, sets_won_a: 0, sets_won_b: 0, set_results: [], status: 'live', serving_team: 'left', event: null }
+
+  it('GET says board_scoring and still hands back the row for "Watch live"', async () => {
+    const { call } = setup(boardRow(60_000))
+    const res = await call('GET')
+    expect(res.body).toMatchObject({ can_score: false, code: 'board_scoring', channel: 'game-455', row: { source: 'board:kscw' } })
+    expect(res.body.game).not.toHaveProperty('game_id')
+  })
+
+  it('POST is refused 409 board_scoring, nothing written', async () => {
+    const { call, db } = setup(boardRow(60_000))
+    const res = await call('POST', { base_ts: 5, state })
+    expect(res.statusCode).toBe(409)
+    expect(res.body).toMatchObject({ code: 'board_scoring', row: { source: 'board:kscw' } })
+    expect(db.writes.filter((w) => w.table !== 'user_logs')).toEqual([])
+  })
+
+  it('a board quiet for ten minutes hands the row back; the phone marks its write', async () => {
+    const { call, db } = setup(boardRow(BOARD_FRESH_MS + 1000))
+    expect((await call('GET')).body).toMatchObject({ can_score: true, code: null })
+    const res = await call('POST', { base_ts: 5, state })
+    expect(res.statusCode).toBe(200)
+    const upd = db.writes.find((w) => w.table === 'live_scores')
+    expect(upd.cols).toMatchObject({ source: 'phone', game_id: 455 })
   })
 })

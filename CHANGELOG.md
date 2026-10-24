@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.40.0 — 2026-10-24
+
+### Changed
+
+- When the hall scoreboard runs a game, its score now reaches Wiedisync: "Watch live" in the game details shows it, and after the game the result form is filled in from it, so you only check it and tap Report result.
+- The Live banner and the Live menu item also show games scored from a phone, and open that game.
+- Phone live scoring pauses while the hall scoreboard is publishing the same game, so the two cannot overwrite each other. It opens again 10 minutes after the scoreboard's last change.
+- A derby (KSCW against KSCW) has one live score for both teams.
+
 ## v2.39.0 — 2026-10-20
 
 ### Changed

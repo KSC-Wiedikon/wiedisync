@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { useLiveNow } from '../modules/live/useLiveNow'
+import { liveHref, useLiveNow } from '../modules/live/useLiveNow'
 import { useAuth } from './useAuth'
 import { useAdminMode } from './useAdminMode'
 import { SCHEDULING_ORIGIN, externalAccountingOrigin } from '../lib/api'
@@ -51,7 +51,8 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
     // without an account (the `live_scores` read is on the Public policy).
     // Listed only while a match is actually live (or while you're on /live, so
     // the current page never vanishes from under you); a pulsing icon marks it.
-    ...(showLive ? [{ to: '/live', label: t('live'), icon: <Radio className={cn(iconClass, liveNow.live && '!text-red-500 motion-safe:animate-pulse')} /> }] : []),
+    // It opens the match that is live — the hall board, or a game scored from a phone.
+    ...(showLive ? [{ to: liveNow.live ? liveHref(liveNow.channel) : '/live', label: t('live'), icon: <Radio className={cn(iconClass, liveNow.live && '!text-red-500 motion-safe:animate-pulse')} /> }] : []),
   ]
   // Primary = the daily "what's happening" views (these mirror the mobile bottom
   // tab bar). In the desktop top navbar Home stays a direct link and the rest are

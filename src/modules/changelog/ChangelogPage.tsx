@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.39.0'
+const APP_VERSION = '2.40.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.40.0',
+    date: '24.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "When the hall scoreboard runs a game, its score now reaches Wiedisync: \"Watch live\" in the game details shows it, and after the game the result form is filled in from it, so you only check it and tap Report result.",
+          "The Live banner and the Live menu item also show games scored from a phone, and open that game.",
+          "Phone live scoring pauses while the hall scoreboard is publishing the same game, so the two cannot overwrite each other. It opens again 10 minutes after the scoreboard's last change.",
+          "A derby (KSCW against KSCW) has one live score for both teams.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.39.0',
     date: '20.10.2026',
