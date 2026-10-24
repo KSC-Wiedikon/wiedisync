@@ -7,13 +7,13 @@ import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useCollection } from '../../lib/query'
 import { useMyAbsences } from '../../hooks/useMyCoveringAbsence'
 import { fetchSeasons } from '../../lib/api'
-import { CLUB_WEBSITE_URL } from '../../lib/clubWebsite'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotificationsContext } from '../../hooks/NotificationsContext'
 import { formatTime, formatWeekday, formatDayMonthZurich, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import TruncatedText from '@/components/TruncatedText'
+import HostedByInfomaniak from '@/components/HostedByInfomaniak'
 import { ActivityRow, DateRail, RowChip, RowList, SectionHead, TeamPair } from '@/components/ActivityRow'
 import { ROW_HIGHLIGHT, type RowTone } from '@/components/activityRowTokens'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
@@ -40,7 +40,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus, Globe } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { gameNumberLabel } from '../../utils/leagueShort'
@@ -496,23 +496,15 @@ export default function HomePage() {
       <InstallBanner />
       {isInitialLoading ? null : (<>
 
-      {/* Header row: shield · Wiedisync · kscw.ch. Equal side columns keep the
-          title centred. */}
+      {/* Header row: shield · Wiedisync · hosting partner (phone). Equal side
+          columns keep the title centred. The club-website button lives in the
+          More sheet (phone) and the top nav (desktop). */}
       <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pt-1">
         <img src="/wiedisync_logo.svg" alt="KSC Wiedikon" className="h-10 w-auto sm:h-11" />
         <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Wiedisync</h1>
         <div className="flex justify-end">
-          {/* Public club website — a new tab (in a PWA, the system browser). */}
-          <a
-            href={CLUB_WEBSITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`${t('nav:clubWebsite')} (kscw.ch)`}
-            className="relative inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-md bg-gold-400 px-2.5 text-xs font-semibold text-brand-900 transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-gold-500"
-          >
-            <Globe className="h-3.5 w-3.5" />
-            kscw.ch
-          </a>
+          {/* Hosting partner on phones; desktop shows it in the top nav. */}
+          <HostedByInfomaniak align="end" className="lg:hidden" logoClassName="h-[12.5px] sm:h-[14.5px]" />
         </div>
       </div>
 

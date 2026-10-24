@@ -75,6 +75,7 @@ export default {
   anmeldungen: 'Amäldigä',
   guide: 'Aleitig',
   clubWebsite: 'Vereinswebsite',
+  hostedBy: 'Hosted by',
   adminExplorer: 'Datebank',
   announcements: 'Mitteilige',
   clubMailbox: 'Vereinsposchtfach',

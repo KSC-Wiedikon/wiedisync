@@ -75,6 +75,7 @@ export default {
   anmeldungen: 'Inscriptions',
   guide: 'Guide',
   clubWebsite: 'Site du club',
+  hostedBy: 'Hosted by',
   adminExplorer: 'Base de données',
   announcements: 'Annonces',
   clubMailbox: 'Messagerie du club',
