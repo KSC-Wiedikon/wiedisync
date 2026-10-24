@@ -78,6 +78,7 @@ export default {
   finishEarlyConfirm: "Aucune équipe n’a encore gagné trois sets. Terminer quand même le match ?",
   scoringHint: "Touchez une équipe pour lui donner le point. Tout le monde peut suivre le score sur la page Live.",
   scoreChangedElsewhere: "Le score a été modifié sur un autre téléphone — vérifiez-le et touchez à nouveau.",
+  boardTookOver: "Le tableau d’affichage de la salle diffuse ce match — la saisie ici est désactivée.",
   backToGame: "Retour au match",
   sync_loading: "Chargement…",
   sync_synced: "Enregistré",
@@ -93,6 +94,8 @@ export default {
   cannotScore_no_time: "Ce match n’a pas encore d’heure de début.",
   cannotScore_outside_window: "Le score en direct ouvre 1 heure avant le début et ferme 4 heures après.",
   cannotScore_not_participant: "Seuls les joueurs de la feuille de match, les entraîneurs et le service de marque de ce match peuvent le saisir.",
+  cannotScoreTitle_board_scoring: "Le tableau d’affichage saisit ce match",
+  cannotScore_board_scoring: "Son score est en direct pour tous. La saisie par téléphone redevient possible 10 minutes après la dernière modification du tableau.",
 
   // Game result entry + VolleyManager report (/kscw/game-result, migration 395)
   result_title: "Résultat",

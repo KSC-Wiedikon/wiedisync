@@ -27,6 +27,18 @@
  * rolling the other phone's points back. The client adopts the row and the tap is
  * re-applied by the person — a lost tap is visible, a rolled-back score is not.
  *
+ * THE HALL BOARD WRITES THESE ROWS TOO. A board that knows the fixture publishes the game's
+ * row itself (point-hub livePush.js, `source: 'board:<channel>'`, setup-permissions §5b). While
+ * it does — a board write in the last BOARD_FRESH_MS — the phones stand down: the GET answers
+ * `can_score: false` with code `board_scoring` and a POST is refused 409 `board_scoring` with the
+ * row. Two writers would take the score from each other on every rally, and the board is the one
+ * the hall sees. A board that went quiet (powered off, no uplink) hands the row back after
+ * BOARD_FRESH_MS. Phone writes carry `source: 'phone'`.
+ *
+ * DERBY. KSCW v KSCW is two `games` rows sharing one `game_id`; both publish to ONE row, the home
+ * copy's `game-<id>` — the one the board writes (liveGameId). Team A is the match's home team on
+ * either copy, so the row reads the same from both.
+ *
  * ACTOR CAPTURE. Raw knex bypasses Directus's activity trail, so writeUserLog records
  * who started, ended a set, finished or reset a match, and whenever a DIFFERENT member
  * takes over the scoring. Not every rally: ~180 rows a match would bury the audit log,
@@ -47,6 +59,29 @@ const MESSAGES = {
 }
 
 export const channelFor = (gameId) => `game-${gameId}`
+
+/** How long a board write keeps the phones off a game's row (see the header). */
+export const BOARD_FRESH_MS = 10 * 60 * 1000
+
+/** Did the hall board write this row recently enough that it still holds it? */
+export function boardHolds(row, now = Date.now()) {
+  if (!row || !String(row.source ?? '').startsWith('board:')) return false
+  const at = row.date_updated ? new Date(row.date_updated).getTime() : NaN
+  return Number.isFinite(at) && now - at < BOARD_FRESH_MS
+}
+
+/**
+ * The games.id whose `game-<id>` row carries this game's live score: the game itself, or for
+ * the AWAY copy of a derby (two rows, one game_id) the home copy — the board, on its home
+ * schedule, writes that one, and two rows for one match would split "Watch live" and the prefill.
+ * `game` needs id, type, game_id. game-result.js uses the same answer for the prefill.
+ */
+export async function liveGameId(database, game) {
+  if (!game || game.type !== 'away' || !game.game_id) return game?.id
+  const home = await database('games').where('game_id', game.game_id).where('type', 'home')
+    .whereNot('id', game.id).first('id', 'type')
+  return home && home.type === 'home' && String(home.id) !== String(game.id) ? home.id : game.id
+}
 
 // "KSC Wiedikon H3" → "KSCW", "VBC Zürich Lions" → "VZL". The board's short code is
 // what the /live headline and the discoverability banner print.
@@ -131,15 +166,22 @@ export function registerLiveScoring(router, { database, logger }) {
 
   router.get('/live-scoring/game/:gameId', async (req, res) => {
     try {
-      const channel = channelFor(req.params.gameId)
       const auth = await authorize(req)
+      // Names + kickoff — what the public games list already shows — plus game_id, which
+      // finds a derby's home copy and is not sent back.
+      const found = await database('games').where('id', req.params.gameId)
+        .first('id', 'home_team', 'away_team', 'date', 'time', 'type', 'league', 'game_id')
+      const { game_id: _vmGame, ...game } = found ?? {}
+      const channel = channelFor(found ? await liveGameId(database, found) : req.params.gameId)
       const row = await loadRow(channel)
-      // Names + kickoff only — what the public games list already shows.
-      const game = await database('games').where('id', req.params.gameId)
-        .first('id', 'home_team', 'away_team', 'date', 'time', 'type', 'league')
+      const board = !auth.status && boardHolds(row)
       // The row itself is public (/live) — hand it back even when the caller may not
       // score, so the game modal can still offer "Watch live".
-      res.json({ can_score: !auth.status, code: auth.code ?? null, channel, game: game ?? null, row: row ?? null })
+      res.json({
+        can_score: !auth.status && !board,
+        code: board ? 'board_scoring' : auth.code ?? null,
+        channel, game: found ? game : null, row: row ?? null,
+      })
     } catch (err) {
       log.error(`[live-scoring] GET ${req.params.gameId}: ${err.message}`)
       fail(res, 500, 'Internal error', 'internal')
@@ -158,7 +200,8 @@ export function registerLiveScoring(router, { database, logger }) {
       const clean = cleanState(req.body?.state)
       if (!clean) return fail(res, 400, 'Invalid score', 'invalid_state')
 
-      const channel = channelFor(game.id)
+      const liveId = await liveGameId(database, game)
+      const channel = channelFor(liveId)
       const baseTs = req.body?.base_ts == null ? null : Number(req.body.base_ts)
       const ts = Math.max(Date.now(), (baseTs ?? 0) + 1)
       const cols = {
@@ -167,7 +210,8 @@ export function registerLiveScoring(router, { database, logger }) {
         sport: 'volleyball',
         side_a: 'left',
         ts,
-        game_id: game.id,
+        game_id: liveId,
+        source: 'phone',
         team_a_name: game.home_team ?? '',
         team_a_short: shortName(game.home_team),
         team_a_color: '#2563eb',
@@ -179,6 +223,9 @@ export function registerLiveScoring(router, { database, logger }) {
       }
 
       const before = await loadRow(channel)
+      if (boardHolds(before)) {
+        return res.status(409).json({ error: 'The hall scoreboard is publishing this game', code: 'board_scoring', row: before })
+      }
       let written
       if (!before) {
         // First publish for this game. A second phone racing us loses on the PK and
