@@ -78,6 +78,7 @@ export default {
   finishEarlyConfirm: "No kei Team hät drü Sätz gwunne. Spiel glich beände?",
   scoringHint: "Tipp uf es Team, zum ihm de Punkt gäh. Alli chönd de Spielstand uf de Live-Siite verfolge.",
   scoreChangedElsewhere: "De Spielstand isch uf emne andere Handy gänderet worde — prüef en und tipp nomal.",
+  boardTookOver: "D Aazeigtafle i de Halle überträgt das Spiel — da isch s Erfasse uus.",
   backToGame: "Zrugg zum Spiel",
   sync_loading: "Wird glade…",
   sync_synced: "Gspeicheret",
@@ -93,6 +94,8 @@ export default {
   cannotScore_no_time: "Das Spiel hät no kei Aaspielziit.",
   cannotScore_outside_window: "S Live-Resultat gaht 1 Stund vor Spielbeginn uf und 4 Stund dänoch zue.",
   cannotScore_not_participant: "Nur d Spieler uf em Matchblatt, d Trainer und de Schriiberdienst vo dem Spiel chönd s erfasse.",
+  cannotScoreTitle_board_scoring: "D Aazeigtafle erfasst das Spiel",
+  cannotScore_board_scoring: "Ire Spielstand isch für alli live. Mit em Handy chasch wider 10 Minute nach de letschte Änderig a de Aazeigtafle erfasse.",
 
   // Game result entry + VolleyManager report (/kscw/game-result, migration 395)
   result_title: "Resultat",

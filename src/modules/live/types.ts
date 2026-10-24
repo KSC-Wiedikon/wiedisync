@@ -128,6 +128,10 @@ export interface LiveScoreRow {
   serving_team: 'left' | 'right' | null
   set_results: SetResult[] | null
   date_updated?: string | null
+  /** The fixture of a `game-<id>` row (phone scoring or the hall board); null on a board's own row. */
+  game_id?: number | string | null
+  /** `board:<channel>` when the hall board wrote a game row, `phone` for phone scoring. */
+  source?: string | null
 }
 
 /** Connection lifecycle of the underlying EventSource. */

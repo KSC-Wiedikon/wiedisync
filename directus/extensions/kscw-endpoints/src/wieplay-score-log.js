@@ -256,7 +256,10 @@ function view(data, homeLeft) {
 
 /**
  * Snapshots ({ id, at, data }, oldest first) of the game's window → the game's events. Keeps
- * only snapshots naming the game's two teams, of the channel with most of them.
+ * only snapshots naming the game's two teams, of the channel with most of them. A board that
+ * knows the fixture writes the game's own row `game-<id>` next to its channel row, so the two
+ * can tie: then the game's own row wins (it names the game; the board row may already be the
+ * next match).
  */
 export function snapshotsToLog(rows, game) {
   const matching = []
@@ -272,7 +275,9 @@ export function snapshotsToLog(rows, game) {
   if (!matching.length) return null
   const perChannel = new Map()
   for (const m of matching) perChannel.set(m.data.channel ?? '', (perChannel.get(m.data.channel ?? '') ?? 0) + 1)
-  const channel = [...perChannel.entries()].sort((x, y) => y[1] - x[1])[0][0]
+  const own = game?.id != null ? `game-${game.id}` : null
+  const channel = [...perChannel.entries()]
+    .sort((x, y) => y[1] - x[1] || Number(y[0] === own) - Number(x[0] === own))[0][0]
   const snaps = matching.filter((m) => (m.data.channel ?? '') === channel)
 
   const replay = new Replay()

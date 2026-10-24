@@ -5,7 +5,7 @@ import { client } from '@/lib/api'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTimeCompactZurich } from '../../../utils/dateHelpers'
 import { formatDuration, totalSetDuration } from '../final'
-import { normaliseSetResult, normaliseSport } from '../scoreboard'
+import { historyFilter, normaliseSetResult, normaliseSport } from '../scoreboard'
 import type { LiveSport, SetResult } from '../types'
 
 /**
@@ -16,10 +16,12 @@ import type { LiveSport, SetResult } from '../types'
  * (CLAUDE.md → "Lists → tables, always"). The board's own result cards are the
  * live view above; this is the log.
  *
- * ⚠ This is scoreboard history, NOT the club's results — `live_history` has no
- * link to a `games` row, because the board doesn't know which fixture it is
- * showing. Worded accordingly ("recent on the scoreboard").
+ * ⚠ This is scoreboard history, NOT the club's results — worded accordingly
+ * ("recent on the scoreboard"). A board that knew the fixture archives the match
+ * with `game_id` (migration 425), so on a game's own channel (`game-<id>`) the
+ * list is that game's archived result; on a board channel it is that board's log.
  */
+
 interface HistoryRow {
   id: string
   sport: LiveSport | null
@@ -48,7 +50,7 @@ export default function RecentMatches({ channel }: { channel: string }) {
       try {
         const data = await client.request<HistoryRow[]>(
           readItems('live_history', {
-            filter: { channel: { _eq: channel } },
+            filter: historyFilter(channel),
             // Server clock, not the board's — a board with a wrong clock must not
             // be able to reorder the list.
             sort: ['-finished_at'],

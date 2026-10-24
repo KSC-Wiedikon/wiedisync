@@ -90,3 +90,13 @@ export function beachPair(name: string): string[] {
 export function currentSetNumber(s: BoardState): number {
   return s.period > 0 ? s.period : (s.set_results?.length ?? 0) + 1
 }
+
+/**
+ * The `live_history` filter for a /live channel: a game's own channel (`game-<id>`) lists
+ * that game's archived matches (`game_id`, migration 425 — the board archives a match it
+ * could tie to its fixture with it), any other channel that board's log.
+ */
+export function historyFilter(channel: string): Record<string, unknown> {
+  const game = /^game-(\d+)$/.exec(channel)
+  return game ? { game_id: { _eq: Number(game[1]) } } : { channel: { _eq: channel } }
+}

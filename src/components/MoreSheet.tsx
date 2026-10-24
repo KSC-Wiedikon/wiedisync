@@ -7,7 +7,7 @@ import { useTheme } from '../hooks/useTheme'
 import TeamChip from './TeamChip'
 import { accentOf } from './householdAccents'
 import { cn } from '@/lib/utils'
-import { useLiveNow } from '../modules/live/useLiveNow'
+import { liveHref, useLiveNow } from '../modules/live/useLiveNow'
 import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
@@ -399,7 +399,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
           {/* Live scoreboard — public like on desktop (spectators follow it
               without an account), so it sits outside the approved-member
               block below. The bottom tab bar has no room for it. */}
-          {showLive && renderNavItem({ to: '/live', labelKey: 'live', icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> })}
+          {showLive && renderNavItem({ to: liveNow.live ? liveHref(liveNow.channel) : '/live', labelKey: 'live', icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> })}
           {(!user || !isApproved) ? null : (() => {
             const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms, showTournaments })
             const renderItem = (item: SheetItem) => (

@@ -1,24 +1,25 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useLiveNow } from '../useLiveNow'
+import { liveHref, useLiveNow } from '../useLiveNow'
 
 /**
- * "A match is live in the hall" → /live. Renders nothing at all when the board is
- * idle, so it costs one small 30s poll and no layout on a normal day.
+ * "A match is live" → that match on /live (the hall board, or a game scored from a
+ * phone). Renders nothing at all when nothing is live, so it costs one small 30s poll
+ * and no layout on a normal day.
  *
- * The wording is deliberately unattached to any fixture: `live_scores` has no
- * `games` foreign key, so claiming "your game is live" would sometimes be wrong.
- * The team codes in the headline let the reader make that connection themselves.
+ * The wording stays unattached to a fixture: the board's own row carries no game, so
+ * "your game is live" would sometimes be wrong. The team codes in the headline let the
+ * reader make that connection themselves.
  */
 export default function LiveNowBanner() {
   const { t } = useTranslation('live')
-  const { live, headline } = useLiveNow()
+  const { live, headline, channel } = useLiveNow()
 
   if (!live) return null
 
   return (
     <Link
-      to="/live"
+      to={liveHref(channel)}
       className="mb-3 flex min-h-11 items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2 transition-colors hover:bg-red-500/10"
     >
       <span className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
