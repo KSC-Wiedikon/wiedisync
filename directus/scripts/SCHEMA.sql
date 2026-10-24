@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-18T10:01:49.297Z
+-- Generated:   2026-10-24T08:39:59.510Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kLxaeiw1JLkQdHmGU16VcgKQvoihKA1oP5hh551gNJK97WCUb5Hr5bxb2Bfkwg6
+\restrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -9413,6 +9413,7 @@ CREATE TABLE public.live_scores (
     set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
     date_updated timestamp with time zone,
     game_id integer,
+    source character varying(64),
     CONSTRAINT live_scores_serving_check CHECK (((serving_team IS NULL) OR ((serving_team)::text = ANY ((ARRAY['left'::character varying, 'right'::character varying])::text[])))),
     CONSTRAINT live_scores_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[]))),
     CONSTRAINT live_scores_status_check CHECK (((status)::text = ANY ((ARRAY['idle'::character varying, 'live'::character varying, 'final'::character varying])::text[])))
@@ -9514,7 +9515,14 @@ COMMENT ON COLUMN public.live_scores.set_results IS 'Completed sets, oldest firs
 -- Name: COLUMN live_scores.game_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.live_scores.game_id IS 'The fixture a phone-scored row belongs to (channel game-<id>). NULL for a physical board''s row.';
+COMMENT ON COLUMN public.live_scores.game_id IS 'The fixture a game row belongs to (channel game-<id>), scored from a phone or fed by the hall scoreboard. NULL for a physical board''s own row.';
+
+
+--
+-- Name: COLUMN live_scores.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.source IS 'Who wrote the row: board:<channel> for the hall scoreboard (point-hub livePush.js), NULL for phone live scoring and the board''s own channel row. Migration 424.';
 
 
 --
@@ -20090,7 +20098,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kLxaeiw1JLkQdHmGU16VcgKQvoihKA1oP5hh551gNJK97WCUb5Hr5bxb2Bfkwg6
+\unrestrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
 
 
 
@@ -20106,7 +20114,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 427 migration(s) already in the schema above.
+-- Migration tracker seed — 428 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20546,6 +20554,7 @@ FROM (VALUES
   ('420-scheduling-events-basketball-english.sql'),
   ('421-halls-feedback-english.sql'),
   ('422-board-scorer-leftovers-english.sql'),
-  ('423-teams-wieplay-enabled.sql')
+  ('423-teams-wieplay-enabled.sql'),
+  ('424-live-scores-source.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
