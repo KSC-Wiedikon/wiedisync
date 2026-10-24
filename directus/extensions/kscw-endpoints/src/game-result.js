@@ -50,6 +50,7 @@ import { gameStartMs } from './scorer-roster.js'
 import { readVmGameResult, cachedVmGameResult } from './vm-game-result.js'
 import { isSvrzRcBlackout } from './vm-windows.js'
 import { externalAccountsEnabled, externalWritesEnv } from './external-accounts.js'
+import { channelFor, liveGameId } from './live-scoring.js'
 
 const HOUR = 60 * 60 * 1000
 // Opens three hours AFTER kickoff (a negative "before"), closes two weeks after it.
@@ -514,7 +515,9 @@ export function registerGameResult(router, { database, logger }) {
         if (read) game = await applyVmRefresh(database, game, read)
       }
 
-      const live = await database('live_scores').where('channel', `game-${game.id}`)
+      // The game's live row — phone scoring or the hall board; a derby's away copy reads the
+      // home copy's row (live-scoring.js liveGameId). Team A is home on both.
+      const live = await database('live_scores').where('channel', channelFor(await liveGameId(database, game)))
         .first('set_results', 'sets_won_a', 'sets_won_b', 'status', 'over')
       const own = read ? pickReports(read, game).own : null
 

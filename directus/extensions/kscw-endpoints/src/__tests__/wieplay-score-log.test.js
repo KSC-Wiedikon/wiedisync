@@ -126,6 +126,21 @@ describe('snapshotsToLog', () => {
     expect(points(log.events)[0]).toMatchObject({ side: 'b', points_a: 0, points_b: 1 })
   })
 
+  it("a tie between the board's channel and the game's own row goes to the game's row", () => {
+    // Two snapshots each: the board row and game-509 (home/away). Which one is read shows in
+    // who scored — the board row here says home, the game row says away.
+    const log = snapshotsToLog([
+      snap(0, { p: [1, 0] }), snap(1, { p: [1, 0], channel: 'game-509' }),
+      snap(2, { p: [2, 0] }), snap(3, { p: [1, 1], channel: 'game-509' }),
+    ], GAME)
+    expect(points(log.events).map((e) => `${e.points_a}:${e.points_b}`)).toEqual(['1:0', '1:1'])
+    // More snapshots still win over the name.
+    const more = snapshotsToLog([
+      snap(0, { p: [1, 0] }), snap(1, { p: [2, 0] }), snap(2, { p: [0, 1], channel: 'game-509' }),
+    ], GAME)
+    expect(points(more.events).map((e) => `${e.points_a}:${e.points_b}`)).toEqual(['1:0', '2:0'])
+  })
+
   it('several points at once are a jump without times of their own', () => {
     const log = snapshotsToLog([snap(0), snap(1, { p: [4, 0] }), snap(2, { p: [4, 1] })], GAME)
     expect(log.events[0]).toMatchObject({ kind: 'jump', delta: [4, 0], points_a: 4, points_b: 0 })

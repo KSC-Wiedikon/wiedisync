@@ -78,6 +78,7 @@ export default {
   finishEarlyConfirm: "Nessuna squadra ha ancora vinto tre set. Terminare comunque la partita?",
   scoringHint: "Tocca una squadra per assegnarle il punto. Tutti possono seguire il punteggio sulla pagina Live.",
   scoreChangedElsewhere: "Il punteggio è stato modificato su un altro telefono — controllalo e tocca di nuovo.",
+  boardTookOver: "Il tabellone della palestra trasmette questa partita — qui la segnatura è disattivata.",
   backToGame: "Torna alla partita",
   sync_loading: "Caricamento…",
   sync_synced: "Salvato",
@@ -93,6 +94,8 @@ export default {
   cannotScore_no_time: "Questa partita non ha ancora un orario d’inizio.",
   cannotScore_outside_window: "Il punteggio live apre 1 ora prima dell’inizio e chiude 4 ore dopo.",
   cannotScore_not_participant: "Solo i giocatori sul referto, gli allenatori e il servizio segnapunti di questa partita possono segnarla.",
+  cannotScoreTitle_board_scoring: "Il tabellone segna questa partita",
+  cannotScore_board_scoring: "Il suo punteggio è in diretta per tutti. La segnatura dal telefono torna possibile 10 minuti dopo l’ultima modifica del tabellone.",
 
   // Game result entry + VolleyManager report (/kscw/game-result, migration 395)
   result_title: "Risultato",

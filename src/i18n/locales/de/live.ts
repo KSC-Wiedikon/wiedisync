@@ -78,6 +78,7 @@ export default {
   finishEarlyConfirm: "Noch hat kein Team drei Sätze gewonnen. Spiel trotzdem beenden?",
   scoringHint: "Tippe auf ein Team, um ihm den Punkt zu geben. Alle können den Spielstand auf der Live-Seite verfolgen.",
   scoreChangedElsewhere: "Der Spielstand wurde auf einem anderen Handy geändert — prüfe ihn und tippe nochmals.",
+  boardTookOver: "Die Anzeigetafel in der Halle überträgt dieses Spiel — hier ist das Erfassen aus.",
   backToGame: "Zurück zum Spiel",
   sync_loading: "Wird geladen…",
   sync_synced: "Gespeichert",
@@ -93,6 +94,8 @@ export default {
   cannotScore_no_time: "Dieses Spiel hat noch keine Anspielzeit.",
   cannotScore_outside_window: "Das Live-Resultat öffnet 1 Stunde vor Spielbeginn und schliesst 4 Stunden danach.",
   cannotScore_not_participant: "Nur die Spieler auf dem Matchblatt, die Trainer und der Schreiberdienst dieses Spiels können es erfassen.",
+  cannotScoreTitle_board_scoring: "Die Anzeigetafel erfasst dieses Spiel",
+  cannotScore_board_scoring: "Ihr Spielstand ist für alle live. Das Erfassen per Handy geht wieder 10 Minuten nach der letzten Änderung an der Anzeigetafel.",
 
   // Game result entry + VolleyManager report (/kscw/game-result, migration 395)
   result_title: "Resultat",

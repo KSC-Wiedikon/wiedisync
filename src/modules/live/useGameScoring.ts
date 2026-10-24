@@ -19,6 +19,10 @@ import { EMPTY_STATE, stateFromRow, type ScoreState } from './scoring'
  *
  * A 3 s poll keeps a second phone (and a scorer who reopens the page) in step. It
  * never overwrites while local taps are unpublished.
+ *
+ * When the hall scoreboard publishes the same game (409 `board_scoring`), the phone
+ * stands down: the board's row is adopted, scoring is switched off, and the poll keeps
+ * reading — the endpoint hands the game back once the board has been quiet for 10 min.
  */
 const POLL_MS = 3000
 const UNDO_MAX = 30
@@ -82,12 +86,17 @@ export function useGameScoring(gameId: string | undefined) {
       setSync(dirty.current ? 'saving' : 'synced')
     } catch (err) {
       const e = err as { status?: number; code?: string; body?: { row?: ScoringResponse['row'] } }
-      if (e.status === 409 && e.code === 'stale') {
+      if (e.status === 409 && (e.code === 'stale' || e.code === 'board_scoring')) {
         dirty.current = false
         undo.current = []
         setUndoDepth(0)
         adopt(e.body?.row ?? null)
-        toast.warning(i18n.t('live:scoreChangedElsewhere'))
+        if (e.code === 'board_scoring') {
+          setMeta((m) => (m ? { ...m, can_score: false, code: 'board_scoring' } : m))
+          toast.info(i18n.t('live:boardTookOver'))
+        } else {
+          toast.warning(i18n.t('live:scoreChangedElsewhere'))
+        }
         setSync('synced')
       } else {
         // Keep the local score; the poll tick retries it.

@@ -17,7 +17,8 @@ import { useGameScoring, type SyncState } from './useGameScoring'
  * Phone live scoring for one game — point-hub's console reduced to a phone at the side
  * of the court: Home and Away, a big "+" and a small "−" each, the sets, Undo and Next
  * set. No timeouts or substitutions. Publishes to `live_scores` channel `game-<id>`,
- * which `/live?channel=game-<id>` shows to everyone else.
+ * which `/live?channel=game-<id>` shows to everyone else — unless the hall scoreboard
+ * is publishing that game itself; then the page says so and offers "Watch live".
  *
  * Home is always on the left and never swaps: the scorer is reading the score off a
  * phone, not a panel the teams stand under, so a change of ends would only move the
@@ -141,7 +142,7 @@ export default function ScorePage() {
     return (
       <div className="mx-auto w-full max-w-md p-4">
         <div className="rounded-2xl border border-hairline bg-card p-8 text-center shadow-card">
-          <p className="text-sm font-semibold text-foreground">{t('cannotScoreTitle')}</p>
+          <p className="text-sm font-semibold text-foreground">{t(`cannotScoreTitle_${meta.code ?? ''}`, t('cannotScoreTitle'))}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t(`cannotScore_${meta.code ?? 'not_participant'}`, t('cannotScore_not_participant'))}</p>
           <Button asChild variant="outline" className="mt-4">
             <Link to={`/live?channel=${meta.channel}`}>{t('watchLive')}</Link>
