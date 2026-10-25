@@ -8,7 +8,9 @@ import { useCalendarData } from '../../calendar/hooks/useCalendarData'
 import { entryIconColor, cancelledClasses } from '../../calendar/entryStyle'
 import { eventTypeLabelKey } from '../../calendar/eventTypeLabel'
 import type { CalendarEntry, CalendarFilterState, BirthdaySource } from '../../../types/calendar'
-import { addDays, formatWeekdayZurich, formatDayMonthZurich } from '../../../utils/dateHelpers'
+import { addDays, formatWeekdayZurich, formatDayMonthZurich, hasGameEnded, hasTrainingEnded, hasEventEnded } from '../../../utils/dateHelpers'
+import { useNow } from '../../../hooks/useNow'
+import type { Event, Game, Training } from '../../../types'
 import { toDateKey } from '../../../utils/dateUtils'
 
 /** Sources surfaced in the homepage ticker — the "what's happening" set. Absences
@@ -104,6 +106,21 @@ function TickerSkeleton({ label }: { label: string }) {
   )
 }
 
+/** A game, duty, training or event of today that is already over. */
+function hasEntryEnded(now: number, entry: CalendarEntry): boolean {
+  switch (entry.type) {
+    case 'game':
+    case 'scorer-duty':
+      return hasGameEnded(now, entry.source as Game)
+    case 'training':
+      return hasTrainingEnded(now, entry.source as Training)
+    case 'event':
+      return hasEventEnded(now, entry.source as Event)
+    default:
+      return false
+  }
+}
+
 /**
  * Homepage "next 7 days" ticker — an auto-scrolling, ~95vw-wide horizontal
  * marquee of everything coming up for the given teams: games, trainings, events,
@@ -145,8 +162,13 @@ export default function UpcomingTicker({
     enabled: teamIds.length > 0,
   })
 
-  // Cap the DOM cost; entries are already chronological.
-  const items = useMemo(() => entries.slice(0, 24), [entries])
+  // Drop what already finished today, then cap the DOM cost; entries are
+  // already chronological.
+  const now = useNow()
+  const items = useMemo(
+    () => entries.filter((e) => !hasEntryEnded(now, e)).slice(0, 24),
+    [entries, now],
+  )
 
   // Reserve the strip's height for as long as the answer is unknown. Collapsing
   // to null while loading and expanding on arrival is what made the home page

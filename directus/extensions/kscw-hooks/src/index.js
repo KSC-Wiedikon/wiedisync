@@ -46,6 +46,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
+import { sendFineIssuedEmail } from '../../kscw-endpoints/src/fine-email.js'
 import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers, flagClubdeskFillOnlyGaps, flagClubdeskPush, contactValueChanged, CD_PUSH_FLAG_FIELDS, CD_PUSH_FLAG_CONTACT_FIELDS } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
@@ -4405,6 +4406,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ⚠ Staff are out (`is_staff = false`) — a late sign-in is a player rule,
   // not a coach one, the same line the roster's manual prompt draws.
   //
+  // ⚠ Guest players (member_teams.guest_level > 0) are out, trainings
+  // included: a guest is invited to the team's trainings, not expected at them,
+  // so a missed deadline is neither a decline nor a fine (2026-10-25 — until
+  // then trainings swept them, and 30 of the first 50 auto fines on prod were
+  // guests'; migrations 426/427 undid those).
+  //
   // ⚠ Called-up guests are out: the GAME branch joins `teamPeopleSql`, NOT
   // `GAME_SQUAD_JOIN`, so `game_guests` never appear. Somebody doing another
   // team a favour for a single fixture does not owe that team a fine, and the
@@ -4498,13 +4505,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const liveClause = isTraining
       ? 'a.cancelled = false'
       : `COALESCE(a.status, '') NOT IN ('completed', 'postponed', 'cancelled')`
-    // Trainings let guests answer unless the training excluded their level;
-    // games never do (trg_participations_guest_block hard-blocks a guest's
-    // confirm), which is why the deadline reminder drops them there too — and
-    // a member who cannot answer must never be fined for not answering.
-    const guestClause = isTraining
-      ? `AND NOT (COALESCE(a.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))`
-      : 'AND mt.guest_level = 0'
+    // Guests are never swept (see the header): not on games, where they cannot
+    // even answer (trg_participations_guest_block), and not on trainings, where
+    // they may answer but are not expected to.
+    const guestClause = 'AND mt.guest_level = 0'
     const deadline = effectiveDeadlineSql('a.respond_by', startCol)
 
     const res = await database.raw(`
@@ -9448,7 +9452,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //   waive metadata remain editable. Admins (accountability.admin) bypass.
   //
   // action('fines.items.create'):
-  //   Push + email the member: "{team} • CHF X: {reason}".
+  //   Bell/news entry + email the member (fine-email.js); push unless the
+  //   deadline sweep issued it (the sweep pushes once itself).
   // action('fines.items.update'):
   //   Push the member on status → paid or waived.
   //
@@ -9639,7 +9644,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       if (!key) return
       const fine = await database('fines').where('id', key).first(
-        'id', 'member', 'team', 'category', 'amount', 'currency', 'reason', 'auto_issued',
+        'id', 'member', 'team', 'category', 'amount', 'currency', 'reason', 'auto_issued', 'activity_date',
       )
       if (!fine) return
       if (!fine.member) { await notifyTeamFine(fine, 'issued'); return }
@@ -9659,6 +9664,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         team: fine.team,
         read: false,
       })
+
+      // Email (always, auto-issued included): a fine is money owed, and the
+      // bell entry only reaches someone who opens the app.
+      await sendFineIssuedEmail({ database, services, getSchema, log, fine, teamName })
 
       // Push to the recipient — EXCEPT for the deadline sweep's own fines.
       // That sweep declines the member and fines them in one stroke, and

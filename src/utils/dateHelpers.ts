@@ -262,6 +262,69 @@ export function gameKickoffMs(
   } catch { return null; }
 }
 
+/**
+ * How long a game is taken to last when deciding whether it is over. `games` store a
+ * kickoff only; results sync flips `status` to completed hours later, so without this a
+ * morning game would sit in "upcoming" lists all day.
+ */
+export const GAME_ASSUMED_DURATION_MS = 2.5 * 60 * 60 * 1000;
+
+/**
+ * True once an activity on a Zurich wall-clock `date` has finished: at `endTime` when there
+ * is one (an end before the start is read as past midnight), else `fallbackMs` after
+ * `startTime`, else at the end of its day. Upcoming lists filter on `date >= today` in the
+ * query and drop the finished ones of today with this.
+ */
+export function hasActivityEnded(
+  nowMs: number,
+  date: string | null | undefined,
+  endTime: string | null | undefined,
+  startTime?: string | null,
+  fallbackMs = 0,
+): boolean {
+  if (!date) return false;
+  const day = String(date).slice(0, 10);
+  const startMs = gameKickoffMs(day, startTime);
+  let endMs = gameKickoffMs(day, endTime);
+  if (endMs != null && startMs != null && endMs < startMs) endMs += 24 * 60 * 60 * 1000;
+  if (endMs == null && startMs != null) endMs = startMs + fallbackMs;
+  if (endMs == null) endMs = gameKickoffMs(day, '23:59');
+  return endMs != null && nowMs >= endMs;
+}
+
+/** {@link hasActivityEnded} for a training (start_time–end_time). */
+export function hasTrainingEnded(
+  nowMs: number,
+  training: { date?: string | null; start_time?: string | null; end_time?: string | null },
+): boolean {
+  return hasActivityEnded(nowMs, training.date, training.end_time, training.start_time);
+}
+
+/** {@link hasActivityEnded} for a game: kickoff + {@link GAME_ASSUMED_DURATION_MS}. */
+export function hasGameEnded(
+  nowMs: number,
+  game: { date?: string | null; time?: string | null },
+): boolean {
+  return hasActivityEnded(nowMs, game.date, null, game.time, GAME_ASSUMED_DURATION_MS);
+}
+
+/**
+ * True once an event is over. A timed event ends at its `end_date` instant; an all-day
+ * event's `end_date` is midnight Zurich of its last day, so it runs to the end of that day.
+ */
+export function hasEventEnded(
+  nowMs: number,
+  event: { end_date?: string | null; start_date?: string | null; all_day?: boolean | null },
+): boolean {
+  const end = event.end_date || event.start_date;
+  if (!end) return false;
+  if (event.all_day) {
+    return toZurichDateString(end) < toZurichDateString(new Date(nowMs));
+  }
+  const ms = parseFlexible(end).getTime();
+  return !Number.isNaN(ms) && nowMs >= ms;
+}
+
 /** Identity documents are DISPLAYED only in this window before kickoff. */
 export const ID_SHOW_BEFORE_MS = 45 * 60 * 1000;
 
