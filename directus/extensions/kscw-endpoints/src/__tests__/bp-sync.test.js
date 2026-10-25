@@ -127,7 +127,38 @@ describe('applyLocalGuards — hall / away venue defaulting', () => {
     const venue = { name: 'Saalsporthalle', city: 'Zürich' }
     const data = feedHomeData()
     applyLocalGuards(data, { ...pgHomeRow(), away_hall_json: venue })
-    expect(data.away_hall_json).toEqual(venue)
+    expect(data.away_hall_json).toBe(JSON.stringify(venue))
+  })
+
+  // pg hands json back parsed; node-postgres would write a JS array as a pg
+  // ARRAY literal ('{2}' — invalid json, game 718; [] → the object '{}').
+  it('keeps the existing extra halls as json TEXT, never a JS array', () => {
+    const data = feedHomeData()
+    const existing = { ...pgHomeRow(), hall: 1, additional_halls: ['2'] }
+    applyLocalGuards(data, existing)
+    expect(data.additional_halls).toBe('["2"]')
+    expect(isChanged(data, existing)).toBe(false)
+  })
+
+  it('an empty extra-hall list stays the json array []', () => {
+    const data = feedHomeData()
+    applyLocalGuards(data, { ...pgHomeRow(), hall: 2, additional_halls: [] })
+    expect(data.additional_halls).toBe('[]')
+  })
+
+  it('repairs an extra-hall json OBJECT to [] (and counts it as a change)', () => {
+    const data = feedHomeData()
+    const existing = { ...pgHomeRow(), hall: 2, additional_halls: {} }
+    applyLocalGuards(data, existing)
+    expect(data.additional_halls).toBe('[]')
+    expect(isChanged(data, existing)).toBe(true)
+  })
+
+  it('a missing value stays missing', () => {
+    const data = feedHomeData()
+    applyLocalGuards(data, { ...pgHomeRow(), additional_halls: null })
+    expect(data.additional_halls).toBeNull()
+    expect(data.away_hall_json).toBeNull()
   })
 })
 
@@ -347,6 +378,19 @@ describe('resolveHomeHalls — Basketplan venue → KWI halls', () => {
   it('1fach is KWI B alone — never KWI C', () => {
     expect(resolveHomeHalls('Kantonsschule Wiedikon 1fach', hallByName))
       .toEqual({ hall: 2, additionalHalls: [] })
+  })
+
+  it("Basketplan's per-hall 1fach names (since 10.2026)", () => {
+    expect(resolveHomeHalls('Kantonsschule Wiedikon 1fach Halle B', hallByName))
+      .toEqual({ hall: 2, additionalHalls: [] })
+    expect(resolveHomeHalls('Kantonsschule Wiedikon 1fach Halle C', hallByName))
+      .toEqual({ hall: 3, additionalHalls: [] })
+  })
+
+  it('Rebhügel H1 and H2 are both our Rebhügel hall', () => {
+    const withReb = { ...hallByName, 'Rebhügel': 5 }
+    expect(resolveHomeHalls('Schulhaus Rebhügel H1', withReb)).toEqual({ hall: 5, additionalHalls: [] })
+    expect(resolveHomeHalls('Schulhaus Rebhügel H2', withReb)).toEqual({ hall: 5, additionalHalls: [] })
   })
 
   it('an unknown venue resolves to null (hand-set hall is kept)', () => {

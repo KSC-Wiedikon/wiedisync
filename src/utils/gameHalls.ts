@@ -17,7 +17,9 @@ export function allGameHallIds(
   ctx?: { teams?: Team[]; halls?: Hall[] },
 ): string[] {
   const primary = game.hall ? [relId(game.hall)] : []
-  const extras = (game.additional_halls ?? []).map((v) => relId(v))
+  // Array check, not `?? []`: a json OBJECT ('{}', written by a bp-sync bug
+  // until 2026-10-25) is not iterable and took the whole view down.
+  const extras = (Array.isArray(game.additional_halls) ? game.additional_halls : []).map((v) => relId(v))
   const ids = [...primary, ...extras].filter(Boolean)
 
   if (ids.length > 1) return Array.from(new Set(ids))
