@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.40.1 — 2026-10-25
+
+### Changed
+
+- Trainings, games and events leave the upcoming lists once they are over, instead of staying until midnight. A training goes at its end time, a game 2½ hours after kickoff (on the Games page it moves down to the past games), an event at its end.
+- Guest players are no longer marked as not coming or fined when they don't answer a training by the sign-up deadline. Guests' existing late sign-in fines have been waived.
+- When you get a fine, you now also receive an email with the team, amount and reason, in addition to the notification in the app.
+
 ## v2.40.0 — 2026-10-24
 
 ### Changed
