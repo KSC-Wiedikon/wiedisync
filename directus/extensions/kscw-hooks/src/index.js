@@ -4406,6 +4406,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ⚠ Staff are out (`is_staff = false`) — a late sign-in is a player rule,
   // not a coach one, the same line the roster's manual prompt draws.
   //
+  // ⚠ Guest players (member_teams.guest_level > 0) are out, trainings
+  // included: a guest is invited to the team's trainings, not expected at them,
+  // so a missed deadline is neither a decline nor a fine (2026-10-25 — until
+  // then trainings swept them, and 30 of the first 50 auto fines on prod were
+  // guests'; migrations 426/427 undid those).
+  //
   // ⚠ Called-up guests are out: the GAME branch joins `teamPeopleSql`, NOT
   // `GAME_SQUAD_JOIN`, so `game_guests` never appear. Somebody doing another
   // team a favour for a single fixture does not owe that team a fine, and the
@@ -4499,13 +4505,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const liveClause = isTraining
       ? 'a.cancelled = false'
       : `COALESCE(a.status, '') NOT IN ('completed', 'postponed', 'cancelled')`
-    // Trainings let guests answer unless the training excluded their level;
-    // games never do (trg_participations_guest_block hard-blocks a guest's
-    // confirm), which is why the deadline reminder drops them there too — and
-    // a member who cannot answer must never be fined for not answering.
-    const guestClause = isTraining
-      ? `AND NOT (COALESCE(a.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))`
-      : 'AND mt.guest_level = 0'
+    // Guests are never swept (see the header): not on games, where they cannot
+    // even answer (trg_participations_guest_block), and not on trainings, where
+    // they may answer but are not expected to.
+    const guestClause = 'AND mt.guest_level = 0'
     const deadline = effectiveDeadlineSql('a.respond_by', startCol)
 
     const res = await database.raw(`
@@ -4516,8 +4519,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                to_char(a.date, 'YYYY-MM-DD')        AS adate_iso,
                to_char(a.date, 'DD.MM.YYYY')        AS adate_label,
                COALESCE(tm.name, '')                AS team_name,
-               mt.member                            AS member,
-               mt.guest_level                       AS guest_level
+               mt.member                            AS member
         FROM ${table} a
         JOIN LATERAL ${teamPeopleSql(teamCol)} mt ON true
         LEFT JOIN teams tm ON tm.id = ${teamCol}
@@ -4549,7 +4551,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         SELECT member, atype, aid, 'declined', '', 0, false, true FROM cand
         RETURNING member, activity_type, activity_id
       )
-      SELECT c.atype, c.aid, c.team_id, c.adate_iso, c.adate_label, c.team_name, c.member, c.guest_level
+      SELECT c.atype, c.aid, c.team_id, c.adate_iso, c.adate_label, c.team_name, c.member
       FROM cand c
       JOIN ins i
         ON i.member = c.member
@@ -4588,14 +4590,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     let fined = 0
     for (const row of declined) {
       let amountStr = null
-      // Guest players (member_teams.guest_level > 0) are declined like everyone
-      // else, so the roster stays honest, but never fined: a guest is invited to
-      // the team's trainings, not expected at them, and the deadline fine prices
-      // a commitment they never made. 30 of the first 50 auto fines on prod went
-      // to guests (2026-10-24); migration 426 waived those. Games never reach
-      // here with a guest (guestClause), so this only bites trainings.
-      const isGuest = Number(row.guest_level) > 0
-      if (!isGuest) try {
+      try {
         const fineId = await finesService.createOne({
           member: Number(row.member),
           team: Number(row.team_id),
