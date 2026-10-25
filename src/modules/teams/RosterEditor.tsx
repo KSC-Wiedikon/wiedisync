@@ -18,6 +18,7 @@ import TrainingForm from '../trainings/TrainingForm'
 import FinesSettings from '../fines/FinesSettings'
 import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
+import { downscaleImage } from '../../utils/imageResize'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings, NominationOfficialRole } from '../../types'
 import { Button, buttonVariants } from '../../components/ui/button'
@@ -29,6 +30,10 @@ import { asObj, relId, memberFirstName } from '../../utils/relations'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
+
+/** Team photos render wide (team card, website hero), so they keep more pixels than a profile photo. */
+const TEAM_PICTURE_MAX_EDGE = 3200
+const TEAM_PICTURE_MAX_BYTES = 3 * 1024 * 1024
 
 function displayName(m: Member): string {
   return [m.last_name, (m.nickname || m.first_name)].filter(Boolean).join(' ') || '—'
@@ -219,8 +224,15 @@ export default function RosterEditor() {
   }
 
   async function handlePictureUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file || !team) return
+    const picked = e.target.files?.[0]
+    if (!picked || !team) return
+    // Shrink before the size check and the upload. Directus refuses every resize of
+    // an image over 6000 px (ASSETS_TRANSFORM_IMAGE_MAX_DIMENSION), so a full-size
+    // camera original (D1, 7028 px, 10.2026) left the team card and the website —
+    // which ask for resized versions — showing a broken image.
+    setUploadingPicture(true)
+    const file = await downscaleImage(picked, { maxEdge: TEAM_PICTURE_MAX_EDGE, maxBytes: TEAM_PICTURE_MAX_BYTES })
+    setUploadingPicture(false)
     if (file.size > 10 * 1024 * 1024) {
       toast.error(t('pictureTooLarge'))
       if (fileInputRef.current) fileInputRef.current.value = ''
