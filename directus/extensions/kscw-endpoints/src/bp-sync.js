@@ -19,10 +19,18 @@ function normalizeSeason(s) {
 
 // Basketplan venue → our halls. First entry is `games.hall`, the rest go to
 // `additional_halls`: the 2fach venue is the whole double hall (KWI A+B), the
-// 1fach venue one half of it. Basketball never plays in KWI C.
+// 1fach venue one half of it. Since October 2026 Basketplan names the single
+// court per hall ("1fach Halle B" / "Halle C") and some home games play at
+// Rebhügel (H1/H2 are both our one `Rebhügel` hall). A venue missing here keeps
+// the row's existing hall and a NEW game is created hall-less, so add a name
+// as soon as the feed shows one (season-health lists hall-less home games).
 const HALL_MAP = {
   'Kantonsschule Wiedikon 2fach': ['KWI A', 'KWI B'],
   'Kantonsschule Wiedikon 1fach': ['KWI B'],
+  'Kantonsschule Wiedikon 1fach Halle B': ['KWI B'],
+  'Kantonsschule Wiedikon 1fach Halle C': ['KWI C'],
+  'Schulhaus Rebhügel H1': ['Rebhügel'],
+  'Schulhaus Rebhügel H2': ['Rebhügel'],
 }
 
 /**
@@ -223,8 +231,20 @@ export function applyLocalGuards(data, existing) {
   // run. Same for the away venue json. The feed still wins whenever it
   // resolves a value.
   if (data.hall === undefined) data.hall = existing.hall
-  if (data.additional_halls === undefined) data.additional_halls = existing.additional_halls
-  if (data.away_hall_json === undefined) data.away_hall_json = existing.away_hall_json
+  if (data.additional_halls === undefined) data.additional_halls = jsonParam(existing.additional_halls, { array: true })
+  if (data.away_hall_json === undefined) data.away_hall_json = jsonParam(existing.away_hall_json)
+}
+
+// A kept json value has to go back as TEXT. pg hands json columns back parsed,
+// and node-postgres writes a JS array as a Postgres ARRAY literal: ['2'] became
+// '{2}' (invalid json — every later update of that KWI A+B game failed, game 718
+// for a month) and [] became '{}', a json OBJECT that crashes every
+// `additional_halls.map` reader. A non-array `additional_halls` is repaired to
+// '[]' on the way (migration 428 fixed the rows already written).
+function jsonParam(v, { array = false } = {}) {
+  if (v == null || typeof v === 'string') return v
+  if (array && !Array.isArray(v)) return '[]'
+  return JSON.stringify(v)
 }
 
 /**
@@ -538,7 +558,9 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
 
   for (const g of allGames) {
     const gameId = `bb_${g.gameNumber}`
-    if (!g.date?.trim()) { log.warn(`[BP Sync] Game ${gameId}: missing date, skipping`); errors++; continue }
+    // Not scheduled yet (Basketplan lists the fixture before it has a date) —
+    // nothing to write, and not a failure.
+    if (!g.date?.trim()) { log.info(`[BP Sync] Game ${gameId}: no date yet, skipping`); skipped++; continue }
     const awayTeam = (!g.guestTeam?.trim() || g.guestTeam.trim() === '?') ? 'Opponent TBD' : g.guestTeam
 
     let hallId = null, awayHallJson = null, additionalHalls = null
