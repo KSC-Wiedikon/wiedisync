@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { kscwApi } from '../../lib/api'
 import { useAuth } from '../../hooks/useAuth'
+import { invalidateForCollection } from '../../lib/query'
 
 /**
  * Car pooling (migration 378) — client for /kscw/carpools/*. The tables are
@@ -175,6 +176,15 @@ export function useCarpoolActions(type: CarpoolActivityType, id: string | number
     dropPassenger: (passengerRowId: number) => run(`/carpools/passengers/${passengerRowId}`, 'DELETE'),
     /** Re-read after the activity's toggle changed (it lives on the activity row). */
     refresh: () => qc.invalidateQueries({ queryKey: ['carpool'] }),
+    /**
+     * Game switch + scope for a coach/TR of a called-up guest team, who has no
+     * /items grant on the game row (the playing team's staff use updateGame).
+     */
+    saveSettings: async (settings: { enabled?: boolean; teams?: number[] | null }) => {
+      await kscwApi(`/carpools/${type}/${id}/settings`, { method: 'PATCH', body: settings })
+      invalidateForCollection(`${type}s`)   // the switch lives on the game row
+      await qc.invalidateQueries({ queryKey: ['carpool'] })
+    },
   }
 }
 

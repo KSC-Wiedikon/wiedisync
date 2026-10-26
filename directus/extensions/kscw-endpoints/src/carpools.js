@@ -11,6 +11,7 @@
  *   DELETE /kscw/carpools/entries/:entryId/join    leave that car
  *   POST   /kscw/carpools/entries/:entryId/take    driver: take a request into my car
  *   DELETE /kscw/carpools/passengers/:pid          driver: drop a passenger from my car
+ *   PATCH  /kscw/carpools/game/:id/settings        coach/TR of the game's team or a guest team: switch + scope
  *
  * :type ∈ game | training | event.
  *
@@ -226,6 +227,33 @@ export function parseScope(raw) {
   if (typeof v === 'string') { try { v = JSON.parse(v) } catch { return [] } }
   if (!Array.isArray(v)) return []
   return [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+}
+
+/**
+ * Body of PATCH /carpools/game/:id/settings → the `games` columns to write.
+ * `enabled` must be a boolean; `teams` a list of the game's own team ids
+ * (playing team + guest teams); [] or null opens the board to all of them.
+ */
+export function parseBoardSettings(body, gameTeams) {
+  const patch = {}
+  if (body?.enabled !== undefined) {
+    if (typeof body.enabled !== 'boolean') throw httpError(400, 'enabled must be true or false', 'invalid_enabled')
+    patch.carpool_enabled = body.enabled
+  }
+  if (body?.teams !== undefined) {
+    const raw = body.teams ?? []
+    if (!Array.isArray(raw) || raw.some((t) => idParam(t) == null)) {
+      throw httpError(400, 'teams must be a list of team ids', 'carpool_invalid_teams')
+    }
+    const ids = [...new Set(raw.map(Number))]
+    const allowed = new Set(gameTeams.map(Number))
+    if (ids.some((t) => !allowed.has(t))) {
+      throw httpError(400, 'A board can only be opened to the teams of the game', 'carpool_invalid_teams')
+    }
+    patch.carpool_teams = ids.length ? ids : null
+  }
+  if (!Object.keys(patch).length) throw httpError(400, 'Nothing to change', 'carpool_no_settings')
+  return patch
 }
 
 /** Empty scope = open to all who can see the activity; else any team in common. */
@@ -1014,5 +1042,49 @@ export function registerCarpools(router, { services, database, logger, getSchema
       }
       res.json({ data: b, id: entryId })
     } catch (err) { fail(res, err, 'POST carpools/:type/:id') }
+  })
+
+  // ── Board settings of a game: the switch + the scope ───────────────────────
+  //
+  // Both live on the game row and are coach-owned. The playing team's
+  // coaches/TRs write them through /items (field grant, setup-permissions.mjs).
+  // A called-up GUEST team's coaches/TRs have no /items grant on another team's
+  // game, so they come through here (26.10.2026: H3's TR could not open car
+  // pooling for the H1 away game H3 was called up to). The gate is the same
+  // for both: admin, or coach/TR of an ACTIVE team that plays the game.
+
+  /** Team ids a member coaches or leads (active teams only). */
+  async function staffTeamsOf(memberId) {
+    const [coachTeams, trTeams] = await Promise.all([
+      database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id').where('tc.members_id', memberId).where('t.active', true).pluck('tc.teams_id'),
+      database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id').where('tr.members_id', memberId).where('t.active', true).pluck('tr.teams_id'),
+    ])
+    return [...new Set([...coachTeams, ...trTeams].filter((x) => x != null).map(Number))]
+  }
+
+  router.patch('/carpools/:type/:id/settings', async (req, res) => {
+    try {
+      requireSession(req)
+      if (req.params.type !== 'game') throw httpError(400, 'Only a game board is set here', 'carpool_settings_game_only')
+      const act = await activityFromParams(req)
+      const gameTeams = await audienceTeams(act)
+      if (req.accountability?.admin !== true) {
+        const me = await requireMember(req)
+        const mine = new Set(await staffTeamsOf(me.id))
+        if (!gameTeams.some((t) => mine.has(t))) {
+          throw httpError(403, "Only coaches and team responsibles of the game's teams can change car pooling", 'carpool_not_staff')
+        }
+      }
+      const patch = parseBoardSettings(req.body, gameTeams)
+      // System accountability: the caller's own policy may have no /items grant
+      // on this game (a guest team's), the check above is the gate. The games
+      // hooks and the cache clear still run, as for a coach's /items PATCH.
+      const schema = await getSchema()
+      await new ItemsService('games', { schema, accountability: null }).updateOne(act.id, patch)
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update', collection: 'games', recordId: act.id, data: patch,
+      })
+      res.json({ activity: (await loadActivity('game', act.id)).info })
+    } catch (err) { fail(res, err, 'PATCH carpools/:type/:id/settings') }
   })
 }
