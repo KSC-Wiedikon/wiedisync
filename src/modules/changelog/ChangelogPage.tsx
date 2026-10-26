@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.41.1'
+const APP_VERSION = '2.41.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.41.2',
+    date: '26.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "The privacy policy and imprint now name Infomaniak in Switzerland as the host of the club's server: since 26.10.2026 the member data is stored in a data centre in Geneva instead of with Hetzner in Germany.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.41.1',
     date: '26.10.2026',
