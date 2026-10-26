@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Privacy policy',
-  lastUpdated: 'Last updated: October 22, 2026',
+  lastUpdated: 'Last updated: October 26, 2026',
 
   controllerTitle: '1. Data controller',
   controllerText:
@@ -59,8 +59,8 @@ export default {
     'Basketplan (basketball.ch) — We retrieve publicly available game data and rankings. No personal data is transmitted to Basketplan.',
   thirdPartyMigadu:
     'Migadu (migadu.com) — Email delivery for notifications and reminders | Switzerland | DPA',
-  thirdPartyHetzner:
-    'Hetzner Online GmbH — Backend hosting (Directus) | Germany (Nuremberg datacenter) | DPA, GDPR-compliant',
+  thirdPartyInfomaniak:
+    'Infomaniak Network SA — Backend hosting (Directus) | Switzerland (Geneva datacenter) | DPA, nDSG- and GDPR-compliant',
   thirdPartyClubDesk:
     'ClubDesk (club administration, Switzerland): member master data including contact details, AHV number and payment details is synchronised with the ClubDesk club administration system, which is the original source of most of this data.',
   thirdPartySentry:
@@ -74,7 +74,7 @@ export default {
 
   storageTitle: '6. Data storage',
   storageServer:
-    'Data is stored on a server hosted by Hetzner Online GmbH in Germany (Nuremberg datacenter) running Directus. The frontend is served via Cloudflare Pages.',
+    'Data is stored on a server hosted by Infomaniak Network SA in Switzerland (Geneva datacenter) running Directus. The frontend is served via Cloudflare Pages.',
   storageLocal:
     'The following non-personal preferences are stored in your browser: color scheme (light/dark) and language setting. For logged-in users, a session token is stored in the browser.',
   storageNoCookies:
@@ -109,7 +109,7 @@ export default {
   impressumContact: 'Email: kscw@kscw.ch',
   impressumWebsite: 'Website: kscw.ch',
   impressumBoard: 'Responsible: Board of KSC Wiedikon',
-  impressumHosting: 'Hosting: Cloudflare Pages (frontend), Hetzner Online GmbH, Germany (backend)',
+  impressumHosting: 'Hosting: Cloudflare Pages (frontend), Infomaniak Network SA, Geneva, Switzerland (backend)',
   impressumLinks: 'Liability for links',
   impressumLinksText:
     'Our website contains links to external third-party websites over whose content we have no influence. The respective provider is always responsible for the content of linked pages. If we become aware of any legal violations, we will remove such links immediately.',

@@ -1,7 +1,7 @@
 export default {
   // Dateschutz page
   privacyTitle: 'Dateschutzerkläärig',
-  lastUpdated: 'Stand: 22. Oktober 2026',
+  lastUpdated: 'Stand: 26. Oktober 2026',
 
   controllerTitle: '1. Verantwortlichi Stell',
   controllerText:
@@ -59,8 +59,8 @@ export default {
     'Basketplan (basketball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded käni personebezogeni Date a Basketplan übermittlet.',
   thirdPartyMigadu:
     'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigunge und Erinnerige | Schwiiz | DPA',
-  thirdPartyHetzner:
-    'Hetzner Online GmbH — Backend-Hosting (Directus) | Dütschland (Rächemzäntrum Nürnberg) | DPA, DSGVO-konform',
+  thirdPartyInfomaniak:
+    'Infomaniak Network SA — Backend-Hosting (Directus) | Schwiiz (Rächemzäntrum Gänf) | DPA, nDSG- und DSGVO-konform',
   thirdPartyClubDesk:
     'ClubDesk (Vereinsverwaltig, Schwiiz): D Mitgliederstammdate inklusive Kontaktangabe, AHV-Nummere und Zahligsverbindig wärdet mit ClubDesk abglyche, wo die Date grösstenteils au härchömed.',
   thirdPartySentry:
@@ -74,7 +74,7 @@ export default {
 
   storageTitle: '6. Datespeicherig',
   storageServer:
-    'D Date werded uf emne Server vo de Hetzner Online GmbH i Dütschland (Rächemzäntrum Nürnberg) gspeicheret (Directus). S Frontend wird über Cloudflare Pages breitstellt.',
+    'D Date werded uf emne Server vo de Infomaniak Network SA i de Schwiiz (Rächemzäntrum Gänf) gspeicheret (Directus). S Frontend wird über Cloudflare Pages breitstellt.',
   storageLocal:
     'Im Browser werded folgendi nöd-personebezogeni Iistellige gspeicheret: Farbschema (hell/dunkel) und Spraachiistellig. Für iigloggte Nutzer wird es Sitzigstoken im Browser gspeicheret.',
   storageNoCookies:
@@ -109,7 +109,7 @@ export default {
   impressumContact: 'E-Mail: kscw@kscw.ch',
   impressumWebsite: 'Website: kscw.ch',
   impressumBoard: 'Verantwortlich: Vorstand KSC Wiedikon',
-  impressumHosting: 'Hosting: Cloudflare Pages (Frontend), Hetzner Online GmbH, Dütschland (Backend)',
+  impressumHosting: 'Hosting: Cloudflare Pages (Frontend), Infomaniak Network SA, Gänf, Schwiiz (Backend)',
   impressumLinks: 'Haftig für Links',
   impressumLinksText:
     'Euses Aagebott enthalted Links zu externe Websites vo Dritte, uf dere Inhalt mir käne Iifluss händ. Für d Inhalt vo de verlinkete Sitte isch immer de jewiligi Abieter verantwortlich. Bi Bekantwerde vo Rächtsverletzige werded mir sötigi Links umgehend entferne.',

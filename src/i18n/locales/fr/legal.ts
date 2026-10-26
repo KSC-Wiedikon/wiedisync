@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Politique de confidentialite',
-  lastUpdated: 'Derniere mise a jour : 22 octobre 2026',
+  lastUpdated: 'Dernière mise à jour : 26 octobre 2026',
 
   controllerTitle: '1. Responsable du traitement',
   controllerText:
@@ -59,8 +59,8 @@ export default {
     'Basketplan (basketball.ch) — Nous recuperons des donnees de matchs et classements accessibles au public. Aucune donnee personnelle n\'est transmise a Basketplan.',
   thirdPartyMigadu:
     'Migadu (migadu.com) — Envoi d\'emails pour les notifications et rappels | Suisse | DPA',
-  thirdPartyHetzner:
-    'Hetzner Online GmbH — Hebergement backend (Directus) | Allemagne (centre de donnees de Nuremberg) | DPA, conforme au RGPD',
+  thirdPartyInfomaniak:
+    'Infomaniak Network SA — Hébergement backend (Directus) | Suisse (centre de données de Genève) | DPA, conforme à la nLPD et au RGPD',
   thirdPartyClubDesk:
     'ClubDesk (administration de club, Suisse): les données de base des membres, y compris les coordonnées, le numéro AVS et les coordonnées bancaires, sont synchronisées avec ClubDesk, d’où provient la majeure partie de ces données.',
   thirdPartySentry:
@@ -74,7 +74,7 @@ export default {
 
   storageTitle: '6. Stockage des donnees',
   storageServer:
-    'Les donnees sont stockees sur un serveur de Hetzner Online GmbH en Allemagne (centre de donnees de Nuremberg) avec Directus. Le frontend est servi via Cloudflare Pages.',
+    'Les données sont stockées sur un serveur d’Infomaniak Network SA en Suisse (centre de données de Genève) avec Directus. Le frontend est servi via Cloudflare Pages.',
   storageLocal:
     'Les preferences non personnelles suivantes sont stockees dans votre navigateur : schema de couleurs (clair/sombre) et parametre de langue. Pour les utilisateurs connectes, un jeton de session est stocke dans le navigateur.',
   storageNoCookies:
@@ -109,7 +109,7 @@ export default {
   impressumContact: 'Email : kscw@kscw.ch',
   impressumWebsite: 'Site web : kscw.ch',
   impressumBoard: 'Responsable : Comite du KSC Wiedikon',
-  impressumHosting: 'Hebergement : Cloudflare Pages (frontend), Hetzner Online GmbH, Allemagne (backend)',
+  impressumHosting: 'Hébergement : Cloudflare Pages (frontend), Infomaniak Network SA, Genève, Suisse (backend)',
   impressumLinks: 'Responsabilite pour les liens',
   impressumLinksText:
     'Notre site contient des liens vers des sites web externes de tiers sur le contenu desquels nous n\'avons aucune influence. Le fournisseur respectif est toujours responsable du contenu des pages liees. En cas de connaissance de violations legales, nous supprimerons immediatement ces liens.',

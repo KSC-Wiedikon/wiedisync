@@ -33,7 +33,7 @@ graph TD
   API["lib/api<br/>Directus client + auth"]
   FOUND --> API
 
-  subgraph Backend["Backend — Directus on Hetzner VPS"]
+  subgraph Backend["Backend — Directus on Infomaniak VPS (Switzerland)"]
     ITEMS["Directus item API<br/>+ RBAC policies"]
     EP["Custom endpoints<br/>kscw-endpoints/*"]
     HK["Hooks<br/>kscw-hooks/* (action/filter)"]

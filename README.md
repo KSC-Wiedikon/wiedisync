@@ -15,7 +15,7 @@ Internal platform for **KSC Wiedikon** — managing teams, games, trainings, and
 | Backend | [Directus](https://directus.io) (Postgres REST API + Realtime) |
 | Auth | Google OAuth + email/password via Directus |
 | Testing | Playwright (E2E), Vitest (unit) |
-| Hosting | Cloudflare Pages (frontend), Hetzner VPS (backend) |
+| Hosting | Cloudflare Pages (frontend), Infomaniak VPS in Switzerland (backend) |
 | i18n | i18next (DE / EN / FR / GSW / IT) |
 
 ## Features
@@ -105,7 +105,7 @@ tables they name. Bridge edges are tagged `INFERRED`; for AST-only ground truth 
 All changes go through `dev` first.
 
 - **Frontend:** Pushing to `dev` auto-deploys the dev site [wiedisync-dev.kscw.ch](https://wiedisync-dev.kscw.ch) (Cloudflare Pages, via GitHub Actions). An approval-gated merge of `dev` → `prod` deploys to [wiedisync.kscw.ch](https://wiedisync.kscw.ch).
-- **Backend:** Directus runs as plain Docker on Hetzner (not Coolify). Deploy extensions with `npm run ext:deploy:dev` / `npm run ext:deploy:prod` (rsync + container restart); apply DB migrations and permissions with `npm run db:deploy:dev` / `npm run db:deploy:prod`.
+- **Backend:** Directus runs as plain Docker on the Infomaniak VPS (Switzerland), not Coolify. Deploy extensions with `npm run ext:deploy:dev` / `npm run ext:deploy:prod` (rsync + container restart); apply DB migrations and permissions with `npm run db:deploy:dev` / `npm run db:deploy:prod`.
 
 See `CLAUDE.md` (Branches & Dev-First Workflow) and `INFRA.md` for the full flow.
 
