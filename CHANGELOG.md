@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.41.0 — 2026-10-26
+
+### Changed
+
+- Infomaniak, which sponsors the club's server, now appears as "Hosted by infomaniak": next to the Wiedisync logo in the top bar on desktop, and on phones at the top right of the home screen and at the top of the More menu.
+- On phones, the Club website (kscw.ch) button has moved from the home screen to the top of the More menu, above Notifications.
+
 ## v2.40.1 — 2026-10-25
 
 ### Changed

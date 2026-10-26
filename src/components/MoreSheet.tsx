@@ -357,7 +357,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
         <nav className="px-4 pb-2">
           {/* Hosting partner — first thing in the sheet. */}
           <div className="flex justify-center pb-1 pt-1.5">
-            <HostedByInfomaniak layout="inline" logoClassName="h-3.5" />
+            <HostedByInfomaniak layout="inline" logoClassName="h-6" />
           </div>
           {/* Public club website — for everyone, signed in or not. Near the top of
               the sheet since the home header's kscw.ch button gave its place to
