@@ -460,6 +460,13 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     .filter((tm, i, all) => all.findIndex((x) => String(x.id) === String(tm.id)) === i)
     .map((tm) => ({ id: String(tm.id), label: tm.name, sport: (tm.sport as TeamPickerOption['sport']) ?? null }))
   const carpoolOn = carpoolOverride?.id === game.id ? carpoolOverride.on : game.carpool_enabled === true
+  // Coaches/TRs of a called-up guest team may switch car pooling too (they have
+  // no /items grant on the game, so their writes go through the carpools endpoint).
+  const canToggleCarpool = canEditAsCoach || guestTeamIds.some((id) => canManageTeam(id))
+  const saveCarpool = (settings: { enabled?: boolean; teams?: number[] | null }) => canEditAsCoach
+    ? updateGame(game.id, settings.enabled !== undefined ? { carpool_enabled: settings.enabled } : { carpool_teams: settings.teams ?? null })
+      .then(() => { void carpoolActions.refresh() })
+    : carpoolActions.saveSettings(settings)
   const carpoolScope = carpoolScopeOverride?.id === game.id
     ? carpoolScopeOverride.teams
     : (game.carpool_teams ?? []).map(String)
@@ -1160,7 +1167,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             button moved up beneath the RSVP tallies; this section now renders
             only when it has content (a deadline to show, or a coach who can
             set one) so it never leaves an empty bordered strip. */}
-        {game.status === 'scheduled' && (game.respond_by || (!readOnly && canEditAsCoach)) && (
+        {game.status === 'scheduled' && (game.respond_by || (!readOnly && canToggleCarpool)) && (
           <div className="space-y-3 border-t border-hairline px-6 py-4">
             {/* Besammlung (migration 340). Stored as minutes before kickoff, so
                 it stays right when Swiss Volley moves the fixture — the coach
@@ -1172,15 +1179,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 startClock={game.time}
               />
             )}
-            {!readOnly && canEditAsCoach && (
+            {!readOnly && canToggleCarpool && (
               <div className="flex items-center gap-2 text-sm text-foreground/85">
                 <Switch
                   checked={carpoolOn}
                   onCheckedChange={async (on) => {
                     setCarpoolOverride({ id: game.id, on })
                     try {
-                      await updateGame(game.id, { carpool_enabled: on })
-                      void carpoolActions.refresh()
+                      await saveCarpool({ enabled: on })
                     } catch {
                       setCarpoolOverride(null)
                       toast.error(tc('errorSaving'))
@@ -1193,15 +1199,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 </div>
               </div>
             )}
-            {!readOnly && canEditAsCoach && carpoolOn && (
+            {!readOnly && canToggleCarpool && carpoolOn && (
               <CarpoolScopePicker
                 candidates={carpoolCandidates}
                 value={carpoolScope}
                 onChange={async (teams) => {
                   setCarpoolScopeOverride({ id: game.id, teams })
                   try {
-                    await updateGame(game.id, { carpool_teams: teams.length ? teams.map(Number) : null })
-                    void carpoolActions.refresh()
+                    await saveCarpool({ teams: teams.length ? teams.map(Number) : null })
                   } catch {
                     setCarpoolScopeOverride(null)
                     toast.error(tc('errorSaving'))
