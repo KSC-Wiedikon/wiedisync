@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.41.1 — 2026-10-26
+
+### Changed
+
+- Coaches and team responsibles of a team that is called up to another team's game can now switch on car pooling for that game and choose which teams it is open to, like the game's own coaches. Until now only the game's own team could, so called-up players could not offer or find a ride when it was off.
+
 ## v2.41.0 — 2026-10-26
 
 ### Changed

@@ -36,7 +36,7 @@ case "$TARGET" in
   dev)  DEST=/opt/directus-kscw-dev/scripts/
         ROOT_RUN="refresh-dev-daily.sh:0700 refresh-dev-scrub.sql:0600 directus-db-role.sql:0600 preflight-no-foreign-functions.sql:0600" ;;
   prod) DEST=/opt/directus-kscw/scripts/
-        ROOT_RUN="postgres-autopatch.sh:0700 svrz-sync-verify.mjs:0600" ;;
+        ROOT_RUN="postgres-autopatch.sh:0700 svrz-sync-verify.mjs:0600 vis-transfer-sync.mjs:0600 vis-player-check.mjs:0600" ;;
   *) echo "usage: scripts/deploy-directus-scripts.sh <dev|prod>" >&2; exit 1 ;;
 esac
 SSH_HOST=hetzner
