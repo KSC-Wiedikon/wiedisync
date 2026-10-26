@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.40.1'
+const APP_VERSION = '2.41.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.41.0',
+    date: '26.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Infomaniak, which sponsors the club's server, now appears as \"Hosted by infomaniak\": next to the Wiedisync logo in the top bar on desktop, and on phones at the top right of the home screen and at the top of the More menu.",
+          "On phones, the Club website (kscw.ch) button has moved from the home screen to the top of the More menu, above Notifications.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.40.1',
     date: '25.10.2026',
