@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.41.2 — 2026-10-26
+
+### Changed
+
+- The privacy policy and imprint now name Infomaniak in Switzerland as the host of the club's server: since 26.10.2026 the member data is stored in a data centre in Geneva instead of with Hetzner in Germany.
+
 ## v2.41.1 — 2026-10-26
 
 ### Changed
