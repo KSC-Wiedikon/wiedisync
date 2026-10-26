@@ -2098,6 +2098,10 @@ async function main() {
   // not an intent. This is row-correlated per fixture: lending a player for one
   // Saturday shows you that Saturday, nothing else. Narrowing cannot leak.
   //
+  // 429 (26.10.2026): the junction also carries coach/TR RSVPs on their own team's
+  // trainings and games, readable by that team's roster — the parked coaches/TRs
+  // branch, materialised instead of filtered. No policy change was needed.
+  //
   // ⚠ ONE branch serves BOTH policies — the junction's audience already includes the
   // host team's coaches and TRs, so LEADER walks the identical alias below.
   const GUEST_ROSTER_VISIBLE = { visible_to: { viewer_user: { _eq: '$CURRENT_USER' } } }
