@@ -60,6 +60,28 @@ PY
   [ "${PIPESTATUS[0]}" -eq 0 ] || KUMA_FAILED=1
 fi
 
+# Config bundle, once a day (the 00:00 UTC run; CONFIG_BUNDLE_NOW=1 forces it): what a rebuild
+# needs besides the dumps — every .env, the tunnel token, the crontab, the DB role passwords,
+# rclone.conf, the compose files. Encrypted straight from tar to the club backup key (this server
+# cannot decrypt it) and never written in plaintext, so it may travel with the dumps. Since
+# 26.10.2026, when the vault's env mirrors were found stale. 14 days local, 60 days offsite.
+CONFIG=""
+CONFIG_FAILED=0
+if [ "$(date -u +%H)" = 00 ] || [ "${CONFIG_BUNDLE_NOW:-}" = 1 ]; then
+  CONFIG="$BACKUP_DIR/config_${DATE}.tar.gz.gpg"
+  crontab -l > /root/crontab.current 2>/dev/null || true
+  for f in opt/directus-kscw/.env opt/directus-kscw-dev/.env opt/wieplay-prod/.env opt/wieplay-prod/compose.yaml \
+           opt/wieplay-dev/.env opt/wieplay-dev/compose.yaml opt/opnform/.env opt/opnform/compose.yaml opt/opnform/nginx \
+           opt/clubdesk-sync/.env opt/vis-sync/vis.env etc/cloudflared root/kscw-db-roles \
+           root/.config/rclone/rclone.conf root/crontab.current; do
+    [ -e "/$f" ] && echo "$f"
+  done | tar -C / -czf - -T - \
+    | gpg --batch --yes --trust-model always --encrypt --recipient $GPG_RECIPIENT --output "$CONFIG"
+  PS=("${PIPESTATUS[@]}")   # copy first: the next [ ] would reset PIPESTATUS
+  [ "${PS[1]}" -eq 0 ] && [ "${PS[2]}" -eq 0 ] || CONFIG_FAILED=1
+fi
+find $BACKUP_DIR -name 'config_*.tar.gz.gpg' -mtime +14 -delete
+
 # Encrypt for offsite copies (recipient = public-key-only VPS keyring)
 # Encrypt every .sql.gz that doesn't yet have a .gpg twin (catches today's + last 7 days).
 for f in "$BACKUP_DIR"/*.sql.gz; do
@@ -87,8 +109,25 @@ leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+
 # later as a second club copy (handover document 03, GG1).
 
 # Sync ENCRYPTED files to Cloudflare R2 (60d retention)
-leg R2 rclone copy "$BACKUP_DIR" "$R2_DIR" --include '*.sql.gz.gpg' 2>&1
-rclone delete "$R2_DIR" --min-age 60d --include '*.sql.gz.gpg' 2>&1 || PRUNE_FAILED+=(R2)
+leg R2 rclone copy "$BACKUP_DIR" "$R2_DIR" --include '*.sql.gz.gpg' --include 'config_*.tar.gz.gpg' 2>&1
+rclone delete "$R2_DIR" --min-age 60d --include '*.sql.gz.gpg' --include 'config_*.tar.gz.gpg' 2>&1 || PRUNE_FAILED+=(R2)
+
+# Swiss Backup (Infomaniak, sponsored with the server: 200 GB, one S3 slot) since 26.10.2026: a
+# second club offsite copy of EVERY encrypted file here — dumps, the config bundle, the weekly
+# uploads archives (backup-uploads.sh) and the finance archives (finance-archive-offsite.sh) —
+# so a lost R2 token or account does not leave the club with only Luca's private NAS copy.
+# Bucket `default` is the one Swiss Backup creates with the device. Until the `swissbackup`
+# rclone remote exists on this server the leg reports "not configured" (not a failure).
+# Retention as on R2: 60 days for dumps/config, 8 weeks for uploads archives; finance archives stay.
+SB_DIR=swissbackup:default/kscw-server
+if rclone listremotes 2>/dev/null | grep -qx 'swissbackup:'; then
+  leg SwissBackup rclone copy "$BACKUP_DIR" "$SB_DIR" --include '*.sql.gz.gpg' --include 'config_*.tar.gz.gpg' \
+    --include 'kscw_uploads_*.tar.gz.gpg' --include 'finance-archive/*.zip.gpg' 2>&1
+  rclone delete "$SB_DIR" --min-age 60d --include '*.sql.gz.gpg' --include 'config_*.tar.gz.gpg' 2>&1 || PRUNE_FAILED+=(SwissBackup)
+  rclone delete "$SB_DIR" --min-age 56d --include 'kscw_uploads_*.tar.gz.gpg' 2>&1 || PRUNE_FAILED+=(SwissBackup)
+else
+  OFFSITE+=("SwissBackup not configured")
+fi
 
 # NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
 # the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
@@ -98,6 +137,8 @@ SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
 [ ${#PRUNE_FAILED[@]} -gt 0 ] && SUMMARY="$SUMMARY; retention prune FAILED on ${PRUNE_FAILED[*]}"
 [ "$WIEPLAY_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; wieplay dump FAILED"
 [ -n "$WIEPLAY" ] && [ "$WIEPLAY_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; wieplay $(ls -lh "$WIEPLAY" | awk '{print $5}') plain"
+[ "$CONFIG_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; config bundle FAILED"
+[ -n "$CONFIG" ] && [ "$CONFIG_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; config $(ls -lh "$CONFIG" | awk '{print $5}') gpg"
 [ "$OPNFORM_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; opnform dump FAILED"
 [ -n "$OPNFORM" ] && [ "$OPNFORM_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; opnform $(ls -lh "$OPNFORM" | awk '{print $5}') plain"
 [ "$KUMA_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; kuma dump FAILED"
