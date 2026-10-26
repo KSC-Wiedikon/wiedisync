@@ -22,6 +22,44 @@ if docker exec $CONTAINER psql -U supabase_admin -d postgres -tAc \
   [ "${PIPESTATUS[0]}" -eq 0 ] || WIEPLAY_FAILED=1
 fi
 
+# OpnForm (forms.kscw.ch) runs its own Postgres in its own container. Until 26.10.2026 nothing
+# backed it up (form submissions are personal data). The container is Coolify's on Hetzner and
+# opnform-postgres in the plain compose (deploy/opnform/); skipped while neither runs. The user
+# and database come from the container's own env, so nothing is hard-coded here.
+OPNFORM=""
+OPNFORM_FAILED=0
+OPNFORM_DB=$(docker ps --format '{{.Names}}' | grep -m1 -xE 'opnform-postgres|postgresql-g57v4frrpv7kz69s7aortpf0' || true)
+if [ -n "$OPNFORM_DB" ]; then
+  OPNFORM="$BACKUP_DIR/opnform_${DATE}.sql.gz"
+  docker exec "$OPNFORM_DB" sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl' | gzip > "$OPNFORM"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || OPNFORM_FAILED=1
+fi
+
+# Uptime Kuma (status.kscw.ch): monitors, notification settings and history in SQLite (WAL mode).
+# Every run: the dump is ~250 KB (26.10.2026). Python's online backup API takes a consistent copy
+# while Kuma keeps running, and iterdump turns that copy into SQL, so the file rides the same
+# *.sql.gz pipeline as the dumps (gpg, R2, lenovoserver's NAS pull).
+# Restore, with the container stopped:
+#   zcat kuma_<ts>.sql.gz | python3 -c 'import sqlite3,sys; sqlite3.connect("kuma.db").executescript(sys.stdin.read())'
+KUMA=""
+KUMA_FAILED=0
+KUMA_DB=/opt/uptime-kuma/kuma.db
+if [ -f "$KUMA_DB" ]; then
+  KUMA="$BACKUP_DIR/kuma_${DATE}.sql.gz"
+  python3 - "$KUMA_DB" "$BACKUP_DIR" <<'PY' | gzip > "$KUMA"
+import os, sqlite3, sys, tempfile
+src = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as tmp:
+    copy = sqlite3.connect(os.path.join(tmp, "kuma.db"))
+    src.backup(copy)
+    src.close()
+    for line in copy.iterdump():
+        sys.stdout.write(line + "\n")
+    copy.close()
+PY
+  [ "${PIPESTATUS[0]}" -eq 0 ] || KUMA_FAILED=1
+fi
+
 # Encrypt for offsite copies (recipient = public-key-only VPS keyring)
 # Encrypt every .sql.gz that doesn't yet have a .gpg twin (catches today's + last 7 days).
 for f in "$BACKUP_DIR"/*.sql.gz; do
@@ -60,5 +98,9 @@ SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')
 [ ${#PRUNE_FAILED[@]} -gt 0 ] && SUMMARY="$SUMMARY; retention prune FAILED on ${PRUNE_FAILED[*]}"
 [ "$WIEPLAY_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; wieplay dump FAILED"
 [ -n "$WIEPLAY" ] && [ "$WIEPLAY_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; wieplay $(ls -lh "$WIEPLAY" | awk '{print $5}') plain"
+[ "$OPNFORM_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; opnform dump FAILED"
+[ -n "$OPNFORM" ] && [ "$OPNFORM_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; opnform $(ls -lh "$OPNFORM" | awk '{print $5}') plain"
+[ "$KUMA_FAILED" -eq 1 ] && SUMMARY="$SUMMARY; kuma dump FAILED"
+[ -n "$KUMA" ] && [ "$KUMA_FAILED" -eq 0 ] && SUMMARY="$SUMMARY; kuma $(ls -lh "$KUMA" | awk '{print $5}') plain"
 case "$SUMMARY" in *FAILED*) RESULT="Backup INCOMPLETE" ;; *) RESULT="Backup complete" ;; esac
 echo "$(date): $RESULT - $(ls -lh $PLAIN | awk '{print $5}') plain / $(ls -lh $PLAIN.gpg | awk '{print $5}') gpg - offsite (all gpg): $SUMMARY" >> /data/backups/backup.log
