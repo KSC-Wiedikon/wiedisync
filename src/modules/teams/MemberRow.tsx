@@ -115,19 +115,21 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       : [...current, member!.id]
     // coach / team_responsible are M2M: surviving links must carry their
     // junction row PK, or Directus re-inserts them and trips
-    // `teams_coaches_pair_uq` (migration 245). `captain` is a plain M2O FK and
-    // has no junction to preserve.
+    // `teams_coaches_pair_uq` (migration 245). `captain` is a plain M2O FK:
+    // one member id or null. It used to get the junction-shaped array too
+    // (`[{ members_id }]`), which Directus rejects — so no captain could be
+    // set from the team page (D1, 10.2026); only the roster editor worked.
     const isJunction = roleKey !== 'captain'
-    const junctionPayload = isJunction
+    const payload = isJunction
       ? m2mUpdatePayload('members_id', nextIds, team[roleKey])
-      : nextIds.map((id) => ({ members_id: id }))
+      : (has ? null : member!.id)
     try {
       // Read the saved junctions back so the PKs of links this call created are
       // available to the next toggle without a full team refetch.
-      const saved = await updateRecord<Team>('teams', team.id, { [roleKey]: junctionPayload },
+      const saved = await updateRecord<Team>('teams', team.id, { [roleKey]: payload },
         isJunction ? { fields: ['id', `${roleKey}.id`, `${roleKey}.members_id`] } : undefined)
-      logActivity('update', 'teams', team.id, { [roleKey]: nextIds })
-      onTeamUpdate({ [roleKey]: (isJunction && saved[roleKey]) || junctionPayload })
+      logActivity('update', 'teams', team.id, { [roleKey]: isJunction ? nextIds : payload })
+      onTeamUpdate({ [roleKey]: (isJunction && saved[roleKey]) || payload })
     } catch {
       // Same reasoning as saveField: a rejected staff toggle must say so rather
       // than leave the badge looking unchanged for no stated reason.
