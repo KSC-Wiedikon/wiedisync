@@ -508,7 +508,7 @@ export default function HomePage() {
         <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Wiedisync</h1>
         <div className="flex justify-end">
           {/* Hosting partner on phones; desktop shows it in the top nav. */}
-          <HostedByInfomaniak align="end" className="lg:hidden" logoClassName="h-[12.5px] sm:h-[14.5px]" />
+          <HostedByInfomaniak align="end" className="lg:hidden" logoClassName="h-[26px] sm:h-7" />
         </div>
       </div>
 

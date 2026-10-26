@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils'
 
 /**
  * "Hosted by infomaniak" — Infomaniak sponsors the server Wiedisync runs on.
- * Blue wordmark on light, white on dark (their blue loses on navy).
+ * Their stacked logo with "The Ethical Cloud" (their preference): blue on light,
+ * white on dark (their blue loses on navy).
  *
  * `stacked` puts the label above the wordmark (home header, desktop top nav);
  * `inline` keeps both on one line (More sheet).
@@ -12,7 +13,7 @@ export default function HostedByInfomaniak({
   layout = 'stacked',
   align = 'start',
   className,
-  logoClassName = 'h-3',
+  logoClassName = 'h-7',
 }: {
   layout?: 'stacked' | 'inline'
   align?: 'start' | 'end'
