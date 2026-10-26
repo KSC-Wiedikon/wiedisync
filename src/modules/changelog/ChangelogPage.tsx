@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.41.0'
+const APP_VERSION = '2.41.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.41.1',
+    date: '26.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Coaches and team responsibles of a team that is called up to another team's game can now switch on car pooling for that game and choose which teams it is open to, like the game's own coaches. Until now only the game's own team could, so called-up players could not offer or find a ride when it was off.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.41.0',
     date: '26.10.2026',

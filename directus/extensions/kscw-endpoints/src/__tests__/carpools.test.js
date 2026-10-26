@@ -4,7 +4,7 @@
  * builder (seat maths, request coverage, and that no phone number ever leaves).
  */
 import { describe, it, expect } from 'vitest'
-import { parseEntryInput, normalizeTime, normalizeDate, defaultRideDate, rideDateAllowed, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows, effectiveScope } from '../carpools.js'
+import { parseEntryInput, normalizeTime, normalizeDate, defaultRideDate, rideDateAllowed, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows, effectiveScope, parseBoardSettings } from '../carpools.js'
 
 describe('normalizeTime', () => {
   it('accepts 24h clocks and drops seconds', () => {
@@ -254,5 +254,32 @@ describe('effectiveScope (audit 2026-09-28 F21)', () => {
     expect(effectiveScope('training', [], [])).toBeNull()
     expect(effectiveScope('event', [], [])).toBeNull()
     expect(effectiveScope('game', [], [])).toBeNull()
+  })
+})
+
+describe('parseBoardSettings (PATCH /carpools/game/:id/settings)', () => {
+  const gameTeams = [3, 11]   // playing team H1 + guest team H3
+  const code = (fn) => { try { fn(); return null } catch (e) { return e.code } }
+
+  it('maps the switch and the scope to the games columns', () => {
+    expect(parseBoardSettings({ enabled: true }, gameTeams)).toEqual({ carpool_enabled: true })
+    expect(parseBoardSettings({ enabled: false, teams: [11] }, gameTeams)).toEqual({ carpool_enabled: false, carpool_teams: [11] })
+  })
+  it('opens the board to all of the game\'s teams for [] or null', () => {
+    expect(parseBoardSettings({ teams: [] }, gameTeams)).toEqual({ carpool_teams: null })
+    expect(parseBoardSettings({ teams: null }, gameTeams)).toEqual({ carpool_teams: null })
+  })
+  it('dedupes and accepts numeric strings', () => {
+    expect(parseBoardSettings({ teams: ['3', 3, 11] }, gameTeams)).toEqual({ carpool_teams: [3, 11] })
+  })
+  it('refuses teams that do not play the game', () => {
+    expect(code(() => parseBoardSettings({ teams: [3, 99] }, gameTeams))).toBe('carpool_invalid_teams')
+    expect(code(() => parseBoardSettings({ teams: 'H3' }, gameTeams))).toBe('carpool_invalid_teams')
+    expect(code(() => parseBoardSettings({ teams: [1.5] }, gameTeams))).toBe('carpool_invalid_teams')
+  })
+  it('refuses a non-boolean switch and an empty body', () => {
+    expect(code(() => parseBoardSettings({ enabled: 'yes' }, gameTeams))).toBe('invalid_enabled')
+    expect(code(() => parseBoardSettings({}, gameTeams))).toBe('carpool_no_settings')
+    expect(code(() => parseBoardSettings(null, gameTeams))).toBe('carpool_no_settings')
   })
 })
