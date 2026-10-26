@@ -2,7 +2,7 @@
 
 Living doc for the security posture of the KSCW platform. Audited findings, fixes, gotchas, and rules. Update on every audit pass.
 
-> **Reporting:** mail `kontakt@kscw.ch`. Do NOT open a public issue with exploit details. Production lives at `wiedisync.kscw.ch` + `directus.kscw.ch` (Hetzner via Cloudflare Tunnel).
+> **Reporting:** mail `kontakt@kscw.ch`. Do NOT open a public issue with exploit details. Production lives at `wiedisync.kscw.ch` + `directus.kscw.ch` (Infomaniak VPS in Switzerland, via Cloudflare Tunnel).
 
 ---
 
@@ -12,13 +12,13 @@ Living doc for the security posture of the KSCW platform. Audited findings, fixe
 |---|---|---|---|
 | `wiedisync.kscw.ch` (React) | CF Pages, prod branch | Directus session cookie `kscw_session` (httpOnly, Secure, SameSite=Lax, host-only on `directus.kscw.ch` since 2026-09-28) — cookie mode since 2026-06-18 | Talks only to `directus.kscw.ch`. CF Pages env vars carry only `VITE_*` (public). |
 | `wiedisync-dev.kscw.ch` (React dev) | CF Pages `kscw-wiedisync-dev` (club account), dev branch | Same | Talks to `directus-dev.kscw.ch`. |
-| `directus.kscw.ch` (Directus) | Hetzner VPS via CF Tunnel | Built-in Directus auth (cookies + bearer). Custom endpoints inherit `req.accountability`. | All custom routes under `/kscw/*`. |
+| `directus.kscw.ch` (Directus) | Infomaniak VPS (Switzerland) via CF Tunnel | Built-in Directus auth (cookies + bearer). Custom endpoints inherit `req.accountability`. | All custom routes under `/kscw/*`. |
 | `kscw-push.kscw.workers.dev` (CF Worker) | Cloudflare Workers, club account | Shared bearer secret from Directus → worker (constant-time compared since 2026-05-06). | VAPID keys in worker secret store; Directus side reads `VAPID_PUBLIC_KEY` env. |
-| `wieplay.kscw.ch` (WiePlay, video analysis, called Nomal until 17.10.2026; repo `KSC-Wiedikon/wieplay`) | Hetzner VPS via CF Tunnel (own container) | Its own host-only session, started from a 60 s single-use Ed25519 token minted by `/kscw/wieplay/v1/authorize` from the `kscw_session` cookie. Server-to-server: `X-WiePlay-Service-Token` (SHA-256 compared) on the internal network only. The pre-rename names (`/kscw/nomal/v1/*`, `X-Nomal-Service-Token`, `NOMAL_*` env) are gone since 18.10.2026. | No CORS change: login is a top-level redirect, never a credentialed fetch. Gets personal data only for the teams a WiePlay admin enabled. |
+| `wieplay.kscw.ch` (WiePlay, video analysis, called Nomal until 17.10.2026; repo `KSC-Wiedikon/wieplay`) | Infomaniak VPS (Switzerland) via CF Tunnel (own container); video storage stays in Hetzner Object Storage (Germany) | Its own host-only session, started from a 60 s single-use Ed25519 token minted by `/kscw/wieplay/v1/authorize` from the `kscw_session` cookie. Server-to-server: `X-WiePlay-Service-Token` (SHA-256 compared) on the internal network only. The pre-rename names (`/kscw/nomal/v1/*`, `X-Nomal-Service-Token`, `NOMAL_*` env) are gone since 18.10.2026. | No CORS change: login is a top-level redirect, never a credentialed fetch. Gets personal data only for the teams a WiePlay admin enabled. |
 | `kscw.ch` (ClubDesk) | External | Out of our scope | Don't change DNS until explicitly confirmed. |
 | **`github.com/KSC-Wiedikon/wiedisync` (the repo itself)** | GitHub, **PUBLIC** since 2026-02-27 | None — world-readable | **Anything ever committed is permanently disclosed. Deletion is not remediation; rotation is.** A force-push does not remove the commit either: GitHub keeps unreachable commits addressable by SHA until Support runs GC on the repo. The same applies to `KSC-Wiedikon/kscw-website` and `Lucanepa/openvolley`. |
 
-Direct VPS exposure (Hetzner ports 8055/8056) is **not** publicly reachable — only via CF Tunnel. If that ever changes, `X-Forwarded-For`-based rate limiters collapse simultaneously (every limiter in `kscw-endpoints` uses it as fallback).
+Direct VPS exposure (Infomaniak VPS ports 8055/8056) is **not** publicly reachable — only via CF Tunnel. If that ever changes, `X-Forwarded-For`-based rate limiters collapse simultaneously (every limiter in `kscw-endpoints` uses it as fallback).
 
 ---
 

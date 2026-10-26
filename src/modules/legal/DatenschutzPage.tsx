@@ -86,7 +86,7 @@ export default function DatenschutzPage() {
           <li>{t('thirdPartyBasketplan')}</li>
           <li>{t('thirdPartyGCal')}</li>
           <li>{t('thirdPartyMigadu')}</li>
-          <li>{t('thirdPartyHetzner')}</li>
+          <li>{t('thirdPartyInfomaniak')}</li>
           {/* ClubDesk receives the full contact record including AHV number and
               IBAN and was absent from this list. It is the ORIGIN of most of those
               fields (one-way down-sync) and the up-push is gated off on prod, so

@@ -28,8 +28,8 @@ volleyball.ch. Do not give it any.
 ## Tech Stack
 - Frontend: React 19 + TypeScript + Vite + TailwindCSS v4 + shadcn/ui
 - UI: shadcn primitives in `src/components/ui/` (lowercase), KSCW wrappers in `src/components/` (PascalCase)
-- Backend: Directus 12 (Postgres, REST, Realtime, Auth) on Hetzner VPS — plain Docker, not Coolify
-- Hosting: Cloudflare Pages (frontend), Hetzner + CF Tunnel (backend)
+- Backend: Directus 12 (Postgres, REST, Realtime, Auth) on Infomaniak VPS (Switzerland) — plain Docker, not Coolify
+- Hosting: Cloudflare Pages (frontend), Infomaniak VPS (Switzerland) + CF Tunnel (backend)
 - Language: **English-first**, multilingual UI (DE / EN / FR / GSW / IT). Locale defaults to browser language; unrecognised browsers fall back to English. Write new i18n strings in English first, then translate to DE at minimum. Code identifiers in English.
 
 ## Data Format: TOON
@@ -103,7 +103,7 @@ The "every audit pass breaks something" loop comes from treating permissions as 
 If a future change tempts you to add a permission row in a numbered SQL file: stop. Update `setup-permissions.mjs` instead and let the next deploy reconcile. If you need a permission *fix on prod NOW*, either run `npm run db:setup-perms:prod` or apply the SQL by hand AND update the script in the same commit.
 
 ## SSH to VPS
-- `ssh hetzner` (alias in `~/.ssh/config`)
+- `ssh hetzner` (alias in `~/.ssh/config`) — since 26.10.2026 it points at the Infomaniak VPS (Switzerland); the alias keeps its old name until it is renamed
 - Containers: `directus-kscw` (8055), `directus-kscw-dev` (8056)
 - Restart: `ssh hetzner "sudo docker restart directus-kscw"`
 - Logs: `ssh hetzner "sudo docker logs --tail 30 directus-kscw"`
@@ -117,7 +117,7 @@ If a future change tempts you to add a permission row in a numbered SQL file: st
 - `spielplanung-dev.kscw.ch` — Spielplanung **dev** (CF Pages `kscw-spielplanung-dev`, club account, `dev` branch → `directus-dev.kscw.ch`). ⚠ Until 2026-08-11 this was a second custom domain on the PROD project and served prod code against **prod data**; it is a real dev environment now. It is the only `.kscw.ch` scheduling host, so it is where authenticated (cookie-SSO) scheduling work happens — `*.pages.dev` cannot hold the `.kscw.ch` session cookie.
 - `spielplanung.wiedisync.kscw.ch` — Spielplanung standalone app (CF Pages `kscw-spielplanung`, club account; built via `npm run build:scheduling` / `VITE_APP_TARGET=scheduling`; cookie-session SSO from the member app). In-app `/admin/spielplanung|terminplanung` routes redirect here.
 - `accounting.wiedisync.kscw.ch` — the club's books (CF Pages `kscw-accounting`, club account; `npm run build:accounting` / `VITE_APP_TARGET=accounting`; cookie-session SSO) for board, treasurer and auditors (`revisor` role, read-only). Dev: `accounting-dev.kscw.ch` (`kscw-accounting-dev`). The books run **in parallel with ClubDesk** (ClubDesk stays the book of record until the board switches) — see `INFRA.md → Parallel books`.
-- `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on Hetzner, not Coolify)
+- `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on the Infomaniak VPS in Switzerland, not Coolify)
 - `kscw-web` — CF Pages project behind `kscw.ch` (repo `kscw-website`). Dev-first like wiedisync (`dev` branch → preview `dev.kscw-web.pages.dev`, `prod` branch → live at `kscw.ch`); promote `dev` → `prod` with user approval.
 - `kscw-push.kscw.workers.dev` — Web push CF Worker in the **club** account; prod's `PUSH_WORKER_URL` points here. Deploy with `CLOUDFLARE_ACCOUNT_ID=989cbb0f25ed3f11e417908694ef8da5`. ⚠ An older copy `kscw-push.lucanepa.workers.dev` lives in Luca's personal account (no longer referenced by code since 2026-10-16; to be deleted) — never deploy there.
 

@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Informativa sulla privacy',
-  lastUpdated: 'Ultimo aggiornamento: 22 ottobre 2026',
+  lastUpdated: 'Ultimo aggiornamento: 26 ottobre 2026',
 
   controllerTitle: '1. Titolare del trattamento',
   controllerText:
@@ -59,8 +59,8 @@ export default {
     'Basketplan (basketball.ch) — Recuperiamo dati di partite e classifiche disponibili pubblicamente. Nessun dato personale viene trasmesso a Basketplan.',
   thirdPartyMigadu:
     'Migadu (migadu.com) — Invio email per notifiche e promemoria | Svizzera | DPA',
-  thirdPartyHetzner:
-    'Hetzner Online GmbH — Hosting backend (Directus) | Germania (datacenter di Norimberga) | DPA, conforme al GDPR',
+  thirdPartyInfomaniak:
+    'Infomaniak Network SA — Hosting backend (Directus) | Svizzera (datacenter di Ginevra) | DPA, conforme alla LPD e al GDPR',
   thirdPartyClubDesk:
     'ClubDesk (amministrazione del club, Svizzera): i dati anagrafici dei soci, inclusi recapiti, numero AVS e coordinate bancarie, sono sincronizzati con ClubDesk, da cui proviene gran parte di questi dati.',
   thirdPartySentry:
@@ -74,7 +74,7 @@ export default {
 
   storageTitle: '6. Archiviazione dei dati',
   storageServer:
-    'I dati sono archiviati su un server di Hetzner Online GmbH in Germania (datacenter di Norimberga) con Directus. Il frontend è servito tramite Cloudflare Pages.',
+    'I dati sono archiviati su un server di Infomaniak Network SA in Svizzera (datacenter di Ginevra) con Directus. Il frontend è servito tramite Cloudflare Pages.',
   storageLocal:
     'Le seguenti preferenze non personali sono memorizzate nel tuo browser: schema colori (chiaro/scuro) e impostazione della lingua. Per gli utenti con accesso, un token di sessione è memorizzato nel browser.',
   storageNoCookies:
@@ -109,7 +109,7 @@ export default {
   impressumContact: 'Email: kscw@kscw.ch',
   impressumWebsite: 'Sito web: kscw.ch',
   impressumBoard: 'Responsabile: Comitato del KSC Wiedikon',
-  impressumHosting: 'Hosting: Cloudflare Pages (frontend), Hetzner Online GmbH, Germania (backend)',
+  impressumHosting: 'Hosting: Cloudflare Pages (frontend), Infomaniak Network SA, Ginevra, Svizzera (backend)',
   impressumLinks: 'Responsabilità per i link',
   impressumLinksText:
     'Il nostro sito contiene link a siti web esterni di terze parti sui cui contenuti non abbiamo alcuna influenza. Il rispettivo fornitore è sempre responsabile del contenuto delle pagine collegate. In caso di violazioni legali, rimuoveremo immediatamente tali link.',
