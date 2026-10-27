@@ -77,6 +77,8 @@ export default {
   reopenMatch: "Reopen match",
   finishEarlyConfirm: "No team has won three sets yet. End the match anyway?",
   switchSides: "Switch sides",
+  switchDue: "8 points — change of ends.",
+  notNow: "Not now",
   editSets: "Edit sets",
   editSetsHint: "Correct the score of a finished set.",
   editSetsInvalid: "Not a valid set score: 25 points and two ahead (15 in the fifth set).",

@@ -179,6 +179,25 @@ export function editSetResults(st: ScoreState, results: { a: number; b: number }
   return next
 }
 
+/** Sets started so far, the one being played (or just finished) included. */
+function setsStarted(st: ScoreState): number {
+  return st.set_results.length + (isSetClosed(st) ? 0 : 1)
+}
+
+/**
+ * Have the teams changed ends an odd number of times by the rules? They change after every
+ * set except into the deciding fifth (new coin toss) — point-hub's NEXT SET does the same.
+ * Derived from the published state, so Undo, a reload and a second phone all agree.
+ */
+export function endsChanged(st: ScoreState): boolean {
+  return Math.min(Math.max(setsStarted(st) - 1, 0), MAX_SETS - 2) % 2 === 1
+}
+
+/** Deciding fifth, first team to 8: the change of ends is due (point-hub asks, never swaps by itself). */
+export function decidingSwitchDue(st: ScoreState): boolean {
+  return setsStarted(st) === MAX_SETS && !isSetClosed(st) && Math.max(st.points_a, st.points_b) >= 8
+}
+
 export function setServe(st: ScoreState, side: Side): ScoreState {
   return { ...st, serving_team: serveOf(side) }
 }

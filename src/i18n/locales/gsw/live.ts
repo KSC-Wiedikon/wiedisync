@@ -77,6 +77,8 @@ export default {
   reopenMatch: "Spiel wieder öffne",
   finishEarlyConfirm: "No kei Team hät drü Sätz gwunne. Spiel glich beände?",
   switchSides: "Siite wächsle",
+  switchDue: "8 Pünkt – Siitewächsel.",
+  notNow: "Jetzt nöd",
   editSets: "Sätz bearbeite",
   editSetsHint: "Korrigier s Resultat vomne fertige Satz.",
   editSetsInvalid: "Kei gültigs Satzresultat: 25 Pünkt und zwei Vorsprung (im 5. Satz 15).",
