@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.43.0'
+const APP_VERSION = '2.43.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.43.1',
+    date: '27.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'Live scoring: the hint line and the support footer are gone from the scoring page, and the finished sets stay on one line, so the page fits a phone without scrolling. «Switch sides» moved to the toolbar (the ⇄ button).',
+        ],
+      },
+    ],
+  },
   {
     version: '2.43.0',
     date: '27.10.2026',

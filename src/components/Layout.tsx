@@ -129,7 +129,9 @@ export default function Layout() {
             </div>
           )}
           <Outlet />
-          {!(isDesktop && location.pathname.startsWith('/admin/explore')) && (
+          {/* Not under live scoring either: a phone at the court must not scroll. */}
+          {!(isDesktop && location.pathname.startsWith('/admin/explore'))
+            && !location.pathname.startsWith('/live/score/') && (
             <SupportContact className="mt-10 border-t border-hairline pt-4" />
           )}
         </main>
