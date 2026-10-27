@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.43.1'
+const APP_VERSION = '2.44.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.44.0',
+    date: '27.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Live scoring: the teams switch sides by themselves on «Next set», like on the Point Hub board — except into the fifth set (new coin toss). In the fifth set, at 8 points the page asks «Switch sides?». Undo puts them back with the set. The ⇄ button still flips your phone by hand.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.43.1',
     date: '27.10.2026',

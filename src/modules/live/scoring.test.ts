@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { EMPTY_STATE, addPoint, removePoint, nextSet, closedWinner, currentSet, matchOver, finish, editSetResults, isValidSetScore, type ScoreState, type Side } from './scoring'
+import { EMPTY_STATE, addPoint, removePoint, nextSet, closedWinner, currentSet, matchOver, finish, editSetResults, isValidSetScore, endsChanged, decidingSwitchDue, type ScoreState, type Side } from './scoring'
 
 const tap = (st: ScoreState, side: Side, n: number) => {
   let s = st
@@ -127,5 +127,35 @@ describe('editSetResults', () => {
     expect(isValidSetScore(15, 13, 4)).toBe(true)
     expect(isValidSetScore(15, 13, 0)).toBe(false)
     expect(isValidSetScore(26, 23, 0)).toBe(false)
+  })
+})
+
+describe('endsChanged', () => {
+  it('changes ends after sets 1–3 but not into the fifth', () => {
+    let st = EMPTY_STATE
+    expect(endsChanged(st)).toBe(false)
+    st = tap(st, 'a', 3)
+    expect(endsChanged(st)).toBe(false)
+    st = tap(st, 'a', 22)                 // set 1 won, still on the board
+    expect(endsChanged(st)).toBe(false)
+    st = nextSet(st)                      // set 2
+    expect(endsChanged(st)).toBe(true)
+    st = playSet(st, 20, 25)              // set 3
+    expect(endsChanged(st)).toBe(false)
+    st = playSet(st, 25, 20)              // set 4
+    expect(endsChanged(st)).toBe(true)
+    st = playSet(st, 20, 25)              // set 5: no change (coin toss)
+    expect(endsChanged(st)).toBe(true)
+  })
+  it('follows Undo: back in the closed set, back on the old ends', () => {
+    const closed = tap(EMPTY_STATE, 'a', 25)
+    expect(endsChanged(nextSet(closed))).toBe(true)
+    expect(endsChanged(closed)).toBe(false)
+  })
+  it('flags the change at 8 in the deciding set only', () => {
+    const five = playSet(playSet(playSet(playSet(EMPTY_STATE, 25, 20), 20, 25), 25, 20), 20, 25)
+    expect(decidingSwitchDue(tap(five, 'a', 7))).toBe(false)
+    expect(decidingSwitchDue(tap(five, 'b', 8))).toBe(true)
+    expect(decidingSwitchDue(tap(EMPTY_STATE, 'a', 8))).toBe(false)
   })
 })

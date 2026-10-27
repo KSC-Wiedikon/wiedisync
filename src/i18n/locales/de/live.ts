@@ -77,6 +77,8 @@ export default {
   reopenMatch: "Spiel wieder öffnen",
   finishEarlyConfirm: "Noch hat kein Team drei Sätze gewonnen. Spiel trotzdem beenden?",
   switchSides: "Seiten wechseln",
+  switchDue: "8 Punkte – Seitenwechsel.",
+  notNow: "Nicht jetzt",
   editSets: "Sätze bearbeiten",
   editSetsHint: "Korrigiere das Resultat eines beendeten Satzes.",
   editSetsInvalid: "Kein gültiges Satzresultat: 25 Punkte und zwei Punkte Vorsprung (im 5. Satz 15).",

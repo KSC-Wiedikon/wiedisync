@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.44.0 — 2026-10-27
+
+### Added
+
+- Live scoring: the teams switch sides by themselves on «Next set», like on the Point Hub board — except into the fifth set (new coin toss). In the fifth set, at 8 points the page asks «Switch sides?». Undo puts them back with the set. The ⇄ button still flips your phone by hand.
+
 ## v2.43.1 — 2026-10-27
 
 ### Changed

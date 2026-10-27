@@ -77,6 +77,8 @@ export default {
   reopenMatch: "Riapri partita",
   finishEarlyConfirm: "Nessuna squadra ha ancora vinto tre set. Terminare comunque la partita?",
   switchSides: "Cambia lato",
+  switchDue: "8 punti — cambio campo.",
+  notNow: "Non ora",
   editSets: "Modifica set",
   editSetsHint: "Correggi il punteggio di un set finito.",
   editSetsInvalid: "Punteggio del set non valido: 25 punti e due di scarto (15 nel 5° set).",
