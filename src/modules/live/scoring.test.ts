@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { EMPTY_STATE, addPoint, removePoint, nextSet, closedWinner, currentSet, matchOver, finish, type ScoreState, type Side } from './scoring'
+import { EMPTY_STATE, addPoint, removePoint, nextSet, closedWinner, currentSet, matchOver, finish, editSetResults, isValidSetScore, type ScoreState, type Side } from './scoring'
 
 const tap = (st: ScoreState, side: Side, n: number) => {
   let s = st
@@ -93,5 +93,39 @@ describe('scoring', () => {
     s = tap(tap(s, 'b', 10), 'a', 25)
     expect(matchOver(s)).toBe(true)
     expect(s.event).toBe('match-end')
+  })
+})
+
+describe('editSetResults', () => {
+  it('corrects a finished set and keeps the set being played', () => {
+    const st = tap(tap(playSet(EMPTY_STATE, 25, 16), 'a', 17), 'b', 18)
+    const next = editSetResults(st, [{ a: 25, b: 19 }])
+    expect(next.set_results).toEqual([{ a: 25, b: 19 }])
+    expect([next.points_a, next.points_b, next.sets_won_a, next.sets_won_b]).toEqual([17, 18, 1, 0])
+  })
+  it('recounts the sets when the winner changes', () => {
+    const st = playSet(playSet(EMPTY_STATE, 25, 20), 25, 22)
+    const next = editSetResults(st, [{ a: 25, b: 20 }, { a: 23, b: 25 }])
+    expect([next.sets_won_a, next.sets_won_b]).toEqual([1, 1])
+  })
+  it('moves the points with the set that is still closed', () => {
+    const st = tap(tap(EMPTY_STATE, 'b', 16), 'a', 25)
+    const next = editSetResults(st, [{ a: 25, b: 19 }])
+    expect([next.points_a, next.points_b, next.event]).toEqual([25, 19, 'set-end'])
+    expect(closedWinner(next)).toBe('a')
+  })
+  it('refuses invalid scores and a match ended mid-set', () => {
+    const st = playSet(EMPTY_STATE, 25, 16)
+    expect(editSetResults(st, [{ a: 25, b: 24 }])).toBe(st)
+    expect(editSetResults(st, [{ a: 27, b: 23 }])).toBe(st)
+    const two = tap(playSet(playSet(playSet(EMPTY_STATE, 25, 20), 25, 20), 20, 25), 'a', 3)
+    expect(editSetResults(two, [{ a: 25, b: 20 }, { a: 25, b: 20 }, { a: 25, b: 20 }])).toBe(two)
+  })
+  it('knows a valid set score', () => {
+    expect(isValidSetScore(25, 23, 0)).toBe(true)
+    expect(isValidSetScore(28, 26, 0)).toBe(true)
+    expect(isValidSetScore(15, 13, 4)).toBe(true)
+    expect(isValidSetScore(15, 13, 0)).toBe(false)
+    expect(isValidSetScore(26, 23, 0)).toBe(false)
   })
 })

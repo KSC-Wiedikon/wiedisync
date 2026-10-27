@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.43.0 — 2026-10-27
+
+### Added
+
+- Live scoring: tap a finished set's score (the pill with the pencil) to correct it — the set count follows. Only valid set scores are accepted (25 points and two ahead, 15 in the fifth set).
+- Live scoring: «Switch sides» swaps the two teams on your phone, so the screen matches the court after a change of ends. It only changes your phone; the Live page keeps home first.
+
+### Changed
+
+- Live scoring: the point buttons are smaller, so the whole page fits on a phone without scrolling.
+- Live scoring: Wiedikon is always blue and the opponent red, also on away games and on the Live page.
+
 ## v2.42.0 — 2026-10-27
 
 ### Fixed

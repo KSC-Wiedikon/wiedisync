@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.42.0'
+const APP_VERSION = '2.43.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.43.0',
+    date: '27.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Live scoring: tap a finished set's score (the pill with the pencil) to correct it — the set count follows. Only valid set scores are accepted (25 points and two ahead, 15 in the fifth set).",
+          'Live scoring: «Switch sides» swaps the two teams on your phone, so the screen matches the court after a change of ends. It only changes your phone; the Live page keeps home first.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'Live scoring: the point buttons are smaller, so the whole page fits on a phone without scrolling.',
+          'Live scoring: Wiedikon is always blue and the opponent red, also on away games and on the Live page.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.42.0',
     date: '27.10.2026',
