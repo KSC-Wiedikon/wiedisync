@@ -77,6 +77,8 @@ export default {
   reopenMatch: "Rouvrir le match",
   finishEarlyConfirm: "Aucune équipe n’a encore gagné trois sets. Terminer quand même le match ?",
   switchSides: "Changer de côté",
+  switchDue: "8 points — changement de côté.",
+  notNow: "Pas maintenant",
   editSets: "Modifier les sets",
   editSetsHint: "Corrigez le score d'un set terminé.",
   editSetsInvalid: "Score de set non valable : 25 points et deux d'écart (15 au 5e set).",

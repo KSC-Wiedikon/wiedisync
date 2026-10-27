@@ -10,8 +10,8 @@ import TruncatedText from '../../components/TruncatedText'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { formatDateZurich, formatTimeZurich } from '../../utils/dateHelpers'
 import {
-  addPoint, closedWinner, currentSet, editSetResults, finish, isSetClosed, isValidSetScore, matchOver, nextSet,
-  removePoint, reopen, type ScoreState, type Side,
+  addPoint, closedWinner, currentSet, decidingSwitchDue, editSetResults, endsChanged, finish, isSetClosed,
+  isValidSetScore, matchOver, nextSet, removePoint, reopen, type ScoreState, type Side,
 } from './scoring'
 import { useGameScoring, type SyncState } from './useGameScoring'
 
@@ -22,9 +22,12 @@ import { useGameScoring, type SyncState } from './useGameScoring'
  * which `/live?channel=game-<id>` shows to everyone else — unless the hall scoreboard
  * is publishing that game itself; then the page says so and offers "Watch live".
  *
- * Home starts on the left. "Switch sides" swaps the two panels on this phone only (the
- * published row keeps home as team A), so a scorer can match the court after a change of
- * ends; it is remembered per game on the device.
+ * Home starts on the left. The panels change ends like the teams, as on point-hub: on
+ * NEXT SET after sets 1–3, not into the deciding fifth (coin toss); in the fifth, the first
+ * team to 8 brings up a "Switch sides?" prompt instead of an automatic swap. The automatic
+ * part is derived from the score (`endsChanged`), so Undo takes it back with the set. On
+ * top, "Switch sides" flips this phone by hand (remembered per game on the device) — e.g.
+ * to start with the teams where they stand. The published row always keeps home as team A.
  *
  * Wiedikon is always blue, home or away, the opponent red — same rule as the endpoint's
  * row colours (live-scoring.js `teamColors`). A derby keeps home blue.
@@ -33,6 +36,9 @@ import { useGameScoring, type SyncState } from './useGameScoring'
 const KSCW_COLOR = '#2563eb'
 const OPPONENT_COLOR = '#ef4444'
 const swapKey = (gameId: string) => `live-score-swap:${gameId}`
+const switch8Key = (gameId: string) => `live-score-switch8:${gameId}`
+const readFlag = (key: string) => { try { return localStorage.getItem(key) === '1' } catch { return false } }
+const writeFlag = (key: string, on: boolean) => { try { localStorage.setItem(key, on ? '1' : '0') } catch { /* private mode */ } }
 
 function SyncDot({ sync }: { sync: SyncState }) {
   const { t } = useTranslation('live')
@@ -187,15 +193,20 @@ export default function ScorePage() {
   const confirm = useConfirm()
   const { state, meta, sync, apply, undoLast, canUndo } = useGameScoring(gameId)
   const [editing, setEditing] = useState(false)
-  const [swapped, setSwapped] = useState(() => {
-    try { return gameId ? localStorage.getItem(swapKey(gameId)) === '1' : false } catch { return false }
-  })
+  const [manualSwap, setManualSwap] = useState(() => (gameId ? readFlag(swapKey(gameId)) : false))
+  const [switch8Done, setSwitch8Done] = useState(() => (gameId ? readFlag(switch8Key(gameId)) : false))
   const toggleSwap = () => {
-    setSwapped((v) => {
-      try { if (gameId) localStorage.setItem(swapKey(gameId), v ? '0' : '1') } catch { /* private mode */ }
+    setManualSwap((v) => {
+      if (gameId) writeFlag(swapKey(gameId), !v)
       return !v
     })
   }
+  const closeSwitch8 = (swap: boolean) => {
+    if (swap) toggleSwap()
+    if (gameId) writeFlag(switch8Key(gameId), true)
+    setSwitch8Done(true)
+  }
+  const swapped = manualSwap !== endsChanged(state)
 
   // Keep the screen on while scoring — a phone that dims mid-rally costs a point.
   useEffect(() => {
@@ -316,6 +327,15 @@ export default function ScorePage() {
           <Button className="mt-2 w-full" onClick={() => apply(over ? finish : nextSet)}>
             {over ? t('finishMatch') : t('nextSet')}
           </Button>
+        </div>
+      )}
+
+      {/* Deciding set, first to 8: point-hub asks too, it never swaps by itself. */}
+      {decidingSwitchDue(state) && !switch8Done && !isFinal && canScore && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/60 dark:bg-amber-950/40">
+          <p className="min-w-0 flex-1 text-sm font-semibold text-amber-800 dark:text-amber-300">{t('switchDue')}</p>
+          <Button size="sm" onClick={() => closeSwitch8(true)} icon={<ArrowLeftRight />}>{t('switchSides')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => closeSwitch8(false)}>{t('notNow')}</Button>
         </div>
       )}
 
