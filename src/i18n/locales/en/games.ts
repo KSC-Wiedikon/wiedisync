@@ -318,6 +318,8 @@ export default {
   idsDownloaded_other: '{{count}} documents downloaded and ready offline.',
   idsNoEnvelope_one: '{{count}} player\'s ID cannot be opened by you. Ask a colleague to restore your access from the team page.',
   idsNoEnvelope_other: '{{count}} players\' IDs cannot be opened by you. Ask a colleague to restore your access from the team page.',
+  idsRefused_one: 'The server did not release {{count}} person\'s ID (outside the time window or no access).',
+  idsRefused_other: 'The server did not release {{count}} people\'s IDs (outside the time window or no access).',
   idsPdfViewerNotReady: 'PDF viewer could not be loaded for offline use. Press Download again while you have signal.',
   idsReadyOffline_one: '{{count}} document ready offline.',
   idsReadyOffline_other: '{{count}} documents ready offline.',
