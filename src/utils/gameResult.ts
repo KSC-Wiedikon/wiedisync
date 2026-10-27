@@ -154,7 +154,8 @@ export function pickResultPrefill(input: {
     if (ours && !setsEqual(ours, opponent.sets)) return { sets: ours, from: 'own' }
     return { sets: opponent.sets, from: 'opponent' }
   }
-  if (provisional?.sets.length) return { sets: provisional.sets, from: null }
+  // A live score saved as the provisional result (migration 430) is still the live score.
+  if (provisional?.sets.length) return { sets: provisional.sets, from: provisional.source === 'live' ? 'live' : null }
   if (live?.final && live.sets.length) return { sets: live.sets, from: 'live' }
   return { sets: null, from: null }
 }
@@ -187,13 +188,13 @@ export const NON_STANDINGS_LEAGUE = /^Group \d+$|Cup|Turnier|Pokal|Final|Runde \
 type RankingGame = Pick<Game, 'id' | 'status' | 'home_team' | 'away_team' | 'league'>
   & Partial<Pick<Game, 'game_id' | 'round' | 'provisional_home_score' | 'provisional_away_score' | 'provisional_sets_json' | 'provisional_source' | 'provisional_at' | 'home_score' | 'away_score' | 'sets_json'>>
 
-const SOURCE_RANK: Record<string, number> = { confirmed: 4, vm_official: 3, own: 2, opponent: 1 }
+const SOURCE_RANK: Record<string, number> = { confirmed: 5, vm_official: 4, own: 3, live: 2, opponent: 1 }
 
 /**
  * One row per played game. An intra-club derby has two `games` rows sharing a
  * `game_id` (one per KSCW side), and each can carry its own provisional result —
  * counting both would score the game twice. Keep the most trustworthy source
- * (confirmed > vm_official > own > opponent), then the newest `provisional_at`.
+ * (confirmed > vm_official > own > live > opponent), then the newest `provisional_at`.
  * Rows without a `game_id` stay as they are.
  */
 export function dedupeProvisionalGames<T extends RankingGame>(games: T[]): T[] {

@@ -112,6 +112,7 @@ export default {
   result_source_opponent: "Us de Meldig vom Gegner",
   result_source_confirmed: "Vo beidne Teams bestätigt",
   result_source_vm_official: "Offiziell im VolleyManager, no nöd publiziert",
+  result_source_live: "Us em Live-Score",
   result_rankingsNote: "Enthaltet provisorischi Resultat",
   result_opponentReport: "De Gegner hät gmäldet",
   result_ourReport: "Üsi Meldig",

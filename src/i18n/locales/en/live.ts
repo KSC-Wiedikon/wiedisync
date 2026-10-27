@@ -112,6 +112,7 @@ export default {
   result_source_opponent: "From the opponent's report",
   result_source_confirmed: "Confirmed by both teams",
   result_source_vm_official: "Official in VolleyManager, not yet published",
+  result_source_live: "From the live score",
   result_rankingsNote: "Includes provisional results",
   result_opponentReport: "The opponent reported",
   result_ourReport: "Our report",
