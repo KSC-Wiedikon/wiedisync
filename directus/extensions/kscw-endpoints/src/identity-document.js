@@ -271,9 +271,11 @@ async function sharedGameTeamIds(database, memberId, ownTeamIds) {
 /**
  * The specific game(s) that put `otherTeamId` and `memberId` on the same sheet through the
  * guest mechanism — either `otherTeamId` was opened as a guest team on one of memberId's
- * own games, or `otherTeamId` hosts a game memberId was invited into. Unlike the fixture
- * list used for a player's own team, this must NOT widen to every game `otherTeamId`
- * plays — only the game(s) that actually connect these two.
+ * own games, or `otherTeamId` hosts a game memberId was invited into, or `otherTeamId` was
+ * opened as a guest team on a game memberId was invited into (27.10.2026: H3 opened on
+ * H1's game — H3's own TR could not see H3's players, because H3 hosts nothing that day).
+ * Unlike the fixture list used for a player's own team, this must NOT widen to every game
+ * `otherTeamId` plays — only the game(s) that actually connect these two.
  */
 async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
   const rows = []
@@ -293,7 +295,13 @@ async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
     .join('game_guests as gg', 'gg.game', 'g.id')
     .where('gg.member', memberId)
     .modify(guestHasConfirmed(database))
-    .where('g.kscw_team', otherTeamId)
+    .where((q) => q
+      .where('g.kscw_team', otherTeamId)
+      .orWhereExists(function () {
+        this.select(database.raw('1')).from('game_guest_teams as ggt')
+          .whereRaw('ggt.game = g.id')
+          .where('ggt.team', otherTeamId)
+      }))
     .where('g.status', 'scheduled')
     .select('g.id', 'g.date', 'g.time')
   rows.push(...guestOf)
@@ -470,11 +478,14 @@ async function mayRead(database, callerId, memberId, accountability) {
     if (!staffTeamIds.length) return { ok: false }
   }
 
-  // Cheap: only scheduled games around today. Prefer the own-team fixture list when the
-  // caller matches it (the fuller, more common signal) — fall back to the specific
-  // game(s) the guest mechanism connects them through otherwise.
+  // Both lists, always: the own-team fixtures (only scheduled games around today) when the
+  // caller is staff of one of the member's own teams, AND the specific game(s) the guest
+  // mechanism connects them through. It used to be one OR the other — so a TR of the
+  // member's own team (or a superadmin, who counts as staff of every team) was checked
+  // against that team's fixtures only, and a shared game hosted by the OTHER team never
+  // matched: on 27.10.2026 both TRs of H1's game with H3 opened saw only their own ID.
   const now = Date.now()
-  const games = staffTeamIds.some((t) => ownTeamIds.includes(t))
+  const ownFixtures = staffTeamIds.some((t) => ownTeamIds.includes(t))
     ? await database('games')
       .whereIn('kscw_team', ownTeamIds)
       .where('status', 'scheduled')
@@ -483,9 +494,11 @@ async function mayRead(database, callerId, memberId, accountability) {
         dateYMD(new Date(now + 24 * 3600 * 1000)),
       ])
       .select('id', 'date', 'time')
-    : (await Promise.all(
-      staffTeamIds.map((t) => gamesLinkingTeams(database, memberId, ownTeamIds, t)),
-    )).flat()
+    : []
+  const linked = (await Promise.all(
+    staffTeamIds.map((t) => gamesLinkingTeams(database, memberId, ownTeamIds, t)),
+  )).flat()
+  const games = [...ownFixtures, ...linked]
 
   for (const g of games) {
     const start = gameStartMs(g)
