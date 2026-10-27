@@ -25,6 +25,8 @@ import { EMPTY_STATE, stateFromRow, type ScoreState } from './scoring'
  * reading — the endpoint hands the game back once the board has been quiet for 10 min.
  */
 const POLL_MS = 3000
+/** A write must be pending this long before "Saving…" replaces "Saved" — no blink on every tap. */
+const SAVING_SHOW_MS = 1500
 const UNDO_MAX = 30
 
 export interface GameSummary {
@@ -58,6 +60,18 @@ export function useGameScoring(gameId: string | undefined) {
   const dirty = useRef(false)
   const inFlight = useRef(false)
   const undo = useRef<ScoreState[]>([])
+  const savingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // "Saving…" only once a write has been pending for SAVING_SHOW_MS; any outcome settles it.
+  const showSavingSoon = useCallback(() => {
+    if (savingTimer.current) return
+    savingTimer.current = setTimeout(() => { savingTimer.current = null; setSync('saving') }, SAVING_SHOW_MS)
+  }, [])
+  const settle = useCallback((s: SyncState) => {
+    if (savingTimer.current) { clearTimeout(savingTimer.current); savingTimer.current = null }
+    setSync(s)
+  }, [])
+  useEffect(() => () => { if (savingTimer.current) clearTimeout(savingTimer.current) }, [])
 
   const adopt = useCallback((row: ScoringResponse['row']) => {
     const next = stateFromRow(row)
@@ -73,7 +87,7 @@ export function useGameScoring(gameId: string | undefined) {
     if (!gameId || inFlight.current || !dirty.current) return
     inFlight.current = true
     dirty.current = false
-    setSync('saving')
+    showSavingSoon()
     const sent = stateRef.current
     let ok = false
     try {
@@ -83,7 +97,8 @@ export function useGameScoring(gameId: string | undefined) {
       })
       baseTs.current = res.row?.ts != null ? Number(res.row.ts) : baseTs.current
       ok = true
-      setSync(dirty.current ? 'saving' : 'synced')
+      // More taps queued: the next write goes out at once and the timer keeps running.
+      if (!dirty.current) settle('synced')
     } catch (err) {
       const e = err as { status?: number; code?: string; body?: { row?: ScoringResponse['row'] } }
       if (e.status === 409 && (e.code === 'stale' || e.code === 'board_scoring')) {
@@ -97,18 +112,18 @@ export function useGameScoring(gameId: string | undefined) {
         } else {
           toast.warning(i18n.t('live:scoreChangedElsewhere'))
         }
-        setSync('synced')
+        settle('synced')
       } else {
         // Keep the local score; the poll tick retries it.
         dirty.current = true
-        setSync('offline')
+        settle('offline')
       }
     } finally {
       inFlight.current = false
     }
     // Taps made while this write was in flight go out now, as one write.
     if (ok && dirty.current) void flushRef.current()
-  }, [gameId, adopt])
+  }, [gameId, adopt, showSavingSoon, settle])
   useEffect(() => { flushRef.current = flush }, [flush])
 
   /** Apply a rule (from ./scoring) to the current state and publish it. */
