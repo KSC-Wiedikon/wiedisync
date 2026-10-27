@@ -85,6 +85,7 @@ export default {
   editSetsEndsMatch: "Mit dene Resultat wär s Spiel fertig, obwohl no en Satz lauft.",
   scoreChangedElsewhere: "De Spielstand isch uf emne andere Handy gänderet worde — prüef en und tipp nomal.",
   boardTookOver: "D Aazeigtafle i de Halle überträgt das Spiel — da isch s Erfasse uus.",
+  scoreNotSaved: "De Punkt het nöd chöne gspeicheret werde — aazeigt isch de gspeichereti Spielstand.",
   backToGame: "Zrugg zum Spiel",
   sync_loading: "Wird glade…",
   sync_synced: "Gspeicheret",

@@ -65,6 +65,8 @@ export function useGameScoring(gameId: string | undefined) {
   const savingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Bumped by every write; a poll answer from before the latest write is stale. */
   const writeGen = useRef(0)
+  /** A write was refused for good: the next read replaces the local score, whatever its ts. */
+  const mustAdopt = useRef(false)
 
   // "Saving…" only once a write has been pending for SAVING_SHOW_MS; any outcome settles it.
   const showSavingSoon = useCallback(() => {
@@ -118,8 +120,20 @@ export function useGameScoring(gameId: string | undefined) {
           toast.warning(i18n.t('live:scoreChangedElsewhere'))
         }
         settle('synced')
+      } else if (e.status != null && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) {
+        // Refused for good — session gone, window closed, a score the endpoint rejects.
+        // Resending the same write can only fail again, and while it is pending the poll
+        // never reads, so the page would sit on "Offline" with a score nobody else sees.
+        // Drop it: the next poll puts the published score back and its meta says why
+        // (can_score false → the "cannot score" screen).
+        dirty.current = false
+        undo.current = []
+        setUndoDepth(0)
+        mustAdopt.current = true
+        toast.error(i18n.t('live:scoreNotSaved'))
+        settle('offline')
       } else {
-        // Keep the local score; the poll tick retries it.
+        // Network or server trouble: keep the local score; the poll tick retries it.
         dirty.current = true
         settle('offline')
       }
@@ -168,7 +182,8 @@ export function useGameScoring(gameId: string | undefined) {
         // before a write that has gone out since.
         if (!dirty.current && !inFlight.current && gen === writeGen.current) {
           const ts = row?.ts != null ? Number(row.ts) : null
-          if (ts !== baseTs.current) adopt(row)
+          if (mustAdopt.current || ts !== baseTs.current) adopt(row)
+          mustAdopt.current = false
           setSync('synced')
         }
       } catch {
