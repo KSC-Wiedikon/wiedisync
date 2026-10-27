@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.43.1 — 2026-10-27
+
+### Changed
+
+- Live scoring: the hint line and the support footer are gone from the scoring page, and the finished sets stay on one line, so the page fits a phone without scrolling. «Switch sides» moved to the toolbar (the ⇄ button).
+
 ## v2.43.0 — 2026-10-27
 
 ### Added
