@@ -19,6 +19,7 @@ import { burnWatermark, canvasToObjectUrl, fitLongEdge } from '../../../lib/idWa
 import { PdfRasterSession, warmPdfRaster } from '../../../lib/pdfRaster'
 import { needsShrink, shrinkIdDocument } from '../../../lib/idShrink'
 import { storeIdentityDocument } from '../../../lib/identityUpload'
+import { repairHeldIdentityKeys } from '../../../hooks/useIdentityAutoRepair'
 import VmCheckBanner, { type VmCheck } from './VmCheckBanner'
 
 /**
@@ -454,6 +455,13 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
     return () => { cancelled = true }
   }, [gameId])
 
+  // Pass on the keys this device holds before anyone needs them at the table: on a shared
+  // game the other team's coaches/TRs may still lack a key to this squad's documents
+  // (useIdentityAutoRepair). Runs in the background; the download does not wait for it.
+  useEffect(() => {
+    if (ownerId != null) void repairHeldIdentityKeys(ownerId, { force: true })
+  }, [ownerId])
+
   // Once the window has passed, the squad's IDs have no business sitting on a phone.
   useEffect(() => {
     if (windowState === 'closed') void clearCachedDocuments(gameId)
@@ -468,6 +476,9 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
     let bytes = 0
     // Entitled, but never wrapped a key — see `blocked` handling below.
     let blocked = 0
+    // Refused by the server (outside the window, or not this caller's to open). Used to be
+    // swallowed too, so the deck said "no document" for IDs that exist (27.10.2026).
+    let refused = 0
     let hasPdf = false
     const fetchOne = async (member: number, staff: boolean) => {
       const tm = performance.now()
@@ -512,6 +523,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
         // given, discovered at the hall. It is repairable, and the coach must be told.
         // Officials count like players: their ID is checked at the table too.
         if (code === 'no_envelope') blocked += 1
+        if (code === 'outside_window' || code === 'not_allowed') refused += 1
       }
     }
     try {
@@ -529,7 +541,9 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
       trace(`download done: ${ok}/${members.length} in ${downloadMs} ms · ${kb(bytes)}`
         + ` · ${downloadMs ? ((bytes * 8) / 1e6 / (downloadMs / 1000)).toFixed(1) : '–'} Mbit/s`
         + `${hasPdf ? ` · pdf.js warm ${since(tp)} ms (${pdfReady ? 'ok' : 'FAILED'})` : ''}${blocked ? ` · ${blocked} without a key` : ''}`)
-      setCachedCount(ok)
+      // What is on the device now — a re-download that got fewer (no signal, a refusal)
+      // leaves the earlier copies in place, and they still open.
+      setCachedCount((await loadCachedDocuments(gameId)).length)
       // The sheet goes with the documents: at the hall the server may be out of reach, and
       // without it the downloaded IDs have no names or order.
       if (ok > 0 && sheetGame && sheetCount) {
@@ -546,6 +560,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
       toast.success(t('idsDownloaded', { count: ok }))
       if (!pdfReady) toast.warning(t('idsPdfViewerNotReady'), { duration: 10000 })
       if (blocked > 0) toast.warning(t('idsNoEnvelope', { count: blocked }), { duration: 10000 })
+      if (refused > 0) toast.warning(t('idsRefused', { count: refused }), { duration: 10000 })
     } finally {
       setBusy(false)
     }
@@ -706,14 +721,17 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
                   <CloudDownload className="mr-1.5 h-4 w-4" aria-hidden="true" />
                   {t('idsPreload')}
                 </Button>
-                {/* With nothing cached, Show downloads first — the separate preload
-                    button exists for the no-signal-in-the-hall case, but a coach
-                    standing at the table WITH signal shouldn't be dead-ended by it. */}
+                {/* With signal, Show always downloads again first: a copy saved earlier
+                    can be short (on 27.10.2026 the server refused the rest at the first
+                    download, and Show stayed stuck on that one ID). The separate preload
+                    button exists for the no-signal-in-the-hall case; with no signal, Show
+                    opens what is saved. */}
                 <Button
                   onClick={() => void (async () => {
                     const t0 = performance.now()
-                    trace(`show pressed: ${cachedCount} cached${cachedCount === 0 ? ' → downloading first' : ''}`)
-                    if (cachedCount === 0) await preload()
+                    const online = navigator.onLine !== false
+                    trace(`show pressed: ${cachedCount} cached${online || cachedCount === 0 ? ' → downloading first' : ' (offline)'}`)
+                    if (online || cachedCount === 0) await preload()
                     await reveal()
                     trace(`show total (tap → last ID ready): ${since(t0)} ms`)
                   })()}

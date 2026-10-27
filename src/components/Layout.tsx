@@ -8,6 +8,7 @@ import { isAuthenticated } from '../lib/api'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
 import { useIdentityAutoShrink } from '../hooks/useIdentityAutoShrink'
+import { useIdentityAutoRepair } from '../hooks/useIdentityAutoRepair'
 import { useNativePushSync } from '../hooks/usePushNotifications'
 import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
@@ -32,6 +33,9 @@ export default function Layout() {
   // Re-encodes the member's own stored ID at WhatsApp size, once, in the background —
   // only a device holding their key can (see the hook).
   useIdentityAutoShrink()
+  // Passes ID keys on to coaches/TRs entitled since the upload (a shared game, a new coach),
+  // in the background — only a device holding a key can (see the hook).
+  useIdentityAutoRepair()
   // Android app only: re-registers a push endpoint the distributor rotated (see the hook).
   useNativePushSync()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
