@@ -138,6 +138,47 @@ export function reopen(st: ScoreState): ScoreState {
   return { ...st, status: 'live' }
 }
 
+/**
+ * A finished set's score as the rules allow it: the winner at 25 (15 in the fifth) or,
+ * past it, ahead by exactly two.
+ */
+export function isValidSetScore(a: number, b: number, setIndex: number): boolean {
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return false
+  const target = setIndex === MAX_SETS - 1 ? 15 : 25
+  const hi = Math.max(a, b)
+  const diff = Math.abs(a - b)
+  return hi >= target && diff >= 2 && (hi === target || diff === 2)
+}
+
+/**
+ * Correct finished sets after the fact (a scorer who missed rallies). The set count is
+ * recounted from the results. Refused when a score is not a valid set result, or when the
+ * corrected sets would end the match while a set is still being played. Correcting the
+ * set that is still closed also moves the board's points, so "−" and NEXT SET keep working.
+ */
+export function editSetResults(st: ScoreState, results: { a: number; b: number }[]): ScoreState {
+  if (results.length !== st.set_results.length) return st
+  if (!results.every((r, i) => isValidSetScore(r.a, r.b, i))) return st
+  if (results.every((r, i) => r.a === st.set_results[i].a && r.b === st.set_results[i].b)) return st
+  const set_results = results.map((r, i) => ({ ...st.set_results[i], a: r.a, b: r.b }))
+  const next: ScoreState = {
+    ...st,
+    set_results,
+    sets_won_a: set_results.filter((r) => r.a > r.b).length,
+    sets_won_b: set_results.filter((r) => r.b > r.a).length,
+  }
+  if (next.sets_won_a > SETS_TO_WIN || next.sets_won_b > SETS_TO_WIN) return st
+  if (isSetClosed(st)) {
+    const last = set_results[set_results.length - 1]
+    next.points_a = last.a
+    next.points_b = last.b
+    next.event = matchOver(next) ? 'match-end' : 'set-end'
+  } else if (matchOver(next)) {
+    return st
+  }
+  return next
+}
+
 export function setServe(st: ScoreState, side: Side): ScoreState {
   return { ...st, serving_team: serveOf(side) }
 }

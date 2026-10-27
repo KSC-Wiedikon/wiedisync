@@ -1,15 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Eye, Minus, Plus, Undo2 } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Eye, Minus, Pencil, Plus, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import TruncatedText from '../../components/TruncatedText'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { formatDateZurich, formatTimeZurich } from '../../utils/dateHelpers'
 import {
-  addPoint, closedWinner, currentSet, finish, isSetClosed, matchOver, nextSet, removePoint, reopen,
-  type ScoreState, type Side,
+  addPoint, closedWinner, currentSet, editSetResults, finish, isSetClosed, isValidSetScore, matchOver, nextSet,
+  removePoint, reopen, type ScoreState, type Side,
 } from './scoring'
 import { useGameScoring, type SyncState } from './useGameScoring'
 
@@ -20,13 +22,17 @@ import { useGameScoring, type SyncState } from './useGameScoring'
  * which `/live?channel=game-<id>` shows to everyone else — unless the hall scoreboard
  * is publishing that game itself; then the page says so and offers "Watch live".
  *
- * Home is always on the left and never swaps: the scorer is reading the score off a
- * phone, not a panel the teams stand under, so a change of ends would only move the
- * buttons under their thumb.
+ * Home starts on the left. "Switch sides" swaps the two panels on this phone only (the
+ * published row keeps home as team A), so a scorer can match the court after a change of
+ * ends; it is remembered per game on the device.
+ *
+ * Wiedikon is always blue, home or away, the opponent red — same rule as the endpoint's
+ * row colours (live-scoring.js `teamColors`). A derby keeps home blue.
  */
 
-const HOME = '#2563eb'
-const AWAY = '#ef4444'
+const KSCW_COLOR = '#2563eb'
+const OPPONENT_COLOR = '#ef4444'
+const swapKey = (gameId: string) => `live-score-swap:${gameId}`
 
 function SyncDot({ sync }: { sync: SyncState }) {
   const { t } = useTranslation('live')
@@ -76,7 +82,7 @@ function TeamPanel({
         disabled={disabled}
         aria-label={t('addPointFor', { team: name || (side === 'a' ? t('home') : t('away')) })}
         className={cn(
-          'relative mt-2 flex min-h-[40vh] flex-1 flex-col items-center justify-center rounded-xl text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50',
+          'relative mt-2 flex h-[clamp(7.5rem,22dvh,14rem)] flex-col items-center justify-center rounded-xl text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50',
           won && 'ring-4 ring-amber-400',
         )}
         style={{ backgroundColor: color }}
@@ -87,7 +93,7 @@ function TeamPanel({
           </span>
         )}
         <span className="text-7xl font-bold tabular-nums leading-none sm:text-8xl">{points}</span>
-        <Plus className="mt-3 h-8 w-8 opacity-80" />
+        <Plus className="mt-2 h-7 w-7 opacity-80" />
       </button>
 
       <Button
@@ -103,11 +109,93 @@ function TeamPanel({
   )
 }
 
+function EditSetsDialog({
+  open, onOpenChange, state, home, away, onSave,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  state: ScoreState
+  home: string
+  away: string
+  onSave: (results: { a: number; b: number }[]) => void
+}) {
+  const { t } = useTranslation('live')
+  const { t: tc } = useTranslation('common')
+  // Mounted only while open (see ScorePage), so each opening starts from the current sets.
+  const [draft, setDraft] = useState(() => state.set_results.map((r) => ({ a: String(r.a), b: String(r.b) })))
+
+  const parsed = draft.map((d) => ({ a: Number(d.a), b: Number(d.b) }))
+  const invalid = parsed.map((r, i) => draft[i].a === '' || draft[i].b === '' || !isValidSetScore(r.a, r.b, i))
+  const anyInvalid = invalid.some(Boolean)
+  const next = anyInvalid ? state : editSetResults(state, parsed)
+  // Valid scores the rules still refuse: they would end the match mid-set.
+  const endsMatch = !anyInvalid && next === state
+    && parsed.some((r, i) => r.a !== state.set_results[i]?.a || r.b !== state.set_results[i]?.b)
+
+  const set = (i: number, side: 'a' | 'b', v: string) =>
+    setDraft((d) => d.map((r, j) => (j === i ? { ...r, [side]: v.replace(/\D/g, '').slice(0, 2) } : r)))
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-sm rounded-2xl p-4 sm:p-6">
+        <DialogHeader>
+          <DialogTitle>{t('editSets')}</DialogTitle>
+          <DialogDescription>{t('editSetsHint')}</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-2">
+          <span />
+          <span className="min-w-0 break-words text-center text-xs font-semibold text-muted-foreground">{home || t('home')}</span>
+          <span className="min-w-0 break-words text-center text-xs font-semibold text-muted-foreground">{away || t('away')}</span>
+          {draft.map((r, i) => (
+            <div key={i} className="contents">
+              <span className="pr-1 text-sm font-semibold text-foreground">{t('set', { n: i + 1 })}</span>
+              {(['a', 'b'] as const).map((side) => (
+                <Input
+                  key={side}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={r[side]}
+                  onChange={(e) => set(i, side, e.target.value)}
+                  aria-label={`${t('set', { n: i + 1 })} · ${side === 'a' ? home || t('home') : away || t('away')}`}
+                  aria-invalid={invalid[i] || undefined}
+                  className={cn('text-center tabular-nums', invalid[i] && 'border-destructive')}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+        {(anyInvalid || endsMatch) && (
+          <p className="text-xs text-destructive">{anyInvalid ? t('editSetsInvalid') : t('editSetsEndsMatch')}</p>
+        )}
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{tc('cancel')}</Button>
+          <Button
+            disabled={anyInvalid || endsMatch}
+            onClick={() => { onSave(parsed); onOpenChange(false) }}
+          >
+            {tc('save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function ScorePage() {
   const { t } = useTranslation('live')
   const { gameId } = useParams<{ gameId: string }>()
   const confirm = useConfirm()
   const { state, meta, sync, apply, undoLast, canUndo } = useGameScoring(gameId)
+  const [editing, setEditing] = useState(false)
+  const [swapped, setSwapped] = useState(() => {
+    try { return gameId ? localStorage.getItem(swapKey(gameId)) === '1' : false } catch { return false }
+  })
+  const toggleSwap = () => {
+    setSwapped((v) => {
+      try { if (gameId) localStorage.setItem(swapKey(gameId), v ? '0' : '1') } catch { /* private mode */ }
+      return !v
+    })
+  }
 
   // Keep the screen on while scoring — a phone that dims mid-rally costs a point.
   useEffect(() => {
@@ -132,6 +220,9 @@ export default function ScorePage() {
   const closed = isSetClosed(state)
   const over = matchOver(state)
   const scoringDisabled = !canScore || isFinal
+  const wiedikonAway = game?.type === 'away' && !/wiedikon/i.test(home)
+  const homeColor = wiedikonAway ? OPPONENT_COLOR : KSCW_COLOR
+  const awayColor = wiedikonAway ? KSCW_COLOR : OPPONENT_COLOR
 
   const onFinish = async () => {
     if (!over && !(await confirm({ message: t('finishEarlyConfirm'), danger: true }))) return
@@ -154,7 +245,7 @@ export default function ScorePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col p-3 sm:p-6">
-      <header className="mb-3 flex items-start gap-2">
+      <header className="mb-2 flex items-start gap-2">
         <Button asChild variant="ghost" size="icon" className="shrink-0">
           <Link to={gameId ? `/games/${gameId}` : '/games'} aria-label={t('backToGame')}><ArrowLeft /></Link>
         </Button>
@@ -170,35 +261,59 @@ export default function ScorePage() {
         <div className="shrink-0 pt-1"><SyncDot sync={sync} /></div>
       </header>
 
-      {/* Set strip: finished sets as pills, then the set being played. */}
-      <div className="mb-3 flex min-h-8 flex-wrap items-center gap-1.5">
+      {/* Set strip: finished sets as pills (tap to correct them), switch sides, then the
+          set being played. */}
+      <div className="mb-2 flex min-h-8 flex-wrap items-center gap-1.5">
         {state.set_results.map((r, i) => (
-          <span key={i} className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-semibold tabular-nums text-foreground">
-            {r.a}:{r.b}
-          </span>
+          <button
+            key={i}
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={!canScore}
+            aria-label={`${t('editSets')}: ${t('set', { n: i + 1 })} ${r.a}:${r.b}`}
+            className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border bg-card px-2.5 text-xs font-semibold tabular-nums text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          >
+            {/* In panel order, so a swapped phone reads its left team first. */}
+            {swapped ? `${r.b}:${r.a}` : `${r.a}:${r.b}`}
+            <Pencil className="h-3 w-3 text-muted-foreground" aria-hidden />
+          </button>
         ))}
-        <span className="ml-auto rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
-          {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
-        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 rounded-full px-2.5 text-xs" onClick={toggleSwap} icon={<ArrowLeftRight />}>
+            {t('switchSides')}
+          </Button>
+          <span className="rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
+            {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
+          </span>
+        </div>
       </div>
 
-      <div className="flex gap-2 sm:gap-3">
+      <div className={cn('flex gap-2 sm:gap-3', swapped && 'flex-row-reverse')}>
         <TeamPanel
-          side="a" name={home} color={HOME} state={state} disabled={scoringDisabled}
+          side="a" name={home} color={homeColor} state={state} disabled={scoringDisabled}
           onPlus={() => apply((s) => addPoint(s, 'a'))}
           onMinus={() => apply((s) => removePoint(s, 'a'))}
         />
         <TeamPanel
-          side="b" name={away} color={AWAY} state={state} disabled={scoringDisabled}
+          side="b" name={away} color={awayColor} state={state} disabled={scoringDisabled}
           onPlus={() => apply((s) => addPoint(s, 'b'))}
           onMinus={() => apply((s) => removePoint(s, 'b'))}
         />
       </div>
 
+      {editing && <EditSetsDialog
+        open={editing}
+        onOpenChange={setEditing}
+        state={state}
+        home={home}
+        away={away}
+        onSave={(results) => apply((s) => editSetResults(s, results))}
+      />}
+
       {/* Set / match end prompt — not modal, like point-hub: a mis-scored rally can
           still be corrected with "−" before moving on. */}
       {closed && !isFinal && (
-        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-center dark:border-amber-900/60 dark:bg-amber-950/40">
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-center dark:border-amber-900/60 dark:bg-amber-950/40">
           <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
             {over ? t('eventMatchEnd') : t('eventSetEnd')}
           </p>
@@ -209,7 +324,7 @@ export default function ScorePage() {
       )}
 
       {/* Toolbar: own line on phones. */}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-2 flex gap-2">
         <Button variant="outline" size="tool" onClick={undoLast} disabled={!canUndo || !canScore} icon={<Undo2 />}>
           {t('undo')}
         </Button>
@@ -228,7 +343,7 @@ export default function ScorePage() {
           </Button>
         )}
       </div>
-      <p className="mt-3 text-center text-xs text-muted-foreground">{t('scoringHint')}</p>
+      <p className="mt-2 text-center text-xs text-muted-foreground">{t('scoringHint')}</p>
     </div>
   )
 }

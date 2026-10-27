@@ -3,7 +3,7 @@
  * plausibility check on a published score and the short team codes.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { cleanState, shortName, channelFor, registerLiveScoring, boardHolds, liveGameId, BOARD_FRESH_MS } from '../live-scoring.js'
+import { cleanState, shortName, channelFor, registerLiveScoring, boardHolds, liveGameId, BOARD_FRESH_MS, teamColors } from '../live-scoring.js'
 
 const base = {
   points_a: 12, points_b: 10, sets_won_a: 1, sets_won_b: 0,
@@ -194,5 +194,15 @@ describe('phones stand down while the board publishes', () => {
     expect(res.statusCode).toBe(200)
     const upd = db.writes.find((w) => w.table === 'live_scores')
     expect(upd.cols).toMatchObject({ source: 'phone', game_id: 455 })
+  })
+})
+
+describe('teamColors', () => {
+  it('keeps Wiedikon blue, home or away', () => {
+    expect(teamColors({ type: 'home', home_team: 'KSC Wiedikon H1', away_team: 'TV Muttenz 1' })).toEqual(['#2563eb', '#ef4444'])
+    expect(teamColors({ type: 'away', home_team: 'TV Muttenz 1', away_team: 'KSC Wiedikon H1' })).toEqual(['#ef4444', '#2563eb'])
+  })
+  it('gives a derby home blue from either copy', () => {
+    expect(teamColors({ type: 'away', home_team: 'KSC Wiedikon H1', away_team: 'KSC Wiedikon H3' })).toEqual(['#2563eb', '#ef4444'])
   })
 })

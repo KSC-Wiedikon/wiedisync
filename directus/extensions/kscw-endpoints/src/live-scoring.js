@@ -60,6 +60,19 @@ const MESSAGES = {
 
 export const channelFor = (gameId) => `game-${gameId}`
 
+/** Same colours as the scoring page (ScorePage.tsx). */
+const KSCW_COLOR = '#2563eb'
+const OPPONENT_COLOR = '#ef4444'
+
+/**
+ * [home colour, away colour]: Wiedikon is always blue, home or away, the opponent red.
+ * A derby (both copies are Wiedikon) keeps home blue, whichever copy the phone scores.
+ */
+export function teamColors(game) {
+  const wiedikonAway = game?.type === 'away' && !/wiedikon/i.test(game?.home_team ?? '')
+  return wiedikonAway ? [OPPONENT_COLOR, KSCW_COLOR] : [KSCW_COLOR, OPPONENT_COLOR]
+}
+
 /** How long a board write keeps the phones off a game's row (see the header). */
 export const BOARD_FRESH_MS = 10 * 60 * 1000
 
@@ -204,6 +217,7 @@ export function registerLiveScoring(router, { database, logger }) {
       const channel = channelFor(liveId)
       const baseTs = req.body?.base_ts == null ? null : Number(req.body.base_ts)
       const ts = Math.max(Date.now(), (baseTs ?? 0) + 1)
+      const [colorA, colorB] = teamColors(game)
       const cols = {
         ...clean,
         set_results: JSON.stringify(clean.set_results),
@@ -214,10 +228,10 @@ export function registerLiveScoring(router, { database, logger }) {
         source: 'phone',
         team_a_name: game.home_team ?? '',
         team_a_short: shortName(game.home_team),
-        team_a_color: '#2563eb',
+        team_a_color: colorA,
         team_b_name: game.away_team ?? '',
         team_b_short: shortName(game.away_team),
-        team_b_color: '#ef4444',
+        team_b_color: colorB,
         timeouts_a: 0, timeouts_b: 0, subs_a: 0, subs_b: 0, fouls_a: 0, fouls_b: 0,
         date_updated: new Date(),
       }
