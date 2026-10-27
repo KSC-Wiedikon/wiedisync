@@ -85,6 +85,7 @@ export default {
   editSetsEndsMatch: "Con questi punteggi la partita finirebbe mentre un set è ancora in corso.",
   scoreChangedElsewhere: "Il punteggio è stato modificato su un altro telefono — controllalo e tocca di nuovo.",
   boardTookOver: "Il tabellone della palestra trasmette questa partita — qui la segnatura è disattivata.",
+  scoreNotSaved: "Questo punto non è stato salvato — il punteggio mostrato è quello salvato.",
   backToGame: "Torna alla partita",
   sync_loading: "Caricamento…",
   sync_synced: "Salvato",
