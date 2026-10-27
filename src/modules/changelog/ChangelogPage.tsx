@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.44.0'
+const APP_VERSION = '2.44.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.44.1',
+    date: '27.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'Live scoring: the set score now stands once at the top («Sets 0:2», in the order of the panels) instead of «Sets» on each team.',
+          'Live scoring: «Saved» at the top right no longer blinks to «Saving…» on every point — it only changes when saving takes longer than a moment or the connection drops.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.44.0',
     date: '27.10.2026',
