@@ -76,7 +76,6 @@ export default {
   finishMatch: "Spiel beenden",
   reopenMatch: "Spiel wieder öffnen",
   finishEarlyConfirm: "Noch hat kein Team drei Sätze gewonnen. Spiel trotzdem beenden?",
-  scoringHint: "Tippe auf ein Team, um ihm den Punkt zu geben. Alle können den Spielstand auf der Live-Seite verfolgen.",
   switchSides: "Seiten wechseln",
   editSets: "Sätze bearbeiten",
   editSetsHint: "Korrigiere das Resultat eines beendeten Satzes.",

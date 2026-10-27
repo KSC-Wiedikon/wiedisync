@@ -82,7 +82,7 @@ function TeamPanel({
         disabled={disabled}
         aria-label={t('addPointFor', { team: name || (side === 'a' ? t('home') : t('away')) })}
         className={cn(
-          'relative mt-2 flex h-[clamp(7.5rem,22dvh,14rem)] flex-col items-center justify-center rounded-xl text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50',
+          'relative mt-2 flex h-[clamp(7.5rem,27dvh,16rem)] flex-col items-center justify-center rounded-xl text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50',
           won && 'ring-4 ring-amber-400',
         )}
         style={{ backgroundColor: color }}
@@ -244,7 +244,8 @@ export default function ScorePage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col p-3 sm:p-6">
+    // No own padding on a phone: the shell's is enough, and every pixel goes to the buttons.
+    <div className="mx-auto flex w-full max-w-2xl flex-col sm:p-6">
       <header className="mb-2 flex items-start gap-2">
         <Button asChild variant="ghost" size="icon" className="shrink-0">
           <Link to={gameId ? `/games/${gameId}` : '/games'} aria-label={t('backToGame')}><ArrowLeft /></Link>
@@ -261,8 +262,8 @@ export default function ScorePage() {
         <div className="shrink-0 pt-1"><SyncDot sync={sync} /></div>
       </header>
 
-      {/* Set strip: finished sets as pills (tap to correct them), switch sides, then the
-          set being played. */}
+      {/* Set strip: finished sets as pills (tap to correct them), then the set being
+          played — one line on a phone, even with four finished sets. */}
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-1.5">
         {state.set_results.map((r, i) => (
           <button
@@ -271,21 +272,16 @@ export default function ScorePage() {
             onClick={() => setEditing(true)}
             disabled={!canScore}
             aria-label={`${t('editSets')}: ${t('set', { n: i + 1 })} ${r.a}:${r.b}`}
-            className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border bg-card px-2.5 text-xs font-semibold tabular-nums text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border bg-card px-2 text-xs font-semibold tabular-nums text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
           >
             {/* In panel order, so a swapped phone reads its left team first. */}
             {swapped ? `${r.b}:${r.a}` : `${r.a}:${r.b}`}
             <Pencil className="h-3 w-3 text-muted-foreground" aria-hidden />
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-1.5">
-          <Button variant="outline" size="sm" className="h-8 rounded-full px-2.5 text-xs" onClick={toggleSwap} icon={<ArrowLeftRight />}>
-            {t('switchSides')}
-          </Button>
-          <span className="rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
-            {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
-          </span>
-        </div>
+        <span className="ml-auto rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
+          {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
+        </span>
       </div>
 
       <div className={cn('flex gap-2 sm:gap-3', swapped && 'flex-row-reverse')}>
@@ -342,8 +338,14 @@ export default function ScorePage() {
             <Link to={`/live?channel=${meta.channel}`}><Eye />{t('watchLive')}</Link>
           </Button>
         )}
+        {/* Icon only on a phone, so the toolbar keeps one line. */}
+        <Button
+          variant="outline" size="tool" onClick={toggleSwap} aria-label={t('switchSides')} title={t('switchSides')}
+          className="max-sm:w-11 max-sm:flex-none max-sm:basis-auto" icon={<ArrowLeftRight />}
+        >
+          <span className="max-sm:sr-only">{t('switchSides')}</span>
+        </Button>
       </div>
-      <p className="mt-2 text-center text-xs text-muted-foreground">{t('scoringHint')}</p>
     </div>
   )
 }

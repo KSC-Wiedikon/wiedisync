@@ -76,7 +76,6 @@ export default {
   finishMatch: "End match",
   reopenMatch: "Reopen match",
   finishEarlyConfirm: "No team has won three sets yet. End the match anyway?",
-  scoringHint: "Tap a team to give it the point. Everyone can follow the score on the Live page.",
   switchSides: "Switch sides",
   editSets: "Edit sets",
   editSetsHint: "Correct the score of a finished set.",
