@@ -312,6 +312,8 @@ export default {
   idsDownloaded_other: '{{count}} documents téléchargés et disponibles hors ligne.',
   idsNoEnvelope_one: 'Vous ne pouvez pas ouvrir la pièce d\'identité de {{count}} joueur. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
   idsNoEnvelope_other: 'Vous ne pouvez pas ouvrir les pièces d\'identité de {{count}} joueurs. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
+  idsRefused_one: 'Le serveur n\'a pas transmis la pièce d\'identité de {{count}} personne (hors de la fenêtre horaire ou pas d\'accès).',
+  idsRefused_other: 'Le serveur n\'a pas transmis les pièces d\'identité de {{count}} personnes (hors de la fenêtre horaire ou pas d\'accès).',
   idsPdfViewerNotReady: 'Le lecteur PDF n\'a pas pu être chargé pour une utilisation hors ligne. Appuyez à nouveau sur Télécharger tant que vous avez du réseau.',
   idsReadyOffline_one: '{{count}} document disponible hors ligne.',
   idsReadyOffline_other: '{{count}} documents disponibles hors ligne.',

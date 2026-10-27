@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.42.0 — 2026-10-27
+
+### Fixed
+
+- On a game shared between two teams (a team opened as guest team), the coaches and team responsibles of both teams can now open every ID on the match sheet in Show IDs. Until now each of them could only open some — on 27.10.2026 the two team responsibles of H1's game with H3 each saw only their own ID.
+
+### Changed
+
+- ID keys now reach the coaches and team responsibles who became entitled after an upload (a shared game, a new coach) by themselves: the app of anyone who already holds a key passes it on in the background, also when Show IDs is opened. Nobody has to press «Grant access» or «Restore access» any more for the IDs to open at the table.
+- With signal, tapping Show in Show IDs now downloads the IDs again first, so a copy saved earlier can no longer leave it stuck on fewer IDs.
+- Show IDs now says when the server refused an ID (outside the time window or no access) instead of listing it as «no document».
+
 ## v2.41.2 — 2026-10-26
 
 ### Changed

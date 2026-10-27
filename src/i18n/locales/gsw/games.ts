@@ -315,6 +315,8 @@ export default {
   idsDownloaded_other: '{{count}} Dokumänt abeglade und offline parat.',
   idsNoEnvelope_one: 'Du chasch de Uswis vo {{count}} Person nöd öffne. Frag öpper vo de Teamleitig, dass er din Zuegriff uf de Teamsite wiederherstellt.',
   idsNoEnvelope_other: 'Du chasch d Uswis vo {{count}} Persone nöd öffne. Frag öpper vo de Teamleitig, dass er din Zuegriff uf de Teamsite wiederherstellt.',
+  idsRefused_one: 'De Server hät de Uswis vo {{count}} Person nöd usegää (usserhalb vom Ziitfänschter oder kei Zuegriff).',
+  idsRefused_other: 'De Server hät d Uswis vo {{count}} Persone nöd usegää (usserhalb vom Ziitfänschter oder kei Zuegriff).',
   idsPdfViewerNotReady: 'De PDF-Viewer het nöd für offline chöne glade werde. Druck nomal uf Abelade, solang du Empfang häsch.',
   idsReadyOffline_one: '{{count}} Dokumänt offline parat.',
   idsReadyOffline_other: '{{count}} Dokumänt offline parat.',

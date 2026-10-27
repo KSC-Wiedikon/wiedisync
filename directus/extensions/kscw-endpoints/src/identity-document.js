@@ -11,6 +11,7 @@
  *   GET    /kscw/identity/status/:team          — WHO on a team has one (presence, no key)
  *   GET    /kscw/identity/gaps                 — who is entitled to MY document but unwrapped
  *   GET    /kscw/identity/gaps/team/:team      — the same, for documents I can repair
+ *   GET    /kscw/identity/gaps/held            — every document I hold a key for, with gaps
  *   POST   /kscw/identity/envelopes            — grant an entitled reader a key (additive)
  *   GET    /kscw/identity/access/:team       — who can actually open a team's documents
  *
@@ -1063,6 +1064,44 @@ export function registerIdentityDocument(router, ctx) {
       res.json({ data: { document: doc.id, missing: await missingFor(database, me.id, doc.id) } })
     } catch (err) {
       log.error({ msg: `GET identity/gaps: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // EVERY document I hold a key for (my own included) that an entitled reader still cannot
+  // open. The app runs this in the background (useIdentityAutoRepair) and passes the keys
+  // along — so when a game is shared with another team, the other team's coaches/TRs get
+  // keys as soon as anyone holding one opens the app, with nobody pressing "repair". On
+  // 27.10.2026 H1's TR could not show his own ID to H3's TR until he did that by hand.
+  // Same envelope-outside-the-window reasoning as /gaps/team below; same recipient gate on
+  // the write (POST /identity/envelopes → recipientsFor, never superadmins).
+  router.get('/identity/gaps/held', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      if (!me) return res.status(401).json({ error: 'Authentication required' })
+
+      const rows = await database('identity_documents as d')
+        .join('identity_document_keys as k', function () {
+          this.on('k.document', 'd.id').andOn('k.recipient', database.raw('?', [me.id]))
+        })
+        .select('d.id as doc', 'd.member', 'k.eph_public_key', 'k.wrap_iv', 'k.wrapped_key')
+
+      const documents = []
+      for (const r of rows) {
+        const missing = await missingFor(database, Number(r.member), r.doc)
+        if (!missing.length) continue
+        documents.push({
+          document: r.doc,
+          member: Number(r.member),
+          envelope: { eph_public_key: r.eph_public_key, wrap_iv: r.wrap_iv, wrapped_key: r.wrapped_key },
+          // Only what wrapping needs: no names for a request nobody looks at.
+          missing: missing.map((m) => ({ member: m.member, public_key: m.public_key })),
+        })
+      }
+
+      res.json({ data: { documents } })
+    } catch (err) {
+      log.error({ msg: `GET identity/gaps/held: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
