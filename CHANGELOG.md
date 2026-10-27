@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.44.1 — 2026-10-27
+
+### Changed
+
+- Live scoring: the set score now stands once at the top («Sets 0:2», in the order of the panels) instead of «Sets» on each team.
+- Live scoring: «Saved» at the top right no longer blinks to «Saving…» on every point — it only changes when saving takes longer than a moment or the connection drops.
+
 ## v2.44.0 — 2026-10-27
 
 ### Added

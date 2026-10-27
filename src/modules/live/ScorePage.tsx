@@ -64,7 +64,6 @@ function TeamPanel({
 }) {
   const { t } = useTranslation('live')
   const points = side === 'a' ? state.points_a : state.points_b
-  const sets = side === 'a' ? state.sets_won_a : state.sets_won_b
   const serving = state.serving_team === (side === 'a' ? 'left' : 'right')
   const won = closedWinner(state) === side
   return (
@@ -77,10 +76,7 @@ function TeamPanel({
           {name || (side === 'a' ? t('home') : t('away'))}
         </span>
       </div>
-      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{side === 'a' ? t('home') : t('away')}</span>
-        <span className="font-semibold tabular-nums text-foreground">{t('sets')} {sets}</span>
-      </div>
+      <div className="mt-1 text-xs text-muted-foreground">{side === 'a' ? t('home') : t('away')}</div>
 
       <button
         type="button"
@@ -273,9 +269,12 @@ export default function ScorePage() {
         <div className="shrink-0 pt-1"><SyncDot sync={sync} /></div>
       </header>
 
-      {/* Set strip: finished sets as pills (tap to correct them), then the set being
-          played — one line on a phone, even with four finished sets. */}
+      {/* Set strip: the set score, the finished sets as pills (tap to correct them), then
+          the set being played. Everything in panel order, like the pills. */}
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
+          {t('sets')} {swapped ? `${state.sets_won_b}:${state.sets_won_a}` : `${state.sets_won_a}:${state.sets_won_b}`}
+        </span>
         {state.set_results.map((r, i) => (
           <button
             key={i}
