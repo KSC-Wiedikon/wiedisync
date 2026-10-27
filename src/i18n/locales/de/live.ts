@@ -85,6 +85,7 @@ export default {
   editSetsEndsMatch: "Mit diesen Resultaten wäre das Spiel beendet, obwohl noch ein Satz läuft.",
   scoreChangedElsewhere: "Der Spielstand wurde auf einem anderen Handy geändert — prüfe ihn und tippe nochmals.",
   boardTookOver: "Die Anzeigetafel in der Halle überträgt dieses Spiel — hier ist das Erfassen aus.",
+  scoreNotSaved: "Dieser Punkt konnte nicht gespeichert werden — angezeigt ist der gespeicherte Spielstand.",
   backToGame: "Zurück zum Spiel",
   sync_loading: "Wird geladen…",
   sync_synced: "Gespeichert",
