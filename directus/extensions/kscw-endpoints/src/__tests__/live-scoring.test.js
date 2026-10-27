@@ -3,7 +3,7 @@
  * plausibility check on a published score and the short team codes.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { cleanState, shortName, channelFor, registerLiveScoring, boardHolds, liveGameId, BOARD_FRESH_MS, teamColors } from '../live-scoring.js'
+import { cleanState, shortName, channelFor, registerLiveScoring, boardHolds, liveGameId, BOARD_FRESH_MS, teamColors, liveResult } from '../live-scoring.js'
 
 const base = {
   points_a: 12, points_b: 10, sets_won_a: 1, sets_won_b: 0,
@@ -116,6 +116,7 @@ function fakeDb({ games = [], live = {} } = {}) {
     const b = {}
     b.where = (k, v) => { if (typeof k === 'object') for (const [kk, vv] of Object.entries(k)) conds.push([kk, vv]); else conds.push([k, v]); return b }
     b.whereNot = (k, v) => { conds.push([k, v, 'not']); return b }
+    b.whereIn = (k, vs) => { b.whereInIds = vs; return b }
     for (const m of ['whereRaw', 'join']) b[m] = () => b
     const match = (row) => conds.every(([k, v, not]) => (not ? String(row[k]) !== String(v) : String(row[k]) === String(v)))
     b.first = async () => {
@@ -125,7 +126,7 @@ function fakeDb({ games = [], live = {} } = {}) {
       if (table === 'members') return { id: 12, first_name: 'Anna', last_name: 'Muster' }
       return undefined
     }
-    b.update = (cols) => { writes.push({ table, cols }); return { returning: async () => [{ ...cols }] } }
+    b.update = (cols) => { writes.push({ table, cols, conds: [...conds], ids: b.whereInIds }); return { returning: async () => [{ ...cols }] } }
     b.select = async () => []
     b.pluck = async () => []
     return b
@@ -204,5 +205,58 @@ describe('teamColors', () => {
   })
   it('gives a derby home blue from either copy', () => {
     expect(teamColors({ type: 'away', home_team: 'KSC Wiedikon H1', away_team: 'KSC Wiedikon H3' })).toEqual(['#2563eb', '#ef4444'])
+  })
+})
+
+describe('a finished live score becomes the provisional result', () => {
+  const won = (sets) => ({ status: 'final', set_results: sets.map(([a, b]) => ({ a, b })) })
+  it('only a decided, valid match is a result', () => {
+    expect(liveResult(won([[19, 25], [23, 25], [24, 26]]))).toEqual({
+      sets: [{ home: 19, away: 25 }, { home: 23, away: 25 }, { home: 24, away: 26 }], home: 0, away: 3,
+    })
+    expect(liveResult(won([[25, 20], [20, 25], [25, 20], [20, 25], [15, 13]]))).toMatchObject({ home: 3, away: 2 })
+    expect(liveResult(won([[25, 20], [25, 20]]))).toBeNull()                // ended early
+    expect(liveResult(won([[25, 24], [25, 20], [25, 20]]))).toBeNull()      // not by two
+    expect(liveResult({ ...won([[25, 20], [25, 20], [25, 20]]), status: 'live' })).toBeNull()
+  })
+
+  afterEach(() => vi.useRealTimers())
+  const kickoff = Date.UTC(2026, 9, 27, 19, 30)
+  const game = { id: 774, game_id: 'vb_418098', kscw_team: 7, type: 'away', status: 'scheduled', date: '2026-10-27', time: '20:30:00', home_team: 'TV Muttenz 1', away_team: 'KSC Wiedikon H1' }
+  async function post(state, liveRow) {
+    const db = fakeDb({ games: [game], live: { 'game-774': liveRow } })
+    const routes = {}
+    const router = { get: (p, h) => { routes[`GET ${p}`] = h }, post: (p, h) => { routes[`POST ${p}`] = h } }
+    const noop = () => {}
+    const logger = { child: () => logger, info: noop, warn: noop, error: noop }
+    registerLiveScoring(router, { database: db, logger })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(kickoff + 90 * 60_000)
+    const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this }, json(b) { this.body = b } }
+    await routes['POST /live-scoring/game/:gameId']({ accountability: { user: 'u-1', admin: true }, params: { gameId: '774' }, body: { base_ts: 7, state } }, res)
+    return { res, games: db.writes.filter((w) => w.table === 'games') }
+  }
+  const base = { points_a: 24, points_b: 26, sets_won_a: 0, sets_won_b: 3, serving_team: 'right', event: 'match-end',
+    set_results: [{ a: 19, b: 25 }, { a: 23, b: 25 }, { a: 24, b: 26 }] }
+
+  it('End match writes it, source live', async () => {
+    const { res, games } = await post({ ...base, status: 'final' }, { channel: 'game-774', ts: 7, status: 'live', source: 'phone' })
+    expect(res.statusCode).toBe(200)
+    expect(games).toHaveLength(1)
+    expect(games[0].cols).toMatchObject({ provisional_source: 'live', provisional_home_score: 0, provisional_away_score: 3 })
+    expect(JSON.parse(games[0].cols.provisional_sets_json)).toEqual([{ home: 19, away: 25 }, { home: 23, away: 25 }, { home: 24, away: 26 }])
+  })
+
+  it('Reopen takes back the live entry only', async () => {
+    const { games } = await post({ ...base, status: 'live' }, { channel: 'game-774', ts: 7, status: 'final', source: 'phone' })
+    expect(games).toHaveLength(1)
+    expect(games[0].cols).toMatchObject({ provisional_source: null, provisional_home_score: null })
+    expect(games[0].conds).toContainEqual(['provisional_source', 'live'])
+  })
+
+  it('an ordinary rally touches no game', async () => {
+    const { games } = await post({ ...base, sets_won_b: 2, set_results: base.set_results.slice(0, 2), event: null, status: 'live' },
+      { channel: 'game-774', ts: 7, status: 'live', source: 'phone' })
+    expect(games).toEqual([])
   })
 })

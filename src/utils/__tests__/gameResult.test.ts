@@ -198,6 +198,13 @@ describe('dedupeProvisionalGames', () => {
   })
 })
 
+describe('pickResultPrefill — a saved live score', () => {
+  it('still reads as the live score', () => {
+    const sets = [{ home: 19, away: 25 }, { home: 23, away: 25 }, { home: 24, away: 26 }]
+    expect(pickResultPrefill({ opponent: null, own: null, provisional: { sets, source: 'live' }, live: null })).toEqual({ sets, from: 'live' })
+  })
+})
+
 describe('pickResultPrefill', () => {
   const theirs = S([25, 20], [25, 20], [25, 20])
   const ours = S([25, 20], [20, 25], [25, 20], [25, 20])
