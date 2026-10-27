@@ -76,7 +76,6 @@ export default {
   finishMatch: "Spiel beände",
   reopenMatch: "Spiel wieder öffne",
   finishEarlyConfirm: "No kei Team hät drü Sätz gwunne. Spiel glich beände?",
-  scoringHint: "Tipp uf es Team, zum ihm de Punkt gäh. Alli chönd de Spielstand uf de Live-Siite verfolge.",
   switchSides: "Siite wächsle",
   editSets: "Sätz bearbeite",
   editSetsHint: "Korrigier s Resultat vomne fertige Satz.",

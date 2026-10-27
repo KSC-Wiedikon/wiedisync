@@ -76,7 +76,6 @@ export default {
   finishMatch: "Termina partita",
   reopenMatch: "Riapri partita",
   finishEarlyConfirm: "Nessuna squadra ha ancora vinto tre set. Terminare comunque la partita?",
-  scoringHint: "Tocca una squadra per assegnarle il punto. Tutti possono seguire il punteggio sulla pagina Live.",
   switchSides: "Cambia lato",
   editSets: "Modifica set",
   editSetsHint: "Correggi il punteggio di un set finito.",
