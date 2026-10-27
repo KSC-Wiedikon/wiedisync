@@ -317,6 +317,8 @@ export default {
   idsDownloaded_other: '{{count}} Dokumente heruntergeladen und offline bereit.',
   idsNoEnvelope_one: 'Du kannst den Ausweis von {{count}} Person nicht öffnen. Bitte eine Kollegin oder einen Kollegen, deinen Zugriff auf der Teamseite wiederherzustellen.',
   idsNoEnvelope_other: 'Du kannst die Ausweise von {{count}} Personen nicht öffnen. Bitte eine Kollegin oder einen Kollegen, deinen Zugriff auf der Teamseite wiederherzustellen.',
+  idsRefused_one: 'Der Server hat den Ausweis von {{count}} Person nicht herausgegeben (ausserhalb des Zeitfensters oder kein Zugriff).',
+  idsRefused_other: 'Der Server hat die Ausweise von {{count}} Personen nicht herausgegeben (ausserhalb des Zeitfensters oder kein Zugriff).',
   idsPdfViewerNotReady: 'Der PDF-Viewer konnte nicht für die Offline-Nutzung geladen werden. Drücke nochmals auf Herunterladen, solange du Empfang hast.',
   idsReadyOffline_one: '{{count}} Dokument offline bereit.',
   idsReadyOffline_other: '{{count}} Dokumente offline bereit.',
