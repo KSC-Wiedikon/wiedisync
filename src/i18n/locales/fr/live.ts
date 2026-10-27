@@ -112,6 +112,7 @@ export default {
   result_source_opponent: "Selon l’annonce de l’adversaire",
   result_source_confirmed: "Confirmé par les deux équipes",
   result_source_vm_official: "Officiel dans VolleyManager, pas encore publié",
+  result_source_live: "D’après le score en direct",
   result_rankingsNote: "Inclut des résultats provisoires",
   result_opponentReport: "L’adversaire a annoncé",
   result_ourReport: "Notre annonce",

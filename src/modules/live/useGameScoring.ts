@@ -18,7 +18,9 @@ import { EMPTY_STATE, stateFromRow, type ScoreState } from './scoring'
  * phone's points silently rolled back are not.
  *
  * A 3 s poll keeps a second phone (and a scorer who reopens the page) in step. It
- * never overwrites while local taps are unpublished.
+ * never overwrites while local taps are unpublished, and a poll answer is dropped when
+ * a write started after it was asked: read before the write, it lands after it and
+ * would put the old score back until the next poll.
  *
  * When the hall scoreboard publishes the same game (409 `board_scoring`), the phone
  * stands down: the board's row is adopted, scoring is switched off, and the poll keeps
@@ -61,6 +63,8 @@ export function useGameScoring(gameId: string | undefined) {
   const inFlight = useRef(false)
   const undo = useRef<ScoreState[]>([])
   const savingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Bumped by every write; a poll answer from before the latest write is stale. */
+  const writeGen = useRef(0)
 
   // "Saving…" only once a write has been pending for SAVING_SHOW_MS; any outcome settles it.
   const showSavingSoon = useCallback(() => {
@@ -87,6 +91,7 @@ export function useGameScoring(gameId: string | undefined) {
     if (!gameId || inFlight.current || !dirty.current) return
     inFlight.current = true
     dirty.current = false
+    writeGen.current += 1
     showSavingSoon()
     const sent = stateRef.current
     let ok = false
@@ -154,12 +159,14 @@ export function useGameScoring(gameId: string | undefined) {
     let cancelled = false
     const load = async () => {
       try {
+        const gen = writeGen.current
         const res = await kscwApi<ScoringResponse>(`/live-scoring/game/${gameId}`)
         if (cancelled) return
         const { row, ...rest } = res
         setMeta(rest)
-        // Never overwrite taps that have not been published yet.
-        if (!dirty.current && !inFlight.current) {
+        // Never overwrite taps that have not been published yet, nor adopt a row read
+        // before a write that has gone out since.
+        if (!dirty.current && !inFlight.current && gen === writeGen.current) {
           const ts = row?.ts != null ? Number(row.ts) : null
           if (ts !== baseTs.current) adopt(row)
           setSync('synced')

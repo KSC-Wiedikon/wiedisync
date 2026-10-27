@@ -52,19 +52,21 @@ function SyncDot({ sync }: { sync: SyncState }) {
 }
 
 function TeamPanel({
-  side, name, color, state, disabled, onPlus, onMinus,
+  side, name, color, state, loading, disabled, onPlus, onMinus,
 }: {
   side: Side
   name: string
   color: string
   state: ScoreState
+  /** First read not back yet: no 0:0 that is not the score. */
+  loading: boolean
   disabled: boolean
   onPlus: () => void
   onMinus: () => void
 }) {
   const { t } = useTranslation('live')
   const points = side === 'a' ? state.points_a : state.points_b
-  const serving = state.serving_team === (side === 'a' ? 'left' : 'right')
+  const serving = !loading && state.serving_team === (side === 'a' ? 'left' : 'right')
   const won = closedWinner(state) === side
   return (
     // svrz card; the team colour stays on the dot and the score button (data colours).
@@ -94,7 +96,7 @@ function TeamPanel({
             {t('serving')}
           </span>
         )}
-        <span className="text-7xl font-bold tabular-nums leading-none sm:text-8xl">{points}</span>
+        <span className="text-7xl font-bold tabular-nums leading-none sm:text-8xl">{loading ? '–' : points}</span>
         <Plus className="mt-2 h-7 w-7 opacity-80" />
       </button>
 
@@ -273,7 +275,7 @@ export default function ScorePage() {
           the set being played. Everything in panel order, like the pills. */}
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-1.5">
         <span className="mr-0.5 whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
-          {t('sets')} {swapped ? `${state.sets_won_b}:${state.sets_won_a}` : `${state.sets_won_a}:${state.sets_won_b}`}
+          {t('sets')} {!meta ? '–' : swapped ? `${state.sets_won_b}:${state.sets_won_a}` : `${state.sets_won_a}:${state.sets_won_b}`}
         </span>
         {state.set_results.map((r, i) => (
           <button
@@ -289,19 +291,21 @@ export default function ScorePage() {
             <Pencil className="h-3 w-3 text-muted-foreground" aria-hidden />
           </button>
         ))}
-        <span className="ml-auto rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
-          {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
-        </span>
+        {meta && (
+          <span className="ml-auto rounded-full bg-selected px-2.5 py-1 text-xs font-semibold tabular-nums text-selected-foreground">
+            {isFinal ? t('statusFinal') : t('set', { n: currentSet(state) })}
+          </span>
+        )}
       </div>
 
       <div className={cn('flex gap-2 sm:gap-3', swapped && 'flex-row-reverse')}>
         <TeamPanel
-          side="a" name={home} color={homeColor} state={state} disabled={scoringDisabled}
+          side="a" name={home} color={homeColor} state={state} loading={!meta} disabled={scoringDisabled}
           onPlus={() => apply((s) => addPoint(s, 'a'))}
           onMinus={() => apply((s) => removePoint(s, 'a'))}
         />
         <TeamPanel
-          side="b" name={away} color={awayColor} state={state} disabled={scoringDisabled}
+          side="b" name={away} color={awayColor} state={state} loading={!meta} disabled={scoringDisabled}
           onPlus={() => apply((s) => addPoint(s, 'b'))}
           onMinus={() => apply((s) => removePoint(s, 'b'))}
         />

@@ -713,7 +713,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 : result.source === 'opponent' ? t('live:result_source_opponent')
                   : result.source === 'confirmed' ? t('live:result_source_confirmed')
                     : result.source === 'vm_official' ? t('live:result_source_vm_official')
-                      : null}
+                      : result.source === 'live' ? t('live:result_source_live')
+                        : null}
             </p>
           )}
 

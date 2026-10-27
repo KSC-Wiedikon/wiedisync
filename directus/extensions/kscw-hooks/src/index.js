@@ -9317,7 +9317,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .whereNotNull('g.kscw_team')
         .whereNotNull('g.time')
         .where('g.status', 'scheduled')
-        .whereRaw("(g.provisional_source IS NULL OR g.provisional_source = 'opponent')")
+        // 'live' (migration 430) stays a candidate: VM's official result replaces it.
+        .whereRaw("(g.provisional_source IS NULL OR g.provisional_source IN ('opponent', 'live'))")
         .whereRaw("(g.vm_result_checked_at IS NULL OR g.vm_result_checked_at < now() - interval '2 hours')")
         .whereRaw('NOT EXISTS (SELECT 1 FROM games g2 WHERE g2.game_id = g.game_id AND g2.id <> g.id)')
         .whereBetween('g.date', [
@@ -9394,10 +9395,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             : null
         if (src) {
           const won = vmSetsWon(src.sets)
+          // A live score outranks the opponent's report, not VM's official result.
+          const replaceable = src.source === 'vm_official'
+            ? "(provisional_source IS NULL OR provisional_source IN ('opponent', 'live'))"
+            : "(provisional_source IS NULL OR provisional_source = 'opponent')"
           const n = await database('games')
             .where('id', g.id)
             .where('status', 'scheduled')
-            .whereRaw("(provisional_source IS NULL OR provisional_source = 'opponent')")
+            .whereRaw(replaceable)
             .update({
               provisional_sets_json: JSON.stringify(src.sets),
               provisional_home_score: src.home ?? won.home,

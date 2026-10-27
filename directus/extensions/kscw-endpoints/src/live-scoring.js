@@ -60,6 +60,59 @@ const MESSAGES = {
 
 export const channelFor = (gameId) => `game-${gameId}`
 
+/**
+ * A finished live score as a game result (migration 430), or null: status 'final', one
+ * side on 3 sets, every set a valid volleyball set (25, 15 in the fifth; by two, exactly
+ * two past the target). A match ended early is not a result. Self-contained on purpose:
+ * game-result.js imports this module, so its validateSets cannot be imported back.
+ */
+export function liveResult(state) {
+  if (state?.status !== 'final' || !Array.isArray(state.set_results)) return null
+  const sets = state.set_results.map((r) => ({ home: Number(r.a), away: Number(r.b) }))
+  let home = 0
+  let away = 0
+  for (let i = 0; i < sets.length; i++) {
+    if (home === 3 || away === 3) return null
+    const { home: h, away: a } = sets[i]
+    const target = i === 4 ? 15 : 25
+    const hi = Math.max(h, a)
+    const diff = Math.abs(h - a)
+    if (!Number.isInteger(h) || !Number.isInteger(a) || hi < target || diff < 2 || (hi > target && diff !== 2)) return null
+    if (h > a) home++
+    else away++
+  }
+  return home === 3 || away === 3 ? { sets, home, away } : null
+}
+
+/**
+ * Keep the game's provisional result in step with its live score: a finished result is
+ * written as source 'live', on both copies of a derby. It replaces nothing a member
+ * entered or VolleyManager made official — only an empty slot, an earlier live score or
+ * the opponent's report. A live score that is no longer a result (match reopened, ended
+ * early) takes its own 'live' entry back and nothing else.
+ */
+export async function syncLiveProvisional(database, game, state, byName) {
+  const ids = game.game_id
+    ? (await database('games').where('game_id', game.game_id).select('id')).map((r) => r.id)
+    : [game.id]
+  const res = liveResult(state)
+  const q = database('games').whereIn('id', ids.length ? ids : [game.id]).where('status', 'scheduled')
+  if (res) {
+    return q.whereRaw("(provisional_source IS NULL OR provisional_source IN ('live', 'opponent'))").update({
+      provisional_sets_json: JSON.stringify(res.sets),
+      provisional_home_score: res.home,
+      provisional_away_score: res.away,
+      provisional_source: 'live',
+      provisional_by_name: byName ?? null,
+      provisional_at: new Date(),
+    })
+  }
+  return q.where('provisional_source', 'live').update({
+    provisional_sets_json: null, provisional_home_score: null, provisional_away_score: null,
+    provisional_source: null, provisional_by_name: null, provisional_at: null,
+  })
+}
+
 /** Same colours as the scoring page (ScorePage.tsx). */
 const KSCW_COLOR = '#2563eb'
 const OPPONENT_COLOR = '#ef4444'
@@ -272,6 +325,16 @@ export function registerLiveScoring(router, { database, logger }) {
         : sets !== prevSets ? 'live_set'
           : handOver ? 'live_takeover' : null
       if (memberId != null) lastWriter.set(channel, memberId)
+      // Final (or just reopened): the game's provisional result follows. Only on these
+      // writes, not every rally. Best-effort — the score is published either way.
+      if (clean.status === 'final' || before?.status === 'final') {
+        try {
+          const name = member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || null : null
+          await syncLiveProvisional(database, game, clean, name)
+        } catch (err) {
+          log.warn(`[live-scoring] provisional result for game ${game.id}: ${err.message}`)
+        }
+      }
       if (action) {
         await writeUserLog(database, log, {
           accountability: req.accountability,

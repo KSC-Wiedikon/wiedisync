@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.44.1'
+const APP_VERSION = '2.45.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.45.0',
+    date: '27.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "A match scored live and ended with «End match» now shows its result right away as provisional on the game card and in the game («From the live score»), until the official result arrives. A result someone entered or confirmed stays first; VolleyManager's official result replaces the live one. Reopening the match takes it back.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'Live scoring: a point could jump back to the old score for up to three seconds when a background refresh overlapped with the tap.',
+          'Live scoring and the Live page no longer show 0:0 or «No live match» for a moment while loading, and the Live page no longer shows the previous match for a moment when you switch games.',
+          'Game details: the Live scoring and Watch buttons keep their place while loading instead of pushing the page down, and never belong to the game you had open before.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.44.1',
     date: '27.10.2026',
