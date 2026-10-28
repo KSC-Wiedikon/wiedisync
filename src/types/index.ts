@@ -545,8 +545,9 @@ export interface Game extends BaseRecord {
   provisional_away_score?: number | null
   /** own = our team entered it; opponent = the opponent's VM report, unconfirmed;
    *  confirmed = our report equals the opponent's; vm_official = VM holds an
-   *  official result the SV feed has not delivered yet. */
-  provisional_source?: 'own' | 'opponent' | 'confirmed' | 'vm_official' | null
+   *  official result the SV feed has not delivered yet; live = the finished live
+   *  score (migration 430). */
+  provisional_source?: 'own' | 'opponent' | 'confirmed' | 'vm_official' | 'live' | null
   provisional_by_name?: string | null
   provisional_at?: string | null
   /** VolleyManager result-report push journal — written by the push worker. */

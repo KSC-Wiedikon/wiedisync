@@ -181,5 +181,8 @@ export function useLiveMatch(channel: string): LiveMatch {
     ['create', 'update'],
   )
 
-  return { envelope, connection, lastReceivedAt }
+  // Right after a channel switch the state still holds the previous channel's match
+  // until the first read for the new one lands: never hand that out as this channel's.
+  const current = envelope && envelope.channel === channel ? envelope : null
+  return { envelope: current, connection, lastReceivedAt: current ? lastReceivedAt : null }
 }

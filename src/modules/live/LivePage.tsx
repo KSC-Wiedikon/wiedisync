@@ -74,7 +74,10 @@ export default function LivePage() {
         </div>
       </header>
 
-      {hasMatch ? (
+      {!envelope ? (
+        // First read not back yet: a placeholder, not "No live match" for a moment.
+        <div className="h-64 rounded-2xl border border-hairline bg-card shadow-card motion-safe:animate-pulse" aria-busy="true" />
+      ) : hasMatch ? (
         <>
           {/* Once the match is over the live board (last-set points, TO/Sub, serve)
               is stale detail — the final summary replaces it entirely. */}
