@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.45.0'
+const APP_VERSION = '2.45.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.45.1',
+    date: '28.10.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Show IDs now also opens the ID of a player who is on another team's game only through the Volleymanager match lineup (Einsatzliste), without being invited in the app: the coaches and team responsibles of the game's team, and of any team opened on that game, can open it. The lineup is read 45 minutes before kickoff, or earlier with «Recheck» on the match sheet — the ID keys reach those coaches as soon as someone who already holds one opens the app after that.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.45.0',
     date: '27.10.2026',
