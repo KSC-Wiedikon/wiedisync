@@ -40,6 +40,8 @@ export default {
   endAfterStart: 'La date de fin doit etre posterieure a la date de debut',
   reasonRequired: 'Veuillez selectionner un motif',
   memberRequired: 'Veuillez selectionner un membre',
+  pickerStaffCoach: 'Entraîneur·e',
+  pickerStaffTeamResponsible: 'Responsable d\'équipe',
   errorSaving: 'Erreur lors de l\'enregistrement de l\'absence',
 
   // Modal titles

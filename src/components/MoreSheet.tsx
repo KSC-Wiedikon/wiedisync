@@ -14,8 +14,7 @@ import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
 import { Button } from '@/components/ui/button'
 import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight, Trophy, Globe, ExternalLink } from 'lucide-react'
-import type { MemberTeam, Team } from '../types'
-import { asObj, memberDisplayName } from '../utils/relations'
+import { memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN, externalAccountingOrigin } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/financeNav'
@@ -26,7 +25,6 @@ import HostedByInfomaniak from './HostedByInfomaniak'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useShowTournaments } from '../modules/tournaments/tournamentsApi'
 
-type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 /** Animated close: plays exit animation, then calls onClose after it finishes */
 function useAnimatedClose(onClose: () => void) {
@@ -225,10 +223,11 @@ interface MoreSheetProps {
   onClose: () => void
   unreadNotifications?: number
   onOpenNotifications?: () => void
-  memberTeams?: ExpandedMemberTeam[]
+  /** Player teams then staff-only (coach / TR) teams, deduped — see Layout. */
+  teamNames?: string[]
 }
 
-export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
+export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, teamNames = [] }: MoreSheetProps) {
   const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout, householdMembers, actingMember } = useAuth()
   // While on a linked account the avatar wears that member's accent ring.
   const actingAccent = actingMember
@@ -538,10 +537,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     <span className="block break-words text-sm font-semibold leading-snug text-foreground">
                       {memberDisplayName(user)}
                     </span>
-                    {memberTeams.length > 0 && (
+                    {teamNames.length > 0 && (
                       <div className="mt-0.5 flex flex-wrap gap-1">
-                        {memberTeams.map((mt) => (
-                          <TeamChip key={mt.id} team={asObj<Team>(mt.team)?.name ?? '?'} size="sm" />
+                        {teamNames.map((name) => (
+                          <TeamChip key={name} team={name} size="sm" />
                         ))}
                       </div>
                     )}

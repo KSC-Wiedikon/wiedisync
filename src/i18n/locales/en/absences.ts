@@ -40,6 +40,8 @@ export default {
   endAfterStart: 'End date must be after start date',
   reasonRequired: 'Please select a reason',
   memberRequired: 'Please select a member',
+  pickerStaffCoach: 'Coach',
+  pickerStaffTeamResponsible: 'Team responsible',
   errorSaving: 'Error saving absence',
 
   // Modal titles

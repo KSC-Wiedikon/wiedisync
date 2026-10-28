@@ -36,7 +36,10 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   // toggle), like the Spielplaner items below. Members reach forms-to-fill via
   // the Home page card instead. Coaches/TRs/Sport Admins/Vorstand/Admins manage.
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
-  const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
+  // Plural when the member is on more than one team in ANY capacity — a coach
+  // who doesn't play (no member_teams row) still has several teams.
+  const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand
+    || new Set([...memberTeamIds, ...coachTeamIds]).size > 1
   const iconClass = 'h-5 w-5'
   // Basketball youth tournaments — coach/TR of a tournament team, or bb admin.
   const showTournaments = useShowTournaments(isLoggedIn, isApproved)

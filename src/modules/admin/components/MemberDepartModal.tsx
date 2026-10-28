@@ -20,6 +20,11 @@
 // PRECONDITION, not decoration: if the team list cannot be read the button
 // stays disabled, because writing the four member columns while silently
 // skipping the roster half is the one half-applied outcome worth refusing.
+//
+// The preview also lists the member's COACH / TEAM-RESPONSIBLE links on active
+// teams (teams_coaches / teams_responsibles), with the role — staff have no
+// member_teams row, so a staff-only coach used to read "Not on any current team
+// roster" while departMember left them coaching.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { registerStatusLabel } from '@member-values'
@@ -37,6 +42,7 @@ import { todayLocal } from '../../../utils/dateHelpers'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import {
   DEPARTED_ORDERED, alreadyDeparted, buildDepartPatch, departMember,
+  type StaffJunction,
 } from './departMember'
 
 interface Props {
@@ -50,10 +56,13 @@ interface Props {
   onDeparted: (patch: Record<string, unknown>, updated: Record<string, unknown>) => void
 }
 
-/** The active-team rosters this member currently sits on. */
+/** The active-team rosters + staff links this member currently holds. */
 interface RosterPreview {
   activeTeamIds: string[]
+  /** Teams they play on (`member_teams`). */
   teamNames: string[]
+  /** Teams they coach / are team responsible of, one entry per link. */
+  staff: { team: string; junction: StaffJunction }[]
 }
 
 export default function MemberDepartModal({
@@ -95,17 +104,30 @@ export default function MemberDepartModal({
         })
         const byId = new Map(teams.map((tm) => [String(tm.id), tm.name]))
         const ids = [...byId.keys()]
-        const rows = ids.length
-          ? await fetchItems<{ id: string; team: string }>('member_teams', {
-            filter: { member: { _eq: memberId }, team: { _in: ids } },
-            fields: ['id', 'team'],
+        const staffRead = (junction: StaffJunction) =>
+          fetchItems<{ id: string; teams_id: string }>(junction, {
+            filter: { members_id: { _eq: memberId }, teams_id: { _in: ids } },
+            fields: ['id', 'teams_id'],
             limit: -1,
           })
-          : []
+        const [rows, coachRows, trRows] = ids.length
+          ? await Promise.all([
+            fetchItems<{ id: string; team: string }>('member_teams', {
+              filter: { member: { _eq: memberId }, team: { _in: ids } },
+              fields: ['id', 'team'],
+              limit: -1,
+            }),
+            staffRead('teams_coaches'),
+            staffRead('teams_responsibles'),
+          ])
+          : [[], [], []]
         if (cancelled) return
+        const staffOf = (list: { teams_id: string }[], junction: StaffJunction) =>
+          list.map((r) => ({ team: byId.get(String(r.teams_id)) ?? String(r.teams_id), junction }))
         setRosters({
           activeTeamIds: ids,
           teamNames: rows.map((r) => byId.get(String(r.team)) ?? String(r.team)),
+          staff: [...staffOf(coachRows, 'teams_coaches'), ...staffOf(trRows, 'teams_responsibles')],
         })
         setRosterError(false)
       } catch {
@@ -119,6 +141,11 @@ export default function MemberDepartModal({
 
   const patch = useMemo(() => buildDepartPatch(status, exitDate), [status, exitDate])
 
+  // "H2 (Coach)", "H3 (Team responsible)" — one label per staff link.
+  const staffLabels = useMemo(() => (rosters?.staff ?? []).map((s) => `${s.team} (${t(
+    s.junction === 'teams_coaches' ? 'explorerDepartRoleCoach' : 'explorerDepartRoleTeamResponsible',
+  )})`), [rosters, t])
+
   /**
    * Nothing left to do — the four columns already match AND no active roster is
    * left to drop. Both halves matter: a member switched off by the old toggle
@@ -127,13 +154,15 @@ export default function MemberDepartModal({
   const noop = rosters !== null
     && alreadyDeparted(member, patch)
     && rosters.teamNames.length === 0
+    && rosters.staff.length === 0
 
   const handleApply = useCallback(async () => {
     if (!exitDate) return
     // Two messages rather than one with `count: 0` — i18next resolves 0 to the
     // plural form in English, so a single key would confirm "comes off 0 current
     // rosters", which reads as a bug at exactly the wrong moment.
-    const teamNames = rosters?.teamNames ?? []
+    // Staff links ride the same list, labelled with their role.
+    const teamNames = [...(rosters?.teamNames ?? []), ...staffLabels]
     const ok = await confirm({
       title: t('explorerDepartConfirmTitle'),
       message: teamNames.length > 0
@@ -158,13 +187,14 @@ export default function MemberDepartModal({
       // `rosters` is non-null here — the button is disabled until the preview
       // lands, precisely so this call can never run with an empty team list it
       // mistook for "no active teams".
-      const { updated, rostersDropped } = await departMember(
+      const { updated, rostersDropped, staffDropped } = await departMember(
         memberId, patch, rosters?.activeTeamIds ?? [],
       )
       onDeparted(patch, updated)
+      const dropped = rostersDropped + staffDropped
       toast.success(
-        rostersDropped > 0
-          ? t('explorerDepartAppliedRosters', { name: memberName, count: rostersDropped })
+        dropped > 0
+          ? t('explorerDepartAppliedRosters', { name: memberName, count: dropped })
           : t('explorerDepartApplied', { name: memberName }),
       )
       onClose()
@@ -173,7 +203,7 @@ export default function MemberDepartModal({
     } finally {
       setRunning(false)
     }
-  }, [exitDate, confirm, t, memberName, status, rosters, memberId, patch, onDeparted, onClose])
+  }, [exitDate, confirm, t, memberName, status, rosters, staffLabels, memberId, patch, onDeparted, onClose])
 
   return (
     <Modal
@@ -218,15 +248,27 @@ export default function MemberDepartModal({
               <Loader2 className="h-4 w-4 animate-spin" />
               {t('explorerDepartRostersLoading')}
             </p>
-          ) : rosters.teamNames.length === 0 ? (
+          ) : rosters.teamNames.length === 0 && staffLabels.length === 0 ? (
             <p className="text-muted-foreground">{t('explorerDepartNoRosters')}</p>
           ) : (
-            <p className="text-foreground">
-              {t('explorerDepartRosters', {
-                count: rosters.teamNames.length,
-                teams: rosters.teamNames.join(', '),
-              })}
-            </p>
+            <div className="space-y-1">
+              {rosters.teamNames.length > 0 && (
+                <p className="text-foreground">
+                  {t('explorerDepartRosters', {
+                    count: rosters.teamNames.length,
+                    teams: rosters.teamNames.join(', '),
+                  })}
+                </p>
+              )}
+              {staffLabels.length > 0 && (
+                <p className="text-foreground">
+                  {t('explorerDepartStaff', {
+                    count: staffLabels.length,
+                    teams: staffLabels.join(', '),
+                  })}
+                </p>
+              )}
+            </div>
           )}
           {noop && (
             <p className="mt-2 text-xs text-muted-foreground">{t('explorerDepartAlready')}</p>

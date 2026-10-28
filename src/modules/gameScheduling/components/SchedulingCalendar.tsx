@@ -6,10 +6,11 @@ import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
+import { fetchTeamAbsences } from '../../../hooks/teamAbsencesFetch'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import { toZurichDateString } from '../../../utils/dateHelpers'
 import { relId, memberDisplayName } from '../../../utils/relations'
-import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam, SchedulingBlock } from '../../../types'
+import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, SchedulingBlock } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import CrossTeamBadge from '../../spielplanung/CrossTeamBadge'
 import { useCrossTeamConflicts } from '../../spielplanung/hooks/useCrossTeamConflicts'
@@ -550,8 +551,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   const isTeamScoped = teams.length === 1
 
   // date key -> number of distinct team members unavailable that day (blocking
-  // absences affecting games). Fetched per-team via a single-level junction walk
-  // (member_teams → members) then absences by member, per the M2M-safe pattern.
+  // absences affecting games). Fetched through `fetchTeamAbsences` — the same
+  // helper the schedule export uses — so the roster is players (`member_teams`)
+  // PLUS coaches + team responsibles: a staff-only coach has no member_teams row,
+  // and a member_teams-only walk silently left their absences out of the badge.
   // date key -> sorted names of members unavailable that day (so a click/hover
   // can show WHO, not just how many).
   // Tagged with the team+season it was fetched for, mirroring useCrossTeamConflicts:
@@ -567,24 +570,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     let cancelled = false
     ;(async () => {
       try {
-        const links = await fetchAllItems<MemberTeam>('member_teams', {
-          fields: ['member'], filter: { team: { _eq: absenceTeamId } },
-        })
-        const memberIds = [...new Set(links.map((l) => relId(l.member)).filter(Boolean))]
-        if (memberIds.length === 0) { if (!cancelled) setAbsenceState({ key: absenceKey, byDate: EMPTY_ABSENCES }); return }
         const winStart = `${startYear}-08-01`
         const winEnd = `${startYear + 1}-03-31`
-        const [members, abs] = await Promise.all([
-          fetchAllItems<{ id: string; first_name?: string; last_name?: string; nickname?: string | null }>('members', {
-            fields: ['id', 'first_name', 'last_name', 'nickname'], filter: { id: { _in: memberIds } },
-          }),
-          fetchAllItems<Absence & { member?: string | { id: string } }>('absences', {
-            fields: ['id', 'member', 'start_date', 'end_date', 'type', 'days_of_week', 'affects', 'blocking'],
-            filter: { _and: [{ member: { _in: memberIds } }, { end_date: { _gte: winStart } }, { start_date: { _lte: winEnd } }] },
-          }),
-        ])
+        const { absences: abs, memberMap } = await fetchTeamAbsences([absenceTeamId], winStart, winEnd)
         const nameById = new Map<string, string>()
-        for (const m of members) {
+        for (const m of Object.values(memberMap)) {
           const nm = memberDisplayName(m)
           nameById.set(String(m.id), nm || String(m.id))
         }
