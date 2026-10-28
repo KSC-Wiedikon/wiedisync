@@ -1779,4 +1779,8 @@ export default {
   auditLastPage: 'Dernière page',
   previousPage: 'Page précédente',
   nextPage: 'Page suivante',
+  explorerDepartStaff_one: 'Retire la personne du staff de {{count}} équipe actuelle : {{teams}}.',
+  explorerDepartStaff_other: 'Retire la personne du staff de {{count}} équipes actuelles : {{teams}}.',
+  explorerDepartRoleCoach: 'Entraîneur·e',
+  explorerDepartRoleTeamResponsible: 'Responsable d\'équipe',
 } as const

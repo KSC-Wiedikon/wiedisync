@@ -12,8 +12,8 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import { Checkbox } from '@/components/ui/checkbox'
 import AffectsMultiSelect from '@/components/AffectsMultiSelect'
 import type { Absence, Member } from '../../types'
-import { memberDisplayName, relId, asObj } from '../../utils/relations'
-import { useMultiTeamMembers } from '../../hooks/useTeamMembers'
+import { memberDisplayName, relId } from '../../utils/relations'
+import { useTeamPickerMembers } from '../../hooks/useTeamPickerMembers'
 import { cn } from '@/lib/utils'
 
 const DAY_KEYS = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'] as const
@@ -43,15 +43,18 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
     fields: ['id', 'first_name', 'last_name', 'nickname'],
     enabled: showMemberPicker && effectiveIsAdmin,
   })
-  const { members: teamMemberRows } = useMultiTeamMembers(
+  // Players + coaches + team responsibles of the scoped teams (see AbsenceForm).
+  const { members: teamPickerMembers, staffRoleById } = useTeamPickerMembers(
     showMemberPicker && !effectiveIsAdmin ? (teamIds ?? []) : [],
   )
   const visibleMembers: Member[] = effectiveIsAdmin
     ? (allMembersRaw ?? [])
-    : teamMemberRows
-        .map((mt) => asObj<Member>(mt.member))
-        .filter((m): m is Member => !!m && m.kscw_membership_active !== false)
-        .sort((a, b) => (a.last_name ?? '').localeCompare(b.last_name ?? ''))
+    : teamPickerMembers
+  const staffSuffix = (id: string) => {
+    const role = staffRoleById.get(String(id))
+    if (!role) return ''
+    return ` (${t(role === 'coach' ? 'pickerStaffCoach' : 'pickerStaffTeamResponsible')})`
+  }
 
   const [memberId, setMemberId] = useState('')
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([])
@@ -169,7 +172,7 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
             placeholder={t('common:select')}
             value={memberId}
             onChange={setMemberId}
-            options={visibleMembers.map((m) => ({ value: m.id, label: memberDisplayName(m) || '—' }))}
+            options={visibleMembers.map((m) => ({ value: m.id, label: (memberDisplayName(m) || '—') + staffSuffix(m.id) }))}
           />
         )}
 

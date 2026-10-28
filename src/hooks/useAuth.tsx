@@ -89,7 +89,12 @@ export interface AuthContextValue {
   memberTeamNames: string[]
   teamsLoading: boolean
   memberSports: Set<'volleyball' | 'basketball'>
+  /** Sport(s) of every active team the member plays in OR coaches / is TR of. */
   primarySport: 'volleyball' | 'basketball' | 'both'
+  /** Sport(s) of the teams the member PLAYS in (member_teams) — for player-only
+   *  fields (positions, federation of origin). Falls back to primarySport when
+   *  the member plays nowhere (pure coach/TR). */
+  playerSport: 'volleyball' | 'basketball' | 'both'
   canViewTeam: (teamId: string) => boolean
   isVorstand: boolean
   /** Member has the orthogonal 'finance' role (treasurer / finance team). */

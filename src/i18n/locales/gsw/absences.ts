@@ -40,6 +40,8 @@ export default {
   endAfterStart: 'S Ändi muäss nochem Start sii',
   reasonRequired: 'Bitte wähl en Grund',
   memberRequired: 'Bitte wähl es Mitglied',
+  pickerStaffCoach: 'Trainer/in',
+  pickerStaffTeamResponsible: 'Teamverantwortlichi/r',
   errorSaving: 'Bim Speichere vo de Absänz isch öppis schief gange',
 
   // Modal titles

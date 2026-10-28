@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -18,16 +18,12 @@ import SupportContact from './SupportContact'
 import ImpersonationBanner from './ImpersonationBanner'
 import ActingBanner from './ActingBanner'
 import { HouseholdSwitcherProvider } from './HouseholdSwitcher'
-import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
-import type { MemberTeam, Team } from '../types'
-
-type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 export default function Layout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
-  const { user, realUser, householdMembers, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
+  const { user, realUser, householdMembers, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading, memberTeamNames, coachTeamNames } = useAuth()
   // Already excludes impersonation and unapproved accounts — see the hook.
   const profileReviewDue = useProfileReviewDue()
   // Re-encodes the member's own stored ID at WhatsApp size, once, in the background —
@@ -51,18 +47,15 @@ export default function Layout() {
   // NOTE: the admin-mode toggle is fully manual — nothing auto-flips it. The
   // navbar is always complete for privileged users (role-gated); the toggle only
   // changes the data scope (own teams vs club-wide) + the gold banner.
-  const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
-    // Gate on the TEAM being active, not on member_teams.season: the season
-    // column is a create-time stamp uncoupled from the manually-run rollover,
-    // so it matches nothing between the Jun-1 cutover and the rollover (~34h in
-    // 2026). Active-only still does what this filter was written for — keeping
-    // archived same-name teams (old + new "H3") out of the user card.
-    filter: user ? { _and: [{ member: { _eq: user.id } }, { team: { active: { _eq: true } } }] } : undefined,
-    fields: ['*', 'team.*'],
-    limit: 10,
-    enabled: !!user && !isLoading,
-  })
-  const memberTeams = memberTeamsRaw ?? []
+  // User-card team chips: teams the member plays in, then staff-only teams
+  // (coach / team responsible) — a coach who doesn't play has no member_teams
+  // row, so a member_teams-only list showed them no team at all. Both lists
+  // come from the auth team context (active teams only, refreshed after a
+  // leave), so no separate fetch here.
+  const teamNames = useMemo(
+    () => [...new Set([...memberTeamNames, ...coachTeamNames])],
+    [memberTeamNames, coachTeamNames],
+  )
 
   // Gate the chrome + page from mounting until auth/role context is ready
   // (memberTeamIds/coachTeamIds, which the pages depend on). The boot spinner
@@ -92,7 +85,7 @@ export default function Layout() {
         <TopNav
           unreadCount={unreadCount}
           onOpenNotifications={() => setNotifPanelOpen(true)}
-          memberTeams={memberTeams}
+          teamNames={teamNames}
         />
       )}
 
@@ -153,7 +146,7 @@ export default function Layout() {
           onClose={() => setMoreOpen(false)}
           unreadNotifications={unreadCount}
           onOpenNotifications={() => { setMoreOpen(false); setNotifPanelOpen(true) }}
-          memberTeams={memberTeams}
+          teamNames={teamNames}
         />
       )}
 

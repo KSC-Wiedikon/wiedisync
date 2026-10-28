@@ -5,8 +5,16 @@
 // false positive silently SKIPS a departure — on a bulk run over 120 people
 // nobody would notice, and the register would keep billing them.
 
-import { describe, expect, it } from 'vitest'
-import { DEPARTED_ORDERED, alreadyDeparted, buildDepartPatch } from '../departMember'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const api = vi.hoisted(() => ({
+  fetchItems: vi.fn(),
+  deleteRecord: vi.fn(),
+  updateRecord: vi.fn(),
+}))
+vi.mock('../../../../lib/api', () => api)
+
+import { DEPARTED_ORDERED, alreadyDeparted, buildDepartPatch, dropStaffLinksOnTeams } from '../departMember'
 
 const PATCH = buildDepartPatch('former', '2026-06-30')
 
@@ -70,5 +78,46 @@ describe('alreadyDeparted', () => {
       { register_status: 'active', left_on: null, kscw_membership_active: true, wiedisync_active: true },
       PATCH,
     )).toBe(false)
+  })
+})
+
+// Staff (coach / team responsible) never have a member_teams row, so a departure
+// that only dropped rosters left a departed coach on the staff list.
+describe('dropStaffLinksOnTeams', () => {
+  beforeEach(() => {
+    api.fetchItems.mockReset()
+    api.deleteRecord.mockReset()
+  })
+
+  it('does nothing without active teams', async () => {
+    expect(await dropStaffLinksOnTeams('42', [])).toEqual({ teams_coaches: 0, teams_responsibles: 0 })
+    expect(api.fetchItems).not.toHaveBeenCalled()
+  })
+
+  it('deletes both junctions\' rows on the active teams, scoped by member + team', async () => {
+    api.fetchItems.mockImplementation(async (collection: string) =>
+      collection === 'teams_coaches' ? [{ id: '7' }, { id: '8' }] : [{ id: '9' }])
+    api.deleteRecord.mockResolvedValue(undefined)
+
+    const dropped = await dropStaffLinksOnTeams('42', ['3', '4'])
+
+    expect(dropped).toEqual({ teams_coaches: 2, teams_responsibles: 1 })
+    expect(api.fetchItems).toHaveBeenCalledWith('teams_coaches', expect.objectContaining({
+      filter: { members_id: { _eq: '42' }, teams_id: { _in: ['3', '4'] } },
+    }))
+    expect(api.fetchItems).toHaveBeenCalledWith('teams_responsibles', expect.objectContaining({
+      filter: { members_id: { _eq: '42' }, teams_id: { _in: ['3', '4'] } },
+    }))
+    expect(api.deleteRecord.mock.calls).toEqual([
+      ['teams_coaches', '7'], ['teams_coaches', '8'], ['teams_responsibles', '9'],
+    ])
+  })
+
+  it('counts only the rows that actually went', async () => {
+    api.fetchItems.mockImplementation(async (collection: string) =>
+      collection === 'teams_coaches' ? [{ id: '7' }, { id: '8' }] : [])
+    api.deleteRecord.mockRejectedValueOnce(new Error('403')).mockResolvedValue(undefined)
+
+    expect(await dropStaffLinksOnTeams('42', ['3'])).toEqual({ teams_coaches: 1, teams_responsibles: 0 })
   })
 })

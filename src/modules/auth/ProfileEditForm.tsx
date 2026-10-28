@@ -71,7 +71,13 @@ type TeammateRow = { member: ConflictMember | string | number | null }
  * from `user` on mount / when the member record changes identity.
  */
 export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify, beforeActions }: ProfileEditFormProps) {
-  const { user, primarySport, memberTeamNames, refreshUser } = useAuth()
+  const { user, primarySport, playerSport, memberTeamNames, coachTeamNames, refreshUser } = useAuth()
+  // Every team the member is on: player rows first, then staff-only (coach /
+  // TR) teams — a coach who doesn't play has no member_teams row.
+  const allTeamNames = useMemo(
+    () => [...new Set([...memberTeamNames, ...coachTeamNames])],
+    [memberTeamNames, coachTeamNames],
+  )
   const { t, i18n } = useTranslation('auth')
   const { t: tc } = useTranslation('common')
   const { t: tt } = useTranslation('teams')
@@ -176,9 +182,14 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   // Labelled with the federation for the member's sport ("FIPAV (Italy)") rather
   // than the bare country — the question asks which BODY licensed them, and the
   // answer differs by sport. `both` (or no sport) has no single right federation,
-  // so those members see plain country names.
-  const fedSport = primarySport === 'volleyball' || primarySport === 'basketball' ? primarySport : undefined
+  // so those members see plain country names. PLAYER sport, not primarySport: a
+  // volleyball player who also coaches a basketball team was licenced as a
+  // volleyball player, and primarySport would read 'both' for them.
+  const fedSport = playerSport === 'volleyball' || playerSport === 'basketball' ? playerSport : undefined
   const fedOptions = federationOptions(fedSport)
+  // Coaching ladders follow the sports the member is on a team in at all
+  // (played OR coached) — a coach's grade belongs to the sport they coach.
+  const coachLicenceSport = primarySport === 'volleyball' || primarySport === 'basketball' ? primarySport : undefined
 
 
   /**
@@ -215,9 +226,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
    */
   const trainerLicenceOptions = TRAINER_LICENCE_CODES.filter(
     (code) =>
-      !fedSport ||
+      !coachLicenceSport ||
       code === 'JS' ||
-      TRAINER_LICENCE_CODES_BY_SPORT[fedSport].includes(code) ||
+      TRAINER_LICENCE_CODES_BY_SPORT[coachLicenceSport].includes(code) ||
       trainerLicences.includes(code),
   )
 
@@ -740,7 +751,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 className="absolute left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
               >
                 {getSelectablePositions(
-                  primarySport === 'both' ? undefined : primarySport,
+                  playerSport === 'both' ? undefined : playerSport,
                   selectedPositions,
                 ).map((p) => {
                   const active = selectedPositions.includes(p)
@@ -948,7 +959,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">{tc('team')}</span>
-                    <p className="text-foreground/85">{memberTeamNames?.join(', ') || '—'}</p>
+                    <p className="text-foreground/85">{allTeamNames.join(', ') || '—'}</p>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">{t('status')}</span>
