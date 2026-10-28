@@ -25,8 +25,10 @@
  * they wrapped to; we refuse to store an envelope for anyone who is not the member, a
  * coach/TR of a team the member actually plays in, OR (since 2026-09-22) a superadmin
  * (`members.role` holds `'superuser'` — NOT sport admins, NOT a bare Directus session flag) —
- * OR, for a game shared via the guest mechanism (migration 271), a coach/TR of the other
- * team(s) on that game's sheet, scoped to that specific game (`sharedGameTeamIds`). The crypto
+ * OR, for a game shared via the guest mechanism (migration 271) — or, since 2026-10-28, a
+ * game whose stored Volleymanager Einsatzliste names the member (`vmSheetGames`) — a
+ * coach/TR of the other team(s) on that game's sheet, scoped to that specific game
+ * (`sharedGameTeamIds`). The crypto
  * would not care — a stranger's envelope is only openable by that stranger — but the grant
  * list is the access-control record, and it has to mean something.
  *
@@ -235,6 +237,39 @@ function guestHasConfirmed(database) {
   })
 }
 
+/**
+ * Games whose STORED Volleymanager Einsatzliste (game_vm_sheets, migration 396) names
+ * `memberId`, as a player or an official — matched on the Swiss Volley licence exactly as
+ * the match sheet does (loadVmRoster: list `license_nr` = members.license_nr). Someone can
+ * play on another team's game in VM without being invited in the app; the Einsatzliste is
+ * the legal list and only someone with Volleymanager access can file it, so it links them
+ * to that game like a confirmed guest (owner's decision, 28.10.2026). Scheduled games only.
+ *
+ * ⚠ The list exists only from the read at kickoff −45 min, or a coach's earlier Recheck.
+ * Keys can only be passed on after that (useIdentityAutoRepair, on a key holder's device).
+ *
+ * jsonb_path_exists in lax mode: a malformed stored list matches nothing instead of
+ * failing the query — and any error here narrows to "no link", never widens.
+ */
+async function vmSheetGames(database, memberId) {
+  try {
+    const m = await database('members').where('id', memberId).first('license_nr')
+    if (m?.license_nr == null || String(m.license_nr) === '') return []
+    const lic = JSON.stringify({ lic: String(m.license_nr) })
+    return await database('games as g')
+      .join('game_vm_sheets as v', 'v.game', 'g.id')
+      .where('g.status', 'scheduled')
+      .whereNotNull('v.list')
+      // The paths go in as bindings: knex would read the filter's `?` as a placeholder.
+      .where((q) => q
+        .whereRaw('jsonb_path_exists(v.list, ?::jsonpath, ?::jsonb)', ['$.players[*] ? (@.license_nr == $lic)', lic])
+        .orWhereRaw('jsonb_path_exists(v.list, ?::jsonpath, ?::jsonb)', ['$.coaches[*] ? (@.license_nr == $lic)', lic]))
+      .select('g.id', 'g.date', 'g.time', 'g.kscw_team')
+  } catch {
+    return []
+  }
+}
+
 async function sharedGameTeamIds(database, memberId, ownTeamIds) {
   const hostTeamOf = new Map() // gameId -> kscw_team, for every game worth considering
 
@@ -257,6 +292,12 @@ async function sharedGameTeamIds(database, memberId, ownTeamIds) {
     .select('g.id', 'g.kscw_team')
   for (const g of guestOf) hostTeamOf.set(Number(g.id), Number(g.kscw_team))
 
+  // On a game's Volleymanager Einsatzliste: the host team and every team opened on that
+  // game (below) are linked, like for a confirmed guest.
+  for (const g of await vmSheetGames(database, memberId)) {
+    if (g.kscw_team != null) hostTeamOf.set(Number(g.id), Number(g.kscw_team))
+  }
+
   if (!hostTeamOf.size) return []
 
   const gameIds = [...hostTeamOf.keys()]
@@ -274,7 +315,8 @@ async function sharedGameTeamIds(database, memberId, ownTeamIds) {
  * guest mechanism — either `otherTeamId` was opened as a guest team on one of memberId's
  * own games, or `otherTeamId` hosts a game memberId was invited into, or `otherTeamId` was
  * opened as a guest team on a game memberId was invited into (27.10.2026: H3 opened on
- * H1's game — H3's own TR could not see H3's players, because H3 hosts nothing that day).
+ * H1's game — H3's own TR could not see H3's players, because H3 hosts nothing that day),
+ * or memberId is named on the game's Volleymanager Einsatzliste (vmSheetGames).
  * Unlike the fixture list used for a player's own team, this must NOT widen to every game
  * `otherTeamId` plays — only the game(s) that actually connect these two.
  */
@@ -306,6 +348,17 @@ async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
     .where('g.status', 'scheduled')
     .select('g.id', 'g.date', 'g.time')
   rows.push(...guestOf)
+
+  // Named on the game's Volleymanager Einsatzliste, where `otherTeamId` hosts the game or
+  // is opened on it (vmSheetGames).
+  const vmGames = await vmSheetGames(database, memberId)
+  if (vmGames.length) {
+    const opened = new Set((await database('game_guest_teams')
+      .whereIn('game', vmGames.map((g) => Number(g.id)))
+      .where('team', otherTeamId)
+      .select('game')).map((r) => Number(r.game)))
+    rows.push(...vmGames.filter((g) => Number(g.kscw_team) === Number(otherTeamId) || opened.has(Number(g.id))))
+  }
 
   return rows
 }
