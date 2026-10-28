@@ -28,7 +28,7 @@ export default {
   roleCaptain: 'Captain',
   roleCoach: 'Coach',
 
-  roleTeamResponsible: 'Team Responsible',
+  roleTeamResponsible: 'Team responsible',
 
   coaches: 'Coaches',
   staff: 'Staff',

@@ -10,7 +10,7 @@
 // here) — and because two copies of "what departing means" is exactly how the
 // two surfaces drift apart.
 //
-// Departing is never one column. Five things move together:
+// Departing is never one column. Seven things move together:
 //
 //   register_status        → the departed status the operator picked
 //   austritt               → the exit date. The CHECK constraint
@@ -21,6 +21,16 @@
 //   kscw_membership_active → false
 //   wiedisync_active       → false
 //   member_teams           → the rows on ACTIVE teams are deleted
+//   teams_coaches          → the rows on ACTIVE teams are deleted
+//   teams_responsibles     → the rows on ACTIVE teams are deleted
+//
+// ⚠ The two staff junctions are separate from the roster: a coach / team
+// responsible NEVER has a `member_teams` row for the team they lead, so a
+// departure that only dropped `member_teams` left a departed coach listed as
+// staff (and on every staff-scoped surface). Deleting them through the items
+// API also fires kscw-hooks' `teams_coaches|teams_responsibles.items.delete`
+// role sync, which revokes the LEADER policy once no active staff link is left
+// — that revocation is the intended effect, not a side effect.
 //
 // ⚠ The roster drop is the half that used to be missing. `/clubdesk-deactivate`
 // (clubdesk-update.js → deactivateMemberRow) has always dropped active-team
@@ -150,15 +160,53 @@ export async function dropRostersOnTeams(memberId: string, activeTeamIds: string
   return dropped
 }
 
+/** The two staff junctions a departure clears, in the order they are dropped. */
+export const STAFF_JUNCTIONS = ['teams_coaches', 'teams_responsibles'] as const
+export type StaffJunction = typeof STAFF_JUNCTIONS[number]
+
+/**
+ * Delete the member's coach / team-responsible links on the given (active)
+ * teams. Returns how many went, per junction.
+ *
+ * Mirrors `dropRostersOnTeams`: single-level junction filter on the active team
+ * ids, then one items-API delete per row (so the leader-access role sync hook
+ * fires and Directus logs the real actor), best-effort per row.
+ */
+export async function dropStaffLinksOnTeams(
+  memberId: string,
+  activeTeamIds: string[],
+): Promise<Record<StaffJunction, number>> {
+  const dropped: Record<StaffJunction, number> = { teams_coaches: 0, teams_responsibles: 0 }
+  if (activeTeamIds.length === 0) return dropped
+  for (const junction of STAFF_JUNCTIONS) {
+    const rows = await fetchItems<{ id: string }>(junction, {
+      filter: { members_id: { _eq: memberId }, teams_id: { _in: activeTeamIds } },
+      fields: ['id'],
+      limit: -1,
+    })
+    for (const row of rows) {
+      try {
+        await deleteRecord(junction, String(row.id))
+        dropped[junction] += 1
+      } catch {
+        // Swallowed on purpose — see dropRostersOnTeams.
+      }
+    }
+  }
+  return dropped
+}
+
 export interface DepartResult {
   /** The member row as the server returned it, for the caller's cache. */
   updated: Record<string, unknown>
-  /** How many active-team roster rows were removed. */
+  /** How many active-team roster rows (`member_teams`) were removed. */
   rostersDropped: number
+  /** How many active-team staff links were removed (coach + team responsible). */
+  staffDropped: number
 }
 
 /**
- * Depart one member: the four columns, then the rosters.
+ * Depart one member: the four columns, then the rosters, then the staff links.
  *
  * ⚠ ORDER MATTERS. The member PATCH goes first: if it fails (a rejected CHECK,
  * a 403) the person keeps their teams, and a half-applied departure that took
@@ -179,6 +227,13 @@ export async function departMember(
     'members', memberId, patch, { fields: ['*'] },
   )
   const rostersDropped = await dropRostersOnTeams(memberId, activeTeamIds)
-  logActivity('update', 'members', memberId, { ...patch, rosters_dropped: rostersDropped })
-  return { updated, rostersDropped }
+  const staff = await dropStaffLinksOnTeams(memberId, activeTeamIds)
+  const staffDropped = staff.teams_coaches + staff.teams_responsibles
+  logActivity('update', 'members', memberId, {
+    ...patch,
+    rosters_dropped: rostersDropped,
+    coach_links_dropped: staff.teams_coaches,
+    team_responsible_links_dropped: staff.teams_responsibles,
+  })
+  return { updated, rostersDropped, staffDropped }
 }

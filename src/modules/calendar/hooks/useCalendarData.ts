@@ -17,6 +17,7 @@ import { asObj, relId, memberDisplayName, memberFirstName, disambiguateFirstName
 import { trimBBTeamName } from '../../../utils/teamColors'
 import { isAuthenticated } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
+import type { StaffJunctionRow } from '../../../hooks/useTeamPeopleIds'
 
 interface UseCalendarDataOptions {
   filters: CalendarFilterState
@@ -475,6 +476,36 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     all: true,
   })
   const teamMemberLinks = teamMemberLinksRaw ?? []
+  // …plus the selected teams' coaches + team responsibles. Staff NEVER get a
+  // `member_teams` row, so a staff-only coach (e.g. one who coaches H2 + H3 and
+  // plays nowhere) had their absences hidden as soon as a team filter was on.
+  // Single-level junction reads (`teams_id _in`), club-wide readable — same
+  // union as `buildTeamPeopleIds` / `fetchTeamAbsences`. Birthdays below stay
+  // players-only on purpose.
+  const staffFilterEnabled = fetchAbsences && hasTeamFilter && isAuthenticated()
+  const staffFilter = hasTeamFilter
+    ? { teams_id: { _in: filters.selectedTeamIds } }
+    : { id: { _eq: -1 } }
+  const { data: teamCoachLinksRaw } = useCollection<StaffJunctionRow>('teams_coaches', {
+    enabled: staffFilterEnabled,
+    filter: staffFilter,
+    fields: ['members_id', 'teams_id'],
+    all: true,
+  })
+  const { data: teamResponsibleLinksRaw } = useCollection<StaffJunctionRow>('teams_responsibles', {
+    enabled: staffFilterEnabled,
+    filter: staffFilter,
+    fields: ['members_id', 'teams_id'],
+    all: true,
+  })
+  // Memoised on the query results (stable references) so the entries memo below
+  // does not recompute on every render.
+  const teamStaffIds = useMemo(
+    () => [...(teamCoachLinksRaw ?? []), ...(teamResponsibleLinksRaw ?? [])]
+      .map((s) => relId(s.members_id))
+      .filter(Boolean),
+    [teamCoachLinksRaw, teamResponsibleLinksRaw],
+  )
 
   // Team members' birthdays — team-scoped (never club-wide/public) and authed
   // only. Sourced through the single-level `member_teams` junction filtered by
@@ -621,7 +652,13 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
 
     if (fetchAbsences) {
       // Filter absences by team membership when team filter is active
-      const teamMemberIds = hasTeamFilter ? new Set(teamMemberLinks.map((mt) => relId(mt.member))) : null
+      // Players (member_teams) + staff (teams_coaches / teams_responsibles).
+      const teamMemberIds = hasTeamFilter
+        ? new Set([
+            ...teamMemberLinks.map((mt) => relId(mt.member)),
+            ...teamStaffIds,
+          ].filter(Boolean))
+        : null
       const teamIdSet = hasTeamFilter ? new Set(filters.selectedTeamIds) : null
       // By default, hide unavailabilities (weekly) and non-blocking absences —
       // they clutter the calendar and don't affect the rest of the team.
@@ -694,7 +731,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallCount, hallEvents, absences, dutyGames, teamMemberLinks, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences, t])
+  }, [games, trainings, events, closuresRaw, hallCount, hallEvents, absences, dutyGames, teamMemberLinks, teamStaffIds, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences, t])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()

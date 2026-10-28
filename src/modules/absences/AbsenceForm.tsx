@@ -5,8 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useMutation } from '../../hooks/useMutation'
 import { useCollection } from '../../lib/query'
-import { useMultiTeamMembers } from '../../hooks/useTeamMembers'
-import { asObj } from '../../utils/relations'
+import { useTeamPickerMembers } from '../../hooks/useTeamPickerMembers'
 import { Button } from '@/components/ui/button'
 import { FormTextarea } from '@/components/FormField'
 import DatePicker from '@/components/ui/DatePicker'
@@ -46,18 +45,20 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
     fields: ['id', 'first_name', 'last_name', 'nickname'],
     enabled: showMemberPicker && effectiveIsAdmin,
   })
-  // Coaches/TRs: fetch members of their coached teams via member_teams junction
-  // (deep `members.member_teams.team._in` filter is unreliable here — single-level
-  // junction filter is the proven pattern from useTeamAbsences).
-  const { members: teamMemberRows } = useMultiTeamMembers(
+  // Coaches/TRs: players of their teams (member_teams) PLUS the teams' coaches +
+  // team responsibles — staff have no member_teams row, so a staff-only coach
+  // could not pick themselves. Single-level junction reads, see the hook.
+  const { members: teamPickerMembers, staffRoleById } = useTeamPickerMembers(
     showMemberPicker && !effectiveIsAdmin ? (teamIds ?? []) : [],
   )
   const visibleMembers: Member[] = effectiveIsAdmin
     ? (allMembersRaw ?? [])
-    : teamMemberRows
-        .map((mt) => asObj<Member>(mt.member))
-        .filter((m): m is Member => !!m && m.kscw_membership_active !== false)
-        .sort((a, b) => (a.last_name ?? '').localeCompare(b.last_name ?? ''))
+    : teamPickerMembers
+  const staffSuffix = (id: string) => {
+    const role = staffRoleById.get(String(id))
+    if (!role) return ''
+    return ` (${t(role === 'coach' ? 'pickerStaffCoach' : 'pickerStaffTeamResponsible')})`
+  }
 
   const [memberId, setMemberId] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -171,7 +172,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
             placeholder={t('common:select')}
             value={memberId}
             onChange={setMemberId}
-            options={visibleMembers.map((m) => ({ value: m.id, label: memberDisplayName(m) || '—' }))}
+            options={visibleMembers.map((m) => ({ value: m.id, label: (memberDisplayName(m) || '—') + staffSuffix(m.id) }))}
           />
         )}
 

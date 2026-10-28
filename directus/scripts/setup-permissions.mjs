@@ -3064,6 +3064,10 @@ async function main() {
   // belonging to a team the caller leads. `team: { _nnull: true }` is
   // load-bearing: the relational branch on a null FK is not a reliable refusal.
   await setPerm(LEADER_POLICY, 'polls', 'create')
+  // Read the polls of teams I lead. The MEMBER read walks `team.members`
+  // (member_teams = the player roster), so a coach/TR who doesn't play read
+  // nothing — not even the poll they had just created (2026-10-28).
+  await setPermRead(LEADER_POLICY, 'polls', POLL_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'polls', 'update', POLL_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'polls', 'delete', POLL_OF_TEAM_I_LEAD)
 

@@ -95,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [memberTeamIds, setMemberTeamIds] = useState<string[]>([])
   const [memberTeamNames, setMemberTeamNames] = useState<string[]>([])
   const [memberSports, setMemberSports] = useState<Set<'volleyball' | 'basketball'>>(new Set())
+  const [playerSports, setPlayerSports] = useState<Set<'volleyball' | 'basketball'>>(new Set())
   const [teamSportById, setTeamSportById] = useState<Record<string, 'volleyball' | 'basketball'>>({})
   const [guestLevelByTeam, setGuestLevelByTeam] = useState<Record<string, number>>({})
   const [teamResponsibleIds, setTeamResponsibleIds] = useState<string[]>([])
@@ -225,12 +226,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMemberTeamIds(activeMemberTeamIds)
       setMemberTeamNames(activeMemberTeamIds.map(id => teamMap.get(id)?.name).filter((n): n is string => !!n))
 
-      const sports = new Set<'volleyball' | 'basketball'>()
+      // memberSports = every sport the member is ON A TEAM in: player/guest rows
+      // (member_teams) PLUS active coach/TR teams. A coach who doesn't play has
+      // no member_teams row — counting only those left a pure coach (e.g. VB H2 +
+      // H3 coach, plays nowhere) at primarySport 'both', so Home/Games/
+      // announcements ignored the sport they actually run. playerSports keeps
+      // the player-only view for the profile fields that describe the member
+      // AS A PLAYER (positions, federation of origin).
+      const playerSportSet = new Set<'volleyball' | 'basketball'>()
       for (const mt of memberTeams) {
         if (mt.team == null) continue
         const s = teamMap.get(String(mt.team))?.sport
+        if (s === 'volleyball' || s === 'basketball') playerSportSet.add(s)
+      }
+      const sports = new Set(playerSportSet)
+      for (const id of activeCoachIds) {
+        const s = teamMap.get(id)?.sport
         if (s === 'volleyball' || s === 'basketball') sports.add(s)
       }
+      setPlayerSports(playerSportSet)
       setMemberSports(sports)
 
       const glMap: Record<string, number> = {}
@@ -445,7 +459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSpielplanerTeamIds([])
     setIsSpielplaner(false)
     setMemberTeamIds([]); setMemberTeamNames([])
-    setMemberSports(new Set()); setGuestLevelByTeam({}); setTeamSportById({})
+    setMemberSports(new Set()); setPlayerSports(new Set()); setGuestLevelByTeam({}); setTeamSportById({})
     setTeamsReady(false)
     queryClient.clear()
   }, [realUser])
@@ -728,6 +742,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isCoach = coachTeamIds.length > 0 || isGlobalAdmin
   const primarySport: 'volleyball' | 'basketball' | 'both' =
     memberSports.size === 1 ? [...memberSports][0] : 'both'
+  // Player-only sport; a member who plays nowhere (pure coach/TR) falls back to
+  // the sport they coach rather than to 'both'.
+  const playerSport: 'volleyball' | 'basketball' | 'both' =
+    playerSports.size === 0 ? primarySport : playerSports.size === 1 ? [...playerSports][0] : 'both'
 
   const hasAdminAccessToSport = useCallback(
     (sport: 'volleyball' | 'basketball') => isGlobalAdmin || (sport === 'volleyball' ? isVbAdmin : isBbAdmin),
@@ -804,7 +822,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
-    memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
+    memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport, playerSport,
     canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   }), [
@@ -814,7 +832,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
-    memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
+    memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport, playerSport,
     canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   ])
