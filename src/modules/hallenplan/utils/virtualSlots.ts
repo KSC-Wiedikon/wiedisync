@@ -1,4 +1,4 @@
-import type { Game, Training, HallEvent, HallSlot, HallClosure, Hall, Team, SlotClaim, Event } from '../../../types'
+import type { Game, Training, HallEvent, HallSlot, HallClosure, Hall, SlotClaim, Event } from '../../../types'
 import { toISODate, timeToMinutes, minutesToTime, toZurichDateString, formatTimeZurich } from '../../../utils/dateHelpers'
 import { allGameHallIds } from '../../../utils/gameHalls'
 
@@ -30,8 +30,6 @@ export const FREED_HORIZON_WEEKS = 12
 export function gameToVirtualSlots(
   game: Game,
   weekDays: Date[],
-  halls: Hall[],
-  teams: Team[],
 ): HallSlot[] {
   const gameDate = game.date.slice(0, 10)
   const dayIndex = weekDays.findIndex((d) => toISODate(d) === gameDate)
@@ -49,10 +47,8 @@ export function gameToVirtualSlots(
 
   if (!game.hall) return []
 
-  // Multi-hall games (e.g. basketball A+B) carry `additional_halls`.
-  // Legacy basketball rows without the field fall back to the name-match span
-  // inside allGameHallIds — see TODO there.
-  const hallIds = allGameHallIds(game, { teams, halls })
+  // A multi-hall game (the KWI A+B basketball court) carries `additional_halls`.
+  const hallIds = allGameHallIds(game)
   if (hallIds.length === 0) return []
 
   // Single slot on the first hall, with spanHallIds when spanning multiple
@@ -503,8 +499,6 @@ function collectGameSuppressions(
   games: Game[],
   realSlots: HallSlot[],
   weekDays: Date[],
-  halls: Hall[],
-  teams: Team[],
   suppressedSlotDays: Set<string>,
   shortenedSlots: Map<string, string>,
 ): void {
@@ -528,11 +522,11 @@ function collectGameSuppressions(
       }
     } else {
       // Home game → shorten preceding slot or suppress overlapping slots.
-      // BB games span KWI A + KWI B (via allGameHallIds).
+      // Every hall the game books (an A+B game holds both).
       const gameTime = parseGameTime(game)
       if (!gameTime) continue
       const { startMin: gameStartMin, endMin: gameEndMin } = gameWarmupRange(gameTime)
-      const gameHallIds = allGameHallIds(game, { teams, halls })
+      const gameHallIds = allGameHallIds(game)
 
       for (const slot of realSlots) {
         if (
@@ -696,8 +690,6 @@ function buildHomeGameRanges(
   games: Game[],
   virtualSlots: HallSlot[],
   weekDays: Date[],
-  halls: Hall[],
-  teams: Team[],
 ): HomeGameRange[] {
   const homeGameRanges: HomeGameRange[] = []
   for (const game of games) {
@@ -709,7 +701,7 @@ function buildHomeGameRanges(
     if (!gameTime || !game.hall) continue
     const { startMin: gStart, endMin: gEnd } = gameWarmupRange(gameTime)
 
-    const gameHallIds = allGameHallIds(game, { teams, halls })
+    const gameHallIds = allGameHallIds(game)
 
     for (const hid of gameHallIds) {
       homeGameRanges.push({ dayIndex, hall: hid, startMin: gStart, endMin: gEnd })
@@ -844,15 +836,13 @@ export function mergeVirtualSlots(
   closures: HallClosure[],
   games: Game[],
   weekDays: Date[],
-  halls: Hall[],
-  teams: Team[],
   freedHorizonDate?: string,
 ): HallSlot[] {
   // Phase 1 — collect which recurring templates to suppress or shorten this week.
   const suppressedSlotDays = new Set<string>()
   const shortenedSlots = new Map<string, string>() // key: `${slot.id}-${dayIndex}`, value: new end_time
   collectTrainingSuppressions(virtualSlots, realSlots, suppressedSlotDays)
-  collectGameSuppressions(games, realSlots, weekDays, halls, teams, suppressedSlotDays, shortenedSlots)
+  collectGameSuppressions(games, realSlots, weekDays, suppressedSlotDays, shortenedSlots)
   collectClosureEventSuppressions(virtualSlots, realSlots, suppressedSlotDays)
   collectBBGameEventSuppressions(virtualSlots, realSlots, suppressedSlotDays, shortenedSlots)
   collectHallClosureSuppressions(realSlots, weekDays, closures, suppressedSlotDays)
@@ -864,7 +854,7 @@ export function mergeVirtualSlots(
   const freedFromAway = buildFreedFromAwaySlots(games, realSlots, weekDays, closures, claimsByKey)
 
   const annotated = annotateFreedSlots(virtualSlots, claims, closures)
-  const homeGameRanges = buildHomeGameRanges(games, virtualSlots, weekDays, halls, teams)
+  const homeGameRanges = buildHomeGameRanges(games, virtualSlots, weekDays)
   const closureRanges = buildClosureRanges(virtualSlots)
   const filteredAnnotated = filterAnnotatedSlots(annotated, weekDays, closures, homeGameRanges, closureRanges)
 

@@ -18,14 +18,22 @@ function normalizeSeason(s) {
 }
 
 // Basketplan venue → our halls. First entry is `games.hall`, the rest go to
-// `additional_halls`: the 2fach venue is the whole double hall (KWI A+B), the
-// 1fach venue one half of it. Since October 2026 Basketplan names the single
-// court per hall ("1fach Halle B" / "Halle C") and some home games play at
-// Rebhügel (H1/H2 are both our one `Rebhügel` hall). A venue missing here keeps
-// the row's existing hall and a NEW game is created hall-less, so add a name
-// as soon as the feed shows one (season-health lists hall-less home games).
+// `additional_halls`. Since October 2026 Basketplan names the single court per
+// hall ("1fach Halle B" / "Halle C") and some home games play at Rebhügel
+// (H1/H2 are both our one `Rebhügel` hall). A venue missing here keeps the
+// row's existing hall and a NEW game is created hall-less, so add a name as
+// soon as the feed shows one (season-health lists hall-less home games).
+//
+// ⚠ "2fach" is NOT the whole double hall. Basketplan has no venue for Halle A
+// alone, so every KWI A game is listed there — single-court games and the few
+// played across A+B (the big court) alike. 22.11.2026 10:00 has three of our
+// games at once in "2fach", "1fach Halle B" and "1fach Halle C". It maps to
+// KWI A; whether a game also takes KWI B is the club's call, read from the
+// basketball planning (bigCourtExtraHalls). Mapping it to A+B drew every KWI A
+// game across both halls in the Hallenplan and the planner (user report 26.10).
+export const BIG_COURT_VENUE = 'Kantonsschule Wiedikon 2fach'
 const HALL_MAP = {
-  'Kantonsschule Wiedikon 2fach': ['KWI A', 'KWI B'],
+  [BIG_COURT_VENUE]: ['KWI A'],
   'Kantonsschule Wiedikon 1fach': ['KWI B'],
   'Kantonsschule Wiedikon 1fach Halle B': ['KWI B'],
   'Kantonsschule Wiedikon 1fach Halle C': ['KWI C'],
@@ -44,6 +52,39 @@ export function resolveHomeHalls(location, hallByName) {
   const ids = names.map(n => hallByName[n]).filter(id => id != null)
   if (ids.length !== names.length) return null
   return { hall: ids[0], additionalHalls: ids.slice(1).map(String) }
+}
+
+const toMin = (t) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? ''))
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null
+}
+
+/**
+ * The extra halls of a game Basketplan lists at BIG_COURT_VENUE (hall = KWI A):
+ * [KWI B] when it is played across A+B, else [].
+ *
+ *   - The planning decides when it has the game: the team's home placement that
+ *     day (the one closest to the tip-off when there are several) on 'KWI A+B'
+ *     → [KWI B]; on any other hall → [].
+ *   - Without a placement, a KWI B the row already carries is kept — set by hand
+ *     in the game editor, so a planner can mark an unplanned game as A+B.
+ *     (Migration 431 cleared the KWI B this sync used to add to every row.)
+ *
+ * `placements` = basketball_slot_plan rows ({ time, hall }) for the team + date.
+ * Ids come back as strings, the json shape the app writes. Exported for tests.
+ */
+export function bigCourtExtraHalls(placements, existing, time, hallByName) {
+  const kwiA = hallByName['KWI A']
+  const kwiB = hallByName['KWI B']
+  if (kwiA == null || kwiB == null) return []
+  if (placements?.length) {
+    const t = toMin(time)
+    const dist = (p) => (t == null || toMin(p.time) == null ? 0 : Math.abs(toMin(p.time) - t))
+    const best = placements.reduce((a, b) => (dist(b) < dist(a) ? b : a))
+    return best.hall === 'KWI A+B' ? [String(kwiB)] : []
+  }
+  const kept = Array.isArray(existing?.additional_halls) ? existing.additional_halls.map(String) : []
+  return String(existing?.hall) === String(kwiA) && kept.includes(String(kwiB)) ? [String(kwiB)] : []
 }
 
 const STATUS_MAP = {
@@ -498,6 +539,22 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
   const hallRows = await db('halls').select('id', 'name')
   const hallByName = Object.fromEntries(hallRows.map(h => [h.name, h.id]))
 
+  // The club's basketball planning, per (team, date) — says which BIG_COURT_VENUE
+  // games are played across KWI A+B (bigCourtExtraHalls). A declined offer is
+  // not a plan.
+  const placementRows = await db('basketball_slot_plan')
+    .where('game_type', 'home')
+    .whereNot('proposal_status', 'declined')
+    .whereNotNull('kscw_team')
+    .select('kscw_team', 'date', 'time', 'hall')
+  const placementsByTeamDate = new Map()
+  for (const p of placementRows) {
+    const key = `${p.kscw_team}|${cmpVal('date', p.date)}`
+    const arr = placementsByTeamDate.get(key)
+    if (arr) arr.push(p)
+    else placementsByTeamDate.set(key, [p])
+  }
+
   const allGames = []
   const seenIds = {}
   const allLhIds = {}
@@ -568,6 +625,16 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
       const resolved = resolveHomeHalls(g.location, hallByName)
       if (resolved) { hallId = resolved.hall; additionalHalls = resolved.additionalHalls }
     }
+    // A derby's placement is filed under one of the two teams — try the home side first.
+    let placements = null
+    if (hallId != null && g.location === BIG_COURT_VENUE) {
+      const date = cmpVal('date', g.date)
+      placements = [g.homeTeamId, g.isGuestOurs ? g.guestTeamId : null]
+        .map(bpId => bpToPb[bpId]?.id)
+        .filter(id => id != null)
+        .map(id => placementsByTeamDate.get(`${id}|${date}`))
+        .find(arr => arr?.length) ?? []
+    }
     if (!g.isHome && g.location) {
       awayHallJson = { name: g.location, address: g.locationAddress, city: g.locationCity }
     }
@@ -612,6 +679,9 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
         takeRow((r) => String(r.kscw_team ?? '') === String(pbTeam.id)) ||
         takeRow((r) => String(r.type || '') === intent.type) ||
         takeRow(() => true)
+      if (placements && data.hall != null) {
+        data.additional_halls = JSON.stringify(bigCourtExtraHalls(placements, existing, data.time, hallByName))
+      }
       if (existing) {
         // Fields the app owns (local cancel, hand-set halls) — must run
         // before the change comparison below.

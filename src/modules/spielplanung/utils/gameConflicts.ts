@@ -1,4 +1,4 @@
-import type { Game, Hall, Team } from '../../../types'
+import type { Game } from '../../../types'
 import { getBlockWindow, blocksOverlap } from './gameBlock'
 import { hallsIntersect } from '../../../utils/gameHalls'
 
@@ -66,7 +66,6 @@ function sameTeam(candidate: Candidate, game: Pick<Game, 'kscw_team'>): boolean 
 export function checkConflicts(
   candidate: Candidate,
   allGames: Game[],
-  ctx?: { teams?: Team[]; halls?: Hall[] },
 ): ConflictCheckResult {
   const errors: ConflictMessage[] = []
   const warnings: ConflictMessage[] = []
@@ -99,7 +98,7 @@ export function checkConflicts(
     if (
       candidate.type === 'home' &&
       game.type === 'home' &&
-      hallsIntersect(candidate, game, ctx) &&
+      hallsIntersect(candidate, game) &&
       game.date === candidate.date &&
       candidateBlock &&
       game.time
