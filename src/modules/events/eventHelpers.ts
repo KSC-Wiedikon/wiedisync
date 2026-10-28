@@ -85,17 +85,21 @@ export function invitedMemberId(val: unknown): string {
  *  - Not on any invited team → came in by role, direct invite, or the event is
  *    club-wide. Not a roster question, so never excluded.
  *  - Core (`guest_level = 0`) on at least one invited team → invited.
+ *  - Coach or team responsible of an invited team (`staffTeamIds`) → invited:
+ *    staff carry no guest level, so a coach who guests elsewhere is never
+ *    caught by the switch.
  *  - Personally invited via `events_members` → invited; a named invite outranks
  *    the team-level switch.
  *  - Guest on every invited team they belong to → excluded.
  */
 export function isGuestExcludedFromEvent(
   event: { invite_guests?: boolean; teams?: unknown[] | null; invited_members?: unknown[] | null },
-  ctx: { memberId?: string | number | null; memberTeamIds: string[]; getGuestLevel: (teamId: string) => number },
+  ctx: { memberId?: string | number | null; memberTeamIds: string[]; getGuestLevel: (teamId: string) => number; staffTeamIds?: string[] },
 ): boolean {
   if (event.invite_guests !== false) return false
-  const myInvitedTeams = (event.teams ?? [])
-    .map((t) => teamId(t))
+  const invitedTeams = (event.teams ?? []).map((t) => teamId(t))
+  if (ctx.staffTeamIds && invitedTeams.some((id) => id && ctx.staffTeamIds!.includes(id))) return false
+  const myInvitedTeams = invitedTeams
     .filter((id) => id && ctx.memberTeamIds.includes(id))
   if (myInvitedTeams.length === 0) return false
   if (myInvitedTeams.some((id) => ctx.getGuestLevel(id) === 0)) return false
