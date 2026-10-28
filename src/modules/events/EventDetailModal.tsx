@@ -111,7 +111,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
   // Migration 324: `invite_guests: false` drops the invited teams' guest players
   // from the audience. They keep READ access (the policy is untouched) — the
   // RSVP block is what changes, mirroring a training's excluded guest tier.
-  const guestExcluded = !!event && isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel })
+  const guestExcluded = !!event && isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel, staffTeamIds: coachTeamIds })
   const canParticipate = !!user && !!event && !guestExcluded && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
   )
