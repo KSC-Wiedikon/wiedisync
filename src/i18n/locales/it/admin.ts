@@ -1777,4 +1777,8 @@ export default {
   auditLastPage: 'Ultima pagina',
   previousPage: 'Pagina precedente',
   nextPage: 'Pagina successiva',
+  explorerDepartStaff_one: 'Rimuove la persona dallo staff di {{count}} squadra attuale: {{teams}}.',
+  explorerDepartStaff_other: 'Rimuove la persona dallo staff di {{count}} squadre attuali: {{teams}}.',
+  explorerDepartRoleCoach: 'Allenatore/trice',
+  explorerDepartRoleTeamResponsible: 'Responsabile di squadra',
 } as const

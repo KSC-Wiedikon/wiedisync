@@ -40,6 +40,8 @@ export default {
   endAfterStart: 'La data di fine deve essere successiva a quella di inizio',
   reasonRequired: 'Seleziona un motivo',
   memberRequired: 'Seleziona un membro',
+  pickerStaffCoach: 'Allenatore/trice',
+  pickerStaffTeamResponsible: 'Responsabile di squadra',
   errorSaving: 'Errore durante il salvataggio dell\'assenza',
 
   // Modal titles

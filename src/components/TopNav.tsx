@@ -11,9 +11,8 @@ import { useTheme } from '../hooks/useTheme'
 import { useNavItems, type NavItem } from '../hooks/useNavItems'
 import { navItemActive, navPathMatches } from '../lib/financeNav'
 import { getFileUrl } from '../utils/fileUrl'
-import { asObj, memberDisplayName, memberFirstName } from '../utils/relations'
+import { memberDisplayName, memberFirstName } from '../utils/relations'
 import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
-import type { MemberTeam, Team } from '../types'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { CLUB_WEBSITE_URL } from '../lib/clubWebsite'
 import HostedByInfomaniak from './HostedByInfomaniak'
@@ -32,12 +31,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 
-type ExpandedMemberTeam = MemberTeam & { team: Team | string }
-
 interface TopNavProps {
   unreadCount: number
   onOpenNotifications: () => void
-  memberTeams: ExpandedMemberTeam[]
+  /** Player teams then staff-only (coach / TR) teams, deduped — see Layout. */
+  teamNames: string[]
 }
 
 const TRIGGER_ACTIVE = 'bg-selected text-selected-foreground'
@@ -177,7 +175,7 @@ function NavCategory({
   )
 }
 
-export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }: TopNavProps) {
+export default function TopNav({ unreadCount, onOpenNotifications, teamNames }: TopNavProps) {
   const { t } = useTranslation('nav')
   const { t: tSupport } = useTranslation('support')
   const donateVisible = useDonateVisible()
@@ -418,10 +416,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 <div className="break-words text-sm font-semibold leading-snug text-foreground">
                   {memberDisplayName(user)}
                 </div>
-                {memberTeams.length > 0 && (
+                {teamNames.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {memberTeams.map((mt) => (
-                      <TeamChip key={mt.id} team={asObj<Team>(mt.team)?.name ?? '?'} size="sm" />
+                    {teamNames.map((name) => (
+                      <TeamChip key={name} team={name} size="sm" />
                     ))}
                   </div>
                 )}

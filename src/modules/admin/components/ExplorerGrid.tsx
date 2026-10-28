@@ -124,6 +124,8 @@ export interface ExplorerGridHandle {
 }
 
 type GridView = 'members' | 'teams'
+/** How a member is attached to a team without a roster row. */
+type StaffRole = 'coach' | 'tr'
 
 type FlatItem =
   | { kind: 'section'; label: string; count: number }
@@ -568,6 +570,32 @@ export default function ExplorerGrid({
     return map
   }, [cache.trRows, teamById])
 
+  // Staff-only teams per member: active teams the member coaches or is team
+  // responsible for WITHOUT a roster row there. A coach who doesn't play has no
+  // member_teams row, so a roster-only Teams column showed them as "No team".
+  // Read-only here — staff links are edited from the member detail / Teams view.
+  const staffTeamsByMember = useMemo(() => {
+    const map = new Map<string, Array<{ team: string; roles: StaffRole[] }>>()
+    const add = (memberId: string, teamId: string, role: StaffRole) => {
+      if (!teamById.has(teamId)) return
+      if ((rowsByMember.get(memberId) ?? []).some((r) => r.team === teamId)) return
+      const list = map.get(memberId) ?? []
+      const entry = list.find((e) => e.team === teamId)
+      if (entry) { if (!entry.roles.includes(role)) entry.roles.push(role) }
+      else list.push({ team: teamId, roles: [role] })
+      map.set(memberId, list)
+    }
+    for (const [memberId, teamIds] of cache.memberCoachTeams) for (const tid of teamIds) add(memberId, tid, 'coach')
+    for (const [memberId, teamIds] of cache.memberTrTeams) for (const tid of teamIds) add(memberId, tid, 'tr')
+    return map
+  }, [cache.memberCoachTeams, cache.memberTrTeams, teamById, rowsByMember])
+
+  /** "Coach" / "Team responsible" in the UI locale (exports pass English). */
+  const staffRoleLabel = useCallback(
+    (role: StaffRole): string => t(role === 'coach' ? 'admin:explorerGridTeamColCoach' : 'admin:explorerGridTeamColTr'),
+    [t],
+  )
+
   // The member rail draws the SAME tree as the Tree view — Volleyball /
   // Basketball each owning Teams · Officials · Staff · Other, then the
   // club-level groups. Built from the shared builder so the two views can never
@@ -745,7 +773,7 @@ export default function ExplorerGrid({
   // ── Members view: cell text (search / sort / group / export / display) ──
 
   const cellText = useMemo(() => {
-    return (m: Member, key: ColKey): string => {
+    return (m: Member, key: ColKey, roleLabel: (role: StaffRole) => string = staffRoleLabel): string => {
       const memberId = String(m.id)
       switch (key) {
         case 'teams':
@@ -759,6 +787,11 @@ export default function ExplorerGrid({
             ...(pastRowsByMember.get(memberId) ?? []).map((r) => {
               const label = pastChipLabel(r)
               return r.guest_level > 0 ? `${label} (G)` : label
+            }),
+            // Staff-only teams, role in brackets — same text as their chips.
+            ...(staffTeamsByMember.get(memberId) ?? []).map((e) => {
+              const label = teamLabel(teamById.get(e.team) ?? ({ id: e.team } as never))
+              return `${label} (${e.roles.map(roleLabel).join(', ')})`
             }),
           ]
             .sort()
@@ -864,7 +897,7 @@ export default function ExplorerGrid({
         }
       }
     }
-  }, [rowsByMember, pastRowsByMember, pastChipLabel, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel, positionLabel])
+  }, [rowsByMember, pastRowsByMember, pastChipLabel, staffTeamsByMember, staffRoleLabel, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel, positionLabel])
 
   // ── Teams view: cell text ────────────────────────────────────────
 
@@ -1027,11 +1060,16 @@ export default function ExplorerGrid({
       const out: Array<{ label: string | null; rows: Member[] }> = []
       for (const sec of teamSections) {
         for (const tm of sec.teams) {
-          const members = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).some((r) => r.team === tm.id))
+          // Players and staff-only coaches / TRs of the team alike.
+          const members = rows.filter((m) =>
+            (rowsByMember.get(String(m.id)) ?? []).some((r) => r.team === tm.id)
+            || (staffTeamsByMember.get(String(m.id)) ?? []).some((e) => e.team === tm.id))
           if (members.length > 0) out.push({ label: `${tm.label} · ${sportLabel(sec.sport)}`, rows: members })
         }
       }
-      const noTeam = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).length === 0)
+      const noTeam = rows.filter((m) =>
+        (rowsByMember.get(String(m.id)) ?? []).length === 0
+        && (staffTeamsByMember.get(String(m.id)) ?? []).length === 0)
       if (noTeam.length > 0) out.push({ label: t('admin:explorerGridNoTeam'), rows: noTeam })
       return out
     }
@@ -1048,7 +1086,7 @@ export default function ExplorerGrid({
     return [...byValue.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], 'de-CH', { numeric: true }))
       .map(([label, members]) => ({ label, rows: members }))
-  }, [groupBy, rows, teamSections, rowsByMember, cellText, t, sportLabel])
+  }, [groupBy, rows, teamSections, rowsByMember, staffTeamsByMember, cellText, t, sportLabel])
 
   // ── Rows (teams view) — sections by sport → gender ───────────────
 
@@ -1364,6 +1402,7 @@ export default function ExplorerGrid({
 
   const buildExportData = () => {
     const tEn = i18n.getFixedT('en', 'admin')
+    const roleLabelEn = (role: StaffRole) => tEn(role === 'coach' ? 'explorerGridTeamColCoach' : 'explorerGridTeamColTr')
     if (view === 'teams') {
       const columns = [tEn('explorerGridGroupBy'), ...teamVisibleCols.map((c) => colLabel(c, tEn))]
       const dataRows: string[][] = []
@@ -1391,7 +1430,7 @@ export default function ExplorerGrid({
               const [yyyy, mm, dd] = String(raw).slice(0, 10).split('-')
               return dd && mm && yyyy ? `${dd}.${mm}.${yyyy}` : String(raw)
             }
-            return cellText(m, c.key)
+            return cellText(m, c.key, roleLabelEn)
           }),
         ])
       }
@@ -1448,6 +1487,7 @@ export default function ExplorerGrid({
     const memberId = String(m.id)
     const memberRows = rowsByMember.get(memberId) ?? []
     const pastRows = pastRowsByMember.get(memberId) ?? []
+    const staffTeams = staffTeamsByMember.get(memberId) ?? []
     return (
       <TableRow
         key={memberId}
@@ -1520,6 +1560,20 @@ export default function ExplorerGrid({
                       onRemove={() => Promise.resolve()}
                     />
                   ))}
+                  {staffTeams.map((e) => {
+                    const team = teamById.get(e.team)
+                    return (
+                      // Read-only: coach / TR links are edited from the member
+                      // detail or the Teams view, not the roster chips.
+                      <Chip
+                        key={`staff-${e.team}`}
+                        label={team ? teamLabel(team) : e.team}
+                        role={e.roles.map(staffRoleLabel).join(', ')}
+                        canEdit={false}
+                        onRemove={() => Promise.resolve()}
+                      />
+                    )
+                  })}
                   {canEditNow && (
                     <TeamPicker
                       teamSections={teamSections}
@@ -2351,9 +2405,11 @@ function GroupButton({
 
 /** Removable chip used by the Teams / Members / Coach / TR columns. */
 function Chip({
-  label, guest, guestTitle, past, pastTitle, canEdit, onRemove,
+  label, guest, guestTitle, past, pastTitle, role, canEdit, onRemove,
 }: {
   label: string
+  /** Staff role(s) for a coach / TR chip ("Coach") — shown after the name. */
+  role?: string
   guest?: boolean
   guestTitle?: string
   /** An archived season's roster row — dimmed, and never editable. */
@@ -2382,9 +2438,10 @@ function Chip({
           : 'border-border bg-muted/60 text-foreground') +
         (past ? ' opacity-60' : '')
       }
-      title={[label, guest && guestTitle, past && pastTitle].filter(Boolean).join(' — ')}
+      title={[label, role, guest && guestTitle, past && pastTitle].filter(Boolean).join(' — ')}
     >
       {label}
+      {role && <span className="text-muted-foreground">· {role}</span>}
       {guest && <span className="font-semibold">G</span>}
       {canEdit && (
         <button

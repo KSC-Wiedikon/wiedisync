@@ -230,11 +230,15 @@ export function registerEventNotify(router, { services, database, getSchema, log
           if (ledTeamIds.has(Number(mt.team))) scopedIds.add(String(mt.member))
         }
 
-        // Also coaches of these teams
-        const coaches = await db('teams_coaches')
-          .whereIn('teams_id', teamIds)
-          .select('members_id', 'teams_id')
-        for (const c of coaches) {
+        // Also the staff of these teams — coaches AND team responsibles. A TR
+        // who doesn't play holds no member_teams row, so leaving
+        // teams_responsibles out meant they never heard of their own team's
+        // event (2026-10-28).
+        const staff = [
+          ...await db('teams_coaches').whereIn('teams_id', teamIds).select('members_id', 'teams_id'),
+          ...await db('teams_responsibles').whereIn('teams_id', teamIds).select('members_id', 'teams_id'),
+        ]
+        for (const c of staff) {
           memberIds.add(String(c.members_id))
           if (ledTeamIds.has(Number(c.teams_id))) scopedIds.add(String(c.members_id))
         }

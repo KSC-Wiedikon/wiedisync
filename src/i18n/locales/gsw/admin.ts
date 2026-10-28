@@ -1372,4 +1372,8 @@ export default {
   dhPathReadbackAdopted: 'De Push hät sin Sync-down zum Zruggläse scho iigreiht — dä Schritt folgt ihm.',
   dhPathGroupBacklog_one: 'Bi 1 Kontakt fehlt d ClubDesk-Gruppe — mach de Ablauf bis «Gruppe korrigiere» dure.',
   dhPathGroupBacklog_other: 'Bi {{count}} Kontäkt fehlt d ClubDesk-Gruppe — mach de Ablauf bis «Gruppe korrigiere» dure.',
+  explorerDepartStaff_one: 'Nimmt d Person als Staff us {{count}} aktuellem Team use: {{teams}}.',
+  explorerDepartStaff_other: 'Nimmt d Person als Staff us {{count}} aktuelle Teams use: {{teams}}.',
+  explorerDepartRoleCoach: 'Trainer/in',
+  explorerDepartRoleTeamResponsible: 'Teamverantwortlichi/r',
 } as const
