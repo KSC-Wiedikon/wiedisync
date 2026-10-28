@@ -210,7 +210,7 @@ function EmailNotificationCard() {
 }
 
 export default function ProfilePage() {
-  const { user, coachTeamIds, primarySport, refreshTeamContext } = useAuth()
+  const { user, primarySport, refreshTeamContext } = useAuth()
   const { t } = useTranslation('auth')
   const { t: tt } = useTranslation('teams')
   const { t: tCommon } = useTranslation('common')
@@ -233,7 +233,21 @@ export default function ProfilePage() {
     limit: 20,
     enabled: !!user,
   })
-  const memberTeams = memberTeamsRaw ?? []
+  const memberTeams = useMemo(() => memberTeamsRaw ?? [], [memberTeamsRaw])
+
+  // Staff teams. member_teams is the PLAYER roster only — coaches and TRs live
+  // in their own junctions, so a coach who doesn't play had an empty Teams list.
+  // Queried here rather than read from useAuth: its coachTeamIds unions both
+  // junctions, so it can't tell a coach from a team responsible.
+  type StaffRow = { teams_id: Pick<Team, 'id' | 'name'> | null }
+  const staffQuery = {
+    filter: user ? { _and: [{ members_id: { _eq: user.id } }, { teams_id: { active: { _eq: true } } }] } : undefined,
+    fields: ['teams_id.id', 'teams_id.name'],
+    limit: 20,
+    enabled: !!user,
+  }
+  const { data: coachRowsRaw, isLoading: coachRowsLoading } = useCollection<StaffRow>('teams_coaches', staffQuery)
+  const { data: trRowsRaw, isLoading: trRowsLoading } = useCollection<StaffRow>('teams_responsibles', staffQuery)
 
   // Pending team requests
   interface TeamRequest { id: string; member: string; team: Team | string; status: string }
@@ -249,6 +263,38 @@ export default function ProfilePage() {
     () => memberTeams.map((mt) => asObj<Team>(mt.team)?.id ?? (mt.team as string)),
     [memberTeams],
   )
+
+  // One row per team: player rows (leavable) first, then staff-only teams.
+  const teamRows = useMemo(() => {
+    const coachIds = new Set((coachRowsRaw ?? []).map((r) => String(r.teams_id?.id)))
+    const trIds = new Set((trRowsRaw ?? []).map((r) => String(r.teams_id?.id)))
+    const staffRoles = (team: Team | Pick<Team, 'id' | 'name'> | null) => {
+      const roles: string[] = []
+      if (!team) return roles
+      const tid = String(team.id)
+      if (coachIds.has(tid)) roles.push(tt('roleCoach'))
+      if (trIds.has(tid)) roles.push(tt('roleTeamResponsible'))
+      if ('captain' in team && user && flattenMemberIds(team.captain).includes(String(user.id))) roles.push(tt('roleCaptain'))
+      return roles
+    }
+    const rows: { key: string; teamName: string; roles: string[]; memberTeamId?: string }[] = memberTeams.map((mt) => {
+      const team = asObj<Team>(mt.team)
+      return {
+        key: `mt-${mt.id}`,
+        teamName: team?.name ?? String(mt.team),
+        roles: [tt('rolePlayer'), ...staffRoles(team)],
+        memberTeamId: mt.id,
+      }
+    })
+    const seen = new Set(currentTeamIds.map(String))
+    for (const r of [...(coachRowsRaw ?? []), ...(trRowsRaw ?? [])]) {
+      const team = r.teams_id
+      if (!team || seen.has(String(team.id))) continue
+      seen.add(String(team.id))
+      rows.push({ key: `staff-${team.id}`, teamName: team.name, roles: staffRoles(team) })
+    }
+    return rows
+  }, [memberTeams, currentTeamIds, coachRowsRaw, trRowsRaw, user, tt])
 
   async function handleCancelRequest(requestId: string) {
     try {
@@ -320,7 +366,7 @@ export default function ProfilePage() {
   // from "genuinely none", so gating on member_teams alone revealed the page
   // with a definitive "No active absences" (and no outstanding-fines strip)
   // that a moment later filled in.
-  useReportPageLoading(memberTeamsLoading || absencesLoading || openFinesLoading)
+  useReportPageLoading(memberTeamsLoading || coachRowsLoading || trRowsLoading || absencesLoading || openFinesLoading)
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -378,22 +424,16 @@ export default function ProfilePage() {
         </div>
 
         {/* Teams & Roles */}
-        {(memberTeams.length > 0 || user.role.length > 0) && (
+        {(teamRows.length > 0 || user.role.length > 0) && (
           <div className="mt-3 border-t border-border/60 pt-3">
-            {memberTeams.length > 0 && (
+            {teamRows.length > 0 && (
               <div className="flex flex-col">
                 <span className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('teams')}</span>
-                {memberTeams.map((mt, i) => {
-                  const team = asObj<Team>(mt.team)
-                  const teamRoles: string[] = [tt('rolePlayer')]
-                  if (team) {
-                    const tid = String(team.id)
-                    if (coachTeamIds.includes(tid)) teamRoles.push(tt('roleCoach'))
-                    if (flattenMemberIds(team.captain).includes(String(user.id))) teamRoles.push(tt('roleCaptain'))
-                  }
-                  const isLast = i === memberTeams.length - 1
+                {teamRows.map((row, i) => {
+                  const isLast = i === teamRows.length - 1
+                  const memberTeamId = row.memberTeamId
                   return (
-                    <div key={mt.id} className="flex items-stretch">
+                    <div key={row.key} className="flex items-stretch">
                       {/* Vertical connector line */}
                       <div className="flex w-5 flex-col items-center">
                         <div className={`w-px flex-1 ${i === 0 ? 'bg-transparent' : 'bg-stone-300 dark:bg-gray-600'}`} />
@@ -403,20 +443,24 @@ export default function ProfilePage() {
                       {/* Horizontal connector + content */}
                       <div className="flex flex-1 items-center gap-2.5 py-1.5">
                         <div className="w-4 border-t border-input" />
-                        <Link to={`/teams/${team?.name ?? mt.team}`} className="flex shrink-0">
-                          <TeamChip team={team?.name ?? '?'} size="sm" />
+                        <Link to={`/teams/${row.teamName}`} className="flex shrink-0">
+                          <TeamChip team={row.teamName || '?'} size="sm" />
                         </Link>
                         <span className="min-w-0 flex-1 break-words text-xs text-muted-foreground">
-                          {teamRoles.join(' · ')}
+                          {row.roles.join(' · ')}
                         </span>
-                        <IconButton
-                          size="sm"
-                          label={t('leaveTeam')}
-                          onClick={() => setLeavingTeam({ id: mt.id, name: team?.name ?? String(mt.team) })}
-                          className="ml-auto shrink-0 rounded-full text-muted-foreground/80 hover:text-red-500 dark:hover:text-red-400"
-                        >
-                          <X />
-                        </IconButton>
+                        {/* Leaving deletes the member_teams row — staff-only
+                            teams have none; coach/TR assignment is admin-managed. */}
+                        {memberTeamId && (
+                          <IconButton
+                            size="sm"
+                            label={t('leaveTeam')}
+                            onClick={() => setLeavingTeam({ id: memberTeamId, name: row.teamName })}
+                            className="ml-auto shrink-0 rounded-full text-muted-foreground/80 hover:text-red-500 dark:hover:text-red-400"
+                          >
+                            <X />
+                          </IconButton>
+                        )}
                       </div>
                     </div>
                   )
@@ -457,7 +501,7 @@ export default function ProfilePage() {
             </Button>
 
             {user.role.length > 0 && (
-              <div className={memberTeams.length > 0 ? 'mt-2 border-t border-border/60 pt-2' : ''}>
+              <div className={teamRows.length > 0 ? 'mt-2 border-t border-border/60 pt-2' : ''}>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('roles')}</span>
                 <div className="flex flex-col border-l-2 border-input pl-3">
                   {[...user.role].sort((a, b) => {
