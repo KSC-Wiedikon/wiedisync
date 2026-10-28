@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { applyLocalGuards, cmpVal, buildGameIntents, planManualSweep, resolveHomeHalls } from '../bp-sync.js'
+import { applyLocalGuards, bigCourtExtraHalls, cmpVal, buildGameIntents, planManualSweep, resolveHomeHalls } from '../bp-sync.js'
 
 // bp-sync's COMPARE_FIELDS (module-internal; mirrored here as the contract).
 const COMPARE_FIELDS = [
@@ -370,9 +370,11 @@ describe('planManualSweep — retiring superseded placeholders', () => {
 describe('resolveHomeHalls — Basketplan venue → KWI halls', () => {
   const hallByName = { 'KWI A': 1, 'KWI B': 2, 'KWI C': 3 }
 
-  it('2fach is the whole double hall: KWI A + additional KWI B', () => {
+  // Basketplan has no "Halle A" venue: single-court KWI A games are listed at
+  // "2fach" too (22.11.2026 10:00: 2fach + 1fach Halle B + 1fach Halle C at once).
+  it('2fach is KWI A — the A+B big court comes from the planning, not the venue', () => {
     expect(resolveHomeHalls('Kantonsschule Wiedikon 2fach', hallByName))
-      .toEqual({ hall: 1, additionalHalls: ['2'] })
+      .toEqual({ hall: 1, additionalHalls: [] })
   })
 
   it('1fach is KWI B alone — never KWI C', () => {
@@ -402,5 +404,41 @@ describe('resolveHomeHalls — Basketplan venue → KWI halls', () => {
     const data = { ...feedHomeData(), hall: 1, additional_halls: JSON.stringify(['2']) }
     applyLocalGuards(data, existing)
     expect(isChanged(data, existing)).toBe(false)
+  })
+})
+
+describe('bigCourtExtraHalls — is a "2fach" game played across KWI A+B?', () => {
+  const hallByName = { 'KWI A': 1, 'KWI B': 2, 'KWI C': 3 }
+  const plan = (time, hall) => ({ time, hall })
+
+  it('planned on KWI A+B → KWI B as the extra hall', () => {
+    expect(bigCourtExtraHalls([plan('16:00', 'KWI A+B')], null, '15:00', hallByName)).toEqual(['2'])
+  })
+
+  it('planned on one hall → no extra hall, even if the row had KWI B', () => {
+    const existing = { hall: 1, additional_halls: ['2'] }
+    expect(bigCourtExtraHalls([plan('13:30', 'KWI A')], existing, '13:30', hallByName)).toEqual([])
+    expect(bigCourtExtraHalls([plan('13:30', 'KWI B')], existing, '13:30', hallByName)).toEqual([])
+  })
+
+  it('two placements that day → the one closest to the tip-off decides', () => {
+    const placements = [plan('11:00', 'KWI A'), plan('18:30', 'KWI A+B')]
+    expect(bigCourtExtraHalls(placements, null, '18:00', hallByName)).toEqual(['2'])
+    expect(bigCourtExtraHalls(placements, null, '11:00', hallByName)).toEqual([])
+  })
+
+  it('not planned: a KWI B set by hand on the row is kept', () => {
+    expect(bigCourtExtraHalls([], { hall: 1, additional_halls: ['2'] }, '20:00', hallByName)).toEqual(['2'])
+    expect(bigCourtExtraHalls([], { hall: 1, additional_halls: [2] }, '20:00', hallByName)).toEqual(['2'])
+  })
+
+  it('not planned and nothing set → KWI A alone (a new game, or [] / a json object)', () => {
+    expect(bigCourtExtraHalls([], null, '20:00', hallByName)).toEqual([])
+    expect(bigCourtExtraHalls([], { hall: 1, additional_halls: [] }, '20:00', hallByName)).toEqual([])
+    expect(bigCourtExtraHalls([], { hall: 1, additional_halls: {} }, '20:00', hallByName)).toEqual([])
+  })
+
+  it('a KWI B kept from a row that was not at KWI A is not carried over', () => {
+    expect(bigCourtExtraHalls([], { hall: 2, additional_halls: ['2'] }, '20:00', hallByName)).toEqual([])
   })
 })

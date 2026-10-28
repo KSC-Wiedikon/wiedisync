@@ -33,7 +33,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useMutation } from '../../hooks/useMutation'
 import { buildAbsencesByDate, type AbsentMember } from './utils/absencesByDate'
 import { useCrossTeamConflicts } from './hooks/useCrossTeamConflicts'
-import { asObj } from '../../utils/relations'
+import { asObj, relId } from '../../utils/relations'
 import { startOfMonth, getSeasonYear } from '../../utils/dateUtils'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -246,6 +246,9 @@ export default function SpielplanungPage() {
         editingId: game.id,
         kscw_team: teamId,
         hall: hallId,
+        // An A+B game moves with both halls — without them a dragged combo only
+        // checked KWI A.
+        additional_halls: Array.isArray(game.additional_halls) ? game.additional_halls.map((v) => relId(v)) : null,
         date: move.newDate,
         time: move.newTime,
         type: game.type as 'home' | 'away',

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useCollection } from '../../../lib/query'
-import type { Game, Hall, Team } from '../../../types'
+import type { Game } from '../../../types'
 import { checkConflicts, type ConflictCheckResult, type ConflictMessage } from '../utils/gameConflicts'
 import { normalizeRelId } from '../../../utils/gameHalls'
 import { useClubBlockedDates } from '../../../hooks/useClubBlockedDates'
@@ -13,9 +13,6 @@ interface UseGameConflictsInput {
   date: string // YYYY-MM-DD
   time: string // HH:MM
   type: 'home' | 'away'
-  /** Teams + halls enable multi-hall conflict detection + the legacy-basketball fallback. */
-  teams?: Team[]
-  halls?: Hall[]
   /** Skip the check (returns empty errors/warnings) when required fields aren't ready. */
   enabled?: boolean
 }
@@ -32,7 +29,7 @@ function addDaysISO(iso: string, days: number): string {
  * incomplete. Returns `{ errors, warnings }` ready for the modal banner.
  */
 export function useGameConflicts(input: UseGameConflictsInput): ConflictCheckResult & { isLoading: boolean } {
-  const { editingId, kscw_team, hall, additional_halls, date, time, type, teams, halls, enabled = true } = input
+  const { editingId, kscw_team, hall, additional_halls, date, time, type, enabled = true } = input
 
   const ready = !!date && !!time && !!kscw_team && enabled
 
@@ -86,7 +83,6 @@ export function useGameConflicts(input: UseGameConflictsInput): ConflictCheckRes
         type,
       },
       data ?? [],
-      { teams, halls },
     )
 
     if (type !== 'home' || !blockedDates.has(date)) return base
@@ -99,7 +95,7 @@ export function useGameConflicts(input: UseGameConflictsInput): ConflictCheckRes
       ...(reason ? { context: { reason } } : {}),
     }
     return { ...base, errors: [clubBlock, ...base.errors] }
-  }, [ready, editingId, kscw_team, hall, additional_halls, date, time, type, data, teams, halls, blockedDates])
+  }, [ready, editingId, kscw_team, hall, additional_halls, date, time, type, data, blockedDates])
 
   return { ...result, isLoading }
 }

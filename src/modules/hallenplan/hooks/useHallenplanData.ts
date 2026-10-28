@@ -223,7 +223,7 @@ export function useHallenplanData(
     const virtualSlots: HallSlot[] = []
 
     for (const game of games) {
-      virtualSlots.push(...gameToVirtualSlots(game, weekDays, halls, teams))
+      virtualSlots.push(...gameToVirtualSlots(game, weekDays))
     }
 
     for (const training of trainings) {
@@ -265,10 +265,10 @@ export function useHallenplanData(
     // Extra halls (migration 370) are expanded AFTER the merge so each copy
     // inherits its primary's suppression / freed / cancelled state.
     return expandExtraHalls(
-      mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate),
+      mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, freedHorizonDate),
       selectedHallIds,
     )
-  }, [rawSlots, games, trainings, hallEvents, clubEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
+  }, [rawSlots, games, trainings, hallEvents, clubEvents, weekDays, halls, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
 
   // Hold the last fully-consistent merge so a week switch swaps atomically
   // instead of flashing the recurring templates as all-green ("Frei") while the
