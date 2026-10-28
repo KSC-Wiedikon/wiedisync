@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.45.1 — 2026-10-28
+
+### Changed
+
+- Show IDs now also opens the ID of a player who is on another team's game only through the Volleymanager match lineup (Einsatzliste), without being invited in the app: the coaches and team responsibles of the game's team, and of any team opened on that game, can open it. The lineup is read 45 minutes before kickoff, or earlier with «Recheck» on the match sheet — the ID keys reach those coaches as soon as someone who already holds one opens the app after that.
+
 ## v2.45.0 — 2026-10-27
 
 ### Added
