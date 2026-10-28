@@ -136,6 +136,15 @@ describe('member-keyed rows', () => {
   it('allows a member of a team the confined admin coaches', async () => {
     await expect(write('absences.items.create', { member: 20 }, 'u-bbcoach')).resolves.toBeTruthy()
   })
+  it('lets a coach enter an absence for a co-coach who does not play (no roster row)', async () => {
+    TABLES.teams_coaches.push({ id: 2, teams_id: 10, members_id: 22 })
+    try {
+      await expect(write('absences.items.create', { member: 22 }, 'u-bbcoach')).resolves.toBeTruthy()
+      await expect(write('absences.items.create', { member: 22 }, 'u-coach')).rejects.toMatchObject({ status: 403 })
+    } finally {
+      TABLES.teams_coaches.pop()
+    }
+  })
   it('cannot re-point an absence or a participation at another member at all', async () => {
     await expect(write('absences.items.update', { member: 20 }, 'u-bb', { keys: [1] })).rejects.toMatchObject({ code: 'IMMUTABLE_FIELD' })
     await expect(write('participations.items.update', { member: 20 }, 'u-bb', { keys: [1] })).rejects.toMatchObject({ code: 'IMMUTABLE_FIELD' })

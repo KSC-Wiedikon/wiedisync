@@ -4430,6 +4430,28 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  /**
+   * Names of the ACTIVE teams a member is on — as a player (`member_teams`) OR
+   * as staff (`teams_coaches` / `teams_responsibles`). This is the "what will
+   * the deactivate drop" context on the Data Health rows, so it must match what
+   * deactivateMemberRow drops: a coach who doesn't play holds no member_teams
+   * row, and a roster-only list showed a departed coach with no teams at all.
+   */
+  async function activeTeamNamesOf(memberId) {
+    const res = await database.raw(`
+      SELECT DISTINCT t.name
+      FROM teams t
+      WHERE t.active = true
+        AND t.id IN (
+          SELECT team FROM member_teams WHERE member = ?
+          UNION SELECT teams_id FROM teams_coaches WHERE members_id = ?
+          UNION SELECT teams_id FROM teams_responsibles WHERE members_id = ?
+        )
+      ORDER BY t.name
+    `, [memberId, memberId, memberId])
+    return (res?.rows ?? []).map((r) => r.name)
+  }
+
   // ── Departed-in-ClubDesk detection (Data Health) ────────────────────────────
   // Members still active in wiedisync whose linked ClubDesk contact has a
   // non-active status (Kein Mitglied / Ehemaliges Mitglied / Verstorben) AND an
@@ -4451,14 +4473,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .orderBy(['m.last_name', 'm.first_name'])
       const candidates = []
       for (const r of rows) {
-        const teams = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
-          .where('mt.member', r.member_id).andWhere('t.active', true).distinct('t.name')
         candidates.push({
           member_id: r.member_id,
           member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
           status: (r.status || '').trim(),
           austritt: (r.austritt || '').trim() || null,
-          current_teams: teams.map((t) => t.name),
+          current_teams: await activeTeamNamesOf(r.member_id),
         })
       }
       return res.json({ candidates, season })
@@ -4543,14 +4563,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
     const candidates = []
     for (const m of stale) {
-      const teams = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
-        .where('mt.member', m.id).andWhere('t.active', true).distinct('t.name')
       candidates.push({
         member_id: m.id,
         member_name: `${m.first_name || ''} ${m.last_name || ''}`.trim(),
         clubdesk_id: String(m.clubdesk_id).trim(),
         pushed_at: m.clubdesk_pushed_at || null,
-        current_teams: teams.map((t) => t.name),
+        current_teams: await activeTeamNamesOf(m.id),
       })
     }
     return {
@@ -4575,6 +4593,20 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
    * keying on the season left a departed member's roster row alive whenever the
    * stamp lagged, and every unseasoned reader still counted them as squad. See
    * the note on /clubdesk-deactivate.
+   *
+   * ⚠ Staff links go too. A coach / team responsible holds NO member_teams row
+   * for the team they lead — dropping the roster alone left a departed coach
+   * listed as staff (and on kscw.ch). Their `teams_coaches` /
+   * `teams_responsibles` rows on ACTIVE teams are deleted; rows on inactive
+   * teams are history and stay, exactly like the frontend's
+   * `dropStaffLinksOnTeams` (src/modules/admin/components/departMember.ts).
+   * Deleted through ItemsService (admin, same knex handle), NOT raw knex, so
+   * kscw-hooks' `teams_coaches|teams_responsibles.items.delete` role sync runs
+   * and revokes the LEADER policy once no active staff link is left — the
+   * same effect the manual departure gets through the items API.
+   *
+   * Returns the ROSTER count only (callers report it as `rosters_dropped`);
+   * the staff links are recorded in the user_logs entry.
    */
   async function deactivateMemberRow(req, memberId, kind) {
     const season = getCurrentSeason()
@@ -4582,12 +4614,30 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const dropped = activeTeamIds.length
       ? await database('member_teams').where('member', memberId).whereIn('team', activeTeamIds).del()
       : 0
+    const staffDropped = { teams_coaches: [], teams_responsibles: [] }
+    if (activeTeamIds.length) {
+      let schema = null
+      for (const junction of ['teams_coaches', 'teams_responsibles']) {
+        const rows = await database(junction)
+          .where('members_id', memberId).whereIn('teams_id', activeTeamIds)
+          .select('id', 'teams_id')
+        if (!rows.length) continue
+        schema ??= await getSchema()
+        await new services.ItemsService(junction, { schema, knex: database })
+          .deleteMany(rows.map((r) => r.id))
+        staffDropped[junction] = rows.map((r) => r.teams_id)
+      }
+    }
     await database('members').where('id', memberId)
       .update({ kscw_membership_active: false, wiedisync_active: false })
     await writeUserLog(database, log, {
       accountability: req.accountability, action: 'update',
       collection: 'members', recordId: memberId,
-      data: { kind, season, rosters_dropped: dropped },
+      data: {
+        kind, season, rosters_dropped: dropped,
+        coach_teams_dropped: staffDropped.teams_coaches,
+        responsible_teams_dropped: staffDropped.teams_responsibles,
+      },
     })
     return dropped
   }

@@ -863,9 +863,13 @@ export default {
               'members.birthdate', 'members.birthdate_visibility',
               'members.website_visible', 'members.website_name_private',
               'member_teams.guest_level'),
+          // Same membership filter as the roster: a coach who has left the club
+          // must not stay listed on kscw.ch just because the staff link outlived
+          // the departure (rows on the active team survive until removed).
           database('teams_coaches')
             .join('members', 'members.id', 'teams_coaches.members_id')
             .where('teams_coaches.teams_id', team.id)
+            .where('members.kscw_membership_active', true)
             .select('members.id', 'members.first_name', 'members.last_name', 'members.photo',
               'members.birthdate', 'members.birthdate_visibility',
               'members.website_visible', 'members.website_name_private'),
