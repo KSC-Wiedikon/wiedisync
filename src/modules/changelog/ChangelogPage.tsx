@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.45.1'
+const APP_VERSION = '2.45.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.45.2',
+    date: '28.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          'Hall plan: basketball games now take only the hall they are played in. Until now every basketball game in KWI A or KWI B was drawn across both halls, so two games side by side showed as one double booking. Games the basketball planning puts on «KWI A+B» (the big court) still take both halls; for a KWI A game the planning does not cover, choose «KWI A+B» as the hall in the game editor.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.45.1',
     date: '28.10.2026',

@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import type { HallSlot, Hall, Team, Training, HallClosure, Game, SlotClaim } from '../../../../types'
+import type { HallSlot, Hall, Training, HallClosure, Game, SlotClaim } from '../../../../types'
 import { mergeVirtualSlots, trainingToVirtualSlot } from '../virtualSlots'
 
 // Week of Mon 2026-04-20 .. Sun 2026-04-26. Wed = 2026-04-22 (day_of_week 2).
 const weekDays: Date[] = Array.from({ length: 7 }, (_, i) => new Date(2026, 3, 20 + i))
 
 const hallA: Hall = { id: 'h-a', name: 'KWI A', address: '', city: '', courts: 1, notes: '', maps_url: '', homologation: false, sv_hall_id: '' }
-const halls: Hall[] = [hallA]
-const teams: Team[] = [{ id: '1', name: 'D1', sport: 'volleyball' } as unknown as Team]
 const noClaims: SlotClaim[] = []
 const noClosures: HallClosure[] = []
 const noGames: Game[] = []
@@ -34,7 +32,7 @@ describe('freed-slot generation horizon', () => {
 
   it('within the horizon: a surviving template is freed/claimable (green)', () => {
     // horizon well after the displayed Wed 2026-04-22 → genuine free slot
-    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays, halls, teams, '2026-12-31')
+    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays, '2026-12-31')
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('freed-recurring-rs1-2')
     expect(result[0]._virtual?.isFreed).toBe(true)
@@ -43,7 +41,7 @@ describe('freed-slot generation horizon', () => {
 
   it('beyond the horizon: the template stays an occupied (planned) training, not free', () => {
     // horizon before the displayed Wed → training not generated yet → NOT claimable
-    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays, halls, teams, '2026-04-01')
+    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays, '2026-04-01')
     expect(result).toHaveLength(1)
     // Original real slot passes through unchanged — no freed/virtual annotation
     expect(result[0].id).toBe('rs1')
@@ -52,7 +50,7 @@ describe('freed-slot generation horizon', () => {
   })
 
   it('no horizon passed (undefined) preserves legacy freed behaviour', () => {
-    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays, halls, teams)
+    const result = mergeVirtualSlots([recurringTemplate()], [], noClaims, noClosures, noGames, weekDays)
     expect(result[0].id).toBe('freed-recurring-rs1-2')
     expect(result[0]._virtual?.isTemplateFreed).toBe(true)
   })

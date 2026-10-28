@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.45.2 — 2026-10-28
+
+### Fixed
+
+- Hall plan: basketball games now take only the hall they are played in. Until now every basketball game in KWI A or KWI B was drawn across both halls, so two games side by side showed as one double booking. Games the basketball planning puts on «KWI A+B» (the big court) still take both halls; for a KWI A game the planning does not cover, choose «KWI A+B» as the hall in the game editor.
+
 ## v2.45.1 — 2026-10-28
 
 ### Changed

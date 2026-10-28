@@ -371,8 +371,6 @@ export default function ManualGameModal({
     date,
     time,
     type,
-    teams: allTeams,
-    halls,
     enabled: !!teamId && !!date && !!time,
   })
 
