@@ -85,6 +85,7 @@ export default {
   editSetsEndsMatch: "Ces scores termineraient le match alors qu'un set est encore en cours.",
   scoreChangedElsewhere: "Le score a été modifié sur un autre téléphone — vérifiez-le et touchez à nouveau.",
   boardTookOver: "Le tableau d’affichage de la salle diffuse ce match — la saisie ici est désactivée.",
+  scoreNotSaved: "Ce point n’a pas pu être enregistré — le score affiché est celui qui est enregistré.",
   backToGame: "Retour au match",
   sync_loading: "Chargement…",
   sync_synced: "Enregistré",

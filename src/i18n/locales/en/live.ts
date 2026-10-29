@@ -85,6 +85,7 @@ export default {
   editSetsEndsMatch: "These scores would end the match while a set is still being played.",
   scoreChangedElsewhere: "The score was changed on another phone — check it and tap again.",
   boardTookOver: "The hall scoreboard is publishing this game — scoring here is off.",
+  scoreNotSaved: "This point could not be saved — the score shown is the saved one.",
   backToGame: "Back to the game",
   sync_loading: "Loading…",
   sync_synced: "Saved",
