@@ -109,6 +109,9 @@ regexes = [
   # (developers.cloudflare.com/turnstile/troubleshooting/testing) — public
   # constants, not credentials; used by kscw-hooks turnstile tests (2026-09-28).
   '''['"][123]x0{20,}AA['"]''',
+  # Our OpnForm fork's image tags pin a git sha: `image: ghcr.io/lucanepa/opnform-api:kscw-ab98c4d6`
+  # reads as a generic api key (2026-10-29). Only that exact image-line shape.
+  '''^\s*image: ghcr\.io/lucanepa/opnform-(api|client):kscw-[0-9a-f]{7,40}\s*$''',
 ]
 paths = [
   '''(^|/)node_modules/''',
