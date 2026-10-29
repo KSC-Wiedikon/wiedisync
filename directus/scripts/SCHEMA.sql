@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-26T10:32:31.287Z
+-- Generated:   2026-10-29T08:34:27.305Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict rJl5P6LbHxGQbiawUQL7kYZzysLgCgPcepwaVjcvlCfKFCnPc0CRmmE31rgkNJJ
+\restrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1712,6 +1712,22 @@ COMMENT ON FUNCTION public.staff_gratis_revert() IS 'Deferred AFTER DELETE on te
 
 
 --
+-- Name: team_people_ids(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_people_ids(p_team integer) RETURNS SETOF integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT member FROM member_teams WHERE team = p_team
+  UNION
+  SELECT members_id FROM teams_coaches WHERE teams_id = p_team
+  UNION
+  SELECT members_id FROM teams_responsibles WHERE teams_id = p_team
+$$;
+
+
+--
 -- Name: teams_staff_sync_game_guests(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1946,9 +1962,9 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT DISTINCT mt.member, v_type, v_title_key, v_body, 'event', v_id::text, et.teams_id, false
+  SELECT DISTINCT p.member, v_type, v_title_key, v_body, 'event', v_id::text, et.teams_id, false
   FROM events_teams et
-  JOIN member_teams mt ON mt.team = et.teams_id
+  CROSS JOIN LATERAL team_people_ids(et.teams_id) p(member)
   WHERE et.events_id = v_id;
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
@@ -2184,8 +2200,8 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT mt.member, v_type, v_title, v_body, 'game', v_game_id::text, v_team_id, false
-  FROM member_teams mt WHERE mt.team = v_team_id;
+  SELECT p.member, v_type, v_title, v_body, 'game', v_game_id::text, v_team_id, false
+  FROM team_people_ids(v_team_id) p(member);
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
@@ -2801,8 +2817,8 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT mt.member, v_type, v_title, v_body, 'training', v_id::text, v_team_id, false
-  FROM member_teams mt WHERE mt.team = v_team_id;
+  SELECT p.member, v_type, v_title, v_body, 'training', v_id::text, v_team_id, false
+  FROM team_people_ids(v_team_id) p(member);
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -4031,7 +4047,7 @@ CREATE TABLE public.games (
     vm_result_checked_at timestamp with time zone,
     CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
-    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying])::text[]))),
+    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
     CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[])))),
     CONSTRAINT games_vm_result_status_check CHECK (((vm_result_status)::text = ANY ((ARRAY['pending'::character varying, 'reported'::character varying, 'confirmed'::character varying, 'conflict'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
 );
@@ -20188,7 +20204,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rJl5P6LbHxGQbiawUQL7kYZzysLgCgPcepwaVjcvlCfKFCnPc0CRmmE31rgkNJJ
+\unrestrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
 
 
 
@@ -20204,7 +20220,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 433 migration(s) already in the schema above.
+-- Migration tracker seed — 436 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20650,6 +20666,9 @@ FROM (VALUES
   ('426-waive-guest-late-signin-fines.sql'),
   ('427-remove-guest-deadline-declines.sql'),
   ('428-games-additional-halls-array.sql'),
-  ('429-staff-rsvp-visibility.sql')
+  ('429-staff-rsvp-visibility.sql'),
+  ('430-provisional-from-live-scoring.sql'),
+  ('431-bb-2fach-is-not-a-b.sql'),
+  ('432-notify-staff-recipients.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
