@@ -28,7 +28,7 @@ case "$TARGET" in
 esac
 [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "!! tag must be an exact version like 12.5.0 (never latest/-dhi)" >&2; exit 1; }
 
-ssh hetzner "sudo bash -s -- $TARGET $TAG $CONT $DIR $PORT $DB $URL" <<'REMOTE'
+ssh kscw-server "sudo bash -s -- $TARGET $TAG $CONT $DIR $PORT $DB $URL" <<'REMOTE'
 set -euo pipefail
 TARGET=$1 TAG=$2 CONT=$3 DIR=$4 PORT=$5 DB=$6 URL=$7
 umask 077

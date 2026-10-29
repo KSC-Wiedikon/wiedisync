@@ -533,7 +533,7 @@ if (EMIT_SQL) {
   console.error(`→ ${envName}/${env.database}: ${bk.rows.length} bookings, ${invRows.length} invoices (${invDupCount} dup rows collapsed), ${accounts.size} accounts, ${fyMap.size} fiscal year(s)…`)
   const dockerExec = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-X', '-v', 'ON_ERROR_STOP=1']
-  const cmd = LOCAL ? dockerExec : ['ssh', 'hetzner', ...dockerExec]
+  const cmd = LOCAL ? dockerExec : ['ssh', 'kscw-server', ...dockerExec]
   const r = spawnSync(cmd[0], cmd.slice(1), { input: psqlInput, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 })
   if (r.status !== 0) {
     console.error('psql failed:')

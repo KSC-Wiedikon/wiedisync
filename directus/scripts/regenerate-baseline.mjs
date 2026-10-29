@@ -58,7 +58,7 @@ console.log(`[baseline] Pulling schema from ${envName} (db=${env.database})…`)
 // pg_dump --schema-only --no-owner --no-acl  schema-only, no role/grant noise.
 // We exclude `directus_*` tables — Directus rebuilds those from its own
 // migrations on first boot, so committing them would create false diffs.
-const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+const cmd = ['ssh', 'kscw-server', 'sudo', 'docker', 'exec', '-i', env.container,
   'pg_dump',
   '-U', 'supabase_admin',
   '-d', env.database,
@@ -107,7 +107,7 @@ SELECT format('DROP TRIGGER IF EXISTS %I ON public.%I;', t.tgname, c.relname) ||
  WHERE n.nspname = 'public' AND c.relname LIKE 'directus\\_%' AND NOT t.tgisinternal
  ORDER BY c.relname, t.tgname;
 `
-const trigQ = spawnSync('ssh', ['hetzner', `sudo docker exec -i ${env.container} psql -U supabase_admin -d ${env.database} -q -t -A -v ON_ERROR_STOP=1`], {
+const trigQ = spawnSync('ssh', ['kscw-server', `sudo docker exec -i ${env.container} psql -U supabase_admin -d ${env.database} -q -t -A -v ON_ERROR_STOP=1`], {
   input: directusTriggerSql, encoding: 'utf-8', maxBuffer: 8 * 1024 * 1024,
 })
 if (trigQ.status !== 0) {
@@ -170,7 +170,7 @@ const banner = `-- =============================================================
 // above gets away with an array only because none of its arguments contain
 // spaces.
 const trackerCmd = `sudo docker exec -i ${env.container} psql -U supabase_admin -d ${env.database} -t -A -c "SELECT filename FROM kscw_migrations ORDER BY filename;"`
-const trackerQ = spawnSync('ssh', ['hetzner', trackerCmd], { encoding: 'utf-8', maxBuffer: 8 * 1024 * 1024 })
+const trackerQ = spawnSync('ssh', ['kscw-server', trackerCmd], { encoding: 'utf-8', maxBuffer: 8 * 1024 * 1024 })
 if (trackerQ.status !== 0) {
   console.error(`[baseline] reading kscw_migrations failed:\n${trackerQ.stderr}`)
   process.exit(2)

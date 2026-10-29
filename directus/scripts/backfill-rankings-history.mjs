@@ -18,7 +18,7 @@
  * as the other db:* backfills, dev first:
  *
  *   SV_API_KEY=… node directus/scripts/backfill-rankings-history.mjs 2024 > /tmp/bf.sql
- *   cat /tmp/bf.sql | ssh hetzner 'sudo docker exec -i <db> psql -U supabase_admin -d directus_kscw_dev -X -v ON_ERROR_STOP=1'
+ *   cat /tmp/bf.sql | ssh kscw-server 'sudo docker exec -i <db> psql -U supabase_admin -d directus_kscw_dev -X -v ON_ERROR_STOP=1'
  *
  * Row shape + field mapping mirror sv-sync.js exactly (team_id `vb_<id>`,
  * league = group||phase||league caption, season = league.season as YYYY/YY,

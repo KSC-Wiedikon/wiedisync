@@ -24,7 +24,7 @@
  *      sha differs from the on-disk sha (someone edited a migration
  *      after it was applied).
  *   4. Applies pending migrations in numeric order via psql in the
- *      Hetzner Supabase container.
+ *      kscw-postgres container on the VPS (`ssh kscw-server`).
  *   5. Records each successful apply in kscw_migrations.
  *
  * No npm dependencies — uses only `child_process`, `fs`, `crypto`.
@@ -68,12 +68,12 @@ if (!envName || !ENVS[envName]) {
 }
 const env = ENVS[envName]
 
-// ── psql wrappers (via SSH to Hetzner) ────────────────────────────
+// ── psql wrappers (via SSH to kscw-server) ────────────────────────
 // SQL goes via stdin, never via `-c`. SSH joins args into a remote shell
 // string so a multi-word SQL string passed as `-c` gets shell-split.
 // Default unaligned separator is `|` — filenames + hex shas never contain it.
 function psqlQuery(sql) {
-  const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  const cmd = ['ssh', 'kscw-server', 'sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database,
     '-t', '-A', '-X', '-v', 'ON_ERROR_STOP=1']
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sql, encoding: 'utf-8' })
@@ -88,7 +88,7 @@ function psqlApply(sqlText, label) {
   // outer transaction and warn ("transaction already in progress") when the
   // file's BEGIN runs. Tracker INSERTs (small one-shot statements) get
   // wrapped in a single statement so they don't need outer-tx semantics.
-  const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  const cmd = ['ssh', 'kscw-server', 'sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database,
     '-X', '-v', 'ON_ERROR_STOP=1']
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sqlText, encoding: 'utf-8' })

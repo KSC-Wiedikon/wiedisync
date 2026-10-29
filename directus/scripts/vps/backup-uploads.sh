@@ -79,7 +79,7 @@ leg() { local name=$1; shift; if "$@"; then OFFSITE+=("$name OK"); else OFFSITE+
 # later as a second club copy (handover document 03, GG1).
 leg R2     rclone copy "$BACKUP_DIR" "$R2_DIR"     --include 'kscw_uploads_*.tar.gz.gpg' --max-age 55d 2>&1
 # NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
-# the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
+# the club's Infomaniak account, so it must hold no key to his home network; his lenovoserver
 # PULLS the encrypted files instead (kscw-backup-pull.timer there, 40 min after each run).
 
 # ── 4. retention: 8 weeks everywhere ────────────────────────────────────────────────

@@ -34,12 +34,12 @@ MIRROR=/data/uploads-mirror
 
 if $REFRESH; then
   echo "==> refreshing the local mirror from $BUCKET"
-  ssh -n hetzner "sudo rclone copy '$BUCKET' '$MIRROR' --transfers 8 --stats-one-line" 2>/dev/null
+  ssh -n kscw-server "sudo rclone copy '$BUCKET' '$MIRROR' --transfers 8 --stats-one-line" 2>/dev/null
 fi
 
 echo "==> checking every directus_files row against its actual bytes ($ENV_NAME)"
 
-ssh hetzner "sudo bash -s" <<EOF
+ssh kscw-server "sudo bash -s" <<EOF
 set -uo pipefail
 DB=$DB
 MIRROR=$MIRROR
