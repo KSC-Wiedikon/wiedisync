@@ -14,14 +14,24 @@
 # they need. Service names are Coolify's (opnform-api, opnform-ui, postgresql, redis, nginx),
 # because nginx.conf, DB_HOST, REDIS_HOST and NUXT_PRIVATE_API_BASE address them by name.
 # Container names are new and stable (opnform-*): backup-postgres.sh dumps opnform-postgres.
+#
+# "Check email in Wiedisync" (fork feature, 29.10.2026): the three api containers also join the
+# `coolify` network so they reach Directus as http://directus-kscw:8055 — Wiedisync's
+# /kscw/opnform/v1/* routes refuse anything that comes through Cloudflare. .env carries
+# WIEDISYNC_API_URL + WIEDISYNC_SERVICE_TOKEN (Directus holds the token's SHA-256 in
+# OPNFORM_SERVICE_TOKEN_HASH). Nothing on `coolify` answers to postgresql / redis, so DB_HOST and
+# REDIS_HOST still resolve on the project network.
 name: opnform
 
 x-api: &api
-  image: ghcr.io/lucanepa/opnform-api:kscw-776bafb5
+  image: ghcr.io/lucanepa/opnform-api:kscw-ab98c4d6
   restart: unless-stopped
   env_file: .env
   volumes:
     - api-storage:/usr/share/nginx/html/storage
+  networks:
+    - default
+    - coolify
   depends_on:
     postgresql:
       condition: service_healthy
@@ -62,7 +72,7 @@ services:
       start_period: 70s
 
   opnform-ui:
-    image: ghcr.io/lucanepa/opnform-client:kscw-776bafb5
+    image: ghcr.io/lucanepa/opnform-client:kscw-ab98c4d6
     container_name: opnform-ui
     restart: unless-stopped
     environment:
@@ -138,3 +148,7 @@ volumes:
   api-storage:
   postgres-data:
   redis-data:
+
+networks:
+  coolify:
+    external: true
