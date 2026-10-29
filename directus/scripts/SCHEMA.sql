@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-24T08:39:59.510Z
+-- Generated:   2026-10-29T08:34:27.305Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
+\restrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1076,12 +1076,28 @@ CREATE FUNCTION public.kscw_pv_refresh_participations() RETURNS trigger
 DECLARE touched boolean := false;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    SELECT EXISTS (SELECT 1 FROM new_rows WHERE activity_type = 'game') INTO touched;
+    SELECT EXISTS (
+      SELECT 1 FROM new_rows r
+       WHERE r.activity_type = 'game'
+          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = r.member)
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = r.member)
+    ) INTO touched;
   ELSIF TG_OP = 'DELETE' THEN
-    SELECT EXISTS (SELECT 1 FROM old_rows WHERE activity_type = 'game') INTO touched;
+    SELECT EXISTS (
+      SELECT 1 FROM old_rows r
+       WHERE r.activity_type = 'game'
+          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = r.member)
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = r.member)
+    ) INTO touched;
   ELSE
-    SELECT EXISTS (SELECT 1 FROM new_rows WHERE activity_type = 'game')
-        OR EXISTS (SELECT 1 FROM old_rows WHERE activity_type = 'game') INTO touched;
+    SELECT EXISTS (
+      SELECT 1 FROM (SELECT activity_type, member FROM new_rows
+                     UNION ALL
+                     SELECT activity_type, member FROM old_rows) r
+       WHERE r.activity_type = 'game'
+          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = r.member)
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = r.member)
+    ) INTO touched;
   END IF;
 
   IF touched THEN
@@ -1443,13 +1459,17 @@ CREATE FUNCTION public.refresh_participation_visibility() RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  DELETE FROM participation_visibility a
-   WHERE NOT EXISTS (
-     SELECT 1 FROM participation_visibility_expected e
-      WHERE e.participation = a.participation AND e.viewer_user = a.viewer_user);
-
+  WITH e AS MATERIALIZED (
+    SELECT participation, viewer_user FROM participation_visibility_expected
+  ), gone AS (
+    DELETE FROM participation_visibility a
+     WHERE NOT EXISTS (SELECT 1 FROM e
+                        WHERE e.participation = a.participation AND e.viewer_user = a.viewer_user)
+  )
   INSERT INTO participation_visibility (participation, viewer_user)
-  SELECT e.participation, e.viewer_user FROM participation_visibility_expected e
+  SELECT e.participation, e.viewer_user FROM e
+   WHERE NOT EXISTS (SELECT 1 FROM participation_visibility a
+                      WHERE a.participation = e.participation AND a.viewer_user = e.viewer_user)
   ON CONFLICT DO NOTHING;
 END $$;
 
@@ -1692,6 +1712,22 @@ COMMENT ON FUNCTION public.staff_gratis_revert() IS 'Deferred AFTER DELETE on te
 
 
 --
+-- Name: team_people_ids(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_people_ids(p_team integer) RETURNS SETOF integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT member FROM member_teams WHERE team = p_team
+  UNION
+  SELECT members_id FROM teams_coaches WHERE teams_id = p_team
+  UNION
+  SELECT members_id FROM teams_responsibles WHERE teams_id = p_team
+$$;
+
+
+--
 -- Name: teams_staff_sync_game_guests(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1926,9 +1962,9 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT DISTINCT mt.member, v_type, v_title_key, v_body, 'event', v_id::text, et.teams_id, false
+  SELECT DISTINCT p.member, v_type, v_title_key, v_body, 'event', v_id::text, et.teams_id, false
   FROM events_teams et
-  JOIN member_teams mt ON mt.team = et.teams_id
+  CROSS JOIN LATERAL team_people_ids(et.teams_id) p(member)
   WHERE et.events_id = v_id;
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
@@ -2164,8 +2200,8 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT mt.member, v_type, v_title, v_body, 'game', v_game_id::text, v_team_id, false
-  FROM member_teams mt WHERE mt.team = v_team_id;
+  SELECT p.member, v_type, v_title, v_body, 'game', v_game_id::text, v_team_id, false
+  FROM team_people_ids(v_team_id) p(member);
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
@@ -2781,8 +2817,8 @@ BEGIN
   END IF;
 
   INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
-  SELECT mt.member, v_type, v_title, v_body, 'training', v_id::text, v_team_id, false
-  FROM member_teams mt WHERE mt.team = v_team_id;
+  SELECT p.member, v_type, v_title, v_body, 'training', v_id::text, v_team_id, false
+  FROM team_people_ids(v_team_id) p(member);
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -4011,7 +4047,7 @@ CREATE TABLE public.games (
     vm_result_checked_at timestamp with time zone,
     CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
-    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying])::text[]))),
+    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
     CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[])))),
     CONSTRAINT games_vm_result_status_check CHECK (((vm_result_status)::text = ANY ((ARRAY['pending'::character varying, 'reported'::character varying, 'confirmed'::character varying, 'conflict'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
 );
@@ -9297,6 +9333,7 @@ CREATE TABLE public.live_history (
     set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
     ts bigint DEFAULT 0 NOT NULL,
     finished_at timestamp with time zone DEFAULT now() NOT NULL,
+    game_id integer,
     CONSTRAINT live_history_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[])))
 );
 
@@ -9327,6 +9364,13 @@ COMMENT ON COLUMN public.live_history.ts IS 'The board''s own ms-epoch clock at 
 --
 
 COMMENT ON COLUMN public.live_history.finished_at IS 'Server clock at insert. The UI sorts on this, not on `ts`, so a board with a wrong clock cannot reorder the list.';
+
+
+--
+-- Name: COLUMN live_history.game_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_history.game_id IS 'The fixture this finished match belongs to, when the board knew it (team A = home then). NULL: not tied to a game, team A = the left side. Migration 425.';
 
 
 --
@@ -9522,7 +9566,7 @@ COMMENT ON COLUMN public.live_scores.game_id IS 'The fixture a game row belongs 
 -- Name: COLUMN live_scores.source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.live_scores.source IS 'Who wrote the row: board:<channel> for the hall scoreboard (point-hub livePush.js), NULL for phone live scoring and the board''s own channel row. Migration 424.';
+COMMENT ON COLUMN public.live_scores.source IS 'Who wrote the row: board:<channel> for the hall scoreboard (point-hub livePush.js), phone for phone live scoring (live-scoring.js), NULL for the board''s own channel row and rows written before migration 425.';
 
 
 --
@@ -10507,6 +10551,91 @@ CREATE TABLE public.teams_responsibles (
 
 
 --
+-- Name: trainings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.trainings (
+    id integer NOT NULL,
+    date date,
+    start_time time without time zone,
+    end_time time without time zone,
+    hall_name character varying(255) DEFAULT NULL::character varying,
+    notes text,
+    cancelled boolean DEFAULT false NOT NULL,
+    cancel_reason text,
+    respond_by timestamp with time zone,
+    min_participants integer,
+    max_participants integer,
+    require_note_if_absent boolean DEFAULT false NOT NULL,
+    auto_cancel_on_min boolean DEFAULT false NOT NULL,
+    team integer,
+    hall_slot integer,
+    hall integer,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone,
+    send_email_invite boolean DEFAULT false,
+    auto_cancelled_by_closure integer,
+    excluded_guest_levels jsonb DEFAULT '[]'::jsonb NOT NULL,
+    auto_confirm_rsvp boolean,
+    is_trial boolean DEFAULT false NOT NULL,
+    auto_cancelled_by_trial integer,
+    recruiting_positions jsonb,
+    auto_shortened_by_game integer,
+    original_end_time time without time zone,
+    meeting_offset_minutes integer DEFAULT 10,
+    extra_halls json,
+    carpool_enabled boolean DEFAULT false NOT NULL,
+    auto_adjusted_by_booking text,
+    original_start_time time without time zone,
+    original_extra_halls json,
+    extra_halls_adjusted_by_booking text,
+    CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
+);
+
+
+--
+-- Name: COLUMN trainings.auto_confirm_rsvp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.auto_confirm_rsvp IS 'NULL = inherit teams.features_enabled.training_auto_confirm. true/false = per-activity override.';
+
+
+--
+-- Name: COLUMN trainings.is_trial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.is_trial IS 'When true, the training is a public trial training (Probetraining) — surfaced on the kscw-website team page next to the "Get in touch" CTA for teams with open_for_players=true.';
+
+
+--
+-- Name: COLUMN trainings.auto_cancelled_by_trial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.auto_cancelled_by_trial IS 'When non-null, this training was auto-cancelled because trial training id=<this> exists for the same team+date. Cleared automatically by trg_trainings_clear_auto_cancel_marker when a user manually toggles `cancelled`.';
+
+
+--
+-- Name: COLUMN trainings.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.recruiting_positions IS 'Trial trainings only: MemberPosition[] the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
+
+
+--
+-- Name: COLUMN trainings.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `start_time` that the team meets. NULL = no meeting time shown. An offset, not a clock, so slot-cascade regeneration and the game-shorten hook can move a training without stranding it. DEFAULT 10 is what gives cascade-generated trainings a meeting time with no code in slot-cascade.js.';
+
+
+--
+-- Name: COLUMN trainings.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.carpool_enabled IS 'Car pooling board shown on this training (offer / request rides). Default off; the coach/TR switches it on per training. Rides live in carpools (migration 378).';
+
+
+--
 -- Name: participation_visibility_expected; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -10546,13 +10675,53 @@ CREATE VIEW public.participation_visibility_expected AS
              JOIN public.games g ON ((g.id = gg.game_id)))
              JOIN public.teams_responsibles tr ON ((tr.teams_id = g.kscw_team)))
              JOIN public.members m ON ((m.id = tr.members_id)))
+        ), guest_rows AS (
+         SELECT p.id AS participation,
+            v.viewer_user
+           FROM ((public.participations p
+             JOIN audience s ON (((s.member_id = p.member) AND ((p.activity_type)::text = 'game'::text) AND ((p.activity_id)::text = ((s.game_id)::character varying)::text))))
+             JOIN audience v ON ((v.game_id = s.game_id)))
+          WHERE (v.viewer_user IS NOT NULL)
+        ), staff AS (
+         SELECT tc.teams_id AS team,
+            tc.members_id AS member
+           FROM public.teams_coaches tc
+        UNION
+         SELECT tr.teams_id,
+            tr.members_id
+           FROM public.teams_responsibles tr
+        ), team_activities AS (
+         SELECT 'training'::character varying AS kind,
+            (tr.id)::character varying AS activity_id,
+            tr.team
+           FROM public.trainings tr
+          WHERE (tr.team IS NOT NULL)
+        UNION ALL
+         SELECT 'game'::character varying,
+            (g.id)::character varying AS id,
+            g.kscw_team
+           FROM public.games g
+          WHERE (g.kscw_team IS NOT NULL)
+        ), staff_rows AS (
+         SELECT p.id AS participation,
+            viewer."user" AS viewer_user
+           FROM (((((public.participations p
+             JOIN team_activities a ON ((((a.kind)::text = (p.activity_type)::text) AND ((a.activity_id)::text = (p.activity_id)::text))))
+             JOIN staff s ON (((s.team = a.team) AND (s.member = p.member))))
+             JOIN public.teams t ON (((t.id = a.team) AND t.active)))
+             JOIN public.member_teams r ON ((r.team = a.team)))
+             JOIN public.members viewer ON ((viewer.id = r.member)))
+          WHERE ((viewer."user" IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM public.member_teams own
+                  WHERE ((own.team = a.team) AND (own.member = p.member))))))
         )
- SELECT DISTINCT p.id AS participation,
-    v.viewer_user
-   FROM ((public.participations p
-     JOIN audience s ON (((s.member_id = p.member) AND ((p.activity_type)::text = 'game'::text) AND ((p.activity_id)::text = ((s.game_id)::character varying)::text))))
-     JOIN audience v ON ((v.game_id = s.game_id)))
-  WHERE (v.viewer_user IS NOT NULL);
+ SELECT guest_rows.participation,
+    guest_rows.viewer_user
+   FROM guest_rows
+UNION
+ SELECT staff_rows.participation,
+    staff_rows.viewer_user
+   FROM staff_rows;
 
 
 --
@@ -11550,91 +11719,6 @@ CREATE SEQUENCE public.sponsors_id_seq
 --
 
 ALTER SEQUENCE public.sponsors_id_seq OWNED BY public.sponsors.id;
-
-
---
--- Name: trainings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.trainings (
-    id integer NOT NULL,
-    date date,
-    start_time time without time zone,
-    end_time time without time zone,
-    hall_name character varying(255) DEFAULT NULL::character varying,
-    notes text,
-    cancelled boolean DEFAULT false NOT NULL,
-    cancel_reason text,
-    respond_by timestamp with time zone,
-    min_participants integer,
-    max_participants integer,
-    require_note_if_absent boolean DEFAULT false NOT NULL,
-    auto_cancel_on_min boolean DEFAULT false NOT NULL,
-    team integer,
-    hall_slot integer,
-    hall integer,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    send_email_invite boolean DEFAULT false,
-    auto_cancelled_by_closure integer,
-    excluded_guest_levels jsonb DEFAULT '[]'::jsonb NOT NULL,
-    auto_confirm_rsvp boolean,
-    is_trial boolean DEFAULT false NOT NULL,
-    auto_cancelled_by_trial integer,
-    recruiting_positions jsonb,
-    auto_shortened_by_game integer,
-    original_end_time time without time zone,
-    meeting_offset_minutes integer DEFAULT 10,
-    extra_halls json,
-    carpool_enabled boolean DEFAULT false NOT NULL,
-    auto_adjusted_by_booking text,
-    original_start_time time without time zone,
-    original_extra_halls json,
-    extra_halls_adjusted_by_booking text,
-    CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
-);
-
-
---
--- Name: COLUMN trainings.auto_confirm_rsvp; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.auto_confirm_rsvp IS 'NULL = inherit teams.features_enabled.training_auto_confirm. true/false = per-activity override.';
-
-
---
--- Name: COLUMN trainings.is_trial; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.is_trial IS 'When true, the training is a public trial training (Probetraining) — surfaced on the kscw-website team page next to the "Get in touch" CTA for teams with open_for_players=true.';
-
-
---
--- Name: COLUMN trainings.auto_cancelled_by_trial; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.auto_cancelled_by_trial IS 'When non-null, this training was auto-cancelled because trial training id=<this> exists for the same team+date. Cleared automatically by trg_trainings_clear_auto_cancel_marker when a user manually toggles `cancelled`.';
-
-
---
--- Name: COLUMN trainings.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.recruiting_positions IS 'Trial trainings only: MemberPosition[] the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
-
-
---
--- Name: COLUMN trainings.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `start_time` that the team meets. NULL = no meeting time shown. An offset, not a clock, so slot-cascade regeneration and the game-shorten hook can move a training without stranding it. DEFAULT 10 is what gives cascade-generated trainings a meeting time with no code in slot-cascade.js.';
-
-
---
--- Name: COLUMN trainings.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.trainings.carpool_enabled IS 'Car pooling board shown on this training (offer / request rides). Default off; the coach/TR switches it on per training. Rides live in carpools (migration 378).';
 
 
 --
@@ -16621,6 +16705,13 @@ CREATE INDEX live_history_channel_finished_idx ON public.live_history USING btre
 
 
 --
+-- Name: live_history_game_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_history_game_id_idx ON public.live_history USING btree (game_id) WHERE (game_id IS NOT NULL);
+
+
+--
 -- Name: live_match_logs_channel_key_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -17646,7 +17737,7 @@ CREATE TRIGGER trg_pv_game_guests AFTER INSERT OR DELETE OR UPDATE ON public.gam
 -- Name: games trg_pv_games; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_pv_games AFTER INSERT OR DELETE OR UPDATE ON public.games FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+CREATE TRIGGER trg_pv_games AFTER INSERT OR DELETE OR UPDATE OF kscw_team, id ON public.games FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
 
 
 --
@@ -17703,6 +17794,13 @@ CREATE TRIGGER trg_pv_teams_coaches AFTER INSERT OR DELETE OR UPDATE ON public.t
 --
 
 CREATE TRIGGER trg_pv_teams_responsibles AFTER INSERT OR DELETE OR UPDATE ON public.teams_responsibles FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: trainings trg_pv_trainings; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_trainings AFTER UPDATE OF team, id ON public.trainings FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
 
 
 --
@@ -19337,6 +19435,14 @@ ALTER TABLE ONLY public.identity_documents
 
 
 --
+-- Name: live_history live_history_game_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_history
+    ADD CONSTRAINT live_history_game_id_fkey FOREIGN KEY (game_id) REFERENCES public.games(id) ON DELETE SET NULL;
+
+
+--
 -- Name: live_match_logs live_match_logs_game_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -20098,7 +20204,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MgSAcAcMyq1t7xFJaoiBRauCcH7IRbhbzmCMXdoU0NMKhjgFpsbXmgTs2Y5u6lD
+\unrestrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
 
 
 
@@ -20114,7 +20220,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 428 migration(s) already in the schema above.
+-- Migration tracker seed — 436 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20555,6 +20661,14 @@ FROM (VALUES
   ('421-halls-feedback-english.sql'),
   ('422-board-scorer-leftovers-english.sql'),
   ('423-teams-wieplay-enabled.sql'),
-  ('424-live-scores-source.sql')
+  ('424-live-scores-source.sql'),
+  ('425-live-history-game-id.sql'),
+  ('426-waive-guest-late-signin-fines.sql'),
+  ('427-remove-guest-deadline-declines.sql'),
+  ('428-games-additional-halls-array.sql'),
+  ('429-staff-rsvp-visibility.sql'),
+  ('430-provisional-from-live-scoring.sql'),
+  ('431-bb-2fach-is-not-a-b.sql'),
+  ('432-notify-staff-recipients.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
