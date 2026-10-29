@@ -201,7 +201,7 @@ const ENVS = {
 }
 
 function psqlApply(env, sqlText) {
-  const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  const cmd = ['ssh', 'kscw-server', 'sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-X', '-v', 'ON_ERROR_STOP=1']
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sqlText, encoding: 'utf-8' })
   if (r.status !== 0) throw new Error(`psql failed:\n${r.stderr || r.stdout}`)

@@ -4,7 +4,7 @@
  * Hallenfinder cache (city_halls + city_hall_availability, migration 242).
  *
  * Zero npm deps (global fetch). Mirrors the clubdesk scrape pattern: emit SQL to
- * stdout and let the caller pipe it into psql on the Hetzner VPS.
+ * stdout and let the caller pipe it into psql on the VPS (kscw-server).
  *
  * Strategy: the city tool has no API, so we scrape its RECURRING ("periodisch")
  * search — ONE query per weekday across the whole season, at the widest window

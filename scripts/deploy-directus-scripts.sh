@@ -39,7 +39,7 @@ case "$TARGET" in
         ROOT_RUN="postgres-autopatch.sh:0700 svrz-sync-verify.mjs:0600 vis-transfer-sync.mjs:0600 vis-player-check.mjs:0600" ;;
   *) echo "usage: scripts/deploy-directus-scripts.sh <dev|prod>" >&2; exit 1 ;;
 esac
-SSH_HOST=hetzner
+SSH_HOST=kscw-server
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"

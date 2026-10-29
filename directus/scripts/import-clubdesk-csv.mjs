@@ -36,7 +36,7 @@ const ENVS = {
 
 const rawArgs = process.argv.slice(2)
 // --local (or CLUBDESK_IMPORT_LOCAL=1): run `docker exec` directly instead of
-// hopping through `ssh hetzner` — used when this runs ON the VPS (e.g. cron).
+// hopping through `ssh kscw-server` — used when this runs ON the VPS (e.g. cron).
 const LOCAL = process.env.CLUBDESK_IMPORT_LOCAL === '1' || rawArgs.includes('--local')
 // --emit-sql: print the psql script to stdout instead of running it, so a caller
 // that can't reach the DB (e.g. the scrape running in a container) can pipe it
@@ -794,7 +794,7 @@ if (EMIT_SQL) {
   const dockerExec = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database,
     '-X', '-v', 'ON_ERROR_STOP=1']
-  const cmd = LOCAL ? dockerExec : ['ssh', 'hetzner', ...dockerExec]
+  const cmd = LOCAL ? dockerExec : ['ssh', 'kscw-server', ...dockerExec]
   const r = spawnSync(cmd[0], cmd.slice(1), { input: psqlInput, encoding: 'utf-8' })
   if (r.status !== 0) {
     console.error('psql failed:')

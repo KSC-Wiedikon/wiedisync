@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # clubdesk-sync.sh — weekly ClubDesk -> Directus member sync, run by cron ON the
-# Hetzner VPS (the host has no node, so everything node-related runs inside the
+# VPS (kscw-server; the host has no node, so everything node-related runs inside the
 # official Playwright container; the host only pipes the result into Postgres).
 #
 # Flow:
