@@ -1510,6 +1510,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                  WHERE em.events_id = ${eventRef} AND em.members_id = ${memberRef})
       OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = ${eventRef})
           AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = ${eventRef})
+          -- Migration 434: a form-only event with no sign-up yet is private, not club-wide.
+          AND NOT EXISTS (SELECT 1 FROM events evp WHERE evp.id = ${eventRef} AND evp.form_signup_only)
           AND EXISTS (SELECT 1 FROM members mm WHERE mm.id = ${memberRef} AND mm.wiedisync_active = true))
     )`
   }
@@ -2633,7 +2635,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       database('events_teams').where('events_id', eventId).count('* as c').first(),
       database('events_members').where('events_id', eventId).count('* as c').first(),
     ])
-    const isClubWide = Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
+    // Migration 434: a form-only event's audience is its sign-ups — never "everyone",
+    // even before the first one (no links at all would otherwise read as club-wide).
+    const isClubWide = !event.form_signup_only
+      && Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
     // Migration 324: with invite_guests off, the team arm is the core roster
     // only. UNION (not UNION ALL) with the invited-members arm, so a guest who
     // was ALSO invited by name still comes through — same per-member rule as
@@ -2728,7 +2733,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             OR EXISTS (SELECT 1 FROM events_members em
                        WHERE em.events_id = e.id AND em.members_id = ?::integer)
             OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = e.id)
-                AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = e.id))
+                AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = e.id)
+                AND NOT e.form_signup_only)
           )
           AND NOT EXISTS (
             SELECT 1 FROM participations p
@@ -7551,6 +7557,46 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       return payload
     }
   })
+
+  // ── Form-only events (migration 434) ─────────────────────────────────────
+  // The RSVP of a `form_signup_only` event is the form submission: POST
+  // /kscw/opnform/v1/signup writes it (raw knex, so none of these filters run)
+  // and the member may not sign in, change or sign out by hand. The event's
+  // managers keep the same reach they have over its invitations (creator, coach /
+  // TR of an attached team, a club role covering it) so a wrong sign-up can be
+  // fixed; full admins return first.
+  async function assertRsvpNotFormManaged(db, accountability, eventIds) {
+    if (!accountability?.user || accountability.admin) return
+    for (const eventId of new Set(eventIds.map(String))) {
+      const ev = await db('events').where('id', eventId).first('form_signup_only')
+      if (!ev?.form_signup_only) continue
+      if (await actorManagesEvent(db, accountability, eventId)) continue
+      if (await actorHasClubRole(db, accountability, EVENT_CLUB_ROLES)
+        && await clubRoleCoversEvent(db, accountability, eventId)) continue
+      throw kscwScopeError('Sign-ups for this event go through its form', 403, 'FORM_SIGNUP_ONLY')
+    }
+  }
+  async function eventIdsOfParticipations(db, keys) {
+    const ids = (Array.isArray(keys) ? keys : [keys]).filter((k) => k != null)
+    if (!ids.length) return []
+    const rows = await db('participations').whereIn('id', ids).where('activity_type', 'event').select('activity_id')
+    return rows.map((r) => r.activity_id)
+  }
+  const formOnlyGate = (label, eventIdsOf) => async (payload, meta, { database: db, accountability }) => {
+    try {
+      await assertRsvpNotFormManaged(db, accountability, await eventIdsOf(db, payload, meta))
+    } catch (err) {
+      if (err?.extensions?.code === 'FORM_SIGNUP_ONLY' || err?.status === 403) throw err
+      log.error({ msg: `[form-signup-gate/${label}] ${err.message}`, event: 'form_signup_gate', stack: err.stack })
+    }
+    return payload
+  }
+  filter('participations.items.create', formOnlyGate('create', async (_db, payload) =>
+    (payload?.activity_type === 'event' && payload.activity_id != null ? [payload.activity_id] : [])))
+  filter('participations.items.update', formOnlyGate('update', (db, _payload, meta) =>
+    eventIdsOfParticipations(db, meta?.keys ?? meta?.key)))
+  filter('participations.items.delete', formOnlyGate('delete', (db, payload) =>
+    eventIdsOfParticipations(db, payload)))
 
   // ── Edit attribution (migration 047, replaces 046) ──────────────────────
   // Per-field trackers: `last_status_edited_*` and `last_note_edited_*`.

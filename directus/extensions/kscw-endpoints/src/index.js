@@ -77,6 +77,7 @@ import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
 import { registerOpnform } from './opnform.js'
+import { registerOpnformMembers } from './opnform-members.js'
 import { registerWadmin } from './wadmin.js'
 import { registerSiteText } from './site-text.js'
 import { registerScorerExam } from './scorer-exam.js'
@@ -2856,6 +2857,7 @@ export default {
     registerHallenfinder(router, ctx)
     registerAudit(router, ctx)
     registerOpnform(router, ctx)
+    registerOpnformMembers(router, ctx)
     registerWadmin(router, ctx)
     registerSiteText(router, ctx)
     registerScorerExam(router, ctx)
