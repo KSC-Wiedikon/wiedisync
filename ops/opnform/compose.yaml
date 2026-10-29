@@ -21,10 +21,13 @@
 # WIEDISYNC_API_URL + WIEDISYNC_SERVICE_TOKEN (Directus holds the token's SHA-256 in
 # OPNFORM_SERVICE_TOKEN_HASH). Nothing on `coolify` answers to postgresql / redis, so DB_HOST and
 # REDIS_HOST still resolve on the project network.
+#
+# Multilingual forms (fork, 30.10.2026): .env also carries DEEPL_API_KEY ("Translate with DeepL" in the
+# editor; a key ending in :fx = DeepL API Free).
 name: opnform
 
 x-api: &api
-  image: ghcr.io/lucanepa/opnform-api:kscw-ab98c4d6
+  image: ghcr.io/lucanepa/opnform-api:kscw-ac4bbe8e
   restart: unless-stopped
   env_file: .env
   volumes:
@@ -72,7 +75,7 @@ services:
       start_period: 70s
 
   opnform-ui:
-    image: ghcr.io/lucanepa/opnform-client:kscw-ab98c4d6
+    image: ghcr.io/lucanepa/opnform-client:kscw-ac4bbe8e
     container_name: opnform-ui
     restart: unless-stopped
     environment:
