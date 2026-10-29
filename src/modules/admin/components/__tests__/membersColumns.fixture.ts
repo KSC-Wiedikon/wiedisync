@@ -9,7 +9,7 @@
 // `deactivated_at`, minus the seven messaging columns dropped with the feature
 // on 2026-09-15 (111), minus `nationalitaet` dropped by migration 418 (110):
 //
-//   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
+//   ssh kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
 //     where table_name='members' order by ordinal_position\""
 //

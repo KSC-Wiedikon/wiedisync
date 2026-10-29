@@ -50,7 +50,7 @@ if [ "$ENV" = "dev" ]; then
     npm run db:smoke:dev || echo "  (dev smoke is flaky — verify via the directus_permissions DB query if it 401s)"
 else
   echo "▶ smoke (prod) skipped — no member token in vault; verify a perms change with:"
-  echo "    ssh hetzner \"sudo docker exec kscw-postgres psql -U postgres -d postgres -c \\\"SELECT count(*) FROM directus_permissions\\\"\""
+  echo "    ssh kscw-server \"sudo docker exec kscw-postgres psql -U postgres -d postgres -c \\\"SELECT count(*) FROM directus_permissions\\\"\""
 fi
 
 echo "✓ $ENV DB deploy complete"

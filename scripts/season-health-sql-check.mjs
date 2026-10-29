@@ -10,7 +10,7 @@
  * Why this exists: the check registry is ~150 static SQL strings that no
  * linter can prove. `node --check` is syntax-only, eslint sees a string,
  * and a wrong column name only surfaces when the endpoint runs it. This
- * pipes each rendered statement into psql (ssh hetzner → docker exec, the
+ * pipes each rendered statement into psql (ssh kscw-server → docker exec, the
  * same path as db:clubdesk:diff) and fails loudly on the first bad one.
  *
  * Every check is executed twice — `count(*)` and `row_to_json … LIMIT n` —
@@ -50,7 +50,7 @@ function psql(sql) {
     // otherwise trip sshd's MaxStartups and fail at random.
     const child = spawn('ssh', [
       '-o', 'ControlMaster=auto', '-o', 'ControlPath=~/.ssh/sockets/%r@%h-%p', '-o', 'ControlPersist=600',
-      'hetzner',
+      'kscw-server',
       `sudo docker exec -i kscw-postgres psql -U supabase_admin -d ${DB} -X -q -At -v ON_ERROR_STOP=1`,
     ])
     let out = ''

@@ -59,7 +59,7 @@ done
 
 say "2/4 replacing the token in the Flow steps that call GitHub"
 # First stdin line = the token; the rest = the remote script (as in directus-set-env.sh)
-{ printf '%s\n' "$TOKEN"; cat <<'REMOTE'; } | ssh hetzner "sudo bash -c 'IFS= read -r TOKEN; export TOKEN; exec bash -s -- $CONT'"
+{ printf '%s\n' "$TOKEN"; cat <<'REMOTE'; } | ssh kscw-server "sudo bash -c 'IFS= read -r TOKEN; export TOKEN; exec bash -s -- $CONT'"
 set -euo pipefail
 CONT=$1
 DB=$(docker exec "$CONT" printenv DB_DATABASE)
@@ -76,7 +76,7 @@ say "3/4 setting GITHUB_PAT (recreates $CONT, which also reloads the flows)"
 printf '%s' "$TOKEN" | bash scripts/directus-set-env.sh "$TARGET" GITHUB_PAT
 
 say "4/4 verifying"
-out=$(ssh hetzner "sudo bash -s -- $CONT" <<'REMOTE'
+out=$(ssh kscw-server "sudo bash -s -- $CONT" <<'REMOTE'
 CONT=$1
 DB=$(docker exec "$CONT" printenv DB_DATABASE </dev/null)
 echo "env $(docker exec "$CONT" printenv GITHUB_PAT </dev/null | tr -d '\n' | sha256sum | cut -c1-8)"

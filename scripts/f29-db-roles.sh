@@ -40,7 +40,7 @@ case "$TARGET" in
   prod) ROLE=directus_prod; DB=postgres;          OTHER_DB=directus_kscw_dev; CONT=directus-kscw;     DIR=/opt/directus-kscw;     PORT=8055 ;;
   *) echo "usage: scripts/f29-db-roles.sh <dev|prod>" >&2; exit 1 ;;
 esac
-SSH_HOST=hetzner
+SSH_HOST=kscw-server
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROLE_SQL_B64=$(base64 -w0 "$REPO_ROOT/directus/scripts/directus-db-role.sql")
 

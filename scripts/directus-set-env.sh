@@ -87,4 +87,4 @@ else
   exit 1
 fi
 REMOTE
-ssh hetzner "sudo bash -c 'IFS= read -r VALUE_B64; export VALUE_B64; exec bash -s -- $TARGET $KEY $CONT $DIR $PORT'"
+ssh kscw-server "sudo bash -c 'IFS= read -r VALUE_B64; export VALUE_B64; exec bash -s -- $TARGET $KEY $CONT $DIR $PORT'"

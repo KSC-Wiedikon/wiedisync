@@ -32,7 +32,7 @@
  *
  * Credentials: the PAT is not in the vault — it lives only on the Directus
  * containers, so the usual invocation is
- *   OPNFORM_PAT=$(ssh hetzner "sudo docker exec directus-kscw printenv OPNFORM_PAT") \
+ *   OPNFORM_PAT=$(ssh kscw-server "sudo docker exec directus-kscw printenv OPNFORM_PAT") \
  *     node directus/scripts/opnform-feedback-export.mjs feedback.csv
  */
 import { writeFileSync } from 'node:fs'
@@ -206,7 +206,7 @@ async function main() {
   const token = process.env.OPNFORM_PAT
   if (!token) {
     console.error('OPNFORM_PAT is not set. It lives on the Directus containers, not in the vault:\n' +
-      '  OPNFORM_PAT=$(ssh hetzner "sudo docker exec directus-kscw printenv OPNFORM_PAT") \\\n' +
+      '  OPNFORM_PAT=$(ssh kscw-server "sudo docker exec directus-kscw printenv OPNFORM_PAT") \\\n' +
       '    node directus/scripts/opnform-feedback-export.mjs feedback.csv')
     process.exit(1)
   }

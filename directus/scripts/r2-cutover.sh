@@ -63,7 +63,7 @@ fi
   exit 2; }
 
 r2() {  # run rclone on the VPS with these creds passed as env only (never written to rclone.conf)
-  ssh -n hetzner "sudo env \
+  ssh -n kscw-server "sudo env \
     RCLONE_CONFIG_X_TYPE=s3 RCLONE_CONFIG_X_PROVIDER=Cloudflare \
     RCLONE_CONFIG_X_ACCESS_KEY_ID='$AKID' RCLONE_CONFIG_X_SECRET_ACCESS_KEY='$SECRET' \
     RCLONE_CONFIG_X_REGION=auto RCLONE_CONFIG_X_ENDPOINT='$ENDPOINT' \
@@ -123,7 +123,7 @@ MISSING=0
 while read -r sz name; do
   [ -z "$name" ] && continue
   grep -qxF "$name" /tmp/r2-names.$$ || { MISSING=$((MISSING+1)); [ "$MISSING" -le 5 ] && echo "    missing: $name"; }
-done < <(ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -tAc \
+done < <(ssh kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -tAc \
   \"SELECT filesize||chr(32)||filename_disk FROM directus_files WHERE filename_disk IS NOT NULL;\"" 2>/dev/null)
 rm -f /tmp/r2-listing.$$ /tmp/r2-names.$$
 
@@ -149,7 +149,7 @@ $DRY_RUN && { echo; echo "DRY RUN — stopping before any change to ${ENV_NAME}.
 # STORAGE_LOCATIONS order matters — the FIRST location is where new uploads go.
 # Keeping `local` defined means any row still saying storage='local' still resolves.
 say "Updating ${ENV_DIR}/.env"
-ssh -n hetzner "sudo bash -c '
+ssh -n kscw-server "sudo bash -c '
   cp ${ENV_DIR}/.env ${ENV_DIR}/.env.pre-r2-\$(date +%Y%m%d-%H%M%S)
   chmod 0600 ${ENV_DIR}/.env.pre-r2-*
   sed -i \"/^STORAGE_/d\" ${ENV_DIR}/.env
@@ -173,7 +173,7 @@ echo "          R2 rejects both. Encryption at rest is automatic and uncondition
 
 # ── 4. recreate the container (env-file changes need stop/rm/run, not restart) ───────
 # docker restart does NOT re-read an --env-file, so this must be a full recreate.
-# Canonical run line: INFRA.md → Hetzner VPS Management. Brief downtime.
+# Canonical run line: INFRA.md → VPS management (kscw-server). Brief downtime.
 if [ "$ENV_NAME" = "prod" ]; then
   PORT=8055; IMG=directus/directus:12.1.1
 else
@@ -185,7 +185,7 @@ say "Recreating ${CONTAINER} — BRIEF DOWNTIME (env-file changes need a full re
 # recreated. The script would sail on to flip directus_files to storage='r2' against a
 # container that has no r2 location configured, 500ing every asset. That happened on dev
 # on 2026-07-13. Every OTHER ssh in this script keeps -n (they must not eat the loop's stdin).
-ssh hetzner "sudo bash -s" <<EOF
+ssh kscw-server "sudo bash -s" <<EOF
 set -e
 docker stop ${CONTAINER} && docker rm ${CONTAINER}
 docker run -d \
@@ -207,13 +207,13 @@ EOF
 
 # ── 5. flip the rows ────────────────────────────────────────────────────────────────
 say "Pointing directus_files at r2"
-ssh -n hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -c \
+ssh -n kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -c \
   \"UPDATE directus_files SET storage='r2' WHERE storage='local';\"" 2>/dev/null | sed 's/^/    /'
 
 # ── 6. prove it actually serves ─────────────────────────────────────────────────────
 say "Verifying assets serve from R2"
 [ "$ENV_NAME" = "prod" ] && BASE=https://directus.kscw.ch || BASE=https://directus-dev.kscw.ch
-FID=$(ssh -n hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -tAc \
+FID=$(ssh -n kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d ${DB} -tAc \
   \"SELECT id FROM directus_files WHERE folder IS NULL AND type LIKE 'image/%' LIMIT 1;\"" 2>/dev/null | tr -d '[:space:]')
 CODE=$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/assets/${FID}")
 echo "    GET ${BASE}/assets/${FID} -> HTTP ${CODE}"

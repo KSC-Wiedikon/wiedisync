@@ -6,7 +6,7 @@
 # This is the UNATTENDED sibling of refresh-dev-from-prod.sh:
 #   • refresh-dev-from-prod.sh runs FROM a dev machine (SSHes in, then runs
 #     `npm run db:migrate:dev` to reconcile dev-ahead schema).
-#   • THIS script runs ON the Hetzner VPS as root (cron), fully self-contained —
+#   • THIS script runs ON the VPS (kscw-server) as root (cron), fully self-contained —
 #     no SSH-to-self, no node/npm. It mirrors that script's VPS-side phase
 #     MINUS the migrate reconcile.
 #

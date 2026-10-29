@@ -106,8 +106,8 @@ echo "  deps:   npm ci"
 npm --prefix "$SRC/kscw-endpoints" ci --silent
 
 echo "  rsync:  → ${CONTAINER}:${DEST}"
-rsync -az --delete "$SRC/" "hetzner:/tmp/kscw-extensions-${TARGET}/"
-ssh hetzner "sudo rsync -a --delete /tmp/kscw-extensions-${TARGET}/ ${DEST} && sudo docker restart ${CONTAINER}" >/dev/null
+rsync -az --delete "$SRC/" "kscw-server:/tmp/kscw-extensions-${TARGET}/"
+ssh kscw-server "sudo rsync -a --delete /tmp/kscw-extensions-${TARGET}/ ${DEST} && sudo docker restart ${CONTAINER}" >/dev/null
 
 echo "  smoke:  ${SMOKE_URL}"
 curl -fsS --retry 12 --retry-delay 3 --retry-all-errors "$SMOKE_URL" -o /dev/null

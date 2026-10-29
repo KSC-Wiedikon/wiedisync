@@ -69,12 +69,12 @@ const ENVS = {
 }
 
 function psqlBase(env, extra) {
-  // KSCW_LOCAL_PSQL=1 when running ON the VPS — `ssh hetzner` from the VPS would
+  // KSCW_LOCAL_PSQL=1 when running ON the VPS — `ssh kscw-server` from the VPS would
   // just loop back to itself.
   const local = process.env.KSCW_LOCAL_PSQL === '1'
   const base = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, ...extra, '-X', '-v', 'ON_ERROR_STOP=1']
-  return local ? base : ['ssh', 'hetzner', ...base]
+  return local ? base : ['ssh', 'kscw-server', ...base]
 }
 
 function run(cmd, sql) {

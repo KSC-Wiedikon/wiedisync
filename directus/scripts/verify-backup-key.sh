@@ -100,10 +100,10 @@ echo "==> Fetching ${CHUNK} bytes of the newest real archive from the VPS"
 # kscw_20* = the 6-hourly main dump. Not *.sql.gz.gpg: since the WiePlay dumps (wieplay_*, until
 # 17.10.2026 nomal_*; a few KB) joined the same run, the newest file is often one of those and
 # can never pass the size check.
-LATEST="$(ssh hetzner "sudo ls -1t /data/backups/kscw_20*.sql.gz.gpg 2>/dev/null | head -1" | tr -d '\r')"
+LATEST="$(ssh kscw-server "sudo ls -1t /data/backups/kscw_20*.sql.gz.gpg 2>/dev/null | head -1" | tr -d '\r')"
 [ -n "$LATEST" ] || { echo "FAIL: no .sql.gz.gpg found in /data/backups"; exit 1; }
 echo "    $LATEST"
-ssh hetzner "sudo head -c $CHUNK '$LATEST'" > "$WORK/chunk.gpg" 2>/dev/null
+ssh kscw-server "sudo head -c $CHUNK '$LATEST'" > "$WORK/chunk.gpg" 2>/dev/null
 
 echo "==> Decrypting (a truncation error at the tail is expected and harmless)"
 rbw get "GPG - KSCW Backup Encryption" --folder "$FOLDER" > "$WORK/pw" 2>/dev/null

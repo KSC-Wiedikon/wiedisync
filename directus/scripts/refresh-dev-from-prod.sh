@@ -4,7 +4,7 @@
 # scrubbed copy of prod, so dev has realistic data for testing.
 #
 # Prod (`postgres`) and dev (`directus_kscw_dev`) live in the SAME Postgres
-# container on Hetzner, so the clone is an in-container pg_dump | psql — no
+# container on the VPS (kscw-server), so the clone is an in-container pg_dump | psql — no
 # data ever leaves the VPS.
 #
 # What it does, in order:
@@ -76,7 +76,7 @@ if ! [[ "$PREFLIGHT_OWNERS" =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]] \
   exit 1
 fi
 
-SSH_HOST=hetzner
+SSH_HOST=kscw-server
 PGC=kscw-postgres
 PROD_DB=postgres
 DEV_DB=directus_kscw_dev
