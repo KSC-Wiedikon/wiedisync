@@ -33,7 +33,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
   const { t } = useTranslation('calendar')
   const { t: tTrainings } = useTranslation('trainings')
   const { t: tEvents } = useTranslation('events')
-  const { user, getGuestLevel, memberTeamIds } = useAuth()
+  const { user, getGuestLevel, memberTeamIds, coachTeamIds } = useAuth()
   const [editingAbsence, setEditingAbsence] = useState(false)
 
   useEffect(() => {
@@ -204,7 +204,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
           {entry.type === 'event' && user && (() => {
             const ev = entry.source as KscwEvent
             // Migration 324 — same gate as the event card / detail modal.
-            const guestExcluded = isGuestExcludedFromEvent(ev, { memberId: user.id, memberTeamIds, getGuestLevel })
+            const guestExcluded = isGuestExcludedFromEvent(ev, { memberId: user.id, memberTeamIds, getGuestLevel, staffTeamIds: coachTeamIds })
             return (
             <div className="border-t border-border px-6 py-4 space-y-3">
               {guestExcluded ? (

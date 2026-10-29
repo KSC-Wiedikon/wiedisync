@@ -11,6 +11,8 @@
  * via `sendBroadcastError` (or any local equivalent).
  */
 
+import { teamPeopleSql, notGuestAnywhereSql } from './activity-roster-sql.js'
+
 // ─── Error wrapper ───────────────────────────────────────────────────────────
 
 export class BroadcastError extends Error {
@@ -375,15 +377,25 @@ export async function resolveAudience(database, activityType, activityId, audien
  * Resolve the "unanswered / no reply" audience for an activity: the eligible
  * roster MINUS every member who already has a participation row (any status).
  *
- * Eligibility mirrors the auto-confirm seeding in kscw-hooks so the broadcast
- * audience lines up with who the RSVP system considers in-scope:
- *   training — members of the team (`member_teams.team = trainings.team`),
- *              excluding guest levels in `excluded_guest_levels`.
- *   game     — members of the team (`member_teams.team = games.kscw_team`),
- *              guest_level = 0 only (guests can't RSVP to games).
+ * Eligibility mirrors the auto-confirm sweeps (training-auto-confirm-sweep.js,
+ * game-auto-confirm-sweep.js) and event-notify, so the broadcast audience
+ * lines up with who the RSVP system considers in-scope. "On the team" is
+ * `teamPeopleSql` — players ∪ staff-only coaches / team responsibles — never
+ * a bare `member_teams` join, which is the PLAYER roster: a coach who doesn't
+ * play holds no row there and was never reachable as "unanswered".
+ *   training — team people of `trainings.team`, excluding guest levels in
+ *              `excluded_guest_levels` (staff carry guest_level 0).
+ *   game     — team people of `games.kscw_team` with guest_level = 0 (guests
+ *              can't RSVP to games). Staff additionally pass
+ *              `notGuestAnywhereSql`: a coach who guests for another team is
+ *              refused a confirmed game RSVP by the guest-block trigger, and
+ *              the sweep skips them too. Players are filtered on their own row
+ *              only, exactly as before.
  *   event    — club-wide events (no team & no member junction) → all active
- *              members; otherwise `events_teams ∪ events_members`, with the
- *              team arm narrowed to the core roster when `invite_guests` is off.
+ *              members; otherwise team people of `events_teams` ∪
+ *              `events_members`, with the team arm narrowed to the core roster
+ *              when `invite_guests` is off (staff are never guests, so they
+ *              stay in — same as event-notify).
  *
  * `wiedisync_active = true` is enforced throughout. Returns a number[] of
  * member ids.
@@ -394,14 +406,14 @@ export async function resolveUnansweredMembers(database, activityType, activityI
 
   if (activityType === 'training') {
     rows = await database.raw(`
-      SELECT m.id
+      SELECT DISTINCT m.id
       FROM trainings t
-      JOIN member_teams mt ON mt.team = t.team
-      JOIN members m ON m.id = mt.member
+      JOIN LATERAL ${teamPeopleSql('t.team')} e ON true
+      JOIN members m ON m.id = e.member
       WHERE t.id = ?::integer
         AND m.wiedisync_active = true
         AND (t.excluded_guest_levels IS NULL
-             OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
+             OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(e.guest_level)))
         AND NOT EXISTS (
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = m.id
@@ -409,13 +421,14 @@ export async function resolveUnansweredMembers(database, activityType, activityI
     `, [activityId, idText])
   } else if (activityType === 'game') {
     rows = await database.raw(`
-      SELECT m.id
+      SELECT DISTINCT m.id
       FROM games g
-      JOIN member_teams mt ON mt.team = g.kscw_team
-      JOIN members m ON m.id = mt.member
+      JOIN LATERAL ${teamPeopleSql('g.kscw_team')} e ON true
+      JOIN members m ON m.id = e.member
       WHERE g.id = ?::integer
         AND m.wiedisync_active = true
-        AND mt.guest_level = 0
+        AND e.guest_level = 0
+        AND (e.is_staff = false OR ${notGuestAnywhereSql('e.member')})
         AND NOT EXISTS (
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = m.id
@@ -444,11 +457,12 @@ export async function resolveUnansweredMembers(database, activityType, activityI
         FROM (
           -- Migration 324: invite_guests off → core roster only. UNION with the
           -- named-invite arm below, so a guest invited by name still counts.
-          SELECT mt.member FROM events_teams et
-            JOIN member_teams mt ON mt.team = et.teams_id
+          -- Team people = players ∪ staff-only coaches/TRs (guest_level 0).
+          SELECT tp.member FROM events_teams et
             JOIN events ev ON ev.id = et.events_id
+            JOIN LATERAL ${teamPeopleSql('et.teams_id')} tp ON true
             WHERE et.events_id = ?::integer
-              AND (ev.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0)
+              AND (ev.invite_guests IS NOT FALSE OR tp.guest_level = 0)
           UNION
           SELECT em.members_id AS member FROM events_members em
             WHERE em.events_id = ?::integer

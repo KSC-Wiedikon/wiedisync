@@ -13,6 +13,7 @@ import {
   validateBroadcastPayload,
   checkRateLimit,
   resolveAudience,
+  resolveUnansweredMembers,
 } from '../broadcast-helpers.js'
 
 // ─── Knex mock helpers ───────────────────────────────────────────────────────
@@ -306,5 +307,58 @@ describe('resolveAudience', () => {
     })
     expect(result.memberIds).toEqual([21, 22])
     expect(result.externals).toEqual([])
+  })
+})
+
+describe('resolveUnansweredMembers', () => {
+  /** A db whose `.raw` records the SQL + binds and returns the given ids. */
+  function makeRawDb(ids, { teamCount = 1, memberCount = 0 } = {}) {
+    const calls = []
+    const db = makeDb({
+      events_teams: [{ c: teamCount }],
+      events_members: [{ c: memberCount }],
+    })
+    db.raw = async (sql, binds) => {
+      calls.push({ sql, binds })
+      return { rows: ids.map(id => ({ id: String(id) })) }
+    }
+    return { db, calls }
+  }
+
+  // Staff (coaches / team responsibles) hold no member_teams row; a bare
+  // member_teams join silently meant "players only" (2026-10-28).
+  const expectsTeamPeople = (sql) => {
+    expect(sql).toContain('teams_coaches')
+    expect(sql).toContain('teams_responsibles')
+    expect(sql).not.toMatch(/JOIN member_teams mt ON mt\.team = /)
+  }
+
+  it('training: team people (players ∪ staff), excluded_guest_levels still applies', async () => {
+    const { db, calls } = makeRawDb([226, 272])
+    const ids = await resolveUnansweredMembers(db, 'training', 2873)
+    expect(ids).toEqual([226, 272])
+    expect(calls).toHaveLength(1)
+    expectsTeamPeople(calls[0].sql)
+    expect(calls[0].sql).toContain('excluded_guest_levels')
+    expect(calls[0].binds).toEqual([2873, '2873'])
+  })
+
+  it('game: guest_level = 0, staff additionally guarded by notGuestAnywhere', async () => {
+    const { db, calls } = makeRawDb([336])
+    const ids = await resolveUnansweredMembers(db, 'game', 691)
+    expect(ids).toEqual([336])
+    expectsTeamPeople(calls[0].sql)
+    expect(calls[0].sql).toContain('e.guest_level = 0')
+    expect(calls[0].sql).toMatch(/e\.is_staff = false OR NOT EXISTS/)
+    expect(calls[0].binds).toEqual([691, '691'])
+  })
+
+  it('team-scoped event: the events_teams arm uses team people too', async () => {
+    const { db, calls } = makeRawDb([5])
+    const ids = await resolveUnansweredMembers(db, 'event', 22)
+    expect(ids).toEqual([5])
+    expectsTeamPeople(calls[0].sql)
+    expect(calls[0].sql).toContain('events_members')
+    expect(calls[0].binds).toEqual([22, 22, '22'])
   })
 })

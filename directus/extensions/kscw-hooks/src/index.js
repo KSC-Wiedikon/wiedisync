@@ -1495,17 +1495,38 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // core player on another still matches, and the events_members arm below is
   // untouched, so a named personal invite outranks the switch. IS NOT FALSE (not
   // `= true`) so a NULL from a pre-324 row still reads as "invited".
+  //
+  // The team arm is `teamPeopleSql` (2026-10-28; was a bare member_teams join):
+  // a coach / team responsible of an invited team is invited too, exactly as
+  // the frontend shows them the event. Staff carry guest_level 0, so the
+  // invite_guests switch never drops them.
   function eventEligibilitySql(eventRef, memberRef) {
     return `(
-      EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt ON mt.team = et.teams_id
+      EXISTS (SELECT 1 FROM events_teams et JOIN LATERAL ${teamPeopleSql('et.teams_id')} mt ON true
               JOIN events ev ON ev.id = et.events_id
               WHERE et.events_id = ${eventRef} AND mt.member = ${memberRef}
-                AND (ev.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0))
+                AND (ev.invite_guests IS NOT FALSE OR mt.guest_level = 0))
       OR EXISTS (SELECT 1 FROM events_members em
                  WHERE em.events_id = ${eventRef} AND em.members_id = ${memberRef})
       OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = ${eventRef})
           AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = ${eventRef})
           AND EXISTS (SELECT 1 FROM members mm WHERE mm.id = ${memberRef} AND mm.wiedisync_active = true))
+    )`
+  }
+
+  // `is_staff` for an event RSVP — the backend twin of the frontend's
+  // `isStaffOnlyForTeams(event.teams)`: coach / TR of an invited team and on
+  // none of the invited rosters. Keeps an auto-written staff row out of the
+  // player tallies, the same as the one EventCard writes by hand.
+  function eventStaffOnlySql(eventRef, memberRef) {
+    return `(
+      EXISTS (SELECT 1 FROM events_teams et
+              JOIN (SELECT teams_id, members_id FROM teams_coaches
+                    UNION SELECT teams_id, members_id FROM teams_responsibles) s
+                ON s.teams_id = et.teams_id
+              WHERE et.events_id = ${eventRef} AND s.members_id = ${memberRef})
+      AND NOT EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt ON mt.team = et.teams_id
+                      WHERE et.events_id = ${eventRef} AND mt.member = ${memberRef})
     )`
   }
 
@@ -1735,7 +1756,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
         const ins = await database.raw(`
           INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz
           FROM events e
           JOIN absences a ON a.id = ?::integer
           WHERE (e.participation_mode IS NULL OR e.participation_mode = 'whole')
@@ -1752,7 +1773,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
         const insSessions = await database.raw(`
           INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
-          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
           FROM events e
           JOIN event_sessions s ON s.event = e.id
           JOIN absences a ON a.id = ?::integer
@@ -2617,11 +2638,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // only. UNION (not UNION ALL) with the invited-members arm, so a guest who
     // was ALSO invited by name still comes through — same per-member rule as
     // eventEligibilitySql.
-    const guestClause = event.invite_guests === false ? 'AND COALESCE(mt.guest_level, 0) = 0' : ''
+    // The team arm is players ∪ staff (teamPeopleSql) — see eventEligibilitySql.
+    const guestClause = event.invite_guests === false ? 'AND mt.guest_level = 0' : ''
     const eligibleSql = isClubWide
       ? `SELECT m.id AS member FROM members m WHERE m.wiedisync_active = true`
       : `SELECT mt.member FROM events_teams et
-           JOIN member_teams mt ON mt.team = et.teams_id
+           JOIN LATERAL ${teamPeopleSql('et.teams_id')} mt ON true
            WHERE et.events_id = ?::integer ${guestClause}
          UNION
          SELECT em.members_id AS member FROM events_members em
@@ -2629,7 +2651,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const eligibleParams = isClubWide ? [] : [eventId, eventId]
     const ins = await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-      SELECT DISTINCT e.member, 'event', ?::text, 'confirmed', '', 0, false
+      SELECT DISTINCT e.member, 'event', ?::text, 'confirmed', '', 0,
+             ${eventStaffOnlySql('?::integer', 'e.member')}
       FROM (${eligibleSql}) e
       JOIN members m ON m.id = e.member
       WHERE m.auto_confirm_events = true
@@ -2638,7 +2661,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = e.member
         )
       ON CONFLICT DO NOTHING
-    `, [String(eventId), ...eligibleParams, String(eventId)])
+    `, [String(eventId), eventId, eventId, ...eligibleParams, String(eventId)])
     return ins?.rowCount || 0
   }
 
@@ -2692,16 +2715,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (type === 'event') {
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-        SELECT DISTINCT ?::integer, 'event', e.id::text, 'confirmed', '', 0, false
+        SELECT DISTINCT ?::integer, 'event', e.id::text, 'confirmed', '', 0,
+               ${eventStaffOnlySql('e.id', '?::integer')}
         FROM events e
         WHERE e.cancelled = false
           AND (e.participation_mode IS NULL OR e.participation_mode = 'whole')
           AND e.start_date::date >= ?::date
           AND (
-            EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt
-                      ON mt.team = et.teams_id
+            EXISTS (SELECT 1 FROM events_teams et JOIN LATERAL ${teamPeopleSql('et.teams_id')} mt ON true
                     WHERE et.events_id = e.id AND mt.member = ?::integer
-                      AND (e.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0))
+                      AND (e.invite_guests IS NOT FALSE OR mt.guest_level = 0))
             OR EXISTS (SELECT 1 FROM events_members em
                        WHERE em.events_id = e.id AND em.members_id = ?::integer)
             OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = e.id)
@@ -2712,7 +2735,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = ?::integer
           )
         ON CONFLICT DO NOTHING
-      `, [memberId, today, memberId, memberId, memberId])
+      `, [memberId, memberId, memberId, today, memberId, memberId, memberId])
       return res?.rowCount || 0
     }
     return 0
@@ -2853,7 +2876,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (mode !== 'whole') {
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
-        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
         FROM events e
         JOIN event_sessions s ON s.event = e.id
         JOIN absences a ON a.start_date::date <= s.date AND a.end_date::date >= s.date
@@ -2881,7 +2904,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (!dateStr) return 0
     const res = await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-      SELECT DISTINCT ON (a.member) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+      SELECT DISTINCT ON (a.member) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz
       FROM events e
       JOIN absences a ON a.start_date::date <= ?::date AND a.end_date::date >= ?::date
       WHERE e.id = ?::integer
@@ -2922,8 +2945,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           (p.auto_declined_by IS NOT NULL AND p.waitlisted_at = '1970-01-01 00:00:00+00'::timestamptz)
           OR (p.status = 'confirmed' AND p.auto_declined_by IS NULL
               AND p.last_status_edited_by IS NULL AND p.last_status_edited_at IS NULL
-              AND COALESCE(p.note, '') = '' AND COALESCE(p.guest_count, 0) = 0
-              AND p.is_staff IS NOT TRUE)
+              AND COALESCE(p.note, '') = '' AND COALESCE(p.guest_count, 0) = 0)
+              -- (No is_staff guard since 2026-10-28: autoConfirmEvent now writes
+              -- staff rows too, and a hand-made one is stamped like any other.)
         )
         AND NOT ${eventEligibilitySql('p.activity_id::integer', 'p.member')}
       RETURNING p.member, p.status
@@ -3962,11 +3986,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               AND et.events_id = ?::integer
               AND mt.team = et.teams_id
               AND COALESCE(mt.guest_level, 0) > 0
-              -- Core on ANY invited team, or invited by name → still invited.
+              -- Core or staff on ANY invited team, or invited by name → still invited.
               AND NOT EXISTS (
-                SELECT 1 FROM events_teams et2 JOIN member_teams mt2 ON mt2.team = et2.teams_id
+                SELECT 1 FROM events_teams et2 JOIN LATERAL ${teamPeopleSql('et2.teams_id')} mt2 ON true
                 WHERE et2.events_id = ?::integer AND mt2.member = p.member
-                  AND COALESCE(mt2.guest_level, 0) = 0
+                  AND mt2.guest_level = 0
               )
               AND NOT EXISTS (
                 SELECT 1 FROM events_members em
@@ -4163,7 +4187,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Sentinel waitlisted_at marks these auto-decline-created → unwind DELETEs.
       const t3 = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT DISTINCT ON (a.member, e.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        SELECT DISTINCT ON (a.member, e.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM events e
         JOIN absences a ON a.start_date::date <= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
                        AND a.end_date::date >= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
@@ -4187,7 +4211,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // is not.
       const t4 = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
-        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, ${eventStaffOnlySql('e.id', 'a.member')}, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
         FROM events e
         JOIN event_sessions s ON s.event = e.id
         JOIN absences a ON a.start_date::date <= s.date AND a.end_date::date >= s.date
@@ -4904,13 +4928,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                'event', e.id::text, et.teams_id, false
         FROM events e
         JOIN events_teams et ON et.events_id = e.id
-        JOIN member_teams mt ON mt.team = et.teams_id
+        -- Players ∪ coaches / team responsibles (was member_teams alone).
+        JOIN LATERAL ${teamPeopleSql('et.teams_id')} mt ON true
         LEFT JOIN halls h ON h.id = e.hall
         WHERE (e.start_date AT TIME ZONE 'Europe/Zurich')::date = ?::date
           -- Migration 324: don't remind a guest about an event they were not
           -- invited to. Per member (a core row on any other invited team of the
           -- same event keeps them in), which the DISTINCT above already folds.
-          AND (e.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0)
+          AND (e.invite_guests IS NOT FALSE OR mt.guest_level = 0)
       `, [tomorrowStr])
 
       log.info('Daily notification reminders sent')
@@ -7426,6 +7451,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         if (rows.length === 0) return
         // Core player on at least one invited team → invited.
         if (rows.some((r) => Number(r.guest_level || 0) === 0)) return
+        // Coach / team responsible of an invited team → invited (staff carry no
+        // guest level; frontend: `staffTeamIds` in isGuestExcludedFromEvent).
+        const invitedTeams = db('events_teams').where('events_id', payload.activity_id).select('teams_id')
+        const staff = await db('teams_coaches').whereIn('teams_id', invitedTeams).andWhere('members_id', payload.member).first('id')
+          || await db('teams_responsibles').whereIn('teams_id', invitedTeams).andWhere('members_id', payload.member).first('id')
+        if (staff) return
         // A personal invite outranks the team-level switch.
         const named = await db('events_members')
           .where('events_id', payload.activity_id)
@@ -7605,12 +7636,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Active teams only (security audit 2026-09-28): the coach/TR junction
       // lingers on an archived team after rollover, and the policy-side twin
       // of this walk was already active-gated (SECURITY.md 2026-08-12).
-      const teamIds = (await db('member_teams')
-        .join('teams', 'teams.id', 'member_teams.team')
-        .where('member_teams.member', affectedMemberId)
-        .andWhere('teams.active', true)
-        .select('member_teams.team'))
-        .map((r) => r.team).filter(Boolean)
+      // The member's teams are roster ∪ staff seats: a coach/TR who doesn't
+      // play has no member_teams row, so a roster-only walk left them with no
+      // teams and threw NOT_OWNER at the head coach, the TR and the sport
+      // admin alike when they entered that coach's absence (2026-10-28).
+      const [roster, coached, responsible] = await Promise.all([
+        db('member_teams').where('member', affectedMemberId).select('team'),
+        db('teams_coaches').where('members_id', affectedMemberId).select('teams_id'),
+        db('teams_responsibles').where('members_id', affectedMemberId).select('teams_id'),
+      ])
+      const candidateIds = [...new Set([
+        ...roster.map((r) => r.team), ...coached.map((r) => r.teams_id), ...responsible.map((r) => r.teams_id),
+      ].filter(Boolean).map(String))]
+      const teamIds = candidateIds.length
+        ? (await db('teams').whereIn('id', candidateIds).andWhere('active', true).select('id')).map((r) => r.id)
+        : []
       if (teamIds.length) {
         const isCoach = await db('teams_coaches').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
         const isTR = isCoach || await db('teams_responsibles').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()

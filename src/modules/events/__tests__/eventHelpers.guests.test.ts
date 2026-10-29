@@ -52,6 +52,12 @@ describe('isGuestExcludedFromEvent', () => {
     expect(isGuestExcludedFromEvent(event, ctx({ '3': 1 }, '9'))).toBe(true)
   })
 
+  it('invites a coach or team responsible of an invited team, even one who guests on another', () => {
+    const event = { invite_guests: false, teams: ['3', '5'] }
+    expect(isGuestExcludedFromEvent(event, { ...ctx({ '3': 2 }), staffTeamIds: ['5'] })).toBe(false)
+    expect(isGuestExcludedFromEvent(event, { ...ctx({ '3': 2 }), staffTeamIds: ['9'] })).toBe(true)
+  })
+
   it('reads expanded and bare junction shapes for teams and invited members', () => {
     const event = {
       invite_guests: false,

@@ -48,12 +48,12 @@ type BannerStatus = Participation['status'] | 'mixed'
 
 export default function EventCard({ event, onClick, onEdit, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
   const { t } = useTranslation('events')
-  const { user, canParticipateIn, memberTeamIds, getGuestLevel } = useAuth()
+  const { user, canParticipateIn, memberTeamIds, coachTeamIds, getGuestLevel } = useAuth()
   const teams = asTeams(event.teams)
   // Migration 324: `invite_guests: false` drops the invited teams' guest players
   // from the audience — they still SEE the event (the read policy is unchanged),
   // they just can't answer it. Same shape as a training's excluded guest tier.
-  const guestExcluded = isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel })
+  const guestExcluded = isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel, staffTeamIds: coachTeamIds })
   // Club-wide events (no teams): all logged-in users can RSVP
   // Team events: only members of those teams can RSVP
   const canRSVP = user && !guestExcluded && (
