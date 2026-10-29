@@ -101,7 +101,7 @@ function psql(env, sql) {
   const local = process.env.KSCW_LOCAL_PSQL === '1'
   const base = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-tA', '-X', '-v', 'ON_ERROR_STOP=1']
-  const cmd = local ? base : ['ssh', 'hetzner', ...base]
+  const cmd = local ? base : ['ssh', 'kscw-server', ...base]
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sql, encoding: 'utf-8' })
   if (r.status !== 0) throw new Error(`psql failed:\n${r.stderr || r.stdout}`)
   return r.stdout

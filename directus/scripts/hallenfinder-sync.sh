@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # hallenfinder-sync.sh — nightly City-of-Zürich hall-availability scrape, run by
-# cron ON the Hetzner VPS. The host has no node, so the scrape runs inside the
+# cron ON the VPS (kscw-server). The host has no node, so the scrape runs inside the
 # Playwright image (present for clubdesk-sync); the host only pipes the emitted
 # SQL into Postgres via `docker exec`.
 #

@@ -330,7 +330,7 @@ export const ENVS = Object.freeze({
 
 /** psql over ssh, SQL on stdin (never `-c`: ssh re-splits argv). Read-only. */
 export function fetchCatalog(env) {
-  const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  const cmd = ['ssh', 'kscw-server', 'sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-t', '-A', '-X', '-q', '-v', 'ON_ERROR_STOP=1']
   const sql = `BEGIN READ ONLY;\n${CATALOG_SQL}\nROLLBACK;\n`
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sql, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 })

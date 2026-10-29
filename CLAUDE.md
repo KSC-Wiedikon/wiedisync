@@ -103,11 +103,11 @@ The "every audit pass breaks something" loop comes from treating permissions as 
 If a future change tempts you to add a permission row in a numbered SQL file: stop. Update `setup-permissions.mjs` instead and let the next deploy reconcile. If you need a permission *fix on prod NOW*, either run `npm run db:setup-perms:prod` or apply the SQL by hand AND update the script in the same commit.
 
 ## SSH to VPS
-- `ssh hetzner` (alias in `~/.ssh/config`) — since 26.10.2026 it points at the Infomaniak VPS (Switzerland); the alias keeps its old name until it is renamed
+- `ssh kscw-server` (alias in `~/.ssh/config`) — the Infomaniak VPS (Switzerland), live since 26.10.2026. `ssh hetzner-old` is the old Hetzner box (KSCW services stopped, grace period) — never a deploy target
 - Containers: `directus-kscw` (8055), `directus-kscw-dev` (8056)
-- Restart: `ssh hetzner "sudo docker restart directus-kscw"`
-- Logs: `ssh hetzner "sudo docker logs --tail 30 directus-kscw"`
-- See `INFRA.md → Hetzner VPS Management`.
+- Restart: `ssh kscw-server "sudo docker restart directus-kscw"`
+- Logs: `ssh kscw-server "sudo docker logs --tail 30 directus-kscw"`
+- See `INFRA.md → VPS management (kscw-server)`.
 
 ## Domains
 - `kscw.ch` — Public website (Astro, CF Pages project **`kscw-web`** in the club Cloudflare account, Direct Upload, deployed by GitHub Actions) since the 2026-06-18 cutover — no longer ClubDesk. `kscw-website.pages.dev` (old project in Luca's personal account) 302-redirects here.

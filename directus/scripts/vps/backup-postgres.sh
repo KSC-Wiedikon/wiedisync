@@ -130,7 +130,7 @@ else
 fi
 
 # NAS copy: since 16.10.2026 this server no longer pushes to Luca's NAS. The VPS belongs to
-# the club's Hetzner account, so it must hold no key to his home network; his lenovoserver
+# the club's Infomaniak account, so it must hold no key to his home network; his lenovoserver
 # PULLS the encrypted files instead (kscw-backup-pull.timer there, 40 min after each run).
 
 SUMMARY=$(IFS=,; echo "${OFFSITE[*]}" | sed 's/,/, /g')

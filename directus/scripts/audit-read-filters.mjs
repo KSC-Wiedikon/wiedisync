@@ -45,7 +45,7 @@ const TARGET = process.argv[2] === 'dev' ? 'dev' : 'prod'
 const DB = TARGET === 'dev' ? 'directus_kscw_dev' : 'postgres'
 const SEP = '~~~' // NOT \t — a backslash escape does not survive the ssh shell hop
 
-const psql = (sql) => execFileSync('ssh', ['hetzner',
+const psql = (sql) => execFileSync('ssh', ['kscw-server',
   `sudo docker exec -i kscw-postgres psql -U supabase_admin -d ${DB} -tA -F'${SEP}' -c "${sql.replace(/\s+/g, ' ')}"`,
 ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 
