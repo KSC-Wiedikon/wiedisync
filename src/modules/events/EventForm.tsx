@@ -167,6 +167,9 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [invitedRoles, setInvitedRoles] = useState<string[]>([])
   const [invitedMembers, setInvitedMembers] = useState<string[]>([])
   const [sendEmailInvite, setSendEmailInvite] = useState(false)
+  // Migration 434: private sign-up event — the audience is whoever submits the
+  // linked form (the server adds them); nobody is invited from here.
+  const [formSignupOnly, setFormSignupOnly] = useState(false)
   const [jsRelevant, setJsRelevant] = useState(false)
   // Car pooling board (migration 378) — per event, default off.
   const [carpoolEnabled, setCarpoolEnabled] = useState(false)
@@ -262,6 +265,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         })
       )
       setSendEmailInvite(event.send_email_invite ?? false)
+      setFormSignupOnly(event.form_signup_only === true)
       setInviteGuests(event.invite_guests !== false)
       setJsRelevant(!!event.js_relevant)
       setCarpoolEnabled(event.carpool_enabled === true)
@@ -505,7 +509,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       return
     }
     // Nobody invited is not "everyone invited" any more — that is the toggle.
-    if (!wholeClub && selectedTeams.length === 0 && invitedMembers.length === 0 && invitedRoles.length === 0) {
+    // A form-only event starts with nobody: its audience is the form's sign-ups.
+    if (!formSignupOnly && !wholeClub && selectedTeams.length === 0 && invitedMembers.length === 0 && invitedRoles.length === 0) {
       setError(t('audienceRequired'))
       return
     }
@@ -541,7 +546,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       meeting_time: meetingTime || null,
       location,
       description,
-      teams: m2mUpdatePayload('teams_id', audienceTeams, event?.teams),
+      teams: m2mUpdatePayload('teams_id', formSignupOnly ? EMPTY_IDS : audienceTeams, event?.teams),
       // The creator, set once. Re-sending it on every save made whoever last edited
       // the event its creator (event 33: an admin's fix took it from the coach).
       ...(event ? {} : { created_by: user?.id }),
@@ -554,9 +559,15 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       allow_maybe: allowMaybe,
       participation_mode: effectiveMode,
       features_enabled: { position_preferences: enablePositions },
-      invited_roles: !wholeClub && invitedRoles.length > 0 ? invitedRoles : null,
-      invited_members: m2mUpdatePayload('members_id', wholeClub ? EMPTY_IDS : invitedMembers, event?.invited_members),
-      send_email_invite: sendEmailInvite,
+      invited_roles: !formSignupOnly && !wholeClub && invitedRoles.length > 0 ? invitedRoles : null,
+      // A form-only event's invited members ARE its sign-ups, written by the server:
+      // never send the list, or a save would replace them with what this form loaded.
+      ...(formSignupOnly ? {} : {
+        invited_members: m2mUpdatePayload('members_id', wholeClub ? EMPTY_IDS : invitedMembers, event?.invited_members),
+      }),
+      send_email_invite: formSignupOnly ? false : sendEmailInvite,
+      // Admin-only field (not in the leader write list), like the form binding.
+      ...(effectiveIsAdmin ? { form_signup_only: formSignupOnly } : {}),
       invite_guests: inviteGuests,
       js_relevant: jsRelevant,
       carpool_enabled: carpoolEnabled,
@@ -663,10 +674,11 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {effectiveIsAdmin && <SelectItem value="club">{t('club')}</SelectItem>}
+              {/* club / tournament are readable by every member — never for a private event. */}
+              {effectiveIsAdmin && !formSignupOnly && <SelectItem value="club">{t('club')}</SelectItem>}
               <SelectItem value="social">{t('social')}</SelectItem>
               <SelectItem value="meeting">{t('meeting')}</SelectItem>
-              <SelectItem value="tournament">{t('tournament')}</SelectItem>
+              {!formSignupOnly && <SelectItem value="tournament">{t('tournament')}</SelectItem>}
               <SelectItem value="training_weekend">{t('trainingWeekend')}</SelectItem>
               <SelectItem value="friendly">{t('friendly')}</SelectItem>
               <SelectItem value="other">{t('other')}</SelectItem>
@@ -919,6 +931,21 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                     </>
                   )}
                 </div>
+                {signupUrl.trim() && (
+                  <div className="flex items-center gap-2 text-sm text-foreground/85">
+                    <Switch
+                      checked={formSignupOnly}
+                      onCheckedChange={(on) => {
+                        setFormSignupOnly(on)
+                        if (on && (eventType === 'club' || eventType === 'tournament')) setEventType('other')
+                      }}
+                    />
+                    <div>
+                      <span>{t('formSignupOnly')}</span>
+                      <p className="text-xs text-muted-foreground">{t('formSignupOnlyHint')}</p>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -982,6 +1009,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         {/* Who is invited. The whole club is an explicit choice; otherwise the
             creator's teams are pre-filled and can be changed. Switching back off
             restores what was picked before. */}
+        {formSignupOnly ? (
+          <p className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm text-muted-foreground">
+            {t('formSignupOnlyAudience')}
+          </p>
+        ) : (
+        <>
         <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={wholeClub} onCheckedChange={setWholeClub} />
           <div>
@@ -1057,6 +1090,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
             <p className="text-xs text-muted-foreground">{t('sendEmailInviteHint', { ns: 'invitations' })}</p>
           </div>
         </div>
+        </>
+        )}
 
         {/* Participation mode selector — only for multi-day events */}
         {isMultiDay && (
