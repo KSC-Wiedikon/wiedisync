@@ -2135,7 +2135,15 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'participations', PARTICIPATION_VISIBLE, MEMBER_PARTICIPATION_FIELDS)
   // Absences stay on the narrower rule: a guest invitation is not a reason to read
   // someone's absence reasons, and the roster only needs their RSVP.
-  await setPermRead(MEMBER_POLICY, 'absences', SAME_TEAM_AS_ME, MEMBER_ABSENCE_FIELDS)
+  // + `visible_to` (migration 433): a coach / TR who doesn't play shares no roster
+  // row with their team, so SAME_TEAM_AS_ME hid their absences from their own
+  // players and co-coaches. Materialised in `absence_visibility` (absence,
+  // viewer_user) — one hop, NOT another member → teams_coaches → … walk (see the
+  // SCALE NOTE on the LEADER absences read).
+  const STAFF_ABSENCE_VISIBLE = { visible_to: { viewer_user: { _eq: '$CURRENT_USER' } } }
+  await setPermRead(MEMBER_POLICY, 'absences', {
+    _or: [...SAME_TEAM_AS_ME._or, STAFF_ABSENCE_VISIBLE],
+  }, MEMBER_ABSENCE_FIELDS)
 
   // ── Game guest invitations (migration 271) ──────────────────────
   // Read-only for members; the coach-side writes are on LEADER (§7). Visible to the
@@ -2572,6 +2580,16 @@ async function main() {
   // a real widening. One line to reverse if the club decides otherwise.
   ].filter(f => !['ahv_number', 'iban', 'fee_category', 'cantonal_school'].includes(f))
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
+  // Co-staff contact (migration 433, decided 29.10.2026): the coaches / TRs of the
+  // same ACTIVE team read each other's email + phone — enough to coordinate who
+  // covers a training. ONLY those two: the 20.08.2026 call (migration 331 note
+  // in PERMISSIONS.md) keeps a fellow coach's address, birthdate and the rest of
+  // LEADER_TEAM_MEMBER_FIELDS closed. COACH_TEAM_MEMBERS can't express it anyway
+  // (it walks member_teams, and staff-only people have no roster row).
+  // Materialised in `member_staff_visibility` (member, viewer_user); one hop.
+  await setPermRead(LEADER_POLICY, 'members',
+    { staff_visible_to: { viewer_user: { _eq: '$CURRENT_USER' } } },
+    ['id', 'email', 'phone'])
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to
   // ['position','number'] and silently broke coach/TR join-request approval
