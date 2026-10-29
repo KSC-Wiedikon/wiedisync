@@ -33,6 +33,11 @@ export interface RsvpAnswerButtonsProps {
   onSelect: (status: RsvpStatus) => void
   /** Deadline passed: every option stays visible (with its total) but can't be tapped. */
   locked?: boolean
+  /**
+   * Why `locked` — replaces "Deadline passed" and is shown as information, not as a
+   * warning (e.g. a form-only event: the form submission is the answer).
+   */
+  lockedReason?: string
   /** The viewer's own answer is still loading. */
   loading?: boolean
   /** Which answers exist here (default all three). */
@@ -69,7 +74,7 @@ export interface RsvpAnswerButtonsProps {
  */
 export default function RsvpAnswerButtons({
   activityType, activityId, participations, coachMemberIds,
-  value, onSelect, locked, loading, options = ['confirmed', 'tentative', 'declined'],
+  value, onSelect, locked, lockedReason, loading, options = ['confirmed', 'tentative', 'declined'],
   label, trailing, saved, hideCoachPresent, compact, className,
 }: RsvpAnswerButtonsProps) {
   const { t } = useTranslation('participation')
@@ -191,9 +196,10 @@ export default function RsvpAnswerButtons({
       )}
 
       {locked && (
-        <p className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+        <p className={cn('flex items-center gap-1.5 text-xs',
+          lockedReason ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400')}>
           <Lock className="h-3 w-3 shrink-0" aria-hidden />
-          {t('deadlinePassed')}
+          {lockedReason ?? t('deadlinePassed')}
         </p>
       )}
     </div>

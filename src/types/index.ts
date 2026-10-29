@@ -794,6 +794,11 @@ export interface Event extends BaseRecord {
    */
   signup_url?: string | null
   /**
+   * Migration 434: private sign-up event — the audience is whoever submits the linked
+   * form; the server signs them in, and the RSVP is read-only for them.
+   */
+  form_signup_only?: boolean
+  /**
    * Migration 310: the native guests' door. Minted server-side; `/e/:token`
    * renders a public signup page. Distinct from `signup_url` (the OpnForm door)
    * and from the members' `/events/:id` deep link — see ShareActivityButton.

@@ -234,6 +234,7 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
 /** Inline Yes/Maybe/No buttons for event cards — matches training/game card pattern, no dropdown overflow */
 function EventCardParticipation({ event, existingParticipation, participations, onSaved, onStatusChange }: { event: Event; existingParticipation?: Participation; participations?: Participation[]; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | null) => void }) {
   const { t } = useTranslation('participation')
+  const { t: tEvents } = useTranslation('events')
   const { user, isStaffOnlyForTeams } = useAuth()
   const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
   const { create, update } = useMutation<Participation>('participations')
@@ -316,7 +317,8 @@ function EventCardParticipation({ event, existingParticipation, participations, 
     }
   }
 
-  const isLocked = deadlinePassed
+  // Migration 434: on a form-only event the form submission IS the answer.
+  const isLocked = deadlinePassed || !!event.form_signup_only
 
   return (
     <div className="space-y-1.5">
@@ -333,6 +335,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
         value={displayStatus}
         onSelect={(status) => { void setStatus(status) }}
         locked={isLocked}
+        lockedReason={event.form_signup_only ? tEvents('formSignupLocked') : undefined}
         saved={saveConfirmed}
         options={rsvpOptions(event)}
         hideCoachPresent
@@ -431,7 +434,7 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
   const deadlinePassed = event.respond_by
     ? getDeadlineDate(event.respond_by, event.start_date ? formatTime(event.start_date) : undefined) < new Date()
     : false
-  const isLocked = deadlinePassed
+  const isLocked = deadlinePassed || !!event.form_signup_only
 
   // Same reporter as the whole-event control, but the value that matters here is
   // the AGGREGATE across sessions — 'mixed' when the member answered the days

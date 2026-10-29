@@ -436,11 +436,14 @@ export async function resolveUnansweredMembers(database, activityType, activityI
     `, [activityId, idText])
   } else {
     // event — determine club-wide vs scoped, then subtract responders.
-    const [teamCount, memberCount] = await Promise.all([
+    const [teamCount, memberCount, eventRow] = await Promise.all([
       database('events_teams').where('events_id', activityId).count('* as c').first(),
       database('events_members').where('events_id', activityId).count('* as c').first(),
+      database('events').where('id', activityId).first('form_signup_only'),
     ])
-    const isClubWide = Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
+    // Migration 434: a form-only event's audience is its sign-ups, never everyone.
+    const isClubWide = !eventRow?.form_signup_only
+      && Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
     if (isClubWide) {
       rows = await database.raw(`
         SELECT m.id
