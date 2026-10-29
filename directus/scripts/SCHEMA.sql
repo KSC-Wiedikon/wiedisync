@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-29T08:34:27.305Z
+-- Generated:   2026-10-29T09:04:05.540Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
+\restrict sbbLv1hH8q1DVORrhKX1MqqVwCeImB8YC17aie8Lh1ckpXmwHJ5DhDx6JAy0aqb
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -663,6 +663,19 @@ COMMENT ON FUNCTION public.is_managed_shadow_row(p_email text, p_status text, p_
 
 
 --
+-- Name: kscw_av_refresh_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_av_refresh_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM refresh_absence_visibility();
+  RETURN NULL;                       -- AFTER STATEMENT trigger
+END $$;
+
+
+--
 -- Name: kscw_compute_fine_amount(integer, integer, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1151,6 +1164,20 @@ $$;
 
 
 --
+-- Name: kscw_sv_refresh_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_sv_refresh_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM refresh_absence_visibility();
+  PERFORM refresh_member_staff_visibility();
+  RETURN NULL;
+END $$;
+
+
+--
 -- Name: live_match_logs_drop_unknown_game(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1387,6 +1414,40 @@ END $$;
 --
 
 COMMENT ON FUNCTION public.rebuild_member_guardians(p_household integer) IS 'Recomputes every acting-grant conferred by one household. Called by trigger on household_members and on members."user" changes. Deletes then re-inserts, scoped to the single household — which is why `household` is part of member_guardians'' unique key.';
+
+
+--
+-- Name: refresh_absence_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_absence_visibility() RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM absence_visibility a
+   WHERE NOT EXISTS (SELECT 1 FROM absence_visibility_expected e
+                      WHERE e.absence = a.absence AND e.viewer_user = a.viewer_user);
+  INSERT INTO absence_visibility (absence, viewer_user)
+  SELECT e.absence, e.viewer_user FROM absence_visibility_expected e
+  ON CONFLICT (absence, viewer_user) DO NOTHING;
+END $$;
+
+
+--
+-- Name: refresh_member_staff_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_member_staff_visibility() RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM member_staff_visibility a
+   WHERE NOT EXISTS (SELECT 1 FROM member_staff_visibility_expected e
+                      WHERE e.member = a.member AND e.viewer_user = a.viewer_user);
+  INSERT INTO member_staff_visibility (member, viewer_user)
+  SELECT e.member, e.viewer_user FROM member_staff_visibility_expected e
+  ON CONFLICT (member, viewer_user) DO NOTHING;
+END $$;
 
 
 --
@@ -2956,6 +3017,44 @@ COMMENT ON FUNCTION public.vb_slot_floors(p_hall integer, p_additional jsonb) IS
 
 
 --
+-- Name: verify_absence_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.verify_absence_visibility() RETURNS TABLE(kind text, absence integer, viewer_user uuid)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT 'missing'::text, e.absence, e.viewer_user
+    FROM absence_visibility_expected e
+    LEFT JOIN absence_visibility a ON a.absence = e.absence AND a.viewer_user = e.viewer_user
+   WHERE a.absence IS NULL
+  UNION ALL
+  SELECT 'extra'::text, a.absence, a.viewer_user
+    FROM absence_visibility a
+    LEFT JOIN absence_visibility_expected e ON e.absence = a.absence AND e.viewer_user = a.viewer_user
+   WHERE e.absence IS NULL;
+$$;
+
+
+--
+-- Name: verify_member_staff_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.verify_member_staff_visibility() RETURNS TABLE(kind text, member integer, viewer_user uuid)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT 'missing'::text, e.member, e.viewer_user
+    FROM member_staff_visibility_expected e
+    LEFT JOIN member_staff_visibility a ON a.member = e.member AND a.viewer_user = e.viewer_user
+   WHERE a.member IS NULL
+  UNION ALL
+  SELECT 'extra'::text, a.member, a.viewer_user
+    FROM member_staff_visibility a
+    LEFT JOIN member_staff_visibility_expected e ON e.member = a.member AND e.viewer_user = a.viewer_user
+   WHERE e.member IS NULL;
+$$;
+
+
+--
 -- Name: verify_participation_visibility(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2979,6 +3078,17 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: absence_visibility; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.absence_visibility (
+    id integer NOT NULL,
+    absence integer NOT NULL,
+    viewer_user uuid NOT NULL
+);
+
 
 --
 -- Name: absences; Type: TABLE; Schema: public; Owner: -
@@ -3038,6 +3148,859 @@ COMMENT ON COLUMN public.absences.last_edited_role IS 'Role of the writer relati
 --
 
 COMMENT ON COLUMN public.absences.blocking IS 'When true (default), this absence blocks game-scheduling availability (home slots offered + opponent away proposals) on its dates. Set false for absences that should not block scheduling (e.g. long-term injury, maternity leave) since the player won''t play regardless. Only standard absences affecting games/all are evaluated; weekly unavailabilities never block scheduling.';
+
+
+--
+-- Name: member_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.member_teams (
+    id integer NOT NULL,
+    season character varying(255) DEFAULT NULL::character varying,
+    guest_level integer DEFAULT 0,
+    member integer NOT NULL,
+    team integer NOT NULL,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone
+);
+
+
+--
+-- Name: members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.members (
+    id integer NOT NULL,
+    email character varying(255) DEFAULT NULL::character varying NOT NULL,
+    first_name character varying(255) DEFAULT NULL::character varying,
+    last_name character varying(255) DEFAULT NULL::character varying,
+    phone character varying(255) DEFAULT NULL::character varying,
+    license_nr character varying(255) DEFAULT NULL::character varying,
+    number integer,
+    "position" jsonb,
+    photo uuid,
+    role jsonb,
+    kscw_membership_active boolean DEFAULT true NOT NULL,
+    birthdate date,
+    coach_approved_team boolean DEFAULT false NOT NULL,
+    language character varying(255) DEFAULT 'german'::character varying,
+    hide_phone boolean DEFAULT false NOT NULL,
+    birthdate_visibility character varying(255) DEFAULT 'hidden'::character varying,
+    website_visible boolean DEFAULT false NOT NULL,
+    wiedisync_active boolean DEFAULT false NOT NULL,
+    shell boolean DEFAULT false NOT NULL,
+    shell_expires timestamp with time zone,
+    shell_reminder_sent boolean DEFAULT false NOT NULL,
+    requested_team integer,
+    "user" uuid,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone,
+    is_scheduler boolean DEFAULT false NOT NULL,
+    address character varying(255),
+    postal_code character varying(10),
+    city character varying(100),
+    salutation character varying(10),
+    ahv_number character varying(20),
+    fee_category character varying(100),
+    licence_category character varying(50),
+    licence_activated boolean,
+    licence_validated boolean,
+    vm_email character varying(255),
+    sex character varying(10),
+    last_online_at timestamp with time zone,
+    hide_email boolean DEFAULT false NOT NULL,
+    scorer_vb boolean DEFAULT false NOT NULL,
+    referee_vb boolean DEFAULT false NOT NULL,
+    otr1_bb boolean DEFAULT false NOT NULL,
+    otr2_bb boolean DEFAULT false NOT NULL,
+    referee_bb boolean DEFAULT false NOT NULL,
+    auto_confirm_trainings boolean DEFAULT false NOT NULL,
+    auto_confirm_games boolean DEFAULT false NOT NULL,
+    auto_confirm_events boolean DEFAULT false NOT NULL,
+    website_name_private boolean DEFAULT true NOT NULL,
+    iban character varying(34),
+    ical_token character varying(64),
+    billing_different boolean DEFAULT false NOT NULL,
+    billing_name character varying(255),
+    billing_email character varying(255),
+    billing_address character varying(255),
+    billing_postal_code character varying(10),
+    billing_city character varying(100),
+    billing_phone character varying(255),
+    club_section character varying(32),
+    billing_iban character varying(34),
+    iban_confirmed boolean DEFAULT false NOT NULL,
+    never_dun boolean DEFAULT false NOT NULL,
+    email_notify_registrations boolean DEFAULT true NOT NULL,
+    email_notify_join_requests boolean DEFAULT true NOT NULL,
+    email_notify_form_submissions boolean DEFAULT true NOT NULL,
+    email_notify_announcements boolean DEFAULT true NOT NULL,
+    email_notify_events boolean DEFAULT true NOT NULL,
+    clubdesk_id character varying(64),
+    clubdesk_push_pending boolean DEFAULT false NOT NULL,
+    clubdesk_push_changes jsonb,
+    clubdesk_pushed_at timestamp with time zone,
+    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
+    clubdesk_sync_exclude boolean DEFAULT false NOT NULL,
+    js_id character varying(32),
+    e2ee_public_key text,
+    e2ee_private_key text,
+    e2ee_kdf_salt text,
+    e2ee_key_created timestamp with time zone,
+    nickname text,
+    nationality_codes character varying(200),
+    federation_of_origin character varying(8),
+    otn1_bb boolean DEFAULT false NOT NULL,
+    otn2_bb boolean DEFAULT false NOT NULL,
+    transfer_status character varying(16),
+    transfer_done_at timestamp with time zone,
+    transfer_done_by_name text,
+    transfer_note text,
+    in_vis boolean,
+    in_vis_checked_at timestamp with time zone,
+    vis_player_no integer,
+    profile_verified_at timestamp with time zone,
+    trainer_licences character varying(20),
+    fee_base_override numeric(10,2),
+    fee_discount numeric(10,2),
+    fee_discount_reason character varying(120),
+    fee_surcharge_override boolean,
+    fee_discount_pct numeric(5,2),
+    licence_status character varying(20) DEFAULT 'none'::character varying NOT NULL,
+    licence_status_season character varying(9),
+    licence_status_updated_at timestamp with time zone,
+    licence_status_by_name character varying(120),
+    register_status character varying(24),
+    joined_on date,
+    left_on date,
+    vis_player_no_manual integer,
+    vis_manual_vis_name text,
+    cantonal_school character varying(64),
+    deactivated_at timestamp with time zone,
+    dues_paid boolean DEFAULT false NOT NULL,
+    dues_paid_season character varying(9),
+    dues_paid_at date,
+    licence_ordered_at date,
+    permissions_section text DEFAULT 'both'::text NOT NULL,
+    CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
+    CONSTRAINT members_club_section_values CHECK (((club_section IS NULL) OR ((club_section)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
+    CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_fee_category_values CHECK (((fee_category IS NULL) OR ((fee_category)::text = ANY ('{vb_employed,vb_student_league,vb_pupil_league,vb_pupil_tournament,vb_pupil_first_year,vb_tournament_kwi,vb_student_discounted,vb_pupil_league_discounted,bb_employed,bb_employed_first_league,bb_student,bb_student_first_league,bb_youth_league,bb_minis_tournament,bb_2_trainings,bb_1_training,passive,free,none}'::text[])))),
+    CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
+    CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
+    CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
+    CONSTRAINT members_left_on_needs_departed_status CHECK (((left_on IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'former'::character varying, 'deceased'::character varying])::text[])))),
+    CONSTRAINT members_licence_category_no_legacy CHECK (((licence_category IS NULL) OR ((licence_category)::text !~* '^(offizielle/r|ufficiale|officiel(/le)?)$'::text))),
+    CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
+    CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
+    CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
+    CONSTRAINT members_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
+    CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
+    CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'active'::character varying, 'passive'::character varying, 'honorary'::character varying, 'former'::character varying, 'deceased'::character varying, 'gap_year'::character varying])::text[])))),
+    CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "board", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
+    CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
+    CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
+);
+
+
+--
+-- Name: COLUMN members.license_nr; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.license_nr IS 'Swiss Volley / Basketplan licence number as a STRING — leading zeros are significant (e.g. 038514). Exact join key for VM sync, scorer rosters and the Basketplan people join; partial-unique since migration 248. NOTE the spelling split, frozen by decision (DB review 2026-07-27): this column is US "license", the licence_* trio is UK — renaming either side would churn every sync and export for zero behavior.';
+
+
+--
+-- Name: COLUMN members.coach_approved_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.coach_approved_team IS 'Set once a coach approved the join request (requested_team flow).';
+
+
+--
+-- Name: COLUMN members.wiedisync_active; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.wiedisync_active IS 'Member has an activated wiedisync account (distinct from kscw_membership_active, the club-register status).';
+
+
+--
+-- Name: COLUMN members.shell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.shell IS 'Shell member: pre-created by an invite, not yet self-registered. trg_members_shell_convert flips the lifecycle on first login.';
+
+
+--
+-- Name: COLUMN members.shell_expires; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.shell_expires IS 'When an unclaimed shell invite lapses (reminder handled by shell_reminder_sent).';
+
+
+--
+-- Name: COLUMN members.requested_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.requested_team IS 'Join-team picker choice awaiting coach approval; FK to teams since migration 248.';
+
+
+--
+-- Name: COLUMN members.salutation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.salutation IS 'mr | ms (migration 415). ClubDesk Anrede Herr/Frau via member-values.js / clubdesk_value_map.';
+
+
+--
+-- Name: COLUMN members.fee_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_category IS 'Fee category slug (migration 417): vb_employed … passive / free / none. ClubDesk Beitragskategorie via member-values.js feeCategoryLabel / clubdesk_value_map.';
+
+
+--
+-- Name: COLUMN members.licence_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_category IS 'VM-synced licence category (weekly vm-sync-check write-back). UK spelling — see license_nr for the frozen spelling split.';
+
+
+--
+-- Name: COLUMN members.licence_activated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_activated IS 'VM-synced flag (set-true-only since 2026-07-17 — VM is a subset of ClubDesk; nothing auto-clears).';
+
+
+--
+-- Name: COLUMN members.licence_validated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_validated IS 'VM-synced flag (set-true-only, like licence_activated).';
+
+
+--
+-- Name: COLUMN members.vm_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vm_email IS 'Volleymanager account email — fallback VM join key when license_nr is absent. Partial-unique since migration 248.';
+
+
+--
+-- Name: COLUMN members.last_online_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.last_online_at IS 'Presence timestamp for the admin Explorer ("Last online"). Written by the auth.login hook on every login; coarse by design — refresh-token sessions only touch it at real logins.';
+
+
+--
+-- Name: COLUMN members.hide_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.hide_email IS 'When true, the member''s email is nulled in members.items.read for everyone except admins and the member themselves (mirrors hide_phone). Enforced by the kscw-hooks Member Privacy filter.';
+
+
+--
+-- Name: COLUMN members.scorer_vb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.scorer_vb IS 'Has the volleyball scorer (Schreiber) licence. Sourced from sv_vm_check + ClubDesk Volleyball Lizenz.';
+
+
+--
+-- Name: COLUMN members.referee_vb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.referee_vb IS 'Has the volleyball referee licence.';
+
+
+--
+-- Name: COLUMN members.otr1_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otr1_bb IS 'Basketball OTR1 (table official tier 1). Sourced from ClubDesk Offizielle Lizenz.';
+
+
+--
+-- Name: COLUMN members.otr2_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otr2_bb IS 'Basketball OTR2 (table official tier 2). Sourced from ClubDesk Offizielle Lizenz.';
+
+
+--
+-- Name: COLUMN members.referee_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.referee_bb IS 'Basketball referee licence.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_trainings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_trainings IS 'When true, this member is auto-confirmed on every new training of their teams (OR-ed with teams.features_enabled.training_auto_confirm). Flipping on backfills existing upcoming trainings. Never overrides a manual answer or an absence-decline.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_games; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_games IS 'When true, this member is auto-confirmed on every new game of their teams (OR-ed with teams.features_enabled.game_auto_confirm). Guests (guest_level > 0) are still excluded by trg_participations_guest_block.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_events IS 'When true, this member is auto-confirmed on every new event they are eligible for (invited team / individual invite / club-wide), whole-event mode only. No team-level equivalent exists for events.';
+
+
+--
+-- Name: COLUMN members.website_name_private; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.website_name_private IS 'When true, the member''s public website roster entry shows the surname as an initial only ("Anna M.") and hides the year of birth. Website-scoped only — internal app shows full names. Enforced server-side in the /public/team/:id endpoint and the kscw-hooks Member Privacy filter (anonymous callers).';
+
+
+--
+-- Name: COLUMN members.iban; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.iban IS 'Member bank account IBAN (ISO 13616, max 34 chars), stored without spaces. Sensitive financial PII — scoped own-member + admin only in setup-permissions.mjs, like ahv_nummer; never exposed to other members or coaches. Used for expense reimbursements.';
+
+
+--
+-- Name: COLUMN members.ical_token; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.ical_token IS 'Per-member calendar-feed token (unique). Rotating it invalidates the member''s calendar subscription.';
+
+
+--
+-- Name: COLUMN members.billing_different; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.billing_different IS 'When true, the EXPENSE-PAYOUT QR snapshot pays out to the billing_* contact (IBAN/name/address) instead of the member''s own. NOT consulted by native invoices or dues runs — those stamp the member''s own name/email (see finance_billing_contacts + invoice recipient_* for that path).';
+
+
+--
+-- Name: COLUMN members.club_section; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.club_section IS 'ClubDesk register Sektion as a slug: volleyball | basketball | club (migration 416). Not the access scope — see permissions_section.';
+
+
+--
+-- Name: COLUMN members.billing_iban; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.billing_iban IS 'IBAN of the alternate billing contact (guardian/company). Used for pay-outs when billing_different = true. Finance-editable.';
+
+
+--
+-- Name: COLUMN members.iban_confirmed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.iban_confirmed IS 'Member has verified their own reimbursement IBAN (members.iban). False for ClubDesk-backfilled IBANs until the member confirms on the My-finances card.';
+
+
+--
+-- Name: COLUMN members.never_dun; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.never_dun IS 'Finance: exclude this member from dunning runs entirely.';
+
+
+--
+-- Name: COLUMN members.clubdesk_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_id IS 'ClubDesk [Id] — the CSV-import record identity for sync-up rows. NOT Filtern-searchable in the ClubDesk UI (use members.uuid there). Fill-only from sync-down.';
+
+
+--
+-- Name: COLUMN members.clubdesk_push_pending; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_push_pending IS 'ClubDesk sync-up dispatcher flag: member has un-pushed field changes.';
+
+
+--
+-- Name: COLUMN members.clubdesk_push_changes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_push_changes IS 'Coded field diff awaiting ClubDesk sync-up (rendered per-locale at read time — values travel as codes).';
+
+
+--
+-- Name: COLUMN members.clubdesk_pushed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_pushed_at IS 'Timestamp of the last ClubDesk sync-up covering this member.';
+
+
+--
+-- Name: COLUMN members.uuid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.uuid IS 'Wiedisync ID — the stable round-trip key for ClubDesk contact matching (Filtern box) and exports. Never re-issued.';
+
+
+--
+-- Name: COLUMN members.clubdesk_sync_exclude; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_sync_exclude IS 'Opt this member out of the ClubDesk two-way sync entirely.';
+
+
+--
+-- Name: COLUMN members.js_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.js_id IS 'J+S / BASPO Personennummer (SALTO). ClubDesk-owned, down-sync fill-only. Surfaced only through the gated /kscw/js-export endpoint, never the items API.';
+
+
+--
+-- Name: COLUMN members.e2ee_public_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.e2ee_public_key IS 'ECDH P-256 public key (SPKI, base64). Public by design — others wrap content keys to it.';
+
+
+--
+-- Name: COLUMN members.e2ee_private_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.e2ee_private_key IS 'The member''s private key, encrypted under PBKDF2(login password). We CANNOT open this. Stored only so a new device can bootstrap with one password prompt.';
+
+
+--
+-- Name: COLUMN members.e2ee_kdf_salt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.e2ee_kdf_salt IS 'PBKDF2 salt (base64) for the private-key wrapper. Not a secret.';
+
+
+--
+-- Name: COLUMN members.e2ee_key_created; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.e2ee_key_created IS 'When the current keypair was created. A new keypair orphans every document wrapped to the old one — that is why a password reset means "re-upload your ID".';
+
+
+--
+-- Name: COLUMN members.nickname; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.nickname IS 'Preferred display name shown instead of first_name across the app UI (e.g. "Honza" for Jan Cerny). NULL/empty = fall back to first_name. Legal/official surfaces (match sheets, VM, ClubDesk, invoices, public website) always use first_name.';
+
+
+--
+-- Name: COLUMN members.nationality_codes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.nationality_codes IS 'Nationality: ordered, comma-separated ISO 3166-1 alpha-2 codes ("IT,CH"). The FIRST code is primary — the ClubDesk push sends country_codes.name_de_clubdesk of it as the single-valued Nationalität cell (migration 418).';
+
+
+--
+-- Name: COLUMN members.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or NULL = not answered. A member whose first licence is issued here is ''CH'': there is no "none" — migration 342 retired that sentinel.';
+
+
+--
+-- Name: COLUMN members.otn1_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otn1_bb IS 'Basketball OTN 1 (national table official, level 1). Authoritative source is Basketplan (nationalTableReferee1). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
+
+
+--
+-- Name: COLUMN members.otn2_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otn2_bb IS 'Basketball OTN 2 (national table official, level 2). Authoritative source is Basketplan (nationalTableReferee2). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
+
+
+--
+-- Name: COLUMN members.transfer_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_status IS 'International-transfer state as the CLUB decided it: NULL = not reviewed (fall back to deriving it from federation_of_origin), ''pending'' = being chased, ''done'' = cleared, ''not_needed'' = reviewed and no transfer applies. A non-NULL value OVERRIDES the federation_of_origin derivation in both directions — ''pending'' on a CH-origin member is a transfer being chased anyway, ''not_needed'' on a foreign-origin member is a transfer the club has ruled out.';
+
+
+--
+-- Name: COLUMN members.transfer_done_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_done_at IS 'When transfer_status last became ''done''. Cleared when the status moves away from done, so it can never describe a state the row is no longer in.';
+
+
+--
+-- Name: COLUMN members.transfer_done_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_done_by_name IS 'Display name of the staff member who marked the transfer done — the domain-level "who signed this off", alongside the automatic directus_activity trail.';
+
+
+--
+-- Name: COLUMN members.transfer_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_note IS 'Free-text staff note on the federation-transfer workflow (see transfer_status).';
+
+
+--
+-- Name: COLUMN members.in_vis; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.in_vis IS 'Found in the VIS player roster of their federation of origin — including CH, checked against Swiss Volley''s own index (VIS fed 189/SUI). NULL = not checked yet (guests and federation_of_origin = NONE are never checked). false = no evidence they were licensed there — treat as a lead, not a fact: name matching is fuzzy and federation_of_origin is often a seed from nationality. For a CH-origin member a false blocks nothing, since no international transfer applies to them.';
+
+
+--
+-- Name: COLUMN members.in_vis_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.in_vis_checked_at IS 'When the monthly VIS player-check last touched this member (see in_vis for what the VIS index does and does not mean).';
+
+
+--
+-- Name: COLUMN members.vis_player_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_player_no IS 'FIVB VIS player number, captured when a match is found. The key for a deep link into the VIS transfers app.';
+
+
+--
+-- Name: COLUMN members.profile_verified_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last confirmed their own profile is correct (the annual pre-licence data check). NULL = never confirmed. Compared against app_settings key=''profile_review'' value=<ISO date>; older than that ⇒ the hard confirmation gate shows at next login.';
+
+
+--
+-- Name: COLUMN members.trainer_licences; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), the Swiss Volley rungs C/B/A, and the Swiss Basketball rungs T1/T2/T3 (= "Trainer 1/2/3", migration 281). Multi-valued by design and ACROSS ladders — J+S is a separate track from either federation''s ladder, so "JS,B" and "JS,T2" are ordinary values. The two sport ladders are NOT interchangeable: T2 is not a synonym for B. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. Synced two-way with ClubDesk''s free-text "Trainer Lizenz" cell (its "JS ID" is a different thing and maps to members.js_id).';
+
+
+--
+-- Name: COLUMN members.fee_base_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_base_override IS 'Per-member Mitgliederbeitrag BASE in CHF, overriding the season rate (finance_dues_rates) and the codified category map (CD_BEITRAG_MAP) alike. NULL = derive from the category, which is the normal case. Set only for a genuine per-person exception the category cannot express ("Speziallizenz, einmalig so tief"). Consumed by feeBreakdown(), so the native dues run and the ClubDesk CREATE push bill the same number.';
+
+
+--
+-- Name: COLUMN members.fee_discount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount IS 'Standing per-member reduction in CHF taken off the computed fee. NULL/0 = none. Capped at what is owed by feeBreakdown() — a discount may take a bill to exactly zero, never below. A per-RUN discount passed to /finance/dues-runs/* wins over this for that run.';
+
+
+--
+-- Name: COLUMN members.fee_discount_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount_reason IS 'Label printed as the credit line on the invoice when fee_discount applies. NULL = the run''s wording, default "Rabatt".';
+
+
+--
+-- Name: COLUMN members.fee_surcharge_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Does this member owe the CHF 100 no-Schreiberlizenz surcharge? NULL = apply the rule (adult fee category, or youth category and U16+, and no scorer/OTR licence), which is the normal case and stays live as licences change. true = charge it regardless. false = waive it, which is what the club used to do as a post-hoc write-off on 47 invoices. Consumed by feeBreakdown(); the amount itself is NO_LICENCE_SURCHARGE in kscw-endpoints/src/clubdesk-update.js, never stored per member.';
+
+
+--
+-- Name: COLUMN members.fee_discount_pct; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount_pct IS 'Standing per-member reduction as a PERCENTAGE (0-100) of what is owed after base + surcharge - guest reduction. Mutually exclusive with fee_discount (CHF) — the CHECK members_fee_discount_one_unit enforces it. Percent rather than the CHF it equals today, so a season rate change carries the intent instead of freezing yesterday''s number. A per-RUN discount passed to /finance/dues-runs/* still wins over both.';
+
+
+--
+-- Name: COLUMN members.licence_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status IS 'Club licence-ordering workflow for the season in licence_status_season: none | to_be_ordered | ordered | finalized | licenced. The first four are set by hand (Data Explorer, /admin/anmeldungen); "licenced" is asserted ONLY by POST /kscw/admin/licence-status/sync from Swiss Volley (licence_activated AND licence_validated) or Basketplan (a licence row scraped this season). The sweep promotes only — it never demotes; the season rollover is the one thing that resets a status.';
+
+
+--
+-- Name: COLUMN members.licence_status_season; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_season IS 'The season licence_status describes, Wiedisync short form ("2026/27"). A stamp that no longer equals kscw_current_season_label() means the status is last season''s and the sweep resets it to none. NULL = never stamped, treated the same way.';
+
+
+--
+-- Name: COLUMN members.licence_status_updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_updated_at IS 'When licence_status last changed. Stamped by the members.items.update hook for hand edits and by the sweep for machine promotions — never written by the member.';
+
+
+--
+-- Name: COLUMN members.licence_status_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_by_name IS 'Display name of whoever last changed licence_status, or the machine that did ("Swiss Volley sync" / "Basketplan sync" / "Season rollover"). Raw-knex and psql writes bypass the Directus revision trail, so the actor is recorded on the row itself — same pattern as transfer_done_by_name (migration 234).';
+
+
+--
+-- Name: COLUMN members.register_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.register_status IS 'ClubDesk register Status as a slug: active | passive | honorary | gap_year | former | non_member | deceased (migration 416).';
+
+
+--
+-- Name: COLUMN members.joined_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.joined_on IS 'Club entry date (ClubDesk "Eintritt"). Pushed as dd.mm.yyyy. For members created from a signup this is the registration SUBMISSION date (user rule 2026-07-06); for everybody else it is whatever the register holds.';
+
+
+--
+-- Name: COLUMN members.left_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.left_on IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
+
+
+--
+-- Name: COLUMN members.vis_player_no_manual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_player_no_manual IS 'Hand-set FIVB VIS player number (staff, /admin/transfers). Wins over name matching when the sweep can confirm it in the federation roster; NEVER written by vis-player-check. Empty = no override.';
+
+
+--
+-- Name: COLUMN members.vis_manual_vis_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName LastName" for vis_player_no_manual, refreshed by vis-player-check. NULL after a check = that number is not in the member''s federation index — the link is unconfirmed and does not assert presence.';
+
+
+--
+-- Name: COLUMN members.cantonal_school; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.cantonal_school IS 'School name; ''none'' = asked, not at a Kantonsschule; ''other'' = a school the list does not name; NULL = never asked (migration 415).';
+
+
+--
+-- Name: COLUMN members.deactivated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at): stamped on deactivation, cleared on reactivation, otherwise immutable (migration 390; psql repair via SET LOCAL kscw.allow_deactivated_at_edit = ''on''). The start of any retention period for an ex-member.';
+
+
+--
+-- Name: COLUMN members.dues_paid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid IS 'DERIVED — true iff a paid membership-dues invoice (subject "Mitgliederbeitrag … <current season>") is linked to this member. Recomputed by refresh_members_dues_paid() from finance_invoices; never write it.';
+
+
+--
+-- Name: COLUMN members.dues_paid_season; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid_season IS 'DERIVED — the season ("2026/27") the paid dues invoice bills. Set with dues_paid; NULL when it is false.';
+
+
+--
+-- Name: COLUMN members.dues_paid_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid_at IS 'DERIVED — when the dues invoice was settled (ClubDesk "Abgeschlossen am"; native: confirmed_at). NULL when dues_paid is false.';
+
+
+--
+-- Name: COLUMN members.licence_ordered_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_ordered_at IS 'Day the licence was set to ordered (licence_status workflow). Basketball source of ClubDesk "Lizenz bestellt"; volleyball uses sv_vm_check.licence_activation_date. Stamped by the kscw-hooks licence_status filter.';
+
+
+--
+-- Name: teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams (
+    id integer NOT NULL,
+    name character varying(255) DEFAULT NULL::character varying NOT NULL,
+    full_name character varying(255) DEFAULT NULL::character varying,
+    team_id character varying(255) DEFAULT NULL::character varying,
+    sport character varying(255) DEFAULT NULL::character varying,
+    league character varying(255) DEFAULT NULL::character varying,
+    season character varying(255) DEFAULT NULL::character varying,
+    color character varying(255) DEFAULT NULL::character varying,
+    active boolean DEFAULT true NOT NULL,
+    team_picture uuid,
+    team_picture_pos character varying(255) DEFAULT NULL::character varying,
+    social_url character varying(255) DEFAULT NULL::character varying,
+    bb_source_id character varying(255) DEFAULT NULL::character varying,
+    features_enabled json,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone,
+    captain integer,
+    open_for_players boolean DEFAULT false,
+    facebook_url character varying(255) DEFAULT NULL::character varying,
+    tiktok_url character varying(255) DEFAULT NULL::character varying,
+    show_guests_on_website boolean DEFAULT true NOT NULL,
+    dashboard_range_from date,
+    dashboard_range_to date,
+    dashboard_league_only boolean DEFAULT false NOT NULL,
+    recruiting_positions jsonb,
+    waitlist_url character varying(500),
+    waitlist_label character varying(100),
+    gender character varying(8),
+    duty_credit integer DEFAULT 0 NOT NULL,
+    clubdesk_group text,
+    open_for_girls boolean DEFAULT false,
+    open_for_boys boolean DEFAULT false,
+    wieplay_enabled boolean DEFAULT false NOT NULL,
+    CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
+    CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
+);
+
+
+--
+-- Name: COLUMN teams.dashboard_range_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_range_from IS 'Coach Dashboard "From" date (NULL = use rolling default of most recent 01-06 ≤ today)';
+
+
+--
+-- Name: COLUMN teams.dashboard_range_to; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_range_to IS 'Coach Dashboard "To" date (NULL = use today)';
+
+
+--
+-- Name: COLUMN teams.dashboard_league_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_league_only IS 'Coach Dashboard: exclude cup/tournament games from the games attendance count';
+
+
+--
+-- Name: COLUMN teams.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.recruiting_positions IS 'Positions the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
+
+
+--
+-- Name: COLUMN teams.duty_credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.duty_credit IS 'Scorer-duty manual credit: duties this team is excused from (higher = fewer scorer/scoreboard assignments). Stacks on top of the automatic referee credit. Edited on the scorer-assignment page.';
+
+
+--
+-- Name: COLUMN teams.clubdesk_group; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.clubdesk_group IS 'ClubDesk group token for this team (e.g. ''VB D1''). NULL = not configured yet (flagged by the ClubDesk group check); '''' = intentionally no ClubDesk group (league umbrella).';
+
+
+--
+-- Name: COLUMN teams.open_for_girls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruiting girls. Sub-toggle of open_for_players — ignored while that is false. Both this and open_for_boys false/true = the team recruits without a gender split.';
+
+
+--
+-- Name: COLUMN teams.open_for_boys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
+
+
+--
+-- Name: COLUMN teams.wieplay_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.wieplay_enabled IS 'The team uses WiePlay (wieplay.kscw.ch): WiePlay asked for this team row on its last sync (GET /kscw/wieplay/v1/sync). Game cards link its games to WiePlay. Endpoint-owned: writes without the kscw.wieplay_enabled_write GUC are ignored (trigger teams_wieplay_enabled_guard). Migration 423.';
+
+
+--
+-- Name: teams_coaches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams_coaches (
+    id integer NOT NULL,
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
+);
+
+
+--
+-- Name: teams_responsibles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams_responsibles (
+    id integer NOT NULL,
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
+);
+
+
+--
+-- Name: absence_visibility_expected; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.absence_visibility_expected AS
+ WITH staff AS (
+         SELECT tc.teams_id AS team,
+            tc.members_id AS member
+           FROM public.teams_coaches tc
+        UNION
+         SELECT tr.teams_id,
+            tr.members_id
+           FROM public.teams_responsibles tr
+        )
+ SELECT DISTINCT a.id AS absence,
+    viewer."user" AS viewer_user
+   FROM ((((public.absences a
+     JOIN staff s ON ((s.member = a.member)))
+     JOIN public.teams t ON (((t.id = s.team) AND t.active)))
+     JOIN ( SELECT member_teams.team,
+            member_teams.member
+           FROM public.member_teams
+        UNION
+         SELECT staff.team,
+            staff.member
+           FROM staff) r ON (((r.team = s.team) AND (r.member <> a.member))))
+     JOIN public.members viewer ON ((viewer.id = r.member)))
+  WHERE ((viewer."user" IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+           FROM public.member_teams own
+          WHERE ((own.team = s.team) AND (own.member = a.member))))));
+
+
+--
+-- Name: absence_visibility_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.absence_visibility ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.absence_visibility_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -4246,112 +5209,6 @@ CREATE TABLE public.halls (
     date_updated timestamp with time zone,
     vm_hall_id character varying(64)
 );
-
-
---
--- Name: teams; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams (
-    id integer NOT NULL,
-    name character varying(255) DEFAULT NULL::character varying NOT NULL,
-    full_name character varying(255) DEFAULT NULL::character varying,
-    team_id character varying(255) DEFAULT NULL::character varying,
-    sport character varying(255) DEFAULT NULL::character varying,
-    league character varying(255) DEFAULT NULL::character varying,
-    season character varying(255) DEFAULT NULL::character varying,
-    color character varying(255) DEFAULT NULL::character varying,
-    active boolean DEFAULT true NOT NULL,
-    team_picture uuid,
-    team_picture_pos character varying(255) DEFAULT NULL::character varying,
-    social_url character varying(255) DEFAULT NULL::character varying,
-    bb_source_id character varying(255) DEFAULT NULL::character varying,
-    features_enabled json,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    captain integer,
-    open_for_players boolean DEFAULT false,
-    facebook_url character varying(255) DEFAULT NULL::character varying,
-    tiktok_url character varying(255) DEFAULT NULL::character varying,
-    show_guests_on_website boolean DEFAULT true NOT NULL,
-    dashboard_range_from date,
-    dashboard_range_to date,
-    dashboard_league_only boolean DEFAULT false NOT NULL,
-    recruiting_positions jsonb,
-    waitlist_url character varying(500),
-    waitlist_label character varying(100),
-    gender character varying(8),
-    duty_credit integer DEFAULT 0 NOT NULL,
-    clubdesk_group text,
-    open_for_girls boolean DEFAULT false,
-    open_for_boys boolean DEFAULT false,
-    wieplay_enabled boolean DEFAULT false NOT NULL,
-    CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
-    CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
-);
-
-
---
--- Name: COLUMN teams.dashboard_range_from; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_range_from IS 'Coach Dashboard "From" date (NULL = use rolling default of most recent 01-06 ≤ today)';
-
-
---
--- Name: COLUMN teams.dashboard_range_to; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_range_to IS 'Coach Dashboard "To" date (NULL = use today)';
-
-
---
--- Name: COLUMN teams.dashboard_league_only; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_league_only IS 'Coach Dashboard: exclude cup/tournament games from the games attendance count';
-
-
---
--- Name: COLUMN teams.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.recruiting_positions IS 'Positions the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
-
-
---
--- Name: COLUMN teams.duty_credit; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.duty_credit IS 'Scorer-duty manual credit: duties this team is excused from (higher = fewer scorer/scoreboard assignments). Stacks on top of the automatic referee credit. Edited on the scorer-assignment page.';
-
-
---
--- Name: COLUMN teams.clubdesk_group; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.clubdesk_group IS 'ClubDesk group token for this team (e.g. ''VB D1''). NULL = not configured yet (flagged by the ClubDesk group check); '''' = intentionally no ClubDesk group (league umbrella).';
-
-
---
--- Name: COLUMN teams.open_for_girls; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruiting girls. Sub-toggle of open_for_players — ignored while that is false. Both this and open_for_boys false/true = the team recruits without a gender split.';
-
-
---
--- Name: COLUMN teams.open_for_boys; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
-
-
---
--- Name: COLUMN teams.wieplay_enabled; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.wieplay_enabled IS 'The team uses WiePlay (wieplay.kscw.ch): WiePlay asked for this team row on its last sync (GET /kscw/wieplay/v1/sync). Game cards link its games to WiePlay. Endpoint-owned: writes without the kscw.wieplay_enabled_write GUC are ignored (trigger teams_wieplay_enabled_guard). Migration 423.';
 
 
 --
@@ -9609,17 +10466,50 @@ ALTER SEQUENCE public.member_guardians_id_seq OWNED BY public.member_guardians.i
 
 
 --
--- Name: member_teams; Type: TABLE; Schema: public; Owner: -
+-- Name: member_staff_visibility; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.member_teams (
+CREATE TABLE public.member_staff_visibility (
     id integer NOT NULL,
-    season character varying(255) DEFAULT NULL::character varying,
-    guest_level integer DEFAULT 0,
     member integer NOT NULL,
-    team integer NOT NULL,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    viewer_user uuid NOT NULL
+);
+
+
+--
+-- Name: member_staff_visibility_expected; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.member_staff_visibility_expected AS
+ WITH staff AS (
+         SELECT tc.teams_id AS team,
+            tc.members_id AS member
+           FROM public.teams_coaches tc
+        UNION
+         SELECT tr.teams_id,
+            tr.members_id
+           FROM public.teams_responsibles tr
+        )
+ SELECT DISTINCT s.member,
+    viewer."user" AS viewer_user
+   FROM (((staff s
+     JOIN public.teams t ON (((t.id = s.team) AND t.active)))
+     JOIN staff o ON (((o.team = s.team) AND (o.member <> s.member))))
+     JOIN public.members viewer ON ((viewer.id = o.member)))
+  WHERE (viewer."user" IS NOT NULL);
+
+
+--
+-- Name: member_staff_visibility_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.member_staff_visibility ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.member_staff_visibility_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -9641,670 +10531,6 @@ CREATE SEQUENCE public.member_teams_id_seq
 --
 
 ALTER SEQUENCE public.member_teams_id_seq OWNED BY public.member_teams.id;
-
-
---
--- Name: members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.members (
-    id integer NOT NULL,
-    email character varying(255) DEFAULT NULL::character varying NOT NULL,
-    first_name character varying(255) DEFAULT NULL::character varying,
-    last_name character varying(255) DEFAULT NULL::character varying,
-    phone character varying(255) DEFAULT NULL::character varying,
-    license_nr character varying(255) DEFAULT NULL::character varying,
-    number integer,
-    "position" jsonb,
-    photo uuid,
-    role jsonb,
-    kscw_membership_active boolean DEFAULT true NOT NULL,
-    birthdate date,
-    coach_approved_team boolean DEFAULT false NOT NULL,
-    language character varying(255) DEFAULT 'german'::character varying,
-    hide_phone boolean DEFAULT false NOT NULL,
-    birthdate_visibility character varying(255) DEFAULT 'hidden'::character varying,
-    website_visible boolean DEFAULT false NOT NULL,
-    wiedisync_active boolean DEFAULT false NOT NULL,
-    shell boolean DEFAULT false NOT NULL,
-    shell_expires timestamp with time zone,
-    shell_reminder_sent boolean DEFAULT false NOT NULL,
-    requested_team integer,
-    "user" uuid,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    is_scheduler boolean DEFAULT false NOT NULL,
-    address character varying(255),
-    postal_code character varying(10),
-    city character varying(100),
-    salutation character varying(10),
-    ahv_number character varying(20),
-    fee_category character varying(100),
-    licence_category character varying(50),
-    licence_activated boolean,
-    licence_validated boolean,
-    vm_email character varying(255),
-    sex character varying(10),
-    last_online_at timestamp with time zone,
-    hide_email boolean DEFAULT false NOT NULL,
-    scorer_vb boolean DEFAULT false NOT NULL,
-    referee_vb boolean DEFAULT false NOT NULL,
-    otr1_bb boolean DEFAULT false NOT NULL,
-    otr2_bb boolean DEFAULT false NOT NULL,
-    referee_bb boolean DEFAULT false NOT NULL,
-    auto_confirm_trainings boolean DEFAULT false NOT NULL,
-    auto_confirm_games boolean DEFAULT false NOT NULL,
-    auto_confirm_events boolean DEFAULT false NOT NULL,
-    website_name_private boolean DEFAULT true NOT NULL,
-    iban character varying(34),
-    ical_token character varying(64),
-    billing_different boolean DEFAULT false NOT NULL,
-    billing_name character varying(255),
-    billing_email character varying(255),
-    billing_address character varying(255),
-    billing_postal_code character varying(10),
-    billing_city character varying(100),
-    billing_phone character varying(255),
-    club_section character varying(32),
-    billing_iban character varying(34),
-    iban_confirmed boolean DEFAULT false NOT NULL,
-    never_dun boolean DEFAULT false NOT NULL,
-    email_notify_registrations boolean DEFAULT true NOT NULL,
-    email_notify_join_requests boolean DEFAULT true NOT NULL,
-    email_notify_form_submissions boolean DEFAULT true NOT NULL,
-    email_notify_announcements boolean DEFAULT true NOT NULL,
-    email_notify_events boolean DEFAULT true NOT NULL,
-    clubdesk_id character varying(64),
-    clubdesk_push_pending boolean DEFAULT false NOT NULL,
-    clubdesk_push_changes jsonb,
-    clubdesk_pushed_at timestamp with time zone,
-    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
-    clubdesk_sync_exclude boolean DEFAULT false NOT NULL,
-    js_id character varying(32),
-    e2ee_public_key text,
-    e2ee_private_key text,
-    e2ee_kdf_salt text,
-    e2ee_key_created timestamp with time zone,
-    nickname text,
-    nationality_codes character varying(200),
-    federation_of_origin character varying(8),
-    otn1_bb boolean DEFAULT false NOT NULL,
-    otn2_bb boolean DEFAULT false NOT NULL,
-    transfer_status character varying(16),
-    transfer_done_at timestamp with time zone,
-    transfer_done_by_name text,
-    transfer_note text,
-    in_vis boolean,
-    in_vis_checked_at timestamp with time zone,
-    vis_player_no integer,
-    profile_verified_at timestamp with time zone,
-    trainer_licences character varying(20),
-    fee_base_override numeric(10,2),
-    fee_discount numeric(10,2),
-    fee_discount_reason character varying(120),
-    fee_surcharge_override boolean,
-    fee_discount_pct numeric(5,2),
-    licence_status character varying(20) DEFAULT 'none'::character varying NOT NULL,
-    licence_status_season character varying(9),
-    licence_status_updated_at timestamp with time zone,
-    licence_status_by_name character varying(120),
-    register_status character varying(24),
-    joined_on date,
-    left_on date,
-    vis_player_no_manual integer,
-    vis_manual_vis_name text,
-    cantonal_school character varying(64),
-    deactivated_at timestamp with time zone,
-    dues_paid boolean DEFAULT false NOT NULL,
-    dues_paid_season character varying(9),
-    dues_paid_at date,
-    licence_ordered_at date,
-    permissions_section text DEFAULT 'both'::text NOT NULL,
-    CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
-    CONSTRAINT members_club_section_values CHECK (((club_section IS NULL) OR ((club_section)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
-    CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
-    CONSTRAINT members_fee_category_values CHECK (((fee_category IS NULL) OR ((fee_category)::text = ANY ('{vb_employed,vb_student_league,vb_pupil_league,vb_pupil_tournament,vb_pupil_first_year,vb_tournament_kwi,vb_student_discounted,vb_pupil_league_discounted,bb_employed,bb_employed_first_league,bb_student,bb_student_first_league,bb_youth_league,bb_minis_tournament,bb_2_trainings,bb_1_training,passive,free,none}'::text[])))),
-    CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
-    CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
-    CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
-    CONSTRAINT members_left_on_needs_departed_status CHECK (((left_on IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'former'::character varying, 'deceased'::character varying])::text[])))),
-    CONSTRAINT members_licence_category_no_legacy CHECK (((licence_category IS NULL) OR ((licence_category)::text !~* '^(offizielle/r|ufficiale|officiel(/le)?)$'::text))),
-    CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
-    CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
-    CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
-    CONSTRAINT members_nationality_codes_fmt CHECK (((nationality_codes IS NULL) OR ((nationality_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
-    CONSTRAINT members_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
-    CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['non_member'::character varying, 'active'::character varying, 'passive'::character varying, 'honorary'::character varying, 'former'::character varying, 'deceased'::character varying, 'gap_year'::character varying])::text[])))),
-    CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "board", "website_admin", "finance"]'::jsonb)),
-    CONSTRAINT members_salutation_values CHECK (((salutation IS NULL) OR ((salutation)::text = ANY ((ARRAY['mr'::character varying, 'ms'::character varying])::text[])))),
-    CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
-    CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
-);
-
-
---
--- Name: COLUMN members.license_nr; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.license_nr IS 'Swiss Volley / Basketplan licence number as a STRING — leading zeros are significant (e.g. 038514). Exact join key for VM sync, scorer rosters and the Basketplan people join; partial-unique since migration 248. NOTE the spelling split, frozen by decision (DB review 2026-07-27): this column is US "license", the licence_* trio is UK — renaming either side would churn every sync and export for zero behavior.';
-
-
---
--- Name: COLUMN members.coach_approved_team; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.coach_approved_team IS 'Set once a coach approved the join request (requested_team flow).';
-
-
---
--- Name: COLUMN members.wiedisync_active; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.wiedisync_active IS 'Member has an activated wiedisync account (distinct from kscw_membership_active, the club-register status).';
-
-
---
--- Name: COLUMN members.shell; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.shell IS 'Shell member: pre-created by an invite, not yet self-registered. trg_members_shell_convert flips the lifecycle on first login.';
-
-
---
--- Name: COLUMN members.shell_expires; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.shell_expires IS 'When an unclaimed shell invite lapses (reminder handled by shell_reminder_sent).';
-
-
---
--- Name: COLUMN members.requested_team; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.requested_team IS 'Join-team picker choice awaiting coach approval; FK to teams since migration 248.';
-
-
---
--- Name: COLUMN members.salutation; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.salutation IS 'mr | ms (migration 415). ClubDesk Anrede Herr/Frau via member-values.js / clubdesk_value_map.';
-
-
---
--- Name: COLUMN members.fee_category; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_category IS 'Fee category slug (migration 417): vb_employed … passive / free / none. ClubDesk Beitragskategorie via member-values.js feeCategoryLabel / clubdesk_value_map.';
-
-
---
--- Name: COLUMN members.licence_category; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_category IS 'VM-synced licence category (weekly vm-sync-check write-back). UK spelling — see license_nr for the frozen spelling split.';
-
-
---
--- Name: COLUMN members.licence_activated; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_activated IS 'VM-synced flag (set-true-only since 2026-07-17 — VM is a subset of ClubDesk; nothing auto-clears).';
-
-
---
--- Name: COLUMN members.licence_validated; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_validated IS 'VM-synced flag (set-true-only, like licence_activated).';
-
-
---
--- Name: COLUMN members.vm_email; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.vm_email IS 'Volleymanager account email — fallback VM join key when license_nr is absent. Partial-unique since migration 248.';
-
-
---
--- Name: COLUMN members.last_online_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.last_online_at IS 'Presence timestamp for the admin Explorer ("Last online"). Written by the auth.login hook on every login; coarse by design — refresh-token sessions only touch it at real logins.';
-
-
---
--- Name: COLUMN members.hide_email; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.hide_email IS 'When true, the member''s email is nulled in members.items.read for everyone except admins and the member themselves (mirrors hide_phone). Enforced by the kscw-hooks Member Privacy filter.';
-
-
---
--- Name: COLUMN members.scorer_vb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.scorer_vb IS 'Has the volleyball scorer (Schreiber) licence. Sourced from sv_vm_check + ClubDesk Volleyball Lizenz.';
-
-
---
--- Name: COLUMN members.referee_vb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.referee_vb IS 'Has the volleyball referee licence.';
-
-
---
--- Name: COLUMN members.otr1_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.otr1_bb IS 'Basketball OTR1 (table official tier 1). Sourced from ClubDesk Offizielle Lizenz.';
-
-
---
--- Name: COLUMN members.otr2_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.otr2_bb IS 'Basketball OTR2 (table official tier 2). Sourced from ClubDesk Offizielle Lizenz.';
-
-
---
--- Name: COLUMN members.referee_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.referee_bb IS 'Basketball referee licence.';
-
-
---
--- Name: COLUMN members.auto_confirm_trainings; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.auto_confirm_trainings IS 'When true, this member is auto-confirmed on every new training of their teams (OR-ed with teams.features_enabled.training_auto_confirm). Flipping on backfills existing upcoming trainings. Never overrides a manual answer or an absence-decline.';
-
-
---
--- Name: COLUMN members.auto_confirm_games; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.auto_confirm_games IS 'When true, this member is auto-confirmed on every new game of their teams (OR-ed with teams.features_enabled.game_auto_confirm). Guests (guest_level > 0) are still excluded by trg_participations_guest_block.';
-
-
---
--- Name: COLUMN members.auto_confirm_events; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.auto_confirm_events IS 'When true, this member is auto-confirmed on every new event they are eligible for (invited team / individual invite / club-wide), whole-event mode only. No team-level equivalent exists for events.';
-
-
---
--- Name: COLUMN members.website_name_private; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.website_name_private IS 'When true, the member''s public website roster entry shows the surname as an initial only ("Anna M.") and hides the year of birth. Website-scoped only — internal app shows full names. Enforced server-side in the /public/team/:id endpoint and the kscw-hooks Member Privacy filter (anonymous callers).';
-
-
---
--- Name: COLUMN members.iban; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.iban IS 'Member bank account IBAN (ISO 13616, max 34 chars), stored without spaces. Sensitive financial PII — scoped own-member + admin only in setup-permissions.mjs, like ahv_nummer; never exposed to other members or coaches. Used for expense reimbursements.';
-
-
---
--- Name: COLUMN members.ical_token; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.ical_token IS 'Per-member calendar-feed token (unique). Rotating it invalidates the member''s calendar subscription.';
-
-
---
--- Name: COLUMN members.billing_different; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.billing_different IS 'When true, the EXPENSE-PAYOUT QR snapshot pays out to the billing_* contact (IBAN/name/address) instead of the member''s own. NOT consulted by native invoices or dues runs — those stamp the member''s own name/email (see finance_billing_contacts + invoice recipient_* for that path).';
-
-
---
--- Name: COLUMN members.club_section; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.club_section IS 'ClubDesk register Sektion as a slug: volleyball | basketball | club (migration 416). Not the access scope — see permissions_section.';
-
-
---
--- Name: COLUMN members.billing_iban; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.billing_iban IS 'IBAN of the alternate billing contact (guardian/company). Used for pay-outs when billing_different = true. Finance-editable.';
-
-
---
--- Name: COLUMN members.iban_confirmed; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.iban_confirmed IS 'Member has verified their own reimbursement IBAN (members.iban). False for ClubDesk-backfilled IBANs until the member confirms on the My-finances card.';
-
-
---
--- Name: COLUMN members.never_dun; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.never_dun IS 'Finance: exclude this member from dunning runs entirely.';
-
-
---
--- Name: COLUMN members.clubdesk_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.clubdesk_id IS 'ClubDesk [Id] — the CSV-import record identity for sync-up rows. NOT Filtern-searchable in the ClubDesk UI (use members.uuid there). Fill-only from sync-down.';
-
-
---
--- Name: COLUMN members.clubdesk_push_pending; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.clubdesk_push_pending IS 'ClubDesk sync-up dispatcher flag: member has un-pushed field changes.';
-
-
---
--- Name: COLUMN members.clubdesk_push_changes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.clubdesk_push_changes IS 'Coded field diff awaiting ClubDesk sync-up (rendered per-locale at read time — values travel as codes).';
-
-
---
--- Name: COLUMN members.clubdesk_pushed_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.clubdesk_pushed_at IS 'Timestamp of the last ClubDesk sync-up covering this member.';
-
-
---
--- Name: COLUMN members.uuid; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.uuid IS 'Wiedisync ID — the stable round-trip key for ClubDesk contact matching (Filtern box) and exports. Never re-issued.';
-
-
---
--- Name: COLUMN members.clubdesk_sync_exclude; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.clubdesk_sync_exclude IS 'Opt this member out of the ClubDesk two-way sync entirely.';
-
-
---
--- Name: COLUMN members.js_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.js_id IS 'J+S / BASPO Personennummer (SALTO). ClubDesk-owned, down-sync fill-only. Surfaced only through the gated /kscw/js-export endpoint, never the items API.';
-
-
---
--- Name: COLUMN members.e2ee_public_key; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.e2ee_public_key IS 'ECDH P-256 public key (SPKI, base64). Public by design — others wrap content keys to it.';
-
-
---
--- Name: COLUMN members.e2ee_private_key; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.e2ee_private_key IS 'The member''s private key, encrypted under PBKDF2(login password). We CANNOT open this. Stored only so a new device can bootstrap with one password prompt.';
-
-
---
--- Name: COLUMN members.e2ee_kdf_salt; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.e2ee_kdf_salt IS 'PBKDF2 salt (base64) for the private-key wrapper. Not a secret.';
-
-
---
--- Name: COLUMN members.e2ee_key_created; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.e2ee_key_created IS 'When the current keypair was created. A new keypair orphans every document wrapped to the old one — that is why a password reset means "re-upload your ID".';
-
-
---
--- Name: COLUMN members.nickname; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.nickname IS 'Preferred display name shown instead of first_name across the app UI (e.g. "Honza" for Jan Cerny). NULL/empty = fall back to first_name. Legal/official surfaces (match sheets, VM, ClubDesk, invoices, public website) always use first_name.';
-
-
---
--- Name: COLUMN members.nationality_codes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.nationality_codes IS 'Nationality: ordered, comma-separated ISO 3166-1 alpha-2 codes ("IT,CH"). The FIRST code is primary — the ClubDesk push sends country_codes.name_de_clubdesk of it as the single-valued Nationalität cell (migration 418).';
-
-
---
--- Name: COLUMN members.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or NULL = not answered. A member whose first licence is issued here is ''CH'': there is no "none" — migration 342 retired that sentinel.';
-
-
---
--- Name: COLUMN members.otn1_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.otn1_bb IS 'Basketball OTN 1 (national table official, level 1). Authoritative source is Basketplan (nationalTableReferee1). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
-
-
---
--- Name: COLUMN members.otn2_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.otn2_bb IS 'Basketball OTN 2 (national table official, level 2). Authoritative source is Basketplan (nationalTableReferee2). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
-
-
---
--- Name: COLUMN members.transfer_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.transfer_status IS 'International-transfer state as the CLUB decided it: NULL = not reviewed (fall back to deriving it from federation_of_origin), ''pending'' = being chased, ''done'' = cleared, ''not_needed'' = reviewed and no transfer applies. A non-NULL value OVERRIDES the federation_of_origin derivation in both directions — ''pending'' on a CH-origin member is a transfer being chased anyway, ''not_needed'' on a foreign-origin member is a transfer the club has ruled out.';
-
-
---
--- Name: COLUMN members.transfer_done_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.transfer_done_at IS 'When transfer_status last became ''done''. Cleared when the status moves away from done, so it can never describe a state the row is no longer in.';
-
-
---
--- Name: COLUMN members.transfer_done_by_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.transfer_done_by_name IS 'Display name of the staff member who marked the transfer done — the domain-level "who signed this off", alongside the automatic directus_activity trail.';
-
-
---
--- Name: COLUMN members.transfer_note; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.transfer_note IS 'Free-text staff note on the federation-transfer workflow (see transfer_status).';
-
-
---
--- Name: COLUMN members.in_vis; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.in_vis IS 'Found in the VIS player roster of their federation of origin — including CH, checked against Swiss Volley''s own index (VIS fed 189/SUI). NULL = not checked yet (guests and federation_of_origin = NONE are never checked). false = no evidence they were licensed there — treat as a lead, not a fact: name matching is fuzzy and federation_of_origin is often a seed from nationality. For a CH-origin member a false blocks nothing, since no international transfer applies to them.';
-
-
---
--- Name: COLUMN members.in_vis_checked_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.in_vis_checked_at IS 'When the monthly VIS player-check last touched this member (see in_vis for what the VIS index does and does not mean).';
-
-
---
--- Name: COLUMN members.vis_player_no; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.vis_player_no IS 'FIVB VIS player number, captured when a match is found. The key for a deep link into the VIS transfers app.';
-
-
---
--- Name: COLUMN members.profile_verified_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last confirmed their own profile is correct (the annual pre-licence data check). NULL = never confirmed. Compared against app_settings key=''profile_review'' value=<ISO date>; older than that ⇒ the hard confirmation gate shows at next login.';
-
-
---
--- Name: COLUMN members.trainer_licences; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), the Swiss Volley rungs C/B/A, and the Swiss Basketball rungs T1/T2/T3 (= "Trainer 1/2/3", migration 281). Multi-valued by design and ACROSS ladders — J+S is a separate track from either federation''s ladder, so "JS,B" and "JS,T2" are ordinary values. The two sport ladders are NOT interchangeable: T2 is not a synonym for B. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. Synced two-way with ClubDesk''s free-text "Trainer Lizenz" cell (its "JS ID" is a different thing and maps to members.js_id).';
-
-
---
--- Name: COLUMN members.fee_base_override; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_base_override IS 'Per-member Mitgliederbeitrag BASE in CHF, overriding the season rate (finance_dues_rates) and the codified category map (CD_BEITRAG_MAP) alike. NULL = derive from the category, which is the normal case. Set only for a genuine per-person exception the category cannot express ("Speziallizenz, einmalig so tief"). Consumed by feeBreakdown(), so the native dues run and the ClubDesk CREATE push bill the same number.';
-
-
---
--- Name: COLUMN members.fee_discount; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_discount IS 'Standing per-member reduction in CHF taken off the computed fee. NULL/0 = none. Capped at what is owed by feeBreakdown() — a discount may take a bill to exactly zero, never below. A per-RUN discount passed to /finance/dues-runs/* wins over this for that run.';
-
-
---
--- Name: COLUMN members.fee_discount_reason; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_discount_reason IS 'Label printed as the credit line on the invoice when fee_discount applies. NULL = the run''s wording, default "Rabatt".';
-
-
---
--- Name: COLUMN members.fee_surcharge_override; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Does this member owe the CHF 100 no-Schreiberlizenz surcharge? NULL = apply the rule (adult fee category, or youth category and U16+, and no scorer/OTR licence), which is the normal case and stays live as licences change. true = charge it regardless. false = waive it, which is what the club used to do as a post-hoc write-off on 47 invoices. Consumed by feeBreakdown(); the amount itself is NO_LICENCE_SURCHARGE in kscw-endpoints/src/clubdesk-update.js, never stored per member.';
-
-
---
--- Name: COLUMN members.fee_discount_pct; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_discount_pct IS 'Standing per-member reduction as a PERCENTAGE (0-100) of what is owed after base + surcharge - guest reduction. Mutually exclusive with fee_discount (CHF) — the CHECK members_fee_discount_one_unit enforces it. Percent rather than the CHF it equals today, so a season rate change carries the intent instead of freezing yesterday''s number. A per-RUN discount passed to /finance/dues-runs/* still wins over both.';
-
-
---
--- Name: COLUMN members.licence_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_status IS 'Club licence-ordering workflow for the season in licence_status_season: none | to_be_ordered | ordered | finalized | licenced. The first four are set by hand (Data Explorer, /admin/anmeldungen); "licenced" is asserted ONLY by POST /kscw/admin/licence-status/sync from Swiss Volley (licence_activated AND licence_validated) or Basketplan (a licence row scraped this season). The sweep promotes only — it never demotes; the season rollover is the one thing that resets a status.';
-
-
---
--- Name: COLUMN members.licence_status_season; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_status_season IS 'The season licence_status describes, Wiedisync short form ("2026/27"). A stamp that no longer equals kscw_current_season_label() means the status is last season''s and the sweep resets it to none. NULL = never stamped, treated the same way.';
-
-
---
--- Name: COLUMN members.licence_status_updated_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_status_updated_at IS 'When licence_status last changed. Stamped by the members.items.update hook for hand edits and by the sweep for machine promotions — never written by the member.';
-
-
---
--- Name: COLUMN members.licence_status_by_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_status_by_name IS 'Display name of whoever last changed licence_status, or the machine that did ("Swiss Volley sync" / "Basketplan sync" / "Season rollover"). Raw-knex and psql writes bypass the Directus revision trail, so the actor is recorded on the row itself — same pattern as transfer_done_by_name (migration 234).';
-
-
---
--- Name: COLUMN members.register_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.register_status IS 'ClubDesk register Status as a slug: active | passive | honorary | gap_year | former | non_member | deceased (migration 416).';
-
-
---
--- Name: COLUMN members.joined_on; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.joined_on IS 'Club entry date (ClubDesk "Eintritt"). Pushed as dd.mm.yyyy. For members created from a signup this is the registration SUBMISSION date (user rule 2026-07-06); for everybody else it is whatever the register holds.';
-
-
---
--- Name: COLUMN members.left_on; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.left_on IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
-
-
---
--- Name: COLUMN members.vis_player_no_manual; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.vis_player_no_manual IS 'Hand-set FIVB VIS player number (staff, /admin/transfers). Wins over name matching when the sweep can confirm it in the federation roster; NEVER written by vis-player-check. Empty = no override.';
-
-
---
--- Name: COLUMN members.vis_manual_vis_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName LastName" for vis_player_no_manual, refreshed by vis-player-check. NULL after a check = that number is not in the member''s federation index — the link is unconfirmed and does not assert presence.';
-
-
---
--- Name: COLUMN members.cantonal_school; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.cantonal_school IS 'School name; ''none'' = asked, not at a Kantonsschule; ''other'' = a school the list does not name; NULL = never asked (migration 415).';
-
-
---
--- Name: COLUMN members.deactivated_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at): stamped on deactivation, cleared on reactivation, otherwise immutable (migration 390; psql repair via SET LOCAL kscw.allow_deactivated_at_edit = ''on''). The start of any retention period for an ex-member.';
-
-
---
--- Name: COLUMN members.dues_paid; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.dues_paid IS 'DERIVED — true iff a paid membership-dues invoice (subject "Mitgliederbeitrag … <current season>") is linked to this member. Recomputed by refresh_members_dues_paid() from finance_invoices; never write it.';
-
-
---
--- Name: COLUMN members.dues_paid_season; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.dues_paid_season IS 'DERIVED — the season ("2026/27") the paid dues invoice bills. Set with dues_paid; NULL when it is false.';
-
-
---
--- Name: COLUMN members.dues_paid_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.dues_paid_at IS 'DERIVED — when the dues invoice was settled (ClubDesk "Abgeschlossen am"; native: confirmed_at). NULL when dues_paid is false.';
-
-
---
--- Name: COLUMN members.licence_ordered_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.licence_ordered_at IS 'Day the licence was set to ordered (licence_status workflow). Basketball source of ClubDesk "Lizenz bestellt"; volleyball uses sv_vm_check.licence_activation_date. Stamped by the kscw-hooks licence_status filter.';
 
 
 --
@@ -10529,28 +10755,6 @@ COMMENT ON COLUMN public.participations.auto_declined_deadline IS 'true = this d
 
 
 --
--- Name: teams_coaches; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams_coaches (
-    id integer NOT NULL,
-    teams_id integer NOT NULL,
-    members_id integer NOT NULL
-);
-
-
---
--- Name: teams_responsibles; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams_responsibles (
-    id integer NOT NULL,
-    teams_id integer NOT NULL,
-    members_id integer NOT NULL
-);
-
-
---
 -- Name: trainings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10709,7 +10913,13 @@ CREATE VIEW public.participation_visibility_expected AS
              JOIN team_activities a ON ((((a.kind)::text = (p.activity_type)::text) AND ((a.activity_id)::text = (p.activity_id)::text))))
              JOIN staff s ON (((s.team = a.team) AND (s.member = p.member))))
              JOIN public.teams t ON (((t.id = a.team) AND t.active)))
-             JOIN public.member_teams r ON ((r.team = a.team)))
+             JOIN ( SELECT member_teams.team,
+                    member_teams.member
+                   FROM public.member_teams
+                UNION
+                 SELECT staff.team,
+                    staff.member
+                   FROM staff) r ON (((r.team = a.team) AND (r.member <> p.member))))
              JOIN public.members viewer ON ((viewer.id = r.member)))
           WHERE ((viewer."user" IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
                    FROM public.member_teams own
@@ -13634,6 +13844,22 @@ ALTER TABLE ONLY public.website_admin_access ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: absence_visibility absence_visibility_pair_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.absence_visibility
+    ADD CONSTRAINT absence_visibility_pair_uniq UNIQUE (absence, viewer_user);
+
+
+--
+-- Name: absence_visibility absence_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.absence_visibility
+    ADD CONSTRAINT absence_visibility_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: absences absences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14738,6 +14964,22 @@ ALTER TABLE ONLY public.member_guardians
 
 
 --
+-- Name: member_staff_visibility member_staff_visibility_pair_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_staff_visibility
+    ADD CONSTRAINT member_staff_visibility_pair_uniq UNIQUE (member, viewer_user);
+
+
+--
+-- Name: member_staff_visibility member_staff_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_staff_visibility
+    ADD CONSTRAINT member_staff_visibility_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: member_teams member_teams_member_team_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15239,6 +15481,13 @@ ALTER TABLE ONLY public.website_admin_access
 
 ALTER TABLE ONLY public.website_admin_access
     ADD CONSTRAINT website_admin_access_user_key UNIQUE ("user");
+
+
+--
+-- Name: absence_visibility_viewer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX absence_visibility_viewer_idx ON public.absence_visibility USING btree (viewer_user);
 
 
 --
@@ -16747,6 +16996,13 @@ CREATE INDEX member_guardians_lookup_ix ON public.member_guardians USING btree (
 
 
 --
+-- Name: member_staff_visibility_viewer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX member_staff_visibility_viewer_idx ON public.member_staff_visibility USING btree (viewer_user);
+
+
+--
 -- Name: member_teams_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -17391,6 +17647,13 @@ CREATE TRIGGER trg_announcements_publish_image AFTER INSERT OR UPDATE OF image O
 
 
 --
+-- Name: absences trg_av_absences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_av_absences AFTER INSERT OR DELETE OR UPDATE OF member, id ON public.absences FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_av_refresh_trigger();
+
+
+--
 -- Name: basketball_slot_plan trg_basketball_slot_plan_0_floor_claims; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17860,6 +18123,41 @@ CREATE CONSTRAINT TRIGGER trg_staff_gratis_revert_responsibles AFTER DELETE ON p
 
 
 --
+-- Name: member_teams trg_sv_member_teams; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sv_member_teams AFTER INSERT OR DELETE OR UPDATE ON public.member_teams FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_sv_refresh_trigger();
+
+
+--
+-- Name: members trg_sv_members; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sv_members AFTER INSERT OR DELETE OR UPDATE OF "user", id ON public.members FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_sv_refresh_trigger();
+
+
+--
+-- Name: teams trg_sv_teams; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sv_teams AFTER INSERT OR DELETE OR UPDATE OF active, id ON public.teams FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_sv_refresh_trigger();
+
+
+--
+-- Name: teams_coaches trg_sv_teams_coaches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sv_teams_coaches AFTER INSERT OR DELETE OR UPDATE ON public.teams_coaches FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_sv_refresh_trigger();
+
+
+--
+-- Name: teams_responsibles trg_sv_teams_responsibles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_sv_teams_responsibles AFTER INSERT OR DELETE OR UPDATE ON public.teams_responsibles FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_sv_refresh_trigger();
+
+
+--
 -- Name: teams_coaches trg_teams_coaches_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17976,6 +18274,22 @@ CREATE TRIGGER trg_trainings_revoke_claims AFTER UPDATE ON public.trainings FOR 
 --
 
 CREATE TRIGGER trg_trainings_trial_transform AFTER INSERT ON public.trainings FOR EACH ROW EXECUTE FUNCTION public.trg_trainings_trial_transform();
+
+
+--
+-- Name: absence_visibility absence_visibility_absence_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.absence_visibility
+    ADD CONSTRAINT absence_visibility_absence_fkey FOREIGN KEY (absence) REFERENCES public.absences(id) ON DELETE CASCADE;
+
+
+--
+-- Name: absence_visibility absence_visibility_viewer_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.absence_visibility
+    ADD CONSTRAINT absence_visibility_viewer_user_fkey FOREIGN KEY (viewer_user) REFERENCES public.directus_users(id) ON DELETE CASCADE;
 
 
 --
@@ -19483,6 +19797,22 @@ ALTER TABLE ONLY public.member_guardians
 
 
 --
+-- Name: member_staff_visibility member_staff_visibility_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_staff_visibility
+    ADD CONSTRAINT member_staff_visibility_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: member_staff_visibility member_staff_visibility_viewer_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_staff_visibility
+    ADD CONSTRAINT member_staff_visibility_viewer_user_fkey FOREIGN KEY (viewer_user) REFERENCES public.directus_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: member_teams member_teams_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -20204,7 +20534,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JxpcvPNEty7dVheyC5rP1S4dFQLD7N2Pr037MDmmRaNUZhr7PEBjO97gnEPC1GO
+\unrestrict sbbLv1hH8q1DVORrhKX1MqqVwCeImB8YC17aie8Lh1ckpXmwHJ5DhDx6JAy0aqb
 
 
 
@@ -20220,7 +20550,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 436 migration(s) already in the schema above.
+-- Migration tracker seed — 437 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -20669,6 +20999,7 @@ FROM (VALUES
   ('429-staff-rsvp-visibility.sql'),
   ('430-provisional-from-live-scoring.sql'),
   ('431-bb-2fach-is-not-a-b.sql'),
-  ('432-notify-staff-recipients.sql')
+  ('432-notify-staff-recipients.sql'),
+  ('433-staff-visibility.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
