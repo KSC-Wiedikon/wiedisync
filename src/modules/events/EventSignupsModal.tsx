@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { saveFile } from '@/utils/saveFile'
+import { toast } from 'sonner'
+import { exportBaseName, renderAnswer, signupsPdf, signupsXlsx, type SignupsExportInput } from './lib/signupsExport'
 import { kscwApi } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import type { Event } from '../../types'
@@ -25,10 +28,21 @@ interface InternalSignup {
   date_created: string | null
 }
 
+interface PublicSignup {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+  guest_count: number | null
+  note: string | null
+  date_created: string | null
+}
+
 interface SignupsResponse {
   event: { id: number; title: string; signup_url: string | null }
   internal: InternalSignup[]
   internal_total: number
+  public_signups?: PublicSignup[]
   external: {
     title: string
     fields: FormField[]
@@ -45,30 +59,6 @@ interface EventSignupsModalProps {
   open: boolean
   onClose: () => void
   event: Event | null
-}
-
-/** OpnForm answers can be scalars, arrays (multi-select) or objects (files). */
-function renderAnswer(v: unknown): string {
-  if (v == null) return ''
-  if (Array.isArray(v)) return v.map(renderAnswer).filter(Boolean).join(', ')
-  if (typeof v === 'object') {
-    const o = v as Record<string, unknown>
-    return String(o.name ?? o.file_name ?? o.label ?? JSON.stringify(o))
-  }
-  return String(v)
-}
-
-function csvCell(v: unknown): string {
-  const s = renderAnswer(v)
-  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
-function downloadCsv(filename: string, rows: string[][]): void {
-  // Semicolon-separated + BOM: Excel on a Swiss/German locale opens comma CSVs
-  // as a single column, and drops the accents without the BOM.
-  const body = rows.map((r) => r.join(';')).join('\r\n')
-  const blob = new Blob([`\ufeff${body}`], { type: 'text/csv;charset=utf-8' })
-  saveFile(blob, filename)
 }
 
 /**
@@ -103,30 +93,26 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
     || (!!data.event.signup_url && data.external == null && !data.external_error)
   )
 
-  // Exports are always English regardless of UI locale — they land in ClubDesk
-  // and in spreadsheets shared outside the app.
-  function exportCsv() {
-    const rows: string[][] = [['Source', 'Name', 'Email', 'Status', 'Guests', 'Date']]
-    for (const r of internal) {
-      rows.push(['Member', csvCell(r.name), csvCell(r.email), csvCell(r.status),
-        csvCell(r.guest_count), csvCell(r.date_created)])
+  // Excel / PDF with every form reply (lib/signupsExport.ts; English, shared outside the app).
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+  function exportAs(kind: 'xlsx' | 'pdf') {
+    if (!data || exporting) return
+    const input: SignupsExportInput = {
+      eventTitle: event?.title ?? data.event.title,
+      eventStart: event?.start_date ?? null,
+      members: internal,
+      formFields: externalFields,
+      formRows: externalRows,
+      guests: data.public_signups ?? [],
     }
-    if (externalFields.length > 0) {
-      rows.push([])
-      rows.push(['Guest signups'])
-      rows.push([...externalFields.map((f) => csvCell(f.name)), 'Submitted'])
-      for (const r of externalRows) {
-        rows.push([
-          ...externalFields.map((f) => csvCell(r[f.id])),
-          csvCell(r.created_at),
-        ])
-      }
-    }
-    const slug = (event?.title ?? 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    downloadCsv(`signups-${slug}.csv`, rows)
+    setExporting(kind)
+    ;(kind === 'xlsx' ? signupsXlsx(input) : signupsPdf(input))
+      .then((blob) => saveFile(blob, `${exportBaseName(input.eventTitle)}.${kind}`))
+      .catch(() => toast.error(t('signupsExportFailed')))
+      .finally(() => setExporting(null))
   }
 
-  const total = internal.length + externalRows.length
+  const total = internal.length + externalRows.length + (data?.public_signups?.length ?? 0)
 
   return (
     <Modal
@@ -136,9 +122,14 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
       size="lg"
       disableAutoFocus
       headerAction={total > 0 ? (
-        <Button type="button" variant="outline" onClick={exportCsv}>
-          {t('signupsExport')}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" disabled={!!exporting} onClick={() => exportAs('xlsx')}>
+            {t('signupsExportXlsx')}
+          </Button>
+          <Button type="button" variant="outline" disabled={!!exporting} onClick={() => exportAs('pdf')}>
+            {t('signupsExportPdf')}
+          </Button>
+        </div>
       ) : undefined}
     >
       <div className="space-y-6">

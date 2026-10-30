@@ -141,6 +141,21 @@ export async function writeSignupBinding(database, eventId, { url, slug }) {
   })
 }
 
+/**
+ * Every submission of a form, page by page (OpnForm serves at most 100 per page), up to
+ * `maxPages` — the signups view and its Excel/PDF export list everyone, not the first 100.
+ * `truncated` says when a form outgrew the cap.
+ */
+export async function listAllSubmissions(slug, maxPages = 10) {
+  const first = await listSubmissions(slug, { page: 1, perPage: 100 })
+  const lastPage = Number(first?.last_page) || 1
+  const data = [...(first?.data ?? [])]
+  for (let page = 2; page <= Math.min(lastPage, maxPages); page++) {
+    data.push(...((await listSubmissions(slug, { page, perPage: 100 }))?.data ?? []))
+  }
+  return { ...first, data, page: 1, truncated: lastPage > maxPages }
+}
+
 export function registerEventSignupForm(router, { database, logger }) {
   const log = logger.child({ endpoint: 'event-signup-form' })
 
@@ -329,7 +344,7 @@ export function registerEventSignupForm(router, { database, logger }) {
     let externalError = null
     if (slug && !badSlug(slug)) {
       try {
-        external = await listSubmissions(slug, { page: 1, perPage: 100 })
+        external = await listAllSubmissions(slug)
       } catch (err) {
         externalError = err.status === 404 ? 'form_not_found' : 'upstream_error'
         log.warn({ msg: 'event signups external fetch failed', event: event.id, slug, status: err.status })

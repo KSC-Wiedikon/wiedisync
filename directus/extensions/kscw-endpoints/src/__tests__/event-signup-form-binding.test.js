@@ -91,7 +91,7 @@ describe('GET /events/:id/signups slug binding (F15)', () => {
     }
     const res = await call(route(fakeDb({ event, caller: creator })))
     expect(listSubmissions).toHaveBeenCalledWith('my-event-2026', { page: 1, perPage: 100 })
-    expect(res.body.external).toEqual({ data: [], meta: { total: 0 } })
+    expect(res.body.external).toMatchObject({ data: [], meta: { total: 0 }, truncated: false })
     expect(res.body.external_error).toBeNull()
   })
 })
