@@ -1,16 +1,15 @@
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, MapPin } from 'lucide-react'
+import { CheckCircle2, MapPin, Pin } from 'lucide-react'
 import type { Event } from '../../types'
 import { formatDate, formatDayMonthZurich, formatTime, formatWeekday } from '../../utils/dateHelpers'
 import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
 
 /**
- * Pinned card for a private sign-up event (migration 434) the member signed up for
- * through its form — shown above the event list on Home, like DutyEventCard. The RSVP
- * is the form submission, so the card states it instead of offering buttons; a tap
- * opens the event (whose answer is read-only too).
+ * Pinned card above the event list on Home, like DutyEventCard: an event the member
+ * signed up for through its form (migration 434, `signedUp`) or one an admin pinned
+ * (migration 435). A tap opens the event.
  */
-export default function FormSignupEventCard({ event, onClick }: { event: Event; onClick: () => void }) {
+export default function FormSignupEventCard({ event, onClick, signedUp = true }: { event: Event; onClick: () => void; signedUp?: boolean }) {
   const { t } = useTranslation('events')
   const day = event.start_date?.split(/[T ]/)[0]
 
@@ -26,16 +25,23 @@ export default function FormSignupEventCard({ event, onClick }: { event: Event; 
           main={day ? <span title={formatDate(day)}>{formatDayMonthZurich(day)}</span> : '–'}
           sub={!event.all_day && event.start_date ? formatTime(event.start_date) : undefined}
         />
-        <RowStripe tone="green" />
+        <RowStripe tone={signedUp ? 'green' : 'brand'} />
         <div className="min-w-0 flex-1">
           <p className="break-words text-sm font-semibold leading-snug text-foreground sm:text-[15px]">
             {event.title}
           </p>
           <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5">
-            <RowChip tone="green">
-              <CheckCircle2 aria-hidden />
-              {t('formSignupPinned')}
-            </RowChip>
+            {signedUp ? (
+              <RowChip tone="green">
+                <CheckCircle2 aria-hidden />
+                {t('formSignupPinned')}
+              </RowChip>
+            ) : (
+              <RowChip tone="brand">
+                <Pin aria-hidden />
+                {t('pinnedChip')}
+              </RowChip>
+            )}
             {event.location && (
               <RowChip title={event.location}>
                 <MapPin aria-hidden />
