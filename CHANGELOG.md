@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.46.0 — 2026-10-30
+
+### Added
+
+- Private sign-up events: an admin can link a sign-up form to an event and make it private. Only the people who submit the form see the event — they are signed in automatically, the event is pinned at the top of their home page, and their answer can't be changed in the app.
+- Sign-up forms on forms.kscw.ch can check that the email belongs to a club member (the address in Wiedisync or ClubDesk) and fill in the member's section and teams by themselves.
+
 ## v2.45.2 — 2026-10-28
 
 ### Fixed
