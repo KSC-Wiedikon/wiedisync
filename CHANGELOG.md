@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.47.0 — 2026-10-30
+
+### Added
+
+- Admins can download an event's signups as Excel or PDF, with every reply to the linked form (all questions, including section and teams), the members signed in on Wiedisync and the guests of the signup page.
+- Admins can connect a form they built on forms.kscw.ch to any event («Connect this link»). Everyone who already submitted it is signed in right away; «Sync sign-ups» does it again at any time.
+
+### Changed
+
+- A member's reply to a connected form now counts as their RSVP for the event — on private sign-up events and on ordinary ones.
+
 ## v2.46.0 — 2026-10-30
 
 ### Added
