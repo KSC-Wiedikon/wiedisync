@@ -122,6 +122,7 @@ export default {
   signupFormUnlinkConfirm: 'De Aamäldelink vo dem Aalass entferne? S Formular und sini Iiträg blibed erhalte.',
   signupFormIsConnected: 'Verbunde – Aamäldige über das Formular zelled.',
   signupFormNotConnected: 'No nöd verbunde – drück «De Link verbinde», damit Aamäldige drüber zelled.',
+  signupFormConnectOnSave: 'De Link wird bim Speichere verbunde: Wer s Formular scho abgschickt hät, wird aagmäldet.',
   signupFormConnect: 'De Link verbinde',
   signupFormConnected: 'Formular verbunde. Aagmäldeti Mitglieder: {{count}}.',
   signupFormSync: 'Aamäldige übernäh',

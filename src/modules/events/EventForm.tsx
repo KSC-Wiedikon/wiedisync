@@ -652,6 +652,21 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         await Promise.all(existingSessions.map((s) => deleteRecord('event_sessions', s.id)))
       }
 
+      // A form link pasted while creating: connect it now that the event has an id
+      // (club admins only, server-enforced) — signs in whoever already submitted.
+      if (!event && signupUrl.trim() && /\/forms\//.test(signupUrl)) {
+        try {
+          const res = await kscwApi<{ sync?: { signed_in?: number } }>(
+            `/events/${eventId}/signup-form/connect`,
+            { method: 'POST', body: { url: signupUrl.trim() } },
+          )
+          toast.success(t('signupFormConnected', { count: res.sync?.signed_in ?? 0 }))
+        } catch (err) {
+          const body = (err as { body?: { message?: string; error?: string } }).body
+          toast.error(body?.message || body?.error || t('signupFormFailed'))
+        }
+      }
+
       // Notify the audience of a new event — deliberately NOT awaited. The
       // endpoint sends one mail per recipient serially, so inviting a dozen
       // teams holds the request open for the whole batch; awaiting it here kept
@@ -934,10 +949,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
               <p className="text-xs text-muted-foreground">{t('signupFormHint')}</p>
             </div>
 
-            {!event ? (
-              <p className="text-xs text-muted-foreground">{t('signupFormSaveFirst')}</p>
-            ) : (
-              <>
+            <>
                 <FormInput
                   label={t('signupFormUrl')}
                   type="url"
@@ -954,6 +966,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                 ) : signupUrl.trim() ? (
                   <p className="text-xs text-amber-700 dark:text-amber-400">{t('signupFormNotConnected')}</p>
                 ) : null}
+                {!event && (
+                  <p className="text-xs text-muted-foreground">{t('signupFormConnectOnSave')}</p>
+                )}
+            </>
+            {event && (
+              <>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button
                     type="button"
