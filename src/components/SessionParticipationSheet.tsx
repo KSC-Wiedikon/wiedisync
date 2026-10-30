@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { Check, Hourglass, X } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { useCollection } from '../lib/query'
 import { useMutation } from '../hooks/useMutation'
@@ -69,7 +70,11 @@ function SessionRow({
         )}
       </div>
       <div className="flex gap-1.5">
-        {buttons.map(({ status: btnStatus, icon, activeClass }) => (
+        {buttons.map(({ status: btnStatus, icon, activeClass }) => {
+          // A Yes on a full day sits on the waiting list (migration 437).
+          const waiting = btnStatus === 'confirmed' && status === 'waitlisted'
+          const label = waiting ? statusLabels.waitlisted : statusLabels[btnStatus as 'confirmed' | 'declined']
+          return (
           <button
             key={btnStatus}
             onClick={() => onSetStatus(session, btnStatus)}
@@ -80,16 +85,19 @@ function SessionRow({
                 // A shade off the unselected pill in BOTH themes (it is
                 // stone-100 / dark:gray-700), plus a pulse and no glyph at all.
                 ? 'animate-pulse cursor-default bg-stone-200/80 text-transparent dark:bg-gray-800'
-                : status === btnStatus
-                  ? activeClass
-                  : 'bg-stone-100 text-muted-foreground hover:bg-stone-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                : waiting
+                  ? 'bg-orange-500 text-white'
+                  : status === btnStatus
+                    ? activeClass
+                    : 'bg-stone-100 text-muted-foreground hover:bg-stone-200 dark:bg-gray-700 dark:hover:bg-gray-600'
             }`}
-            title={loading ? undefined : statusLabels[btnStatus as 'confirmed' | 'declined']}
-            aria-label={statusLabels[btnStatus as 'confirmed' | 'declined']}
+            title={loading ? undefined : label}
+            aria-label={label}
           >
-            {icon}
+            {waiting ? <Hourglass className="h-4 w-4" /> : icon}
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -97,6 +105,7 @@ function SessionRow({
 
 export default function SessionParticipationSheet({ activityId, sessions, onClose, isStaff = false }: Props) {
   const { t } = useTranslation('events')
+  const { t: tParticipation } = useTranslation('participation')
   const { user } = useAuth()
   const { answeringFor } = useRsvpLabels()
 
@@ -148,14 +157,20 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
       delete next[sid]
       return next
     })
+    // A Yes to a full day is saved as `waitlisted` (max_players, migration 437).
+    const showSaved = (saved: Participation | undefined) => {
+      if (status !== 'confirmed' || saved?.status !== 'waitlisted') return
+      setOptimistic((prev) => ({ ...prev, [sid]: 'waitlisted' }))
+      toast.info(tParticipation('joinedWaitlist'))
+    }
     const existing = bySession.get(sid)
     try {
       if (existing) {
-        await update(existing.id, { status })
+        showSaved(await update(existing.id, { status }))
       } else {
         // `silentOnUnique` keeps the expected 400 below out of Sentry — it still
         // throws, so the recovery underneath runs either way.
-        await create({
+        showSaved(await create({
           member: user.id,
           activity_type: 'event',
           activity_id: activityId,
@@ -164,7 +179,7 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
           guest_count: 0,
           is_staff: isStaff,
           session_id: session.id,
-        }, { silentOnUnique: true })
+        }, { silentOnUnique: true }))
       }
       return
     } catch (err) {
@@ -186,11 +201,11 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
         revert()
         return
       }
-      await update(row.id, { status })
+      showSaved(await update(row.id, { status }))
     } catch {
       revert()
     }
-  }, [user, bySession, activityId, isStaff, create, update, refetch])
+  }, [user, bySession, activityId, isStaff, create, update, refetch, tParticipation])
 
   return (
     <Modal open onClose={onClose} title={t('sessionParticipation')} size="sm">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, ExternalLink, MessageSquare, Pencil, Users } from 'lucide-react'
+import { toast } from 'sonner'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
@@ -25,6 +26,7 @@ import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rsvpTone } from '../../utils/rsvpTone'
+import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../../utils/optimisticRsvp'
 
 interface EventCardProps {
   event: Event
@@ -246,7 +248,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
     ? getDeadlineDate(event.respond_by, event.start_date ? formatTime(event.start_date) : undefined) < new Date()
     : false
 
-  const [optimisticStatus, setOptimisticStatus] = useState<Participation['status'] | null>(null)
+  const [optimistic, setOptimistic] = useState<OptimisticRsvp | null>(null)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
   const [noteText, setNoteText] = useState(existingParticipation?.note ?? '')
   const [noteError, setNoteError] = useState(false)
@@ -262,7 +264,9 @@ function EventCardParticipation({ event, existingParticipation, participations, 
   }
 
   const serverStatus = existingParticipation?.status ?? null
-  const displayStatus = optimisticStatus ?? serverStatus
+  // The server wins once it shows a value the viewer did not cause (the waiting
+  // list bumped or promoted this RSVP) — optimisticRsvp.ts.
+  const displayStatus = shownStatus(optimistic, event.id, serverStatus)
 
   // Auto-dismiss confirmation after 2s
   useEffect(() => {
@@ -282,18 +286,19 @@ function EventCardParticipation({ event, existingParticipation, participations, 
     const n = note ?? noteText
     // If note is required for decline/tentative and no note yet, focus the note input
     if (event.require_note_if_absent && (status === 'declined' || status === 'tentative') && !n.trim()) {
-      setOptimisticStatus(status)
+      setOptimistic((prev) => optimisticPick(prev, event.id, serverStatus, status))
       setNoteError(true)
       setTimeout(() => noteInputRef.current?.focus(), 50)
       return
     }
-    setOptimisticStatus(status)
+    setOptimistic((prev) => optimisticPick(prev, event.id, serverStatus, status))
     setSaveConfirmed(false)
     try {
+      let saved: Participation | undefined
       if (existingParticipation) {
-        await update(existingParticipation.id, { status, note: n, guest_count: status === 'declined' ? 0 : (existingParticipation.guest_count ?? 0) })
+        saved = await update(existingParticipation.id, { status, note: n, guest_count: status === 'declined' ? 0 : (existingParticipation.guest_count ?? 0) })
       } else {
-        await create({
+        saved = await create({
           member: user.id,
           activity_type: 'event' as const,
           activity_id: event.id,
@@ -304,11 +309,18 @@ function EventCardParticipation({ event, existingParticipation, participations, 
         })
       }
       setSaveConfirmed(true)
+      // A Yes to a full event is saved as `waitlisted` (max_players, migration
+      // 437) — show what was actually saved.
+      const savedStatus = saved?.status
+      if (savedStatus && savedStatus !== status) {
+        setOptimistic((prev) => optimisticSaved(prev, event.id, status, savedStatus))
+        if (savedStatus === 'waitlisted') toast.info(t('joinedWaitlist'))
+      }
       onSaved?.()
     } catch {
-      setOptimisticStatus(null)
+      setOptimistic(null)
     }
-  }, [user, existingParticipation, event.id, event.require_note_if_absent, isStaff, noteText, create, update, onSaved])
+  }, [user, existingParticipation, serverStatus, event.id, event.require_note_if_absent, isStaff, noteText, create, update, onSaved, t])
 
   const saveNote = () => {
     if (noteText.trim() && displayStatus) {
@@ -383,6 +395,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
  *  active, and an "X/Y confirmed" hint shows. */
 function EventCardSessionParticipation({ event, participations, onSaved, onStatusChange }: { event: Event; participations?: Participation[]; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | 'mixed' | null | undefined) => void }) {
   const { t: te } = useTranslation('events')
+  const { t } = useTranslation('participation')
   const { user, isStaffOnlyForTeams } = useAuth()
   // Every invited team, not just `teams[0]` — a D1 coach on an H3 + D1 event
   // was classified as a player whenever H3 sorted first in the junction.
@@ -428,7 +441,7 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
   const answeredCount = statuses.filter((s) => s != null).length
   const uniform = (val: Participation['status']) => total > 0 && statuses.every((s) => s === val)
   const aggregate: Participation['status'] | null =
-    optimisticAll ?? (uniform('confirmed') ? 'confirmed' : uniform('declined') ? 'declined' : uniform('tentative') ? 'tentative' : null)
+    optimisticAll ?? (uniform('confirmed') ? 'confirmed' : uniform('declined') ? 'declined' : uniform('tentative') ? 'tentative' : uniform('waitlisted') ? 'waitlisted' : null)
   const mixed = !aggregate && answeredCount > 0
 
   const deadlinePassed = event.respond_by
@@ -465,7 +478,7 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
     setOptimisticAll(status)
     setSavingAll(true)
     try {
-      await Promise.all(sessions.map((s) => {
+      const saved = await Promise.all(sessions.map((s) => {
         const existing = myBySession.get(String(s.id))
         return existing
           ? update(existing.id, { status })
@@ -480,13 +493,20 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
               session_id: s.id,
             })
       }))
+      // A full day saves the Yes as `waitlisted` (max_players, migration 437):
+      // drop the optimistic answer so the real per-day answers show.
+      if (status === 'confirmed' && saved.some((r) => r?.status === 'waitlisted')) {
+        setOptimisticAll(null)
+        toast.info(t('joinedWaitlist'))
+        refetch()
+      }
       onSaved?.()
     } catch {
       setOptimisticAll(null)
     } finally {
       setSavingAll(false)
     }
-  }, [user, savingAll, total, sessionDataReady, sessions, myBySession, update, create, event.id, isStaff, onSaved])
+  }, [user, savingAll, total, sessionDataReady, sessions, myBySession, update, create, event.id, isStaff, onSaved, refetch, t])
 
   // Until both queries land, `statuses` is all-null and `aggregate` is therefore
   // null — three unselected buttons would be a definitive "you have not answered"

@@ -195,8 +195,8 @@ export function registerPublicEventSignup(router, { database, logger }, helpers)
       const cleanEmail = String(email ?? '').trim().slice(0, 255) || null
 
       // No capacity check here, deliberately (2026-09-28 audit, F-39 — reviewed, not
-      // a bug). `events.max_players` caps MEMBER participations: the RSVP path
-      // waitlists a Yes past it, and the season-health check sums confirmed
+      // a bug). `events.max_players` caps MEMBER participations: the Postgres seat
+      // rule (migration 437) waitlists a Yes past it, and the season-health check sums confirmed
       // participations + their +1s against it. Guest signups live in a separate
       // table the cap has never counted, the public page shows no "full" state, and
       // the organiser sees both lists. Enforcing the member cap against guests

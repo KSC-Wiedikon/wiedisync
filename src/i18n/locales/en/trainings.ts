@@ -74,6 +74,7 @@ export default {
   participation: 'Participation',
   minParticipants: 'Min. participants',
   maxParticipants: 'Max. participants',
+  maxParticipantsHint: 'When full, further sign-ups go to the waiting list. Guest players give way to team players.',
   untilSeasonEnd: 'Indefinitely',
   slotFrom: 'from',
   slotUntil: 'until',

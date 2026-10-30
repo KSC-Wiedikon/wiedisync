@@ -74,6 +74,7 @@ export default {
   respondByHint: 'Reminder 1 day before',
   respondByTime: 'Deadline time',
   maxPlayers: 'Max participants',
+  maxPlayersHint: 'When full, further sign-ups go to the waiting list. Guest players give way to team players.',
   participation: 'Participation',
   viewRoster: 'View roster',
 

@@ -877,6 +877,8 @@ export interface Participation extends BaseRecord {
   guest_count: number
   is_staff: boolean
   waitlisted_at: string
+  /** System-set (migration 437): when this RSVP asked for a seat — waiting-list order. */
+  claimed_at?: string | null
   position_1?: VolleyPosition | null
   position_2?: VolleyPosition | null
   position_3?: VolleyPosition | null

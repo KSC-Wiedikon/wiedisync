@@ -51,6 +51,7 @@ export default {
   bumpedToWaitlist: 'Du bisch uf d Wartelischtä verschobe worde',
   promotedFromWaitlist: 'Du bisch vo de Wartelischtä bestätigt worde',
   waitlistHint: 'Voll — Gäst werded nach Stufe uf d Wartelischtä gsetzt',
+  joinedWaitlist: 'Voll: Du bisch uf de Wartelischtä und rutschisch automatisch nache, sobald en Platz frei wird',
   saved: 'Gspeicheret',
   notePlaceholder: 'Notiz dezuetuä…',
   noteSaved: 'Notiz gspeicheret',

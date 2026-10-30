@@ -54,6 +54,7 @@ export default {
   bumpedToWaitlist: 'You have been moved to the waitlist',
   promotedFromWaitlist: 'You have been promoted from the waitlist',
   waitlistHint: 'Full — guests are waitlisted by level',
+  joinedWaitlist: 'Full: you are on the waiting list and move up automatically when a spot opens',
   saved: 'Saved',
   notePlaceholder: 'Add a note…',
   noteSaved: 'Note saved',
