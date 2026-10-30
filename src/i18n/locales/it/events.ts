@@ -70,6 +70,7 @@ export default {
   respondByHint: 'Promemoria 1 giorno prima',
   respondByTime: 'Ora limite di iscrizione',
   maxPlayers: 'Max partecipanti',
+  maxPlayersHint: 'Quando è al completo, le altre iscrizioni vanno in lista d’attesa. I giocatori ospiti cedono il posto a quelli della squadra.',
   participation: 'Partecipazione',
   viewRoster: 'Vedi lista',
 

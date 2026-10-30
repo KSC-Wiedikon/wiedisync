@@ -51,6 +51,7 @@ export default {
   bumpedToWaitlist: 'Vous avez ete deplace en liste d\'attente',
   promotedFromWaitlist: 'Vous avez ete promu depuis la liste d\'attente',
   waitlistHint: 'Complet — les invites sont en liste d\'attente par niveau',
+  joinedWaitlist: 'Complet : tu es sur la liste d’attente et tu remontes automatiquement dès qu’une place se libère',
   saved: 'Enregistre',
   notePlaceholder: 'Ajouter une note...',
   noteSaved: 'Note enregistree',

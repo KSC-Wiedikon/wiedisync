@@ -121,4 +121,8 @@ export default {
   carpool_cancelled: '{{name}} cancelled the ride, find another one: {{activity}}',
   carpool_requested: '{{name}} needs a ride ({{seats}} seat(s)): {{activity}}',
   carpool_offered: '{{name}} is offering {{seats}} seat(s): {{activity}}',
+  waitlist_bumped_training: '{{team}} training on {{date}} is full: you are on the waiting list',
+  waitlist_bumped_event: '{{title}} on {{date}} is full: you are on the waiting list',
+  waitlist_promoted_training: 'A spot opened up: you are signed up for {{team}} training on {{date}}',
+  waitlist_promoted_event: 'A spot opened up: you are signed up for {{title}} on {{date}}',
 } as const

@@ -1091,6 +1091,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                 value={maxPlayers}
                 onChange={(e) => setMaxPlayers(e.target.value)}
                 min={0}
+                helperText={Number(maxPlayers) > 0 ? t('maxPlayersHint') : undefined}
               />
             </div>
 

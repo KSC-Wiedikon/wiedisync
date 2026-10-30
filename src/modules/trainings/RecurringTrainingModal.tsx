@@ -674,6 +674,9 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
               min={0}
               className={inputCls}
             />
+            {Number(maxParticipants) > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">{t('maxParticipantsHint')}</p>
+            )}
           </div>
         </div>
 

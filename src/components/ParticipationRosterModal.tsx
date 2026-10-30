@@ -1065,8 +1065,23 @@ export default function ParticipationRosterModal({
     absentMemberIds.has(String(m.id)) && !summaryParticipations.some(p => String(p.member) === String(m.id))
   ).length
   const declined = summaryParticipations.filter(p => p.status === 'declined').length + absentWithoutParticipation
+  // Queue order = the server's seat rule (migration 437, kscw_rebalance_capacity):
+  // team players before guests, lower guest level first (a core row on any of the
+  // roster's teams wins), then first come, first served.
+  const queueLevel = (memberId: string) => {
+    if (isClubWide) return 0
+    let lvl: number | null = null
+    for (const mt of members) {
+      if (String(asObj<Member>(mt.member)?.id ?? '') !== memberId) continue
+      const l = Number((mt as { guest_level?: number }).guest_level ?? 0)
+      lvl = lvl === null ? l : Math.min(lvl, l)
+    }
+    return lvl ?? 0
+  }
   const waitlistedParts = summaryParticipations.filter(p => p.status === 'waitlisted')
-    .sort((a, b) => (a.waitlisted_at ?? '').localeCompare(b.waitlisted_at ?? ''))
+    .map(p => ({ p, lvl: queueLevel(String(p.member)), at: p.claimed_at ?? p.waitlisted_at ?? '' }))
+    .sort((a, b) => (Number(a.lvl > 0) - Number(b.lvl > 0)) || (a.lvl - b.lvl) || a.at.localeCompare(b.at))
+    .map(({ p }) => p)
   const waitlisted = waitlistedParts.length
   const notResponded = memberList.length - summaryParticipations.length - absentWithoutParticipation
   const totalGuests = confirmedGuests + tentativeGuests
@@ -2170,7 +2185,8 @@ export default function ParticipationRosterModal({
         </div>
       )}
 
-      {/* Max players indicator for tournaments */}
+      {/* Seats left / Full — trainings.max_participants or events.max_players.
+          Same sum as the server's seat rule (migration 437): players + their +1s. */}
       {maxPlayers != null && maxPlayers > 0 && (() => {
         const totalConfirmed = confirmed + confirmedGuests
         return (

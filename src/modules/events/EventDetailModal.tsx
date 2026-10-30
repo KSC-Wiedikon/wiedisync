@@ -613,9 +613,9 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {hasAbsence && (
         <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
-      {/* Waitlist / max_players is decided server side: a full event answers a
-          Yes with `waitlisted`, which selects no button here and shows up as the
-          orange count next to the label. */}
+      {/* Waitlist / max_players is decided server side (migration 437): a full
+          event saves a Yes as `waitlisted`, which RsvpAnswerButtons shows as an
+          orange Yes with an hourglass, and counts next to the label. */}
       <RsvpAnswerButtons
         activityType="event"
         activityId={event.id}
