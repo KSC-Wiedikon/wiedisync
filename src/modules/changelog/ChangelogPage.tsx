@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.47.0'
+const APP_VERSION = '2.48.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.48.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Search on Events and Games: type a name, place, team, hall or date (11.12, 11.12.2026, Fri) and the list shows only what matches.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'Event cards are narrower on wide screens, so the Yes / No buttons keep a normal size.',
+          'A private sign-up event can be created with nobody invited; connect its form after saving.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.47.0',
     date: '30.10.2026',

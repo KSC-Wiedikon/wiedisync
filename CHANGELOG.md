@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.48.0 — 2026-10-30
+
+### Added
+
+- Search on Events and Games: type a name, place, team, hall or date (11.12, 11.12.2026, Fri) and the list shows only what matches.
+
+### Changed
+
+- Event cards are narrower on wide screens, so the Yes / No buttons keep a normal size.
+- A private sign-up event can be created with nobody invited; connect its form after saving.
+
 ## v2.47.0 — 2026-10-30
 
 ### Added
