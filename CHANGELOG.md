@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.48.1 — 2026-10-30
+
+### Fixed
+
+- «Connect this link» and «Sync sign-ups» now sign in the members who submitted the form (they found nobody before), and the replies show in All signups and its Excel / PDF export.
+
+### Changed
+
+- The signup link shows «Connected» once the form is linked, and it can already be pasted when creating an event — it is connected on the first save.
+
 ## v2.48.0 — 2026-10-30
 
 ### Added
