@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.51.0'
+const APP_VERSION = '2.52.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.52.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'An email when you get a place from the waiting list, and when you lose your place (a guest player making room for a team player, or the maximum lowered), on top of the push and the bell.',
+          'After the deadline, someone on the waiting list, or moved up from it after the deadline, can still say No, so the place goes to the next person in line.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'On trainings and events with a maximum, a Maybe now holds a place too. At the deadline, Maybes turn into No and their places go to the waiting list; someone waiting with a Maybe gets the place back as a Maybe.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.51.0',
     date: '30.10.2026',

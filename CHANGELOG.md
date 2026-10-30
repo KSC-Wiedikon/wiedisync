@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.52.0 — 2026-10-30
+
+### Added
+
+- An email when you get a place from the waiting list, and when you lose your place (a guest player making room for a team player, or the maximum lowered), on top of the push and the bell.
+- After the deadline, someone on the waiting list, or moved up from it after the deadline, can still say No, so the place goes to the next person in line.
+
+### Changed
+
+- On trainings and events with a maximum, a Maybe now holds a place too. At the deadline, Maybes turn into No and their places go to the waiting list; someone waiting with a Maybe gets the place back as a Maybe.
+
 ## v2.51.0 — 2026-10-30
 
 ### Added
