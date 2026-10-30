@@ -150,6 +150,8 @@ export default {
   signupsFormMissing: 'The linked signup form no longer exists in OpnForm.',
   signupsUpstreamError: 'Guest signups could not be loaded right now.',
   signupsLoadFailed: 'The signups could not be loaded',
-  signupsExport: 'Export CSV',
+  signupsExportXlsx: 'Excel',
+  signupsExportPdf: 'PDF',
+  signupsExportFailed: 'The export failed. Please try again.',
   notEventManager: 'You can only invite people to an event you manage',
 } as const

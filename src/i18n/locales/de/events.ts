@@ -150,6 +150,8 @@ export default {
   signupsFormMissing: 'Das verknüpfte Anmeldeformular existiert in OpnForm nicht mehr.',
   signupsUpstreamError: 'Die Gästeanmeldungen konnten momentan nicht geladen werden.',
   signupsLoadFailed: 'Die Anmeldungen konnten nicht geladen werden',
-  signupsExport: 'CSV exportieren',
+  signupsExportXlsx: 'Excel',
+  signupsExportPdf: 'PDF',
+  signupsExportFailed: 'Der Export ist fehlgeschlagen. Bitte versuche es nochmals.',
   notEventManager: 'Du kannst nur zu Events einladen, die du verwaltest',
 } as const
