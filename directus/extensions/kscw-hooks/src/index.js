@@ -54,6 +54,7 @@ import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 import { sweepHallBookings } from './hall-bookings.js'
+import { drainCapacityMoves, cleanupCapacityMoves } from './capacity-moves.js'
 import { createCorsCredentialsMiddleware, createWebSocketCookieGuard } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
 import { forbiddenError } from './directus-error.js'
@@ -7598,6 +7599,33 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('participations.items.delete', formOnlyGate('delete', (db, payload) =>
     eventIdsOfParticipations(db, payload)))
 
+  // ── Waiting list (migration 437) ─────────────────────────────────────────
+  // max_participants / max_players are enforced in Postgres (kscw_rebalance_capacity):
+  // it moves other people's RSVPs between confirmed and waitlisted and queues each
+  // move. These drain the queue into bell + push — right after an app write, and
+  // every minute for the moves raw-SQL writers cause. See capacity-moves.js.
+  const drainCapacity = (source) => drainCapacityMoves(database, {
+    frontendUrl: FRONTEND_URL,
+    log,
+    push: (memberIds, titleKey, bodyKey, vars, url, tag) => sendLocalizedPush(
+      database, memberIds,
+      (ids, title, body) => sendPushToMembers(database, ids, title, body, url, tag, log),
+      titleKey, bodyKey, vars,
+    ),
+  }).catch((err) => {
+    log.error({ msg: `[capacity-moves/${source}] ${err.message}`, event: 'capacity_moves', stack: err.stack })
+  })
+  for (const event of ['participations.items.create', 'participations.items.update', 'participations.items.delete',
+    'trainings.items.update', 'events.items.update']) {
+    action(event, () => { drainCapacity(event) })
+  }
+  schedule('* * * * *', async () => {
+    await drainCapacity('cron')
+    if (new Date().getUTCMinutes() === 17) {
+      await cleanupCapacityMoves(database).catch((err) => logCronError('capacity_moves_cleanup', err))
+    }
+  })
+
   // ── Edit attribution (migration 047, replaces 046) ──────────────────────
   // Per-field trackers: `last_status_edited_*` and `last_note_edited_*`.
   // The roster modal renders "Edited to <status> by <name> on <date>" and
@@ -7797,7 +7825,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     event_sessions: ['event'],
   }
   const SYSTEM_OWNED_ON_UPDATE = {
-    participations: ['waitlisted_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
+    // claimed_at (migration 437): the waiting-list order; the DB trigger owns it too.
+    participations: ['waitlisted_at', 'claimed_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
     // Stamped from the inviter on create (stampInviter); never re-attributable.
     game_guests: ['invited_by_name', 'invited_by_email'],
     game_guest_teams: ['invited_by_name', 'invited_by_email'],

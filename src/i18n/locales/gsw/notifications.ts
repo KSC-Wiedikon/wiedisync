@@ -113,4 +113,8 @@ export default {
   carpool_cancelled: '{{name}} hät d Fahrt abgseit, lueg für ä neui: {{activity}}',
   carpool_requested: '{{name}} suecht ä Mitfahrgleägeheit ({{seats}} Platz/Plätz): {{activity}}',
   carpool_offered: '{{name}} bütet {{seats}} Platz/Plätz a: {{activity}}',
+  waitlist_bumped_training: '{{team}}-Training am {{date}} isch voll: Du bisch uf de Wartelischtä',
+  waitlist_bumped_event: '{{title}} am {{date}} isch voll: Du bisch uf de Wartelischtä',
+  waitlist_promoted_training: 'Platz frei worde: Du bisch fürs {{team}}-Training am {{date}} aagmäldet',
+  waitlist_promoted_event: 'Platz frei worde: Du bisch für {{title}} am {{date}} aagmäldet',
 } as const

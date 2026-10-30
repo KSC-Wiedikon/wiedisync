@@ -113,4 +113,8 @@ export default {
   carpool_cancelled: '{{name}} a annulé le trajet, trouve une autre voiture : {{activity}}',
   carpool_requested: '{{name}} cherche un covoiturage ({{seats}} place(s)) : {{activity}}',
   carpool_offered: '{{name}} propose {{seats}} place(s) : {{activity}}',
+  waitlist_bumped_training: 'L’entraînement {{team}} du {{date}} est complet : tu es sur la liste d’attente',
+  waitlist_bumped_event: '{{title}} du {{date}} est complet : tu es sur la liste d’attente',
+  waitlist_promoted_training: 'Une place s’est libérée : tu es inscrit·e à l’entraînement {{team}} du {{date}}',
+  waitlist_promoted_event: 'Une place s’est libérée : tu es inscrit·e à {{title}} du {{date}}',
 } as const

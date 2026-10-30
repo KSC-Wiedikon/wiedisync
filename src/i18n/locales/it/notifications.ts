@@ -113,4 +113,8 @@ export default {
   carpool_cancelled: '{{name}} ha annullato il passaggio, cercane un altro: {{activity}}',
   carpool_requested: '{{name}} cerca un passaggio ({{seats}} posto/i): {{activity}}',
   carpool_offered: '{{name}} offre {{seats}} posto/i: {{activity}}',
+  waitlist_bumped_training: 'L’allenamento {{team}} del {{date}} è al completo: sei in lista d’attesa',
+  waitlist_bumped_event: '{{title}} del {{date}} è al completo: sei in lista d’attesa',
+  waitlist_promoted_training: 'Si è liberato un posto: sei iscritto/a all’allenamento {{team}} del {{date}}',
+  waitlist_promoted_event: 'Si è liberato un posto: sei iscritto/a a {{title}} del {{date}}',
 } as const
