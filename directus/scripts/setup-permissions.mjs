@@ -2122,6 +2122,9 @@ async function main() {
     'session_id', 'waitlisted_at',
     // migration 437 — waiting-list order; the roster sorts the queue by it.
     'claimed_at',
+    // migration 438 — the answer a seat gives back, and "moved up after the
+    // deadline" (the app still lets that member say No).
+    'requested_status', 'promoted_at',
     'auto_declined_by', 'auto_declined_by_game', 'auto_cancelled_by_closure',
     // migration 352 — the roster needs it to tell a missed deadline apart from
     // a real decline, and members read their own rows through this policy.

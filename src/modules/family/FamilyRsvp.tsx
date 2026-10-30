@@ -5,6 +5,7 @@ import { createRecord, fetchItems, updateRecord } from '../../lib/api'
 import { invalidateForCollection } from '../../lib/query'
 import { usePrompt } from '../../components/ConfirmProvider'
 import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import { mayDeclineAfterDeadline } from '../../utils/lateDecline'
 import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
 import type { RsvpStatus } from '../../utils/participationColors'
 import type { Participation } from '../../types'
@@ -32,6 +33,9 @@ export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSave
   }
 
   const locked = item.respondBy ? getDeadlineDate(item.respondBy, item.time) < new Date() : false
+  // The waiting list may still hand back its seat after the deadline (migration 438).
+  const lateDecline = locked && mayDeclineAfterDeadline(
+    item.mine, item.respondBy ? getDeadlineDate(item.respondBy, item.time) : null)
   const value = optimistic ?? (item.mine?.status as RsvpStatus | undefined) ?? null
 
   async function answer(status: RsvpStatus) {
@@ -83,7 +87,7 @@ export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSave
         }
       }
       // A Yes to a full activity is saved as `waitlisted` (migration 437).
-      if (status === 'confirmed' && saved?.status === 'waitlisted') {
+      if (status !== 'declined' && saved?.status === 'waitlisted') {
         setOptimistic('waitlisted')
         toast.info(tParticipation('joinedWaitlist'))
       }
@@ -109,6 +113,7 @@ export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSave
         value={value}
         onSelect={(s) => { void answer(s) }}
         locked={locked}
+        lateDecline={lateDecline}
         loading={busy}
         saved={saved}
         options={item.allowMaybe ? ['confirmed', 'tentative', 'declined'] : ['confirmed', 'declined']}

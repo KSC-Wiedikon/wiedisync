@@ -4,6 +4,7 @@ import { Pencil, X, Minus, Plus, UserPlus } from 'lucide-react'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
 import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import { mayDeclineAfterDeadline } from '../../utils/lateDecline'
 import IconButton from '../../components/IconButton'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
@@ -412,6 +413,9 @@ function CalendarRsvp({
   }, [saveConfirmed, dismissConfirmed])
 
   const deadlinePassed = respondBy ? getDeadlineDate(respondBy, activityStartTime) < new Date() : false
+  // The waiting list may still hand back its seat after the deadline (migration 438).
+  const lateDecline = deadlinePassed && mayDeclineAfterDeadline(
+    participation, respondBy ? getDeadlineDate(respondBy, activityStartTime) : null)
 
   if (sessionMode && sessions.length > 0) {
     return (
@@ -485,13 +489,14 @@ function CalendarRsvp({
         value={effectiveStatus}
         loading={isLoading}
         locked={deadlinePassed}
+        lateDecline={lateDecline}
         saved={saveConfirmed}
         options={allowMaybe ? ['confirmed', 'tentative', 'declined'] : ['confirmed', 'declined']}
         hideCoachPresent={hideCoachPresent}
         onSelect={select}
       />
       {/* "Note required" — asked before a No/Maybe is saved. */}
-      {pendingStatus && !deadlinePassed && (
+      {pendingStatus && (!deadlinePassed || lateDecline) && (
         <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
           <p className="text-xs font-medium text-foreground/85">
             {statusLabels[pendingStatus]} — {t('requireNoteIfAbsentHint')}

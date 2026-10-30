@@ -74,7 +74,7 @@ export default {
   respondByHint: 'Erinnerung 1 Tag vorher',
   respondByTime: 'Anmeldefrist Uhrzeit',
   maxPlayers: 'Max. Teilnehmer',
-  maxPlayersHint: 'Wenn voll, kommen weitere Anmeldungen auf die Warteliste. Gastspieler machen Teamspielern Platz.',
+  maxPlayersHint: 'Wenn voll, kommen weitere Anmeldungen auf die Warteliste. Vielleicht zählt als Anmeldung und wird beim Anmeldeschluss zu Nein. Gastspieler machen Teamspielern Platz.',
   participation: 'Teilnahme',
   viewRoster: 'Aufgebot anzeigen',
 

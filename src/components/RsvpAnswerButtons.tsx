@@ -37,6 +37,12 @@ export interface RsvpAnswerButtonsProps {
   /** Deadline passed: every option stays visible (with its total) but can't be tapped. */
   locked?: boolean
   /**
+   * With `locked`: No stays tappable — the viewer is on the waiting list or was moved
+   * up from it after the deadline (mayDeclineAfterDeadline), and a No hands the seat
+   * to the next person in line.
+   */
+  lateDecline?: boolean
+  /**
    * Why `locked` — replaces "Deadline passed" and is shown as information, not as a
    * warning (e.g. a form-only event: the form submission is the answer).
    */
@@ -77,7 +83,7 @@ export interface RsvpAnswerButtonsProps {
  */
 export default function RsvpAnswerButtons({
   activityType, activityId, participations, coachMemberIds,
-  value, onSelect, locked, lockedReason, loading, options = ['confirmed', 'tentative', 'declined'],
+  value, onSelect, locked, lateDecline, lockedReason, loading, options = ['confirmed', 'tentative', 'declined'],
   label, trailing, saved, hideCoachPresent, compact, className,
 }: RsvpAnswerButtonsProps) {
   const { t } = useTranslation('participation')
@@ -89,7 +95,6 @@ export default function RsvpAnswerButtons({
     declined: counts.declined,
   }
   const stacked = !!actingName
-  const disabled = !!locked || !!loading
   const waiting = value === 'waitlisted'
 
   const labelId = `rsvp-label-${activityType}-${activityId}`
@@ -136,6 +141,8 @@ export default function RsvpAnswerButtons({
           {options.map((status) => {
             const asWaitlist = waiting && status === 'confirmed'
             const on = value === status || asWaitlist
+            const btnLocked = !!locked && !(lateDecline && status === 'declined')
+            const disabled = btnLocked || !!loading
             const Icon = asWaitlist ? Hourglass : ICON[status]
             const text = asWaitlist ? t('waitlisted') : answer[status]
             return (
@@ -156,8 +163,8 @@ export default function RsvpAnswerButtons({
                   !stacked && '@max-3xs:min-h-11 @max-3xs:flex-col @max-3xs:gap-0 @max-3xs:px-1',
                   on ? (asWaitlist ? WAITLIST_FILL : FILL[status]) : TINT[status],
                   stacked && 'justify-start px-3',
-                  locked && 'cursor-not-allowed',
-                  locked && !on && 'opacity-50',
+                  btnLocked && 'cursor-not-allowed',
+                  btnLocked && !on && 'opacity-50',
                   loading && 'opacity-50',
                 )}
               >
@@ -203,9 +210,9 @@ export default function RsvpAnswerButtons({
 
       {locked && (
         <p className={cn('flex items-center gap-1.5 text-xs',
-          lockedReason ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400')}>
+          lockedReason || lateDecline ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400')}>
           <Lock className="h-3 w-3 shrink-0" aria-hidden />
-          {lockedReason ?? t('deadlinePassed')}
+          {lockedReason ?? (lateDecline ? t('lateDeclineHint') : t('deadlinePassed'))}
         </p>
       )}
     </div>

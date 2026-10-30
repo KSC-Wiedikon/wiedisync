@@ -74,7 +74,7 @@ export default {
   respondByHint: 'Erinnering 1 Tag vorher',
   respondByTime: 'Aamäldefrischt Uhrzit',
   maxPlayers: 'Max. Teilnehmer',
-  maxPlayersHint: 'Wenn voll, chömed wiiteri Aamäldige uf d Wartelischtä. Gastspieler mached Teamspieler Platz.',
+  maxPlayersHint: 'Wenn voll, chömed wiiteri Aamäldige uf d Wartelischtä. Villicht zellt als Aamäldig und wird bim Aamäldeschluss zu Nei. Gastspieler mached Teamspieler Platz.',
   participation: 'Teilnahm',
   viewRoster: 'Ufgebot aazeige',
 
