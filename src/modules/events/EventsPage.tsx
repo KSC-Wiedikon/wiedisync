@@ -28,6 +28,8 @@ import { isFeatureEnabled } from '../../utils/featureToggles'
 import { asTeams, teamId, ALL_GUEST_LEVELS } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import { GuideHelpButton } from '../guide/GuideHelpButton'
+import SearchField from '../../components/SearchField'
+import { matchesSearch, dateSearchText, timeSearchText, htmlToSearchText } from '../../utils/searchText'
 
 /**
  * Runtime shape of one `events_members` entry. `Event['invited_members']` is declared
@@ -191,6 +193,24 @@ export default function EventsPage() {
     return list
   }, [visibleEvents, myDuties, showPast])
 
+  // Search: title, place, description, type, teams, date/time (utils/searchText).
+  const [query, setQuery] = useState('')
+  const shownRows = useMemo(() => {
+    if (!query.trim()) return rows
+    return rows.filter((row) => {
+      if (row.kind === 'duty') {
+        const g = row.duty.game
+        return matchesSearch(query, [g.home_team, g.away_team, g.league, dateSearchText(g.date), timeSearchText(g.time)])
+      }
+      const e = row.event
+      return matchesSearch(query, [
+        e.title, e.location, htmlToSearchText(e.description), t(e.event_type),
+        ...asTeams(e.teams).map((tm) => tm.name),
+        dateSearchText(e.start_date), e.all_day ? '' : timeSearchText(e.start_date),
+      ])
+    })
+  }, [rows, query, t])
+
   const { remove } = useMutation<Event>('events')
 
   useRealtime('events', () => refetch())
@@ -296,22 +316,28 @@ export default function EventsPage() {
         )}
       </div>
 
+      <SearchField className="mt-4 max-w-md" value={query} onChange={setQuery} placeholder={t('searchPlaceholder')} />
+
       {!teamsLoading && allUserTeamIds.length > 1 && (
         <div className="mt-6">
           <TeamFilter selected={selectedTeam} onChange={setSelectedTeam} limitToTeamIds={(effectiveIsAdmin || effectiveIsVorstand) ? undefined : allUserTeamIds} groupBySport={effectiveIsAdmin || effectiveIsVorstand} />
         </div>
       )}
 
-      <div className="mt-6">
+      {/* Cards capped like the games results list: full-width RSVP buttons on a wide
+          screen were half a metre long. */}
+      <div className="mx-auto mt-6 w-full max-w-3xl">
         {pageLoading ? null : rows.length === 0 ? (
           <EmptyState
             icon={<PartyPopper className="h-10 w-10" />}
             title={t('noEvents')}
             description={t('noEventsDescription')}
           />
+        ) : shownRows.length === 0 ? (
+          <EmptyState icon={<PartyPopper className="h-10 w-10" />} title={t('noSearchResults')} />
         ) : (
           <div className="space-y-3">
-            {rows.map((row) => {
+            {shownRows.map((row) => {
               if (row.kind === 'duty') {
                 return <DutyEventCard key={`duty-${row.duty.game.id}-${row.duty.role}`} duty={row.duty} />
               }

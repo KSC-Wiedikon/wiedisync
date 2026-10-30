@@ -1,4 +1,5 @@
 export default {
+  searchPlaceholder: 'Spiel sueche: Team, Halle, Datum, Spielnr.…',
   title: 'Spiel & Resultat',
   subtitle: 'Swiss Volley Date — kommendi Spiel, Resultat, Ranglischte.',
 

@@ -1,4 +1,5 @@
 export default {
+  searchPlaceholder: 'Rechercher : équipe, salle, date, n° de match…',
   title: 'Matchs et resultats',
   subtitle: 'Donnees Swiss Volley — matchs a venir, resultats, classements.',
 

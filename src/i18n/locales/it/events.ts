@@ -1,4 +1,6 @@
 export default {
+  searchPlaceholder: 'Cerca eventi: nome, luogo, data…',
+  noSearchResults: 'Nessun risultato.',
   title: 'Eventi',
   subtitle: 'Eventi e attività del club',
   newEvent: 'Nuovo evento',
