@@ -8,6 +8,7 @@ import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 import { useMyCoveringAbsence } from './useMyCoveringAbsence'
 import type { Participation, VolleyPosition } from '../types'
+import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../utils/optimisticRsvp'
 
 export function useParticipation(
   activityType: Participation['activity_type'],
@@ -32,6 +33,7 @@ export function useParticipation(
 ) {
   const { user } = useAuth()
   const { t } = useTranslation('common')
+  const { t: tParticipation } = useTranslation('participation')
 
   const skipFetch = !!prefetched
   const { data: participationsRaw, refetch, isLoading: fetchLoading } = useCollection<Participation>('participations', {
@@ -66,9 +68,10 @@ export function useParticipation(
   // activity's optimistic RSVP can't bleed into a freshly-opened one — the
   // detail modals are a single persistent instance whose activityId prop
   // changes WITHOUT remounting, so plain state would survive the switch and
-  // show a phantom "Yes" on a game the user never touched.
+  // show a phantom "Yes" on a game the user never touched. Once the server shows
+  // a value the viewer did not cause, the server wins (optimisticRsvp.ts).
   const activityKey = `${activityType}|${activityId}|${sessionId ?? ''}`
-  const [optimistic, setOptimistic] = useState<{ key: string; status: Participation['status'] } | null>(null)
+  const [optimistic, setOptimistic] = useState<OptimisticRsvp | null>(null)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
 
   // `prefetched` is the whole activity's roster, so the viewer's own row has to
@@ -104,7 +107,8 @@ export function useParticipation(
   ) => {
     if (!user) return
     // Optimistic update — show status immediately
-    setOptimistic({ key: activityKey, status })
+    const atTap = participation?.status ?? null
+    setOptimistic((prev) => optimisticPick(prev, activityKey, atTap, status))
     setSaveConfirmed(false)
     const posFields = positions ? {
       position_1: positions.position_1 || null,
@@ -114,6 +118,7 @@ export function useParticipation(
     const writtenId = writtenRef.current?.key === activityKey ? writtenRef.current.id : null
     const existingId = participation?.id ?? writtenId
     try {
+      let saved: Participation | undefined
       if (existingId) {
         // Preserve the row's original is_staff classification on update — set it
         // only on create (matches GameCard / TrainingCard / EventCard /
@@ -122,7 +127,7 @@ export function useParticipation(
         // role context drifted (e.g. a season-lagged member_teams row makes
         // isStaffOnly flip true), silently yanking the row out of the player
         // tally so the participation bricks dropped to zero on every click.
-        await update(existingId, { status, note, guest_count: guestCount, ...posFields })
+        saved = await update(existingId, { status, note, guest_count: guestCount, ...posFields })
       } else {
         try {
           const created = await create({
@@ -136,6 +141,7 @@ export function useParticipation(
             ...(sessionId ? { session_id: sessionId } : {}),
             ...posFields,
           }, { silentOnUnique: true })
+          saved = created
           writtenRef.current = { key: activityKey, id: created.id }
         } catch (err) {
           // A row already exists that our cached read never saw — a second click
@@ -156,18 +162,25 @@ export function useParticipation(
           })
           if (!row) throw err
           writtenRef.current = { key: activityKey, id: row.id }
-          await update(row.id, { status, note, guest_count: guestCount, ...posFields })
+          saved = await update(row.id, { status, note, guest_count: guestCount, ...posFields })
           refetch()
         }
       }
       setSaveConfirmed(true)
+      // The seat rule is server side (max participants, migration 437): a Yes to a
+      // full activity is saved as `waitlisted`. Show what was actually saved.
+      const savedStatus = saved?.status
+      if (savedStatus && savedStatus !== status) {
+        setOptimistic((prev) => optimisticSaved(prev, activityKey, status, savedStatus))
+        if (savedStatus === 'waitlisted') toast.info(tParticipation('joinedWaitlist'))
+      }
       // Skip explicit refetch — realtime subscription handles data sync
     } catch {
       // Revert optimistic update on failure + let the user know the RSVP didn't save
       setOptimistic(null)
       toast.error(t('error'))
     }
-  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update, refetch, t])
+  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update, refetch, t, tParticipation])
 
   const clearStatus = useCallback(async () => {
     // Same blind spot as setStatus: a just-created row is not in `participations`
@@ -184,7 +197,7 @@ export function useParticipation(
         // Skip explicit refetch — realtime subscription handles data sync
       } catch {
         // Revert — restore the original status + surface the failure to the user
-        if (previous) setOptimistic({ key: activityKey, status: previous })
+        if (previous) setOptimistic({ key: activityKey, status: previous, accept: [previous] })
         toast.error(t('error'))
       }
     }
@@ -194,8 +207,7 @@ export function useParticipation(
   // user switches activities its key no longer matches and we fall back to the
   // server value (null for an untouched activity).
   const serverStatus = participation?.status ?? null
-  const optimisticStatus = optimistic && optimistic.key === activityKey ? optimistic.status : null
-  const displayStatus = optimisticStatus ?? serverStatus
+  const displayStatus = shownStatus(optimistic, activityKey, serverStatus)
 
   return {
     participation,

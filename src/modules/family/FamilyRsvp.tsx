@@ -20,8 +20,9 @@ import type { FamilyItem } from './familyAgenda'
  */
 export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSaved: () => void }) {
   const { t } = useTranslation('home')
+  const { t: tParticipation } = useTranslation('participation')
   const prompt = usePrompt()
-  const [optimistic, setOptimistic] = useState<RsvpStatus | null>(null)
+  const [optimistic, setOptimistic] = useState<Participation['status'] | null>(null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const { person } = item
@@ -49,11 +50,12 @@ export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSave
     setSaved(false)
     setBusy(true)
     try {
+      let saved: Participation | undefined
       if (item.mine) {
-        await updateRecord('participations', item.mine.id, { status, note }, { actAs })
+        saved = await updateRecord<Participation>('participations', item.mine.id, { status, note }, { actAs })
       } else {
         try {
-          await createRecord('participations', {
+          saved = await createRecord<Participation>('participations', {
             member: person.memberId,
             activity_type: item.kind,
             activity_id: item.id,
@@ -77,8 +79,13 @@ export default function FamilyRsvp({ item, onSaved }: { item: FamilyItem; onSave
             actAs,
           })
           if (!row) throw err
-          await updateRecord('participations', row.id, { status, note }, { actAs })
+          saved = await updateRecord<Participation>('participations', row.id, { status, note }, { actAs })
         }
+      }
+      // A Yes to a full activity is saved as `waitlisted` (migration 437).
+      if (status === 'confirmed' && saved?.status === 'waitlisted') {
+        setOptimistic('waitlisted')
+        toast.info(tParticipation('joinedWaitlist'))
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)

@@ -74,6 +74,7 @@ export default {
   participation: 'Participation',
   minParticipants: 'Min. participants',
   maxParticipants: 'Max. participants',
+  maxParticipantsHint: 'Une fois complet, les inscriptions suivantes vont en liste d’attente. Les joueurs invités cèdent leur place à ceux de l’équipe.',
   untilSeasonEnd: 'Indefiniment',
   slotFrom: 'du',
   slotUntil: 'au',

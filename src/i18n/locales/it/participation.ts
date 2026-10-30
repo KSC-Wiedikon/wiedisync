@@ -51,6 +51,7 @@ export default {
   bumpedToWaitlist: 'Sei stato spostato nella lista d\'attesa',
   promotedFromWaitlist: 'Sei stato promosso dalla lista d\'attesa',
   waitlistHint: 'Completo — gli ospiti sono in lista d\'attesa per livello',
+  joinedWaitlist: 'Al completo: sei in lista d’attesa e passi avanti automaticamente appena si libera un posto',
   saved: 'Salvato',
   notePlaceholder: 'Aggiungi una nota...',
   noteSaved: 'Nota salvata',

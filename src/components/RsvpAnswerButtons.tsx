@@ -21,6 +21,9 @@ const FILL: Record<RsvpStatus, string> = {
   tentative: 'border-yellow-600 bg-yellow-600 text-white ring-2 ring-yellow-400/60 ring-offset-1 ring-offset-background',
   declined: 'border-red-600 bg-red-600 text-white ring-2 ring-red-400/60 ring-offset-1 ring-offset-background',
 }
+// The viewer said Yes to a full activity (max participants, migration 437): the
+// Yes button stays selected, in the waiting-list orange, with an hourglass.
+const WAITLIST_FILL = 'border-orange-500 bg-orange-500 text-white ring-2 ring-orange-300/60 ring-offset-1 ring-offset-background dark:border-orange-600 dark:bg-orange-600'
 
 export interface RsvpAnswerButtonsProps {
   activityType: Participation['activity_type']
@@ -28,7 +31,7 @@ export interface RsvpAnswerButtonsProps {
   /** Prefetched rows (the modal already has them) — no second fetch. */
   participations?: Participation[]
   coachMemberIds?: string[]
-  /** The viewer's current answer. */
+  /** The viewer's current answer. `waitlisted` selects Yes in the waiting-list style. */
   value: string | null | undefined
   onSelect: (status: RsvpStatus) => void
   /** Deadline passed: every option stays visible (with its total) but can't be tapped. */
@@ -87,6 +90,7 @@ export default function RsvpAnswerButtons({
   }
   const stacked = !!actingName
   const disabled = !!locked || !!loading
+  const waiting = value === 'waitlisted'
 
   const labelId = `rsvp-label-${activityType}-${activityId}`
   const coachPresent = !hideCoachPresent && !counts.pending && counts.staffConfirmed > 0 ? (
@@ -130,8 +134,10 @@ export default function RsvpAnswerButtons({
           style={{ ['--n' as string]: options.length }}
         >
           {options.map((status) => {
-            const on = value === status
-            const Icon = ICON[status]
+            const asWaitlist = waiting && status === 'confirmed'
+            const on = value === status || asWaitlist
+            const Icon = asWaitlist ? Hourglass : ICON[status]
+            const text = asWaitlist ? t('waitlisted') : answer[status]
             return (
               <button
                 key={status}
@@ -139,7 +145,7 @@ export default function RsvpAnswerButtons({
                 role="radio"
                 aria-checked={on}
                 aria-disabled={disabled || undefined}
-                title={`${answer[status]}: ${counts.pending ? '…' : total[status]}`}
+                title={`${text}: ${counts.pending ? '…' : total[status]}`}
                 onClick={() => { if (!disabled && !on) onSelect(status) }}
                 className={cn(
                   // Deliberately below the 44px button scale (user call, 2026-09-28): three
@@ -148,7 +154,7 @@ export default function RsvpAnswerButtons({
                   'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
                   compact ? 'min-h-9 text-[13px] sm:min-h-8' : 'min-h-10 text-sm sm:min-h-9',
                   !stacked && '@max-3xs:min-h-11 @max-3xs:flex-col @max-3xs:gap-0 @max-3xs:px-1',
-                  on ? FILL[status] : TINT[status],
+                  on ? (asWaitlist ? WAITLIST_FILL : FILL[status]) : TINT[status],
                   stacked && 'justify-start px-3',
                   locked && 'cursor-not-allowed',
                   locked && !on && 'opacity-50',
@@ -156,7 +162,7 @@ export default function RsvpAnswerButtons({
                 )}
               >
                 <Icon className={cn('h-3.5 w-3.5 shrink-0', !stacked && '@max-3xs:hidden', !on && !stacked && '@max-xs:hidden')} aria-hidden />
-                <span className={cn('min-w-0', stacked ? 'whitespace-normal text-left' : '@max-3xs:text-[11px] @max-3xs:leading-tight')}>{answer[status]}</span>
+                <span className={cn('min-w-0', stacked ? 'whitespace-normal text-left' : '@max-3xs:text-[11px] @max-3xs:leading-tight')}>{text}</span>
                 <span
                   className={cn(
                     'min-w-[1ch] text-center font-bold tabular-nums',

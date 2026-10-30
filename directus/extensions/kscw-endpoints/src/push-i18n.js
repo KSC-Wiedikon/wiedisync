@@ -300,6 +300,51 @@ const T = {
     fr: 'L’entraînement {team} du {date} a été annulé',
     it: 'L’allenamento {team} del {date} è stato annullato',
   },
+  // Waiting list (migration 437, kscw-hooks capacity-moves.js). Bumped = somebody
+  // with priority took the seat or the cap went down; promoted = a seat freed up.
+  // {team} for trainings, {title} for events.
+  'waitlistBumped.title': {
+    de: 'Auf der Warteliste',
+    gsw: 'Uf de Warteliste',
+    en: 'On the waiting list',
+    fr: 'Sur la liste d’attente',
+    it: 'In lista d’attesa',
+  },
+  'waitlistBumped.training': {
+    de: '{team}-Training am {date} ist voll: Du bist auf der Warteliste und rückst automatisch nach, sobald ein Platz frei wird.',
+    gsw: '{team}-Training am {date} isch voll: Du bisch uf de Warteliste und rutschisch automatisch nache, sobald en Platz frei wird.',
+    en: '{team} training on {date} is full: you are on the waiting list and move up automatically when a spot opens.',
+    fr: 'L’entraînement {team} du {date} est complet : tu es sur la liste d’attente et tu remontes automatiquement dès qu’une place se libère.',
+    it: 'L’allenamento {team} del {date} è al completo: sei in lista d’attesa e passi avanti automaticamente appena si libera un posto.',
+  },
+  'waitlistBumped.event': {
+    de: '{title} am {date} ist voll: Du bist auf der Warteliste und rückst automatisch nach, sobald ein Platz frei wird.',
+    gsw: '{title} am {date} isch voll: Du bisch uf de Warteliste und rutschisch automatisch nache, sobald en Platz frei wird.',
+    en: '{title} on {date} is full: you are on the waiting list and move up automatically when a spot opens.',
+    fr: '{title} du {date} est complet : tu es sur la liste d’attente et tu remontes automatiquement dès qu’une place se libère.',
+    it: '{title} del {date} è al completo: sei in lista d’attesa e passi avanti automaticamente appena si libera un posto.',
+  },
+  'waitlistPromoted.title': {
+    de: 'Du hast einen Platz',
+    gsw: 'Du häsch en Platz',
+    en: 'You got a spot',
+    fr: 'Tu as une place',
+    it: 'Hai un posto',
+  },
+  'waitlistPromoted.training': {
+    de: 'Beim {team}-Training am {date} ist ein Platz frei geworden: Du bist jetzt angemeldet.',
+    gsw: 'Bim {team}-Training am {date} isch en Platz frei worde: Du bisch jetzt aagmäldet.',
+    en: 'A spot opened up at {team} training on {date}: you are now signed up.',
+    fr: 'Une place s’est libérée à l’entraînement {team} du {date} : tu es maintenant inscrit·e.',
+    it: 'Si è liberato un posto all’allenamento {team} del {date}: ora sei iscritto/a.',
+  },
+  'waitlistPromoted.event': {
+    de: 'Bei {title} am {date} ist ein Platz frei geworden: Du bist jetzt angemeldet.',
+    gsw: 'Bi {title} am {date} isch en Platz frei worde: Du bisch jetzt aagmäldet.',
+    en: 'A spot opened up at {title} on {date}: you are now signed up.',
+    fr: 'Une place s’est libérée pour {title} du {date} : tu es maintenant inscrit·e.',
+    it: 'Si è liberato un posto per {title} del {date}: ora sei iscritto/a.',
+  },
   // Game guest invitation (migration 271) — a coach opened one of their games to
   // another team or to this player individually. {team} = the inviting team's name,
   // {matchup} = "Home - Away", {date} = dd.mm.yyyy.

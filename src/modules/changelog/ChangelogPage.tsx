@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.50.0'
+const APP_VERSION = '2.51.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.51.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Max participants on trainings and events now works. When it is full, a Yes goes on the waiting list (the Yes button turns orange with an hourglass). Guest players give way to team players: a team player who says Yes to a full training takes the seat of the guest who signed up last. When a spot opens, the first person on the waiting list gets it automatically, and a push and the bell tell them.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'The training roster shows «x spots left» or «Full (14/14)» when the training has a maximum, like events.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.50.0',
     date: '30.10.2026',

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, MessageSquare, Minus, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatDate, formatTime, getDeadlineDate } from '../utils/dateHelpers'
 import { useAuth } from '../hooks/useAuth'
 import { useMutation } from '../hooks/useMutation'
 import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../hooks/useAbsenceNoteText'
 import type { Participation } from '../types'
+import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../utils/optimisticRsvp'
 import RsvpAnswerButtons from './RsvpAnswerButtons'
 import IconButton from './IconButton'
 
@@ -87,7 +89,7 @@ export default function ActivityParticipation({
     ? getDeadlineDate(respondBy, activityTime) < new Date()
     : false
 
-  const [optimisticStatus, setOptimisticStatus] = useState<Participation['status'] | null>(null)
+  const [optimistic, setOptimistic] = useState<OptimisticRsvp | null>(null)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
   const [guestCount, setGuestCount] = useState(existingParticipation?.guest_count ?? 0)
   const [noteText, setNoteText] = useState(existingParticipation?.note ?? '')
@@ -116,7 +118,9 @@ export default function ActivityParticipation({
   }
 
   const serverStatus = existingParticipation?.status ?? null
-  const displayStatus = optimisticStatus ?? serverStatus
+  // The server wins once it shows a value the viewer did not cause (the waiting
+  // list bumped or promoted this RSVP) — optimisticRsvp.ts.
+  const displayStatus = shownStatus(optimistic, activityId, serverStatus)
 
   // Auto-dismiss confirmation after 2s
   useEffect(() => {
@@ -136,13 +140,14 @@ export default function ActivityParticipation({
     if (!user) return
     const gc = guests ?? guestCount
     const n = note ?? noteText
-    setOptimisticStatus(status)
+    setOptimistic((prev) => optimisticPick(prev, activityId, serverStatus, status))
     setSaveConfirmed(false)
     try {
+      let saved: Participation | undefined
       if (existingParticipation) {
-        await update(existingParticipation.id, { status, guest_count: gc, note: n })
+        saved = await update(existingParticipation.id, { status, guest_count: gc, note: n })
       } else {
-        await create({
+        saved = await create({
           member: user.id,
           activity_type: kind,
           activity_id: activityId,
@@ -153,11 +158,18 @@ export default function ActivityParticipation({
         })
       }
       setSaveConfirmed(true)
+      // A Yes to a full training is saved as `waitlisted` (max participants,
+      // migration 437) — show what was actually saved.
+      const savedStatus = saved?.status
+      if (savedStatus && savedStatus !== status) {
+        setOptimistic((prev) => optimisticSaved(prev, activityId, status, savedStatus))
+        if (savedStatus === 'waitlisted') toast.info(t('joinedWaitlist'))
+      }
       onSaved?.()
     } catch {
-      setOptimisticStatus(null)
+      setOptimistic(null)
     }
-  }, [user, existingParticipation, activityId, kind, isStaff, guestCount, noteText, create, update, onSaved])
+  }, [user, existingParticipation, serverStatus, activityId, kind, isStaff, guestCount, noteText, create, update, onSaved, t])
 
   const saveNote = () => {
     if (noteText !== serverNote && displayStatus) {

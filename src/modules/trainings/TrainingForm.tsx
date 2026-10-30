@@ -700,6 +700,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             value={maxParticipants}
             onChange={(e) => setMaxParticipants(e.target.value)}
             min={0}
+            helperText={Number(maxParticipants) > 0 ? t('maxParticipantsHint') : undefined}
           />
         </div>
 
