@@ -20,7 +20,8 @@
  *   POST   /finance/invoices/:id/confirm     Vorstand — confirm payment (manual)
  *   POST   /finance/invoices/:id/cancel      Vorstand — void a native invoice
  *   POST   /finance/invoices/:id/link-member Vorstand — link an orphaned ClubDesk invoice to a member
- *   DELETE /finance/invoices/:id/link-member Vorstand — remove that link
+ *   DELETE /finance/invoices/:id/link-member Vorstand — remove that link (also undoes "not a member")
+ *   POST   /finance/invoices/:id/not-a-member Vorstand — this ClubDesk contact's invoices belong to no member
  *
  * Referee fees + team finance (read-time views over referee_expenses, migration 363):
  *   GET    /finance/team/:teamId?season=   roster / lead / sport admin / finance —
@@ -886,6 +887,42 @@ export function registerFinance(router, { database, logger, services, getSchema 
     } catch (e) { return err(res, req, 'link-member', e) }
   })
 
+  // ── POST /finance/invoices/:id/not-a-member — a sponsor's invoice, not a member's ─
+  // Migration 436. An invoice to a non-member contact (a sponsor) that carries a member's
+  // e-mail is linked to that member by the import's e-mail match and shows as their due.
+  // This pins "no member" on the invoice's ClubDesk CONTACT (every invoice of it, past and
+  // future), or on the one invoice when ClubDesk gave no contact id. The import re-applies
+  // it after the e-mail match, so it sticks. Undo = DELETE …/link-member.
+  router.post('/finance/invoices/:id/not-a-member', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'clubdesk').first()
+      if (!inv) return res.status(404).json({ error: 'Not found (ClubDesk invoice expected)' })
+      const reason = (req.body?.reason || '').toString().trim() || 'not a member (sponsor / other contact)'
+      const contact = (inv.cd_contact_id || '').trim() || null
+      const scope = contact ? 'contact' : 'invoice'
+      const who = { created_by_name: mem?.name || null, created_by_email: mem?.email || null }
+      let affected = 0
+      await database.transaction(async (trx) => {
+        if (contact) {
+          await trx('finance_invoice_member_overrides').where('match_cd_contact_id', contact).del()
+          await trx('finance_invoice_member_overrides').insert({ match_cd_contact_id: contact, member: null, reason, ...who })
+          affected = await trx('finance_invoices').where('source', 'clubdesk').andWhere('cd_contact_id', contact)
+            .update({ member: null, not_member: true, date_updated: new Date() })
+        } else {
+          await trx('finance_invoice_member_overrides').where('match_clubdesk_id', inv.clubdesk_id).del()
+          await trx('finance_invoice_member_overrides').insert({ match_clubdesk_id: inv.clubdesk_id, member: null, reason, ...who })
+          affected = await trx('finance_invoices').where('clubdesk_id', inv.clubdesk_id)
+            .update({ member: null, not_member: true, date_updated: new Date() })
+        }
+      })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'not_a_member', scope, contact, was_member: inv.member ?? null, affected } })
+      return res.json({ ok: true, scope, affected })
+    } catch (e) { return err(res, req, 'not-a-member', e) }
+  })
+
   // ── DELETE /finance/invoices/:id/link-member — remove the override ──────
   router.delete('/finance/invoices/:id/link-member', async (req, res) => {
     try {
@@ -905,6 +942,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       let cleared = 0
       if (email) cleared += await database('finance_invoices').where('source', 'clubdesk').whereRaw('lower(recipient_email) = ?', [email]).update({ member: null, date_updated: new Date() })
       else if (inv.clubdesk_id) cleared += await database('finance_invoices').where('clubdesk_id', inv.clubdesk_id).update({ member: null, date_updated: new Date() })
+      // Undoing "not a member" (migration 436): the rows go back to the ordinary match.
+      if (inv.cd_contact_id) await database('finance_invoices').where('source', 'clubdesk').andWhere('cd_contact_id', inv.cd_contact_id).update({ not_member: false })
+      else if (inv.clubdesk_id) await database('finance_invoices').where('clubdesk_id', inv.clubdesk_id).update({ not_member: false })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'unlink_member', removed, cleared } })
       return res.json({ ok: true, removed, cleared })
     } catch (e) { return err(res, req, 'unlink-member', e) }

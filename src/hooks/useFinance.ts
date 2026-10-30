@@ -150,6 +150,9 @@ export const cancelInvoice = (id: string | number) =>
   kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/cancel`, { method: 'POST' })
 export const linkInvoiceMember = (id: string | number, member: number, scope: 'email' | 'invoice' = 'email') =>
   kscwApi<{ ok: true; scope: string; affected: number }>(`/finance/invoices/${id}/link-member`, { method: 'POST', body: { member, scope } })
+/** Migration 436: this invoice's ClubDesk contact (a sponsor) is not a member — unlink all its invoices, kept on import. */
+export const markInvoiceNotMember = (id: string | number) =>
+  kscwApi<{ ok: true; scope: 'contact' | 'invoice'; affected: number }>(`/finance/invoices/${id}/not-a-member`, { method: 'POST' })
 export const unlinkInvoiceMember = (id: string | number) =>
   kscwApi<{ ok: true; removed: number; cleared: number }>(`/finance/invoices/${id}/link-member`, { method: 'DELETE' })
 
@@ -172,7 +175,7 @@ export const importCamt = (xml: string) =>
 const INVOICE_FIELDS = [
   'id', 'clubdesk_id', 'number', 'invoice_date', 'subject', 'amount', 'status', 'dunning_level',
   'due_date', 'amount_paid', 'open_amount', 'overpaid_amount', 'written_off_amount', 'payment_method',
-  'reference', 'fee_category', 'closed_on', 'recipient_name', 'recipient_email', 'member', 'fiscal_year',
+  'reference', 'fee_category', 'closed_on', 'recipient_name', 'recipient_email', 'member', 'not_member', 'fiscal_year',
   'source', 'reference_type', 'team', 'reported_paid_at', 'reported_paid_method',
   'reported_paid_by', 'confirmed_at', 'confirmed_via', 'cancelled_at',
   // Provenance for the invoice table's "Created by" column. cd_created_at is
