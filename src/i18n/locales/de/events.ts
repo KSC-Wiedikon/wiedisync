@@ -122,6 +122,7 @@ export default {
   signupFormUnlinkConfirm: 'Den Anmeldelink von diesem Anlass entfernen? Das Formular und seine Einträge bleiben erhalten.',
   signupFormIsConnected: 'Verbunden – Anmeldungen über dieses Formular zählen.',
   signupFormNotConnected: 'Noch nicht verbunden – drücke «Diesen Link verbinden», damit Anmeldungen darüber zählen.',
+  signupFormConnectOnSave: 'Der Link wird beim Speichern verbunden: Wer das Formular schon abgeschickt hat, wird angemeldet.',
   signupFormConnect: 'Diesen Link verbinden',
   signupFormConnected: 'Formular verbunden. Angemeldete Mitglieder: {{count}}.',
   signupFormSync: 'Anmeldungen übernehmen',

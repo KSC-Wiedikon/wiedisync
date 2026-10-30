@@ -122,6 +122,7 @@ export default {
   signupFormUnlinkConfirm: 'Remove the signup link from this event? The form and its entries are kept.',
   signupFormIsConnected: 'Connected — sign-ups through this form count.',
   signupFormNotConnected: 'Not connected yet — press «Connect this link» so sign-ups through it count.',
+  signupFormConnectOnSave: 'The link is connected when you save: everyone who already submitted the form is signed in.',
   signupFormConnect: 'Connect this link',
   signupFormConnected: 'Form connected. Members signed in: {{count}}.',
   signupFormSync: 'Sync sign-ups',
