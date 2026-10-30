@@ -152,6 +152,8 @@ export default {
   signupsFormMissing: 'Le formulaire d\'inscription associé n\'existe plus dans OpnForm.',
   signupsUpstreamError: 'Les inscriptions des invités n\'ont pas pu être chargées pour le moment.',
   signupsLoadFailed: 'Les inscriptions n\'ont pas pu être chargées',
-  signupsExport: 'Exporter en CSV',
+  signupsExportXlsx: 'Excel',
+  signupsExportPdf: 'PDF',
+  signupsExportFailed: 'L\'export a échoué. Merci de réessayer.',
   notEventManager: 'Tu ne peux inviter des personnes qu\'à un événement que tu gères',
 } as const

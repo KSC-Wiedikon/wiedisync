@@ -150,6 +150,8 @@ export default {
   signupsFormMissing: 'S verchnüpfte Aamäldeformular git s in OpnForm nüme.',
   signupsUpstreamError: 'D Gescht-Aamäldige hend momentan nöd chöne glade werde.',
   signupsLoadFailed: 'D Aamäldige hend nöd chöne glade werde',
-  signupsExport: 'CSV exportiere',
+  signupsExportXlsx: 'Excel',
+  signupsExportPdf: 'PDF',
+  signupsExportFailed: 'De Export isch fählgschlage. Bitte probier s nomal.',
   notEventManager: 'Du chasch nur zu Events iilade, wo du verwaltisch',
 } as const
