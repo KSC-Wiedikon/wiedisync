@@ -6,7 +6,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useMutation } from '../../hooks/useMutation'
 import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-react'
+import { CheckCircle2, Trash2 } from 'lucide-react'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
@@ -187,6 +187,11 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [signupUrl, setSignupUrl] = useState('')
   const [signupUrlError, setSignupUrlError] = useState('')
+  // The form the server has bound (events.signup_form_slug). A pasted link counts only
+  // once it is connected — that is what makes submissions sign people in.
+  const [boundSlug, setBoundSlug] = useState<string | null>(null)
+  const typedSlug = signupUrl.trim().match(/\/forms\/([a-z0-9][a-z0-9-]{0,80})/i)?.[1] ?? null
+  const signupConnected = !!boundSlug && typedSlug === boundSlug
   const [signupBusy, setSignupBusy] = useState(false)
   const [templateDraft, setTemplateDraft] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -272,6 +277,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       setCarpoolTeams((event.carpool_teams ?? []).map(String))
       setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
       setSignupUrl(event.signup_url ?? '')
+      setBoundSlug(event.signup_form_slug ?? null)
     } else {
       setTitle('')
       setEventType(effectiveIsAdmin ? 'club' : 'social')
@@ -476,6 +482,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       // The endpoint writes signup_url itself, so mirror it into local state —
       // otherwise the next save would push the stale value back over it.
       setSignupUrl(res.url)
+      setBoundSlug(res.slug)
       toast.success(t('signupFormCreated'))
     } catch (err) {
       const body = (err as { body?: { message?: string; error?: string } }).body
@@ -494,11 +501,12 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
     if (!event || !signupUrl.trim()) return
     setSignupBusy(true)
     try {
-      const res = await kscwApi<{ url: string; sync?: { signed_in?: number } }>(
+      const res = await kscwApi<{ url: string; slug: string; sync?: { signed_in?: number } }>(
         `/events/${event.id}/signup-form/connect`,
         { method: 'POST', body: { url: signupUrl.trim() } },
       )
       setSignupUrl(res.url)
+      setBoundSlug(res.slug)
       toast.success(t('signupFormConnected', { count: res.sync?.signed_in ?? 0 }))
     } catch (err) {
       const body = (err as { body?: { message?: string; error?: string } }).body
@@ -533,6 +541,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
     try {
       await kscwApi(`/events/${event.id}/signup-form`, { method: 'DELETE' })
       setSignupUrl('')
+      setBoundSlug(null)
       toast.success(t('signupFormUnlinked'))
     } catch {
       toast.error(t('signupFormFailed'))
@@ -937,6 +946,14 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                   error={signupUrlError || undefined}
                   placeholder="https://forms.kscw.ch/forms/..."
                 />
+                {signupConnected ? (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+                    {t('signupFormIsConnected')}
+                  </p>
+                ) : signupUrl.trim() ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">{t('signupFormNotConnected')}</p>
+                ) : null}
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button
                     type="button"
