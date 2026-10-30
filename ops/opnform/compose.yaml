@@ -27,7 +27,7 @@
 name: opnform
 
 x-api: &api
-  image: ghcr.io/lucanepa/opnform-api:kscw-ac4bbe8e
+  image: ghcr.io/lucanepa/opnform-api:kscw-60b98ad1
   restart: unless-stopped
   env_file: .env
   volumes:
@@ -75,7 +75,7 @@ services:
       start_period: 70s
 
   opnform-ui:
-    image: ghcr.io/lucanepa/opnform-client:kscw-ac4bbe8e
+    image: ghcr.io/lucanepa/opnform-client:kscw-60b98ad1
     container_name: opnform-ui
     restart: unless-stopped
     environment:
