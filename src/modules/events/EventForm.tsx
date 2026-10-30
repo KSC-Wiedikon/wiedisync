@@ -990,23 +990,24 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                     </>
                   )}
                 </div>
-                {signupUrl.trim() && (
-                  <div className="flex items-center gap-2 text-sm text-foreground/85">
-                    <Switch
-                      checked={formSignupOnly}
-                      onCheckedChange={(on) => {
-                        setFormSignupOnly(on)
-                        if (on && (eventType === 'club' || eventType === 'tournament')) setEventType('other')
-                      }}
-                    />
-                    <div>
-                      <span>{t('formSignupOnly')}</span>
-                      <p className="text-xs text-muted-foreground">{t('formSignupOnlyHint')}</p>
-                    </div>
-                  </div>
-                )}
               </>
             )}
+
+            {/* Available from the start: a private event is saved with nobody invited,
+                then the form is connected (needs the saved event). */}
+            <div className="flex items-center gap-2 text-sm text-foreground/85">
+              <Switch
+                checked={formSignupOnly}
+                onCheckedChange={(on) => {
+                  setFormSignupOnly(on)
+                  if (on && (eventType === 'club' || eventType === 'tournament')) setEventType('other')
+                }}
+              />
+              <div>
+                <span>{t('formSignupOnly')}</span>
+                <p className="text-xs text-muted-foreground">{t('formSignupOnlyHint')}</p>
+              </div>
+            </div>
 
             {/* Template picker — superuser only. The value is club-wide, but it
                 lives here rather than on a settings page because this is the only

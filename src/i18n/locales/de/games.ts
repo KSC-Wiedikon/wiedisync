@@ -1,4 +1,5 @@
 export default {
+  searchPlaceholder: 'Spiele suchen: Team, Halle, Datum, Spielnr.…',
   title: 'Spiele & Resultate',
   subtitle: 'Swiss Volley Daten — kommende Spiele, Resultate, Ranglisten.',
 
