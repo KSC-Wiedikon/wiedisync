@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -427,10 +427,34 @@ export default function HomePage() {
     () => (formSignupEventIds.length > 0 ? formSignupEventsRaw ?? [] : []).filter((ev) => !hasEventEnded(now, ev)),
     [formSignupEventIds, formSignupEventsRaw, now],
   )
-  const pinnedFormEventIds = useMemo(() => new Set(pinnedFormEvents.map((ev) => String(ev.id))), [pinnedFormEvents])
+  // Events an admin pinned (migration 435) among those this member sees anyway — same
+  // audience filter as the list below; a pin never widens who sees an event.
+  const { data: adminPinnedRaw } = useCollection<EventExpanded>('events', {
+    filter: { _and: [eventFilter, { pinned: { _eq: true } }] },
+    fields: ['*'],
+    sort: ['start_date'],
+    limit: 10,
+    enabled: !eventIdsLoading,
+  })
+  const signedUpIds = useMemo(() => new Set(formSignupEventIds), [formSignupEventIds])
+  // A private sign-up event shows only to who signed up (the server hides it from members;
+  // this keeps an admin's member view honest — admins read every event).
+  const privateHidden = useCallback(
+    (ev: EventExpanded) => !!ev.form_signup_only && !signedUpIds.has(String(ev.id)),
+    [signedUpIds],
+  )
+  const pinnedEvents = useMemo(() => {
+    const byId = new Map<string, { event: EventExpanded; signedUp: boolean }>()
+    for (const ev of pinnedFormEvents) byId.set(String(ev.id), { event: ev, signedUp: true })
+    for (const ev of adminPinnedRaw ?? []) {
+      if (!byId.has(String(ev.id)) && !privateHidden(ev) && !hasEventEnded(now, ev)) byId.set(String(ev.id), { event: ev, signedUp: false })
+    }
+    return [...byId.values()].sort((a, b) => String(a.event.start_date).localeCompare(String(b.event.start_date)))
+  }, [pinnedFormEvents, adminPinnedRaw, privateHidden, now])
+  const pinnedEventIds = useMemo(() => new Set(pinnedEvents.map((p) => String(p.event.id))), [pinnedEvents])
   const listedEvents = useMemo(
-    () => events.filter((ev) => !pinnedFormEventIds.has(String(ev.id))),
-    [events, pinnedFormEventIds],
+    () => events.filter((ev) => !pinnedEventIds.has(String(ev.id)) && !privateHidden(ev)),
+    [events, pinnedEventIds, privateHidden],
   )
 
   // Rankings for user's teams — fetch team details for SV/BB IDs, then rankings
@@ -798,15 +822,15 @@ export default function HomePage() {
             </div>
           ) : null}
           trainingsDate={nextTrainings[0]?.date}
-          eventsSection={(events.length > 0 || dutyAppointments.length > 0 || pinnedFormEvents.length > 0) ? (
+          eventsSection={(listedEvents.length > 0 || dutyAppointments.length > 0 || pinnedEvents.length > 0) ? (
             <div className="min-w-0">
               <SectionHeader title={t('events')} linkTo="/events" linkLabel={t('allEvents')} />
               <div className="space-y-3">
                 {dutyAppointments.map((d) => (
                   <DutyEventCard key={`duty-${d.game.id}-${d.role}`} duty={d} />
                 ))}
-                {pinnedFormEvents.map((event) => (
-                  <FormSignupEventCard key={`form-${event.id}`} event={event} onClick={() => setSelectedEvent(event)} />
+                {pinnedEvents.map(({ event, signedUp }) => (
+                  <FormSignupEventCard key={`pin-${event.id}`} event={event} signedUp={signedUp} onClick={() => setSelectedEvent(event)} />
                 ))}
                 {listedEvents.length > 0 && (
                   <RowList className={LIST_SHELL}>
@@ -818,7 +842,7 @@ export default function HomePage() {
               </div>
             </div>
           ) : null}
-          eventsDate={events[0]?.start_date?.split(' ')[0] ?? pinnedFormEvents[0]?.start_date?.split(' ')[0] ?? dutyAppointments[0]?.game.date}
+          eventsDate={pinnedEvents[0]?.event.start_date?.split(' ')[0] ?? listedEvents[0]?.start_date?.split(' ')[0] ?? dutyAppointments[0]?.game.date}
           gamesSection={
             <div className="min-w-0 space-y-6">
               {latestResults.length > 0 && (

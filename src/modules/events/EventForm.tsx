@@ -170,6 +170,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   // Migration 434: private sign-up event — the audience is whoever submits the
   // linked form (the server adds them); nobody is invited from here.
   const [formSignupOnly, setFormSignupOnly] = useState(false)
+  // Migration 435: pinned on Home for everyone who can see the event (admins).
+  const [pinned, setPinned] = useState(false)
   const [jsRelevant, setJsRelevant] = useState(false)
   // Car pooling board (migration 378) — per event, default off.
   const [carpoolEnabled, setCarpoolEnabled] = useState(false)
@@ -271,6 +273,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       )
       setSendEmailInvite(event.send_email_invite ?? false)
       setFormSignupOnly(event.form_signup_only === true)
+      setPinned(event.pinned === true)
       setInviteGuests(event.invite_guests !== false)
       setJsRelevant(!!event.js_relevant)
       setCarpoolEnabled(event.carpool_enabled === true)
@@ -617,7 +620,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
       }),
       send_email_invite: formSignupOnly ? false : sendEmailInvite,
       // Admin-only field (not in the leader write list), like the form binding.
-      ...(effectiveIsAdmin ? { form_signup_only: formSignupOnly } : {}),
+      ...(effectiveIsAdmin ? { form_signup_only: formSignupOnly, pinned } : {}),
       invite_guests: inviteGuests,
       js_relevant: jsRelevant,
       carpool_enabled: carpoolEnabled,
@@ -1186,6 +1189,16 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           </div>
         </div>
         </>
+        )}
+
+        {effectiveIsAdmin && (
+          <div className="flex items-center gap-2 text-sm text-foreground/85">
+            <Switch checked={pinned} onCheckedChange={setPinned} />
+            <div>
+              <span>{t('pinnedToggle')}</span>
+              <p className="text-xs text-muted-foreground">{t('pinnedToggleHint')}</p>
+            </div>
+          </div>
         )}
 
         {/* Participation mode selector — only for multi-day events */}
