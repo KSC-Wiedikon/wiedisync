@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.48.1'
+const APP_VERSION = '2.49.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.49.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Admins can pin an event on the home page: it shows at the top of Home for everyone who can see it, like a scorer duty.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'A private sign-up event shows only to people who signed up through its form — also in an admin\'s member view and in the calendar.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.48.1',
     date: '30.10.2026',
