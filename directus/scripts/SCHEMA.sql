@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-29T09:04:05.540Z
+-- Generated:   2026-10-30T00:12:02.527Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict sbbLv1hH8q1DVORrhKX1MqqVwCeImB8YC17aie8Lh1ckpXmwHJ5DhDx6JAy0aqb
+\restrict maQOhC7WYWyPzydmukVXOXcmnycAtC4QnjBWmYjej8lGaCqAEwdPxS4jgm7Vo8F
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -6963,8 +6963,10 @@ CREATE TABLE public.events (
     signup_form_slug text,
     permissions_section text DEFAULT 'both'::text NOT NULL,
     additional_halls json,
+    form_signup_only boolean DEFAULT false NOT NULL,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT events_event_type_values CHECK (((event_type IS NULL) OR ((event_type)::text = ANY ((ARRAY['club'::character varying, 'social'::character varying, 'meeting'::character varying, 'tournament'::character varying, 'training_weekend'::character varying, 'friendly'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT events_form_signup_only_private_type CHECK (((NOT form_signup_only) OR ((event_type)::text <> ALL ((ARRAY['club'::character varying, 'tournament'::character varying])::text[])))),
     CONSTRAINT events_permissions_section_check CHECK ((permissions_section = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'both'::text]))),
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
@@ -7031,6 +7033,13 @@ COMMENT ON COLUMN public.events.carpool_teams IS 'Car pooling scope (migration 3
 --
 
 COMMENT ON COLUMN public.events.signup_form_slug IS 'OpnForm slug bound by POST /kscw/events/:id/signup-form. Endpoint-owned: writes without the kscw.signup_slug_write GUC are ignored (trigger events_signup_form_slug_guard). Migration 385.';
+
+
+--
+-- Name: COLUMN events.form_signup_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.form_signup_only IS 'Private sign-up event: the audience is exactly the people who submitted the bound OpnForm (signup_form_slug). Each submission adds an events_members row and a confirmed RSVP; members cannot change that RSVP. With no sign-up yet the event is NOT club-wide — every "no team and no member link = everyone" rule skips it. Never a public type (club/tournament).';
 
 
 --
@@ -20534,7 +20543,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict sbbLv1hH8q1DVORrhKX1MqqVwCeImB8YC17aie8Lh1ckpXmwHJ5DhDx6JAy0aqb
+\unrestrict maQOhC7WYWyPzydmukVXOXcmnycAtC4QnjBWmYjej8lGaCqAEwdPxS4jgm7Vo8F
 
 
 
@@ -20550,7 +20559,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 437 migration(s) already in the schema above.
+-- Migration tracker seed — 438 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21000,6 +21009,7 @@ FROM (VALUES
   ('430-provisional-from-live-scoring.sql'),
   ('431-bb-2fach-is-not-a-b.sql'),
   ('432-notify-staff-recipients.sql'),
-  ('433-staff-visibility.sql')
+  ('433-staff-visibility.sql'),
+  ('434-events-form-signup-only.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
