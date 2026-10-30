@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-30T00:12:02.527Z
+-- Generated:   2026-10-30T09:44:46.552Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict maQOhC7WYWyPzydmukVXOXcmnycAtC4QnjBWmYjej8lGaCqAEwdPxS4jgm7Vo8F
+\restrict r8xCLiC4aUjH8e7mIudhERHnwKw0vPx1VE3RNxnYEdYF2PoPCGrGS51o1J6Muym
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -6964,6 +6964,7 @@ CREATE TABLE public.events (
     permissions_section text DEFAULT 'both'::text NOT NULL,
     additional_halls json,
     form_signup_only boolean DEFAULT false NOT NULL,
+    pinned boolean DEFAULT false NOT NULL,
     CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT events_event_type_values CHECK (((event_type IS NULL) OR ((event_type)::text = ANY ((ARRAY['club'::character varying, 'social'::character varying, 'meeting'::character varying, 'tournament'::character varying, 'training_weekend'::character varying, 'friendly'::character varying, 'other'::character varying])::text[])))),
     CONSTRAINT events_form_signup_only_private_type CHECK (((NOT form_signup_only) OR ((event_type)::text <> ALL ((ARRAY['club'::character varying, 'tournament'::character varying])::text[])))),
@@ -7040,6 +7041,13 @@ COMMENT ON COLUMN public.events.signup_form_slug IS 'OpnForm slug bound by POST 
 --
 
 COMMENT ON COLUMN public.events.form_signup_only IS 'Private sign-up event: the audience is exactly the people who submitted the bound OpnForm (signup_form_slug). Each submission adds an events_members row and a confirmed RSVP; members cannot change that RSVP. With no sign-up yet the event is NOT club-wide — every "no team and no member link = everyone" rule skips it. Never a public type (club/tournament).';
+
+
+--
+-- Name: COLUMN events.pinned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.pinned IS 'Pinned on Home for everyone who can see the event (above the event list, like a duty). Ordering only — never changes who sees the event. Set by admins.';
 
 
 --
@@ -20543,7 +20551,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict maQOhC7WYWyPzydmukVXOXcmnycAtC4QnjBWmYjej8lGaCqAEwdPxS4jgm7Vo8F
+\unrestrict r8xCLiC4aUjH8e7mIudhERHnwKw0vPx1VE3RNxnYEdYF2PoPCGrGS51o1J6Muym
 
 
 
@@ -20559,7 +20567,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 438 migration(s) already in the schema above.
+-- Migration tracker seed — 439 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21010,6 +21018,7 @@ FROM (VALUES
   ('431-bb-2fach-is-not-a-b.sql'),
   ('432-notify-staff-recipients.sql'),
   ('433-staff-visibility.sql'),
-  ('434-events-form-signup-only.sql')
+  ('434-events-form-signup-only.sql'),
+  ('435-events-pinned.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
