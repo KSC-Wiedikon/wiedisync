@@ -1,15 +1,15 @@
 export default {
   title: 'Absänze',
-  subtitle: 'Zentrali Absänzverwautig',
+  subtitle: 'Zentrali Absänzverwaltig',
 
   // Tabs
   tabMyAbsences: 'Mini Absänze',
-  tabTeamAbsences: 'Team Absänze',
+  tabTeamAbsences: 'Team-Absänze',
 
   // Actions
   newAbsence: 'Neui Absänz',
-  newAbsenceForMember: 'Absänz für Mitgliid',
-  newWeeklyForMember: 'Wöchentlichi für Mitgliid',
+  newAbsenceForMember: 'Neui Absänz für Mitglied',
+  newWeeklyForMember: 'Neui Wöchentlichi für Mitglied',
 
   // Form
   member: 'Mitglied',
@@ -17,32 +17,32 @@ export default {
   endDate: 'Bis',
   reason: 'Grund',
   detailsOptional: 'Details (optional)',
-  detailsPlaceholder: 'Zusätzlichi Infos...',
+  detailsPlaceholder: 'Zuesätzlichi Infos...',
   affects: 'Betrifft',
 
   // Reason options
-  reasonInjury: 'Verletztig',
+  reasonInjury: 'Verletzig',
   reasonVacation: 'Ferie',
-  reasonWork: 'Schaffe',
+  reasonWork: 'Arbet',
   reasonPersonal: 'Persönlich',
-  reasonOther: 'Suscht',
-  weeklyUnavailability: 'Wuchäverhinderig',
+  reasonOther: 'Anders',
+  weeklyUnavailability: 'Wöchentlichi Verhinderig',
 
   // Affects options
   affectsTrainings: 'Trainings',
   affectsGames: 'Spiel',
-  affectsEvents: 'Events',
+  affectsEvents: 'Aaläss',
   affectsAll: 'Alles',
 
   // Validation
   startDateRequired: 'Startdatum bruuchts',
   endDateRequired: 'Änddatum bruuchts',
-  endAfterStart: 'S Ändi muäss nochem Start sii',
-  reasonRequired: 'Bitte wähl en Grund',
-  memberRequired: 'Bitte wähl es Mitglied',
-  pickerStaffCoach: 'Trainer/in',
-  pickerStaffTeamResponsible: 'Teamverantwortlichi/r',
-  errorSaving: 'Bim Speichere vo de Absänz isch öppis schief gange',
+  endAfterStart: 'S Änd mues nach em Start sii',
+  reasonRequired: 'Bitte wähl en Grund us',
+  memberRequired: 'Bitte wähl es Mitglied us',
+  pickerStaffCoach: 'Coach',
+  pickerStaffTeamResponsible: 'Teamverantwortliche/r',
+  errorSaving: 'Fähler bim Speichere vo de Absänz',
 
   // Modal titles
   newAbsenceTitle: 'Neui Absänz',
@@ -53,12 +53,12 @@ export default {
   deleteMessage: 'Bisch sicher, dass du die Absänz lösche wotsch?',
 
   // Empty states
-  noAbsences: 'Käni Absänze',
-  noAbsencesDescription: 'Käni Absänze gfunde.',
-  noUpcomingAbsences: 'Käni aktuelli Absänze.',
+  noAbsences: 'Kei Absänze',
+  noAbsencesDescription: 'Kei Absänze gfunde.',
+  noUpcomingAbsences: 'Kei aastehendi Absänze.',
   showOlderAbsences: 'Älteri Absänze aazeige ({{count}})',
-  noTeamAbsences: 'Käni Absänze',
-  noTeamAbsencesDescription: 'Käni gmeldete Absänze i dem Zitraum.',
+  noTeamAbsences: 'Kei Absänze',
+  noTeamAbsencesDescription: 'Kei gmäldeti Absänze i dem Ziitruum.',
 
   // Team absence view
   fromTo: 'Vo',
@@ -74,39 +74,39 @@ export default {
   importButton: 'Importiere ({{count}})',
   importSuccess: '{{count}} Absänze erfolgriich importiert',
   importPartialSuccess: '{{created}} importiert, {{failed}} fählgschlage',
-  importNoValidRows: 'Käni gültige Ziile gfunde',
+  importNoValidRows: 'Kei gültigi Ziile gfunde',
   importInvalidReason: 'Ungültige Grund: "{{value}}"',
   importInvalidDate: 'Ungültigs Datumsformat',
-  importParseError: 'Datei het nöd chönne gläse werde',
+  importParseError: 'D Datei hät nöd chöne gläse werde',
 
   // Indefinite
   indefinite: 'Unbefristet',
-  indefiniteHint: 'käs Änddatum',
+  indefiniteHint: 'kei Änddatum',
   untilShort: 'bis {{date}}',
 
   // Blocking (game-scheduling relevance)
   blocking: 'Blockiert d Spielplanig',
-  blockingHint: 'Wenn aa, sind die Täg für d Spielplanig nöd verfüegbar. Schalts ab bi Absänze, wo du sowieso nöd spilsch (z. B. Verletztig, Mutterschaftsurlaub), so dass de Rescht vom Team trotzdem chan iiteilt werde.',
+  blockingHint: 'Wänn das aa isch, sind die Täg für d Spielplanig nöd verfüegbar. Schalts ab bi Absänze, wo du sowieso nöd spielsch (z. B. Verletztig, Mutterschaftsurlaub), damit de Rescht vom Team trotzdem cha iiteilt werde.',
 
   // Weekly unavailability
-  tabWeeklyUnavailability: 'Wöchentlichi Abweseheit',
+  tabWeeklyUnavailability: 'Wöchentlichi Verhinderig',
   newWeekly: 'Neui Wöchentlichi',
-  newWeeklyTitle: 'Neui wöchentlichi Abweseheit',
-  editWeeklyTitle: 'Wöchentlichi Abweseheit bearbeite',
+  newWeeklyTitle: 'Neui wöchentlichi Verhinderig',
+  editWeeklyTitle: 'Wöchentlichi Verhinderig bearbeite',
   daysOfWeek: 'Wuchetäg',
   noteOptional: 'Notiz (optional)',
   editedByStaffOn: 'Bearbeitet vom Trainerteam am {{at}}',
-  editedByCoachOn: 'Bearbeitet vom Trainer ({{name}}) am {{at}}',
+  editedByCoachOn: 'Bearbeitet vom Coach ({{name}}) am {{at}}',
   editedByTeamResponsibleOn: 'Bearbeitet vo de Teamverantwortliche ({{name}}) am {{at}}',
   editedByAdminOn: 'Bearbeitet vom Admin ({{name}}) am {{at}}',
-  detailsOnBehalfPlaceholder: 'Worum treisch du das für d Spilerin/de Spiler ii?',
+  detailsOnBehalfPlaceholder: 'Worum treisch du das für d Spielerin/de Spieler ii?',
   noteOnBehalfHint: 'Du bearbeitisch für e anderi Person — bitte hinterlass e Notiz mit em Grund. D Notiz isch für d betroffeni Person sichtbar.',
   notePlaceholder: 'Zusätzlichi Infos...',
-  atLeastOneDay: 'Mindestens ein Tag wähle',
-  noWeeklyAbsences: 'Käni wöchentlichi Abweseheite',
-  noWeeklyAbsencesDescription: 'Richt regelmässigi wöchentlichi Abweseheite ii.',
-  deleteWeeklyTitle: 'Wöchentlichi Abweseheit lösche',
-  deleteWeeklyMessage: 'Bisch sicher, dass du die wöchentlichi Abweseheit lösche wotsch?',
+  atLeastOneDay: 'Mindestens en Tag uswähle',
+  noWeeklyAbsences: 'Kei wöchentliche Verhinderige',
+  noWeeklyAbsencesDescription: 'Richt regelmässigi wöchentlichi Verhinderige ii.',
+  deleteWeeklyTitle: 'Wöchentlichi Verhinderig lösche',
+  deleteWeeklyMessage: 'Bisch sicher, dass du die wöchentlichi Verhinderig lösche wotsch?',
 
   // Day abbreviations
   dayMon: 'Mä',
@@ -116,20 +116,31 @@ export default {
   dayFri: 'Fr',
   daySat: 'Sa',
   daySun: 'Su',
+  colReason: 'Grund',
+  colWhen: 'Wänn',
+  colAffects: 'Betrifft',
+  colMember: 'Mitglied',
+  colDays: 'Täg',
+  viewAbsences: 'Absänze',
+  viewUnavailabilities: 'Verhinderige',
+  scopeMine: 'Mini',
+  scopeTeam: 'Team',
+  noTeamWeeklies: 'Kei wöchentliche Verhinderige im Team',
+  noTeamWeekliesDescription: 'Im Team hät no niemert e regelmässigi wöchentlichi Verhinderig iigrichtet.',
   // Member filter
   filterByMember: 'Nach Mitglied filtere',
   allMembers: 'Alli Mitglieder',
   membersSelected: '{{count}} vo {{total}} Mitglieder',
   selectAllMembers: 'Alli uswähle',
   deselectAllMembers: 'Alli abwähle',
-  noMembersMatchFilter: 'Kei Mitglieder entspräched em aktuelle Filter.',
+  noMembersMatchFilter: 'Kei Mitglieder passed zum aktuelle Filter.',
   // Calendar day-detail (overflow modal) status labels
   absent: 'Abwäsend',
   unavailable: 'Verhinderet',
   absentUnavailable: 'Abwäsend / Verhinderet',
   // Calendar filter toggles (flipping one ON hides that category)
-  hideUnavailabilities: 'Verhinderige uusblände',
-  hideNonBlocking: 'Nöd-blockierendi Abweseheite uusblände',
+  hideUnavailabilities: 'Verhinderige usblände',
+  hideNonBlocking: 'Nöd-blockierendi Absänze usblände',
   // Badge shown next to an absence whose blocking flag is off
   nonBlocking: 'Nöd blockierend',
   dayCount_one: '{{count}} Tag',
@@ -138,7 +149,7 @@ export default {
   hallClosed: 'Halle gschlosse',
   // Team blocking (migration 085) — coach/TR scheduling blackouts
   teamBlocks: 'Team-Sperre',
-  teamBlocksHint: 'Sperrt d Spielplanig für es Team a dene Täg — e harti Sperre, au wenn nur wenig Spiler fähle.',
+  teamBlocksHint: 'Sperrt d Spielplanig für es Team a dene Täg — e harti Sperre, au wänn nur wenig Spieler fähle.',
   addTeamBlock: 'Team-Sperre hinzuefüege',
   noTeamBlocks: 'Kei bevorstehendi Team-Sperre.',
   teamBlocking: 'Team-Sperre',
@@ -147,7 +158,7 @@ export default {
   blockTeam: 'Team',
   blockTeamRequired: 'Bitte wähl es Team',
   blockReason: 'Grund (optional)',
-  blockReasonPlaceholder: 'z. B. Prüefigszit, Turniervorbereitig',
+  blockReasonPlaceholder: 'z. B. Prüefigsziit, Turniervorbereitig',
   deleteTeamBlockTitle: 'Team-Sperre lösche',
   deleteTeamBlockMessage: 'Bisch sicher, dass du die Team-Sperre lösche wotsch?',
 } as const

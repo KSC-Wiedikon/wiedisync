@@ -202,6 +202,9 @@ import gswFinance from './locales/gsw/finance'
 import gswSupport from './locales/gsw/support'
 import gswLive from './locales/gsw/live'
 import gswSeasonHealth from './locales/gsw/seasonHealth'
+import gswJsExport from './locales/gsw/jsExport'
+import gswHallenfinder from './locales/gsw/hallenfinder'
+import gswForms from './locales/gsw/forms'
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -472,6 +475,9 @@ i18n.use(initReactI18next).init({
       support: gswSupport,
       live: gswLive,
       seasonHealth: gswSeasonHealth,
+      jsExport: gswJsExport,
+      hallenfinder: gswHallenfinder,
+      forms: gswForms,
     },
   },
   interpolation: {
