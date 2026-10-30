@@ -70,7 +70,7 @@ export default {
   respondByHint: 'Rappel 1 jour avant',
   respondByTime: "Heure limite d'inscription",
   maxPlayers: 'Max. participants',
-  maxPlayersHint: 'Une fois complet, les inscriptions suivantes vont en liste d’attente. Les joueurs invités cèdent leur place à ceux de l’équipe.',
+  maxPlayersHint: 'Une fois complet, les inscriptions suivantes vont en liste d’attente. Peut-être compte comme une inscription et devient Non à la date limite. Les joueurs invités cèdent leur place à ceux de l’équipe.',
   participation: 'Participation',
   viewRoster: 'Voir la liste',
 

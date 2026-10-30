@@ -10,6 +10,7 @@ import { useAbsenceNoteText } from '../hooks/useAbsenceNoteText'
 import type { Participation } from '../types'
 import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../utils/optimisticRsvp'
 import RsvpAnswerButtons from './RsvpAnswerButtons'
+import { mayDeclineAfterDeadline } from '../utils/lateDecline'
 import IconButton from './IconButton'
 
 interface ActivityParticipationProps {
@@ -187,6 +188,9 @@ export default function ActivityParticipation({
   }
 
   const isLocked = deadlinePassed
+  // The waiting list may still hand back its seat after the deadline (migration 438).
+  const lateDecline = deadlinePassed && mayDeclineAfterDeadline(
+    existingParticipation, respondBy ? getDeadlineDate(respondBy, activityTime) : null)
 
   if (guestExcluded) {
     const text = kind === 'game' ? tKind('guestsCannotParticipate') : tKind('guestExcluded')
@@ -214,6 +218,7 @@ export default function ActivityParticipation({
         value={displayStatus}
         onSelect={(status) => { void setStatus(status) }}
         locked={isLocked}
+        lateDecline={lateDecline}
         saved={saveConfirmed}
       />
 

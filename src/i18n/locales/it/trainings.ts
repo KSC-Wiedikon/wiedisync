@@ -74,7 +74,7 @@ export default {
   participation: 'Partecipazione',
   minParticipants: 'Min. partecipanti',
   maxParticipants: 'Max. partecipanti',
-  maxParticipantsHint: 'Quando è al completo, le altre iscrizioni vanno in lista d’attesa. I giocatori ospiti cedono il posto a quelli della squadra.',
+  maxParticipantsHint: 'Quando è al completo, le altre iscrizioni vanno in lista d’attesa. Forse conta come iscrizione e diventa No alla scadenza. I giocatori ospiti cedono il posto a quelli della squadra.',
   untilSeasonEnd: 'A tempo indeterminato',
   slotFrom: 'da',
   slotUntil: 'fino a',
