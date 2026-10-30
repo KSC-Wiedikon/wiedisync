@@ -5,106 +5,106 @@ export default {
 
   controllerTitle: '1. Verantwortlichi Stell',
   controllerText:
-    'KSC Wiedikon\nSchrennegass 7\n8003 Züri\nE-Mail: kscw@kscw.ch',
+    'KSC Wiedikon\nSchrennengasse 7\n8003 Zürich\nE-Mail: kscw@kscw.ch',
 
   dataCollectedTitle: '2. Weli Date mir erhebed',
   dataAccountTitle: 'Kontodate (bi de Registrierig)',
   dataAccountText:
-    'Bi de Registrierig als Vereinsmitglied erfassed mir: Name, E-Mail-Adrässe, Telefonnummere und Geburtstag. Profilfotis werded vo de Mitglieder selber ufeglade und verwaltet. Lizänznummere, Position und Teamzueghörigkeit werded dur Trainer oder de Vorstand zuewise.',
+    'Bi de Registrierig als Vereinsmitglied erfassed mir: Name, E-Mail-Adrässe, Telefonnummere und Geburtsdatum. Profilfotis werded vo de Mitglieder sälber ufeglade und verwaltet. Lizänznummere, Position und Teamzueghörigkeit werded vo de Trainer oder vom Vorstand feschtgleit.',
   dataRosterTitle: 'Kaderdate (öffentlich)',
   dataRosterText:
-    'Uf de öffentlich zuegängliche Teamsitte werded Name, Trikotnummere, Position und Foto vo de Spielerinne und Spieler aazeigt. Die Aagabe entspräched de Date, wo au vo Swiss Volley öffentlich publiziert werded.',
+    'Uf de öffentlich zuegängliche Teamsiite werded Name, Trikotnummere, Position und Foto vo de Spielerinne und Spieler aazeigt. Die Aagabe entspräched de Date, wo au vo Swiss Volley öffentlich publiziert werded.',
   dataLiveTitle: 'Live-Resultate',
   dataLiveText:
-    'Bei Heimspielen überträgt die Anzeigetafel des Vereins den Spielstand live. Öffentlich sichtbar sind auf kscw.ch/live und im Spielverlauf: die Teamnamen, der Satz- und Punktestand sowie bei Beachvolleyball die Nachnamen der beiden Spielerinnen oder Spieler eines Paares, auch von Gegnern aus anderen Vereinen. Für den Schreiberdienst kann die Anzeigetafel die Kaderliste des Spiels mit Geburtsdaten laden. Diese ist nur mit der Schreiber-PIN abrufbar und wird spätestens drei Stunden nach Spielbeginn von der Anzeigetafel gelöscht. Die Live-Daten werden ausschliesslich in der Datenbank des Vereins gespeichert.',
+    'Bi Heimspiel zeigt d Aazeigetafele vom Verein de Spielstand live aa. Öffentlich sichtbar sind uf kscw.ch/live und im Spielverlauf: d Teamnäme, de Satz- und Punktestand und bim Beachvolleyball d Nachnäme vo de beide Spielerinne oder Spieler vo jedem Paar, au vo Gegner us andere Verein. Für de Schriiberdienst cha d Aazeigetafele d Kaderlischte vom Spiel mit de Geburtsdate lade. Die isch nur mit em Schriiber-PIN abrüefbar und wird spötischtens drü Stund nach em Spielbeginn vo de Aazeigetafele glöscht. D Live-Date werded usschliesslich i de Datebank vom Verein gspeicheret.',
   dataInternalTitle: 'Interni Vereinsdate',
   dataInternalText:
-    'Trainingsaaweseheite, Absänze (inkl. Grund), Schriiberdienst-Iiteilige und Spielresultat werded intern für d Vereinsverwautig erfasst und sind nur für iigloggte Mitglieder bzw. Trainer sichtbar.',
+    'Trainingsaaweseheite, Absänze (inkl. Grund), Schriiberdienst-Iiteilige und Spielresultat werded intern für d Vereinsverwaltig erfasst und sind nur für iigloggti Mitglieder bzw. Trainer sichtbar.',
   dataTechnicalTitle: 'Technischi Date',
   dataTechnicalText:
-    'Bim Bsuech vo de Website werded automatisch technischi Informatione wie IP-Adrässe und Browser-Informatione dur euse Hosting-Abieter (Cloudflare) verarbeitet.',
+    'Bim Bsuech vo de Website werded automatisch technischi Informatione wie IP-Adrässe und Browser-Informatione dur euse Hosting-Aabieter (Cloudflare) verarbeitet.',
 
   dataRegisterTitle:
     'Stammdate für d Vereinsverwaltig und d Verbänd',
   dataRegisterText:
-    'Für d Vereinsverwaltig und d Aamäldig bi de Verbänd erfassed mir zusätzlich Poschtadrässe, PLZ und Ort, Nationalität, Gschlächt, AHV-Nummere und — bi de Nachwuchstrainer:inne — d J+S-Persoonenummere. D AHV-Nummere bruucht s für d Verbands- und J+S-Mäldige und isch nume für de Vorstand und d Administration sichtbar.',
+    'Für d Vereinsverwaltig und d Aamäldig bi de Verbänd erfassed mir zuesätzlich Poschtadrässe, PLZ und Ort, Nationalität, Gschlächt, AHV-Nummere und — bi de Nachwuchstrainerinne und -trainer — d J+S-Personenummere. D AHV-Nummere isch für d Verbands- und J+S-Mäldige nötig und nur für de Vorstand und d Administration sichtbar.',
   dataFinanceTitle:
     'Zahligs- und Rächnigsdate',
   dataFinanceText:
-    'Für d Rächnigstellig vo de Mitgliederbyträg erfassed mir d Bytragskategorie, d Rächnigsadrässe und d Zahligsverbindig (IBAN). Die Date gseht nume de Vorstand und d Finanzadministration.',
+    'Für d Rächnigstellig vo de Mitgliederbiiträg erfassed mir d Biitragskategorie, d Rächnigsadrässe und d Zahligsverbindig (IBAN). Die Date sind nur für de Vorstand und d Finanzadministration iisehbar.',
   dataIdentityTitle:
     'Uswiisdokumänt (Änd-zu-Änd-verschlüsslet)',
   dataIdentityText:
-    'Für Spiellizänze verlangt de ei oder ander Verband e Uswiiskopie. Die wird scho im Browser vom Mitglied verschlüsslet (AES-256-GCM) und chunt nume als Chiffrat uf üse Server; de Schlüssel wird separat für die berächtigte Persone verpackt. Weder de Serverbetriiber no d Administration cha d Datei ohni die Schlüssel läse.',
+    'Für Spiellizänze verlanged einzelni Verbänd e Uswiiskopie. Die wird scho im Browser vom Mitglied verschlüsslet (AES-256-GCM) und chunt nur als Chiffrat uf euse Server; de Schlüssel wird separat für d berächtigte Persone verpackt. Weder de Serverbetriiber no d Administration cha d Datei ohni dä Schlüssel läse.',
 
-  legalBasisTitle: '3. Rächtsgründlag',
+  legalBasisTitle: '3. Rächtsgrundlage',
   legalBasisText:
     'D Verarbeitig vo personebezogene Date erfolgt uf Grundlag vo:',
   legalBasisContract:
-    'Vertragserfüllig (Vereinsmitgliedschaft) — für d Verwautig vo Mitgliederdate, Trainings und Spielplanig.',
+    'Vertragserfüllig (Vereinsmitgliedschaft) — für d Verwaltig vo Mitgliederdate, Trainings und Spielplanig.',
   legalBasisInterest:
-    'Berächtigs Interässe — für d öffentlichi Darstellig vo Teamkader, wie s im Vereinssport üblich und vo de Mitglieder erwartet wird.',
+    'Berächtigts Interässe — für d öffentlichi Darstellig vo Teamkader, wie s im Vereinssport üblich und vo de Mitglieder erwartet wird.',
   legalBasisConsent:
-    'Iiwilligung — Mitglieder laded ihr Profilfoto selber ufe und chönd s jederziit ändere oder entferne.',
+    'Iiwilligig — Mitglieder laded ihres Profilfoto sälber ufe und chönd s jederziit ändere oder entferne.',
 
   thirdPartyTitle: '4. Uftragsverarbeiter',
   thirdPartyIntro: 'Folgendi Dienstleischter werded als Uftragsverarbeiter iigsetzt:',
   thirdPartyCloudflare:
     'Cloudflare, Inc. — Frontend-Hosting (Cloudflare Pages) | Global (USA) | DPA, EU-Standardvertragsklausle, Swiss-US Data Privacy Framework',
   thirdPartySwissVolley:
-    'Swiss Volley API (api.volleyball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded käni personebezogeni Date a Swiss Volley übermittlet.',
+    'Swiss Volley API (api.volleyball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded kei personebezogeni Date a Swiss Volley übermittlet.',
   thirdPartyGCal:
-    'Google Calendar — Mir rüefed en öffentliche Kaländer-Feed ab, zum Hallebelegige aazeige. Es werded käni personebezogeni Date a Google übermittlet.',
+    'Google Calendar — Mir rüefed en öffentliche Kaländer-Feed ab, zum d Hallebelegige aazeige. Es werded kei personebezogeni Date a Google übermittlet.',
   thirdPartyBasketplan:
-    'Basketplan (basketball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded käni personebezogeni Date a Basketplan übermittlet.',
+    'Basketplan (basketball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded kei personebezogeni Date a Basketplan übermittlet.',
   thirdPartyMigadu:
-    'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigunge und Erinnerige | Schwiiz | DPA',
+    'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigige und Erinnerige | Schwiiz | DPA',
   thirdPartyInfomaniak:
-    'Infomaniak Network SA — Backend-Hosting (Directus) | Schwiiz (Rächemzäntrum Gänf) | DPA, nDSG- und DSGVO-konform',
+    'Infomaniak Network SA — Backend-Hosting (Directus) | Schwiiz (Rächezäntrum Gänf) | DPA, nDSG- und DSGVO-konform',
   thirdPartyClubDesk:
-    'ClubDesk (Vereinsverwaltig, Schwiiz): D Mitgliederstammdate inklusive Kontaktangabe, AHV-Nummere und Zahligsverbindig wärdet mit ClubDesk abglyche, wo die Date grösstenteils au härchömed.',
+    'ClubDesk (Vereinsverwaltig, Schwiiz): d Mitgliederstammdate inklusive Kontaktaagabe, AHV-Nummere und Zahligsverbindig werded mit de Vereinsverwaltig ClubDesk abgliche, us dere de gröscht Teil vo dene Date ursprünglich chunt.',
   thirdPartySentry:
-    'Sentry (sentry.io) — Fählererfassig und Performance-Monitoring | EU (de.sentry.io, Dütschland) | DPA, DSGVO-konform. Es werded käni personebezogeni Date (Name, E-Mail) a Sentry übermittlet.',
+    'Sentry (sentry.io) — Fählererfassig und Performance-Monitoring | EU (de.sentry.io, Dütschland) | DPA, DSGVO-konform. Es werded kei personebezogeni Date (Name, E-Mail) a Sentry übermittlet.',
   thirdPartyCloudflareWorkers:
-    'Cloudflare Workers — Verarbeitig vo Push-Benachrichtigunge | Global (USA) | DPA, EU-Standardvertragsklausle, Swiss-US Data Privacy Framework',
+    'Cloudflare Workers — Verarbeitig vo Push-Benachrichtigige | Global (USA) | DPA, EU-Standardvertragsklausle, Swiss-US Data Privacy Framework',
 
-  retentionTitle: '5. Ufbewahrigsfrischt',
+  retentionTitle: '5. Ufbewahrigsfrischte',
   retentionText:
-    'Solang du es aktivs Konto häsch, blibed dini Date gspicheret. Du chasch dis Konto jederzyt sälber i de Profileinstellige lösche; d Löschig passiert sofort und umfasst au di verknüpfte Datesätz. S Änd vo de Mitgliedschaft löscht hingäge nöd automatisch: En Teil vo de Date mues us gsetzliche Gründ wiiter ufbewahrt wärde, bsunders Gschäfts- und Buechhaltigsunterlage während zäh Jahr nach Art. 958f OR. Date ohni Ufbewahrigspflicht lösched mir uf Aafrag über d Kontaktadrässe unde.',
+    'Solang du es aktivs Konto häsch, bliibed dini Date gspeicheret. Du chasch dis Konto jederziit sälber i de Profiliistellige lösche; d Löschig passiert sofort und umfasst d verknüpfte Datesätz. S Änd vo dinere Mitgliedschaft löscht dini Date aber nöd automatisch: En Teil vo de Date mues us gsetzliche Gründ wiiter ufbewahrt werde, bsunders Gschäfts- und Buechhaltigsunderlage während zäh Jahr nach Art. 958f OR. Date ohni Ufbewahrigspflicht lösched mir uf Aafrag über d Kontaktadrässe unde.',
 
   storageTitle: '6. Datespeicherig',
   storageServer:
-    'D Date werded uf emne Server vo de Infomaniak Network SA i de Schwiiz (Rächemzäntrum Gänf) gspeicheret (Directus). S Frontend wird über Cloudflare Pages breitstellt.',
+    'D Date werded uf emene Server vo de Infomaniak Network SA i de Schwiiz (Rächezäntrum Gänf) gspeicheret (Directus). S Frontend wird über Cloudflare Pages bereitgstellt.',
   storageLocal:
-    'Im Browser werded folgendi nöd-personebezogeni Iistellige gspeicheret: Farbschema (hell/dunkel) und Spraachiistellig. Für iigloggte Nutzer wird es Sitzigstoken im Browser gspeicheret.',
+    'Im Browser werded folgendi nöd-personebezogeni Iistellige gspeicheret: Farbschema (hell/dunkel) und Spraachiistellig. Für iigloggti Nutzer wird es Sitzigs-Token im Browser gspeicheret.',
   storageNoCookies:
-    'D Website selber setzt käni Cookies. Cloudflare cha technisch notwändigi Cookies setze, wo käni Iiwilligung bruuched.',
+    'D Website sälber setzt kei Cookies. Cloudflare cha technisch notwändigi Cookies setze, wo kei Iiwilligig bruuched.',
 
-  rightsTitle: '7. Ihri Rächt',
+  rightsTitle: '7. Dini Rächt',
   rightsText:
-    'Gmäss em Schwiizer Dateschutzgsetz (nDSG) händ Sie folgendi Rächt:',
-  rightsAccess: 'Uskunftsrächt — Sie chönd Uskunft über Ihri gspeicherete Date verlange.',
-  rightsCorrection: 'Berichtigungsrächt — Sie chönd d Berichtigung vo unrichtige Date verlange. Vili Date chönd Sie diräkt i Ihrem Profil aapasse.',
-  rightsDeletion: 'Rächt uf Löschig — Sie chönd d Löschig vo Ihri Date verlange oder Ihres Konto selber lösche.',
-  rightsPortability: 'Rächt uf Dateusgab — Sie chönd Ihri Date in emne gängige Format becho.',
-  rightsObject: 'Widerspruchsrächt — Sie chönd de Verarbeitig vo Ihri Date jederziit widerspräche.',
+    'Gmäss em Schwiizer Dateschutzgsetz (nDSG) häsch du folgendi Rächt:',
+  rightsAccess: 'Uskunftsrächt — Du chasch Uskunft über dini gspeicherete Date verlange.',
+  rightsCorrection: 'Berichtigigsrächt — Du chasch verlange, dass falschi Date korrigiert werded. Di meischte Date chasch du diräkt i dim Profil aapasse.',
+  rightsDeletion: 'Rächt uf Löschig — Du chasch d Löschig vo dine Date verlange oder dis Konto sälber lösche.',
+  rightsPortability: 'Rächt uf Dateherusgab — Du chasch dini Date imene gängige Format becho.',
+  rightsObject: 'Widerspruchsrächt — Du chasch de Verarbeitig vo dine Date jederziit widerspräche.',
   rightsContact:
-    'Für Aafrage zu Ihre Rächt wänded Sie sich bitte a: kscw@kscw.ch',
+    'Für Aafrage zu dine Rächt mäld dich bitte bi: kscw@kscw.ch',
   rightsFDPIC:
-    'Sie händ zudem s Rächt, e Bschwärde bim Eidgenössische Dateschutz- und Öffentlichkeitsbuftragete (EDÖB) iizriche: www.edoeb.admin.ch',
+    'Du häsch zuedem s Rächt, bim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) e Bschwärde iizreiche: www.edoeb.admin.ch',
 
   photosTitle: '8. Fotis',
   photosText:
-    'Spielerfotis werded vo de Mitglieder selber über ihres Profil ufeglade und chönd jederziit gänderet oder entfernt werde. Ufegladeni Fotis sind uf de öffentliche Teamsitte sichtbar.',
+    'Spielerfotis werded vo de Mitglieder sälber über ihres Profil ufeglade und chönd jederziit gänderet oder entfernt werde. Ufegladeni Fotis sind uf de öffentliche Teamsiite sichtbar.',
 
   changesTitle: '9. Änderige',
   changesText:
-    'Mir bhalted eus vor, die Dateschutzerkläärig bi Bedarf aazpasse. Di aktuelli Version isch uf dere Sitte verfüegbar.',
+    'Mir bhalted eus vor, die Dateschutzerkläärig bi Bedarf aazpasse. Di aktuelli Version isch uf dere Siite verfüegbar.',
 
   // Impressum page
   impressumTitle: 'Impressum',
   impressumClubName: 'KSC Wiedikon',
-  impressumAddress: 'Schrennegass 7\n8003 Züri',
+  impressumAddress: 'Schrennengasse 7\n8003 Zürich',
   impressumFullName: 'Kultur- und Sportclub Wiedikon',
   impressumContact: 'E-Mail: kscw@kscw.ch',
   impressumWebsite: 'Website: kscw.ch',
@@ -112,18 +112,18 @@ export default {
   impressumHosting: 'Hosting: Cloudflare Pages (Frontend), Infomaniak Network SA, Gänf, Schwiiz (Backend)',
   impressumLinks: 'Haftig für Links',
   impressumLinksText:
-    'Euses Aagebott enthalted Links zu externe Websites vo Dritte, uf dere Inhalt mir käne Iifluss händ. Für d Inhalt vo de verlinkete Sitte isch immer de jewiligi Abieter verantwortlich. Bi Bekantwerde vo Rächtsverletzige werded mir sötigi Links umgehend entferne.',
+    'Euses Aagebot enthaltet Links uf externi Websites vo Dritte, uf dere Inhalt mir kei Iifluss händ. Für de Inhalt vo de verlinkte Siite isch immer de jewiilig Aabieter verantwortlich. Wänn mir vo Rächtsverletzige erfahred, entferned mir sötigi Links sofort.',
   impressumCopyright: 'Urheberrächt',
   impressumCopyrightText:
-    'D Inhalt und Werch wo vom KSC Wiedikon uf dere Website erstellt werded, underliged em schwiizerischi Urheberrächt. D Vervielfältigung, Bearbeitig oder Verbreitig usserhalb vo de Grenze vom Urheberrächt bruucht d schriftlichi Zuestimmig vom Verein.',
+    'D Inhält und Wärch, wo de KSC Wiedikon uf dere Website erstellt hät, underliged em schwiizerische Urheberrächt. D Vervielfältigig, Bearbeitig oder Verbreitig usserhalb vo de Gränze vom Urheberrächt bruucht d schriftlichi Zuestimmig vom Verein.',
   impressumSocial: 'Social Media',
   impressumFacebook: 'Facebook: KSC Wiedikon',
   impressumInstagram: 'Instagram: @ksc_wiedikon',
   impressumDisclaimer: 'Haftigsusschluss',
   impressumDisclaimerText:
-    'De KSC Wiedikon übernimmt käni Gwähr für d Richtikeit, Vollständikeit und Aktualität vo de breitgstellte Informatione. Haftigsaasprüch gege de KSC Wiedikon, wo sich uf Schäde materieller oder ideeller Art beziehed, sind grundsätzlich usgschlosse.',
+    'De KSC Wiedikon übernimmt kei Gwähr für d Richtigkeit, Vollständigkeit und Aktualität vo de bereitgstellte Informatione. Haftigsaasprüch gäge de KSC Wiedikon, wo sich uf Schäde materieller oder ideeller Art beziehed, sind grundsätzlich usgschlosse.',
 
   // Privacy notice bar
-  noticeCookies: 'Die Website bruucht käni Tracking-Cookies.',
+  noticeCookies: 'Die Website bruucht kei Tracking-Cookies.',
   noticeLink: 'Meh erfahre',
 } as const
