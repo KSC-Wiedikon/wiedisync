@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "2.49.0",
+  "version": "2.50.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
