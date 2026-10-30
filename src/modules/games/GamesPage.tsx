@@ -339,9 +339,10 @@ export default function GamesPage() {
   ]), [query])
   const shownGames = useMemo(() => (searching ? games.filter(matchesGame) : games), [games, searching, matchesGame])
   const shownPastGames = useMemo(() => (searching ? pastGames.filter(matchesGame) : pastGames), [pastGames, searching, matchesGame])
-  useEffect(() => {
-    if (searching) { setShowAll(true); setShowAllPast(true) }
-  }, [searching])
+  const onSearch = (value: string) => {
+    setQuery(value)
+    if (value.trim()) { setShowAll(true); setShowAllPast(true) }
+  }
 
   // Same two guards as TrainingsPage: debounce the burst, and ignore RSVPs that cannot
   // belong to this page. `perPage` reaches 500 after "show all", so an unguarded
@@ -577,7 +578,7 @@ export default function GamesPage() {
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />
         </div>
         {(activeTab === 'upcoming' || activeTab === 'results') && (
-          <SearchField className="max-w-md" value={query} onChange={setQuery} placeholder={t('searchPlaceholder')} />
+          <SearchField className="max-w-md" value={query} onChange={onSearch} placeholder={t('searchPlaceholder')} />
         )}
       </div>
 
