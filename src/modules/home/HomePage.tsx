@@ -28,6 +28,7 @@ import TrainingDetailModal from '../trainings/TrainingDetailModal'
 import EventDetailModal from '../events/EventDetailModal'
 import { asTeams, getEventDateBadgeParts } from '../events/eventHelpers'
 import DutyEventCard from '../events/DutyEventCard'
+import FormSignupEventCard from '../events/FormSignupEventCard'
 import AnnouncementRow from './components/AnnouncementRow'
 import AnnouncementDetailModal from './components/AnnouncementDetailModal'
 import DuesNewsRow from './components/DuesNewsRow'
@@ -395,6 +396,43 @@ export default function HomePage() {
   // so it always shows regardless of the sport toggle.
   const { duties: dutyAppointments } = useMyDuties()
 
+  // Private sign-up events (migration 434) the member is signed up for through the
+  // form — pinned above the list like a duty. Own confirmed RSVPs first (a member
+  // reads their own rows; `participations.event` is an M2O, so no double M2M walk),
+  // then those events: an admin sees every form-only event but gets only their own
+  // pinned. Both queries are tiny and skip entirely without a member.
+  const { data: formSignupRows } = useCollection<Participation>('participations', {
+    filter: { _and: [
+      { member: { _eq: user?.id ?? -1 } },
+      { activity_type: { _eq: 'event' } },
+      { status: { _eq: 'confirmed' } },
+      { event: { form_signup_only: { _eq: true }, end_date: { _gte: today } } },
+    ] },
+    fields: ['activity_id'],
+    limit: 20,
+    enabled: !!user?.id,
+  })
+  const formSignupEventIds = useMemo(
+    () => (formSignupRows ?? []).map((p) => String(p.activity_id)),
+    [formSignupRows],
+  )
+  const { data: formSignupEventsRaw } = useCollection<EventExpanded>('events', {
+    filter: { id: { _in: formSignupEventIds.length > 0 ? formSignupEventIds : [-1] } },
+    fields: ['*'],
+    sort: ['start_date'],
+    limit: 20,
+    enabled: formSignupEventIds.length > 0,
+  })
+  const pinnedFormEvents = useMemo(
+    () => (formSignupEventIds.length > 0 ? formSignupEventsRaw ?? [] : []).filter((ev) => !hasEventEnded(now, ev)),
+    [formSignupEventIds, formSignupEventsRaw, now],
+  )
+  const pinnedFormEventIds = useMemo(() => new Set(pinnedFormEvents.map((ev) => String(ev.id))), [pinnedFormEvents])
+  const listedEvents = useMemo(
+    () => events.filter((ev) => !pinnedFormEventIds.has(String(ev.id))),
+    [events, pinnedFormEventIds],
+  )
+
   // Rankings for user's teams — fetch team details for SV/BB IDs, then rankings
   const { data: userTeamDetailsRaw } = useCollection<Team>('teams', {
     filter: hasTeams ? { id: { _in: userTeamIds } } : undefined,
@@ -760,16 +798,19 @@ export default function HomePage() {
             </div>
           ) : null}
           trainingsDate={nextTrainings[0]?.date}
-          eventsSection={(events.length > 0 || dutyAppointments.length > 0) ? (
+          eventsSection={(events.length > 0 || dutyAppointments.length > 0 || pinnedFormEvents.length > 0) ? (
             <div className="min-w-0">
               <SectionHeader title={t('events')} linkTo="/events" linkLabel={t('allEvents')} />
               <div className="space-y-3">
                 {dutyAppointments.map((d) => (
                   <DutyEventCard key={`duty-${d.game.id}-${d.role}`} duty={d} />
                 ))}
-                {events.length > 0 && (
+                {pinnedFormEvents.map((event) => (
+                  <FormSignupEventCard key={`form-${event.id}`} event={event} onClick={() => setSelectedEvent(event)} />
+                ))}
+                {listedEvents.length > 0 && (
                   <RowList className={LIST_SHELL}>
-                    {events.map((event) => (
+                    {listedEvents.map((event) => (
                       <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} participations={getParticipations('event', event.id)} />
                     ))}
                   </RowList>
@@ -777,7 +818,7 @@ export default function HomePage() {
               </div>
             </div>
           ) : null}
-          eventsDate={events[0]?.start_date?.split(' ')[0] ?? dutyAppointments[0]?.game.date}
+          eventsDate={events[0]?.start_date?.split(' ')[0] ?? pinnedFormEvents[0]?.start_date?.split(' ')[0] ?? dutyAppointments[0]?.game.date}
           gamesSection={
             <div className="min-w-0 space-y-6">
               {latestResults.length > 0 && (

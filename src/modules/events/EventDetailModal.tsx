@@ -488,6 +488,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
 function EventParticipation({ event, isStaff, isStaffParticipant, participations, coachMemberIds, rosterTools }: { event: Event; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[]; coachMemberIds: string[]; rosterTools: ReactNode }) {
   const { t } = useTranslation('participation')
+  const { t: tEvents } = useTranslation('events')
   const { t: tc } = useTranslation('common')
   const { participation, effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'event',
@@ -584,6 +585,27 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
         { position_1: p1 || null, position_2: p2 || null, position_3: p3 || null },
       )
     }
+  }
+
+  // Migration 434: on a form-only event the form submission IS the answer — shown,
+  // never edited here (no note, positions or +1 either: each is a participation write
+  // the server refuses).
+  if (event.form_signup_only) {
+    return (
+      <RsvpAnswerButtons
+        activityType="event"
+        activityId={event.id}
+        participations={participations}
+        coachMemberIds={coachMemberIds}
+        value={effectiveStatus}
+        loading={rsvpLoading}
+        options={['confirmed', 'declined']}
+        trailing={rosterTools}
+        locked
+        lockedReason={tEvents('formSignupLocked')}
+        onSelect={() => {}}
+      />
+    )
   }
 
   return (

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.45.2'
+const APP_VERSION = '2.46.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.46.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Private sign-up events: an admin can link a sign-up form to an event and make it private. Only the people who submit the form see the event — they are signed in automatically, the event is pinned at the top of their home page, and their answer can\'t be changed in the app.',
+          'Sign-up forms on forms.kscw.ch can check that the email belongs to a club member (the address in Wiedisync or ClubDesk) and fill in the member\'s section and teams by themselves.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.45.2',
     date: '28.10.2026',

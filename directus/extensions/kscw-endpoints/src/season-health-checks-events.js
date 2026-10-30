@@ -149,6 +149,7 @@ SELECT ${EVENT_COLS}, NULL::text AS sport, e.event_type, ${CREATOR} AS creator,
    AND NOT ${HAS_NAMED}
    AND NOT ${HAS_ROLES}
    AND NOT ${PUBLIC_TYPE}
+   AND NOT e.form_signup_only
  ORDER BY e.start_date, e.id`,
   },
   {
@@ -259,7 +260,7 @@ WITH ${EVENT_SPORT_CTE},
 due AS (
   SELECT e.id, e.title, e.start_date, ${EVENT_DATE} AS date_zh, e.invite_guests,
          ${EFFECTIVE_DEADLINE} AS deadline,
-         (NOT ${HAS_TEAMS} AND NOT ${HAS_NAMED}) AS club_wide
+         (NOT ${HAS_TEAMS} AND NOT ${HAS_NAMED} AND NOT e.form_signup_only) AS club_wide
     FROM events e
    WHERE ${UPCOMING_EVENT}
      AND e.respond_by IS NOT NULL
