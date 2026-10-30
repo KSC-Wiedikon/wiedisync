@@ -1296,9 +1296,9 @@ export default {
           "t": "ul",
           "items": [
             "**Späti Aamäldig** — du häsch bis zur Frischt nöd gantwortet, oder en Coach hät di nach de Frischt müesse bestätige.",
-            "**Nöd cho** — du bisch aagmäldet gsi, aber nöd cho.",
-            "**Zahligsverzug** und **Andersch** — werded für alles Übrige vo Hand vergäh.",
-            "Jedes Team legt sini eigeni Staffle fescht: De Betrag stiigt mit jedere Wiederholig i de gliiche Kategorii (zum Biispiel CHF 10.00, dänn CHF 20.00) und wird nach eme Ziitfänschter vo **Kaländermonet** bis **Unbegrenzt** wieder zruggsetzt."
+            "**Nöd cho** — du bisch aagmäldet gsi, bisch aber nöd cho.",
+            "**Zahligsverzug** und **Anderi** — werded für alles Übrige vo Hand vergäh.",
+            "Jedes Team legt sini eigeni Staffle fescht: De Betrag stiigt mit jedere Wiederholig i de gliiche Kategorie (zum Biispiel CHF 10.00, dänn CHF 20.00) und wird nach eme Ziitfänschter vo **Kaländermonet** bis **Unbegrenzt** wieder zruggsetzt."
           ]
         },
         {
@@ -1313,7 +1313,7 @@ export default {
           "t": "ul",
           "items": [
             "D App zieht kei Gäld ii. Zahl d Buess bi dim Coach oder bi dine Teamverantwortliche; die drucked dänn uf **Als zahlt markiere**.",
-            "En Coach cha e offeni Buess **Erlah**, immer mit eme Grund. Betrag, Kategorii und Grund chönd nachträglich nöd gänderet werde — e falschi Buess wird erlah und neu vergäh.",
+            "En Coach cha e offeni Buess **Erlah**, immer mit eme Grund. Betrag, Kategorie und Grund chönd nachträglich nöd gänderet werde — e falschi Buess wird erlah und neu vergäh.",
             "En Iitrag i de Glogge und en Push säged dir, wänn e Buess vergäh (**Neui Buess**), zahlt (**Buess zahlt**) oder erlah (**Buess erlah**) wird; e automatischi Buess für e späti Aamäldig chunnt als en einzige Push **Training: Frist verpasst** oder **Spiel: Frist verpasst**. Nach 14 Täg überchunnsch pro Tag en Erinnerigs-Push **Offeni Buesse**."
           ]
         },
@@ -1327,7 +1327,7 @@ export default {
         },
         {
           "t": "h",
-          "text": "Wänn du Coach oder Teamverantwortliche bisch"
+          "text": "Wänn du Coach oder Teamverantwortliche/r bisch"
         },
         {
           "t": "p",
@@ -1352,7 +1352,7 @@ export default {
           "items": [
             "**Spieler hinzuefüege**: Gib mindeschtens zwei Buechstabe i **Nach Name sueche...** ii und tipp uf s Mitglied. Es werded nur aktivi Vereinsmitglieder aazeigt.",
             "Entferne: Tipp ufs rote X und dänn im Dialog **Spieler entferne** uf **Entferne**.",
-            "Nummere: tipp uf de Wärt bi **#**, gib d Nummere ii und drück Enter.",
+            "Nummere: Tipp uf de Wärt bi **#**, gib d Nummere ii und drück Enter.",
             "**Position**: Hak eini oder mehreri Positione aa. **Nur Staff** isch für Coaches oder Teamverantwortlichi, wo nöd spieled; die überchömed kei Nummere.",
             "**K** markiert de Captain; tippsch bim aktuelle Captain uf **K**, wird s wieder glöscht.",
             "**G** schaltet d Gascht-Stufe wiiter: **G** → **G1** → **G2** → **G3** → und wieder vo vorne. Es wird sofort gspeicheret."
@@ -1369,7 +1369,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Näbet Spieler mit E-Mail, aber ohni Login, erschiint es Couvert-Symbol (**WiediSync-Iiladig schicke**). Tipp druf: d Iiladig wird per E-Mail verschickt und en QR-Code mit **Link kopiere** gaht uf; er funktioniert einisch, 30 Täg lang.",
+            "Näbed Spieler mit E-Mail, aber ohni Login, erschiint es Couvert-Symbol (**WiediSync-Iiladig schicke**). Tipp druf: d Iiladig wird per E-Mail verschickt und en QR-Code mit **Link kopiere** gaht uf; er funktioniert einisch, 30 Täg lang.",
             "**Externe Benutzer hinzuefüege** isch für öpper, wo no nöd im Verein isch. Wähl bi **Biiträte als:** **Spieler/in** oder **Gascht** L1–L3, tipp uf **QR-Code generiere** und zeig de Code oder nimm **Link kopiere**. De Link funktioniert einisch und lauft nach 7 Täg ab; pro Team sind maximal 20 offeni Iiladige möglich.",
             "D Person git Name und E-Mail ii, bestätigt de Code us de E-Mail und setzt es Passwort. Sie chunnt sofort is Kader, markiert als **Temporär**; wird s Login nöd innert 30 Täg aktiviert, verschwindet de Iitrag vo sälber (10 Täg vorher gaht e Erinnerigs-E-Mail use)."
           ]
@@ -1392,7 +1392,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Nur Admins im Admin-Modus chönd d Staff-Lischte ändere: **Staff verwalte** näbet **Staff** uf de Team-Siite füegt Mitglieder under **Trainer** und **Teamverantwortlichi** dezue oder entfernt sie, und git ihne dadurch au de Leiter-Zuegriff i de App oder nimmt en ihne wieder ewäg."
+          "text": "Nur Admins im Admin-Modus chönd d Staff-Lischte ändere: **Staff verwalte** näbed **Staff** uf de Team-Siite füegt Mitglieder under **Coaches** und **Teamverantwortlichi** dezue oder entfernt sie, und git ihne dadurch au de Leiter-Zuegriff i de App oder nimmt en ihne wieder ewäg."
         }
       ]
     },
@@ -1444,7 +1444,7 @@ export default {
             "D Resultat chömed über Nacht vo de Verbänd, nöd vo dir.",
             "**Frischt setze** setzt d Antwortfrischt. D **Bsammlig** wird als Minute vor em Start gspeicheret, drum bliibt si au bi ere Verschiebig richtig.",
             "**Ufbotte**: **Spieler*inne ufbiete** us emene andere Team vom gliiche Sport, mit **Für es ganzes Team ufmache** (s Stammkader; Gaschtspieler*inne nur einzeln) oder einzeln. Si werded benachrichtiget und chönd antworte; **Hät a dem Tag es Spiel** zeigt e Überschniidig aa.",
-            "**Schiedsrichterchöschte** (Volleyball-Heimspiel): erfass, wär d Schiedsrichter zahlt hät und wie vil; d Startsiite zeigt 14 Täg lang **Jetzt erfasse** (lueg de Abschnitt Teamfinanze)."
+            "**Schiedsrichterchöschte** (Volleyball-Heimspiel): erfass, wer d Schiedsrichter zahlt hät und wie viel; d Startsiite zeigt 14 Täg lang **Jetzt erfasse** (lueg de Abschnitt Teamfinanze)."
           ]
         },
         {
@@ -1481,7 +1481,7 @@ export default {
           "t": "ul",
           "items": [
             "**Us de im Volleymanager erfasste Einsatzliste.** Die Lischte entscheidet, wer spielt. D Spalte **✓** gliicht jede Spieler mit sinere Antwort ab: grüens Häkli zuegseit, orangs Zeiche villicht oder kei Antwort, roots Chrüz abgseit.",
-            "**Us de bestätigte Zuesäge — kei Einsatzliste vorhande.** De Ersatz für Basketball und nöd erfassti Lischte (kei Spalte **✓**).",
+            "**Us de bestätigte Zuesäge — kei Einsatzliste vorhande.** D Notlösig für Basketball und nöd erfassti Lischte (kei Spalte **✓**).",
             "Es Warnzeiche heisst, dass de Volleymanager die Person als nöd spielberechtigt meldet."
           ]
         },
@@ -1534,7 +1534,7 @@ export default {
         },
         {
           "t": "h",
-          "text": "Wer cha sände"
+          "text": "Wer cha schicke"
         },
         {
           "t": "ul",
@@ -1547,17 +1547,17 @@ export default {
         },
         {
           "t": "h",
-          "text": "E Nachricht sände"
+          "text": "E Nachricht schicke"
         },
         {
           "t": "ol",
           "items": [
-            "Under **Kanal** häksch **Email** aa (standardmässig ii) und/oder **Push** (standardmässig us). Mindeschtens eine mues aaghäkt sii.",
+            "Under **Kanal** häksch **E-Mail** aa (standardmässig ii) und/oder **Push** (standardmässig us). Mindeschtens eine mues aaghäkt sii.",
             "Under **Empfänger** häksch d Antwort-Status aa, wo du wotsch: **Bestätigt**, **Villicht**, **Abglehnt**, **Warteliste** und **Kei Antwort**. **Bestätigt** und **Villicht** sind scho aaghäkt.",
             "Bi eme Aalass häksch **Externi Aamäldige iibezieh** aa, wänn au d Lüüt es E-Mail übercho söled, wo sich über de öffentlich Link aagmäldet händ.",
-            "Lueg d Vorschau aa (**Empfänger: 12 (10 Mitglieder · 2 Extern)** und es paar Biispiel-Näme). Wänn det **Niemert passt zu dene Filter.** staht, änder d Häkli: D Nachricht gieng süsch a niemer.",
-            "Schriib en **Betreff** (nur sichtbar, wänn **Email** ii isch, 3 bis 200 Zeiche) und e **Nachricht** (bis 2000 Zeiche).",
-            "Drück **Sände** und bestätig dänn **Broadcast schicke?**. E Bestätigig **Broadcast gsändet: 12 Empfänger** erschiint."
+            "Lueg d Vorschau aa (**Empfänger: 12 (10 Mitglieder · 2 Externi)** und es paar Biispiel-Näme). Wänn det **Niemert passt zu dene Filter.** staht, änder d Häkli: D Nachricht gieng süsch a niemert.",
+            "Schriib en **Betreff** (nur sichtbar, wänn **E-Mail** ii isch, 3 bis 200 Zeiche) und e **Nachricht** (bis 2000 Zeiche).",
+            "Drück **Schicke** und bestätig dänn **Broadcast schicke?**. E Bestätigig **Broadcast gschickt: 12 Empfänger** erschiint."
           ]
         },
         {
@@ -1569,17 +1569,17 @@ export default {
           "items": [
             "**Kei Antwort** heisst alli im berächtigte Kader, wo gar nöd gantwortet händ: bi Spiel s Stammkader ohni Gaschtspieler, bi Trainings s Kader nach de Gascht-Regle vom Training, bi Aaläss die iigladene Teams und Mitglieder.",
             "Deaktivierti Mitglieder werded nie kontaktiert. E-Mails gönd a jedes usgwählte Mitglied mit ere E-Mail-Adrässe; Push nur a Mitglieder, wo uf eme Grät d Push-Benachrichtigige iigschaltet händ. Externi Aamäldige überchömed nur es E-Mail.",
-            "Jedi Person überchunnt es eigets E-Mail i ihrer eigete Sprach, mit dim Name, de Details zur Aktivität, dinere Nachricht und eme Chnopf **Im Wiedisync öffne**. Niemer gseht die andere Adrässe.",
+            "Jedi Person überchunnt es eigets E-Mail i ihrer eigete Sprach, mit dim Name, de Details zur Aktivität, dinere Nachricht und eme Chnopf **Im Wiedisync öffne**. Niemert gseht die andere Adrässe.",
             "En Push zeigt din Betreff als Titel und die erschte 200 Zeiche vo dinere Nachricht. En Tipp druf macht d Aktivität uf."
           ]
         },
         {
           "t": "note",
-          "text": "Broadcast-E-Mails werded immer gschickt: Si halted sich nöd a d Schalter under **E-Mail-Benachrichtigige** im Profil vo eme Mitglied. S Sände cha mer nöd rückgängig mache, drum lies d Vorschau, bevor du bestätigsch."
+          "text": "Broadcast-E-Mails werded immer gschickt: Si halted sich nöd a d Schalter under **E-Mail-Benachrichtigige** im Profil vo eme Mitglied. S Schicke cha mer nöd rückgängig mache, drum lies d Vorschau, bevor du bestätigsch."
         },
         {
           "t": "note",
-          "text": "Limite: höchschtens 3 Nachrichte pro Aktivität und Stund, mindeschtens 20 Minute zwüsche zwei Nachrichte zur gliiche Aktivität (egal, wer si schickt), und höchschtens 10 Nachrichte pro Absänder und Stund. Drüber use gsehsch e Meldig wie **Bitte warti 14 Minute(n) und probier’s nomal.**"
+          "text": "Limite: höchschtens 3 Nachrichte pro Aktivität und Stund, mindeschtens 20 Minute zwüsche zwei Nachrichte zur gliiche Aktivität (egal, wer si schickt), und höchschtens 10 Nachrichte pro Absänder und Stund. Drüber use gsehsch e Meldig wie **Bitte wart 14 Minute und probiers nomal.**"
         },
         {
           "t": "tip",
@@ -1656,14 +1656,14 @@ export default {
         },
         {
           "t": "p",
-          "text": "Jedi Kategorii (**Späti Aamäldig**, **Nöd cho**, **Zahligsverzug**, **Andersch**) hät en Schalter **Aktiviert**, es **Reset-Fenster** und **Eskalationsstufe**."
+          "text": "Jedi Kategorie (**Späti Aamäldig**, **Nöd cho**, **Zahligsverzug**, **Anderi**) hät en Schalter **Aktiviert**, es **Reset-Fenster** und **Eskalationsstufe**."
         },
         {
           "t": "ul",
           "items": [
             "**Stufe hinzuefüege**, dänn **Vergehen Nr.** und **Betrag** setze. Schalt bi de letschte Stufe **Und alli wiitere** ii, dänn gilt si für alli spätere Vergehe. Beträg werded gspeicheret, sobald du s Fäld verlahsch; **Vorschau** zeigt d Staffle.",
             "S **Reset-Fenster** bestimmt, wänn s Zelle vo vorne aafangt: **Kaländermonet**, **Rollend 30 Täg**, **Rollend 90 Täg**, **Saison (Sep–Aug)** oder **Unbegrenzt**.",
-            "D Nummere vom Vergehe zellt d früenere Buesse vom Mitglied i dere Kategorii und dem Team im Fänschter; Buesse, wo erlah worde sind, zelled nie."
+            "D Nummere vom Vergehe zellt d früenere Buesse vom Mitglied i dere Kategorie und dem Team im Fänschter; Buesse, wo erlah worde sind, zelled nie."
           ]
         },
         {
@@ -1697,7 +1697,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Betrag, Kategorii und Grund vo ere vergäbene Buess chönd nüme gänderet werde. Zum Korrigiere mach **Finanze → Teamfinanze → Teambuesse** uf, klick uf **Erlah** und gib en **Grund für s Erlah** aa (Pflicht). S Mitglied wird benachrichtiget, d Buess zellt nüme uf de Staffle, und du chasch e neui vergäh. Buesse für s ganze Team überspringed d Staffle, drum gisch de Betrag sälber ii."
+          "text": "Betrag, Kategorie und Grund vo ere vergäbene Buess chönd nüme gänderet werde. Zum Korrigiere mach **Finanze → Teamfinanze → Teambuesse** uf, klick uf **Erlah** und gib en **Grund für s Erlah** aa (Pflicht). S Mitglied wird benachrichtiget, d Buess zellt nüme uf de Staffle, und du chasch e neui vergäh. Buesse für s ganze Team überspringed d Staffle, drum gisch de Betrag sälber ii."
         },
         {
           "t": "tip",
@@ -1723,7 +1723,7 @@ export default {
             "Gib en **Titel** ii und optional e **Beschriibig**.",
             "Drück für jedi Frag **Fäld hinzuefüege**, wähl en Typ (**Churze Text**, **Einzeluswahl**, **Bewärtig (1–5)**, **Datei ufelade** und meh) und hak **Pflicht** aa, wänn d Frag mues beantwortet werde. Uswahl-Optione chömed eini pro Ziile.",
             "Änder d Reihefolg mit **Ufe verschiebe** / **Abe verschiebe**; **Übersetze** füegt Bezeichnige pro Sprach dezue.",
-            "Under **Teams** wählsch d Teams, wo du leitisch; nur ihri Mitglieder gsehnd s Formular. Vorstandsmitglieder und Admins im **Admin-Modus** wähled zerscht bi **Für wen** d Zielgruppe (**Ganze Verein** oder **Bestimmti Teams**).",
+            "Under **Teams** wählsch d Teams, wo du leitisch; nur ihri Mitglieder gsehnd s Formular. Vorstandsmitglieder und Admins im **Admin-Modus** wähled zerscht e **Zielgruppe** (**Ganze Verein** oder **Bestimmti Teams**).",
             "Setz **Schliesst** für e Frischt: nach däm Datum und dere Ziit sind kei Iireichige meh möglich.",
             "Optional: **Anonym** (d Antworte werded keim Mitglied zuegordnet), **Mehrfachi Antworte erlaube**, **Dankes-Mäldig**.",
             "Mit **Vorschau** gsehsch s Formular so, wie s d Mitglieder gsehnd, dänn **Speichere**."
@@ -1731,15 +1731,15 @@ export default {
         },
         {
           "t": "h",
-          "text": "Veröffentliche und schliesse"
+          "text": "Veröffentliche und zuemache"
         },
         {
           "t": "p",
-          "text": "Es neus Formular isch en **Entwurf** und für d Mitglieder unsichtbar. Setz de **Status** uf **Offe** (oder drück under **Formular verwalte** s Schloss-Symbol **Ufmache**), zum s veröffentliche: Spieler, Coaches und Teamverantwortlichi vo de gwählte Teams überchömed eimal e Glogge- und Push-Benachrichtigig **Neus Formular**. Spöteri Änderige lösed kei neui Benachrichtigig us. **Schliesse** stoppt d Iireichige vorziitig; s Schliessdatum macht das automatisch."
+          "text": "Es neus Formular isch en **Entwurf** und für d Mitglieder unsichtbar. Setz de **Status** uf **Offe** (oder drück under **Formular verwalte** s Schloss-Symbol **Ufmache**), zum s veröffentliche: Spieler, Coaches und Teamverantwortlichi vo de gwählte Teams überchömed eimal e Glogge- und Push-Benachrichtigig **Neus Formular**. Spöteri Änderige lösed kei neui Benachrichtigig us. **Zuemache** stoppt d Iireichige vorziitig; s Schliessdatum macht das automatisch."
         },
         {
           "t": "note",
-          "text": "Wänn du es Formular löschsch (Chübel-Symbol), werded au alli sini Antworte glöscht, und das chasch nöd rückgängig mache. Schliess es lieber, wänn du kei neui Antworte me wotsch."
+          "text": "Wänn du es Formular löschsch (Chübel-Symbol), werded au alli sini Antworte glöscht, und das chasch nöd rückgängig mache. Mach es lieber zue, wänn du kei neui Antworte me wotsch."
         },
         {
           "t": "h",
@@ -1782,7 +1782,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "D Blöck träged ihre Typ: **Training**, **Spiel** oder **Event**. Es Heimspiel blockiert d Halle ab 45 Minute vor em Aafang; es abgseits Training isch duregstriche.",
+            "D Blöck träged ihre Typ: **Training**, **Spiel** oder **Aalass**. Es Heimspiel blockiert d Halle ab 45 Minute vor em Aafang; es abgseits Training isch duregstriche.",
             "En grüene Block **Frei** isch freii Halleziit: de Trainingsslot vomene Team an eme Tag, wo s uswärts spielt, es abgseits Training, en Slot, wo d Admins für alli Teams freigäh händ, oder en wüchentliche Slot, wo i dere Wuche kei Training planet isch (bis 12 Wuche im Voruus).",
             "En Block **Beansprucht** (punktierte Rand) isch en freie Slot, wo sich es Team gnoh hät; tipp druf, zum **Beansprucht vo** und **Beansprucht am** z gseh.",
             "E schraffierti Überlagerig **Gsperrt** nännt de Grund: D Slots vo dere Halle verschwinded, ihri Trainings werded abgseit, und es cha det kei Heimspiel buechet werde (lueg de Abschnitt Halleplan-Verwaltig)."
@@ -1795,7 +1795,7 @@ export default {
         {
           "t": "ol",
           "items": [
-            "Tipp uf en grüene Block **Frei** oder uf de grüen Chnopf **Halle frei** und wähl e Ziit us de Lischte **Freii Halle**.",
+            "Tipp uf en grüene Block **Frei** oder uf de grüen Chnopf **Slot(s) frei** und wähl e Ziit us de Lischte **Freii Slots**.",
             "**Halleziit beanspruche** zeigt Halle, Datum, Ziite, de **Grund** (**Training abgseit**, **Uswärtsspiel** oder **Frei**) und under **Ursprünglich** s Team, wo de Slot normalerwiis hät.",
             "Wähl dis Team under **Für Team**, füeg optional **Notize** dezue und tipp uf **Beanspruche**. De Block wird für de ganz Verein zu **Beansprucht**."
           ]
