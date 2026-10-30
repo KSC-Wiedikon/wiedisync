@@ -163,6 +163,9 @@ export default function EventsPage() {
       })
       const hasMembers = invitedMemberIds.length > 0
 
+      // Private sign-up event (migration 434): only once you signed up via its form —
+      // with no sign-up yet it has no targeting and would read as club-wide.
+      if (event.form_signup_only) return !!user && invitedMemberIds.includes(String(user.id))
       // No targeting = club-wide
       if (!hasTeams && !hasRoles && !hasMembers) return true
       // Team match
