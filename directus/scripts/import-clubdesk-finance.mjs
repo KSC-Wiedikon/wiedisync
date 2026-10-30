@@ -429,6 +429,20 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- 5b (cont.). "Not a member's invoice" (migration 436): an override with member NULL
+-- has just unlinked its rows above; flag them so the board's Unmatched queue skips them.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'finance_invoices' AND column_name = 'not_member') THEN
+    UPDATE finance_invoices fi SET not_member = true, member = NULL
+      FROM finance_invoice_member_overrides o
+      WHERE fi.source = 'clubdesk' AND o.member IS NULL
+        AND ((o.match_cd_contact_id IS NOT NULL AND fi.cd_contact_id = o.match_cd_contact_id)
+          OR (o.match_clubdesk_id IS NOT NULL AND fi.clubdesk_id = o.match_clubdesk_id)
+          OR (o.match_email IS NOT NULL AND lower(fi.recipient_email) = lower(o.match_email)));
+  END IF;
+END $$;
+
 -- 5b2. Re-point finance_payments.clubdesk_guess (migration 254). The delete+
 -- reinsert re-keys every mirror invoice id and the FK is ON DELETE SET NULL,
 -- so restore the link from the stable match_clubdesk_id snapshot. A link whose

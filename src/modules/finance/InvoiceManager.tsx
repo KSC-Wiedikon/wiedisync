@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
+import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins, UserX, Undo2 } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
@@ -12,7 +12,7 @@ import { useTeams } from '../../hooks/useTeams'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useFinanceInvoices, formatChf, isNativeInvoice,
-  createNativeInvoice, confirmInvoice, cancelInvoice, linkInvoiceMember,
+  createNativeInvoice, confirmInvoice, cancelInvoice, linkInvoiceMember, markInvoiceNotMember, unlinkInvoiceMember,
   importCamt, useBillingContacts, createBillingContact, type CamtImportResult,
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
@@ -420,7 +420,8 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
   // year like everything else, but stays reachable across years via the toggle.
   const orphanPool = orphansAllYears ? invoices : inYear
   const orphansAll = useMemo(
-    () => orphanPool.filter((i) => i.source !== 'native' && !i.member),
+    // A "not a member's invoice" (migration 436) is settled — not a cleanup task.
+    () => orphanPool.filter((i) => i.source !== 'native' && !i.member && !i.not_member),
     [orphanPool],
   )
   const orphans = useMemo(() => {
@@ -534,14 +535,26 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {t('cancelInvoiceCta')}
                           </Button>
                         )}
-                        {!nativeRow && !inv.member && (
+                        {!nativeRow && !inv.member && !inv.not_member && (
                           <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
                             <Link2 />{t('linkToMember')}
                           </Button>
                         )}
+                        {/* Migration 436: a sponsor's invoice that the e-mail match pinned on a member. */}
+                        {!nativeRow && !!inv.member && (
+                          <Button type="button" size="sm" variant="outline" disabled={busyId === inv.id}
+                            onClick={async () => { if (await confirm({ message: t('notMemberSure', { name: inv.recipient_name || '–' }) })) act(inv.id, markInvoiceNotMember) }}>
+                            <UserX />{t('notMemberCta')}
+                          </Button>
+                        )}
+                        {!nativeRow && inv.not_member && (
+                          <Button type="button" size="sm" variant="outline" disabled={busyId === inv.id} onClick={() => act(inv.id, unlinkInvoiceMember)}>
+                            <Undo2 />{t('notMemberUndo')}
+                          </Button>
+                        )}
                       </>
                     )
-                    const hasActions = nativeRow ? inv.status !== 'cancelled' : !inv.member
+                    const hasActions = nativeRow ? inv.status !== 'cancelled' : true
                     return (
                       <Fragment key={inv.id}>
                       <TableRow className={hasActions ? 'max-sm:border-b-0' : undefined}>

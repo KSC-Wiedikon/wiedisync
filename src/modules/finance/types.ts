@@ -28,6 +28,8 @@ export interface FinanceInvoice {
   recipient_name?: string | null
   recipient_email?: string | null
   member?: string | null
+  /** Migration 436: marked "not a member's invoice" (sponsor / other contact); never linked by e-mail. */
+  not_member?: boolean
   fiscal_year?: string | null
   // Native-invoice fields (migrations 128/129). source distinguishes a native
   // (created-in-wiedisync) invoice from a ClubDesk mirror row.
