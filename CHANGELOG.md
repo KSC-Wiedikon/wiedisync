@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.49.0 — 2026-10-30
+
+### Added
+
+- Admins can pin an event on the home page: it shows at the top of Home for everyone who can see it, like a scorer duty.
+
+### Fixed
+
+- A private sign-up event shows only to people who signed up through its form — also in an admin's member view and in the calendar.
+
 ## v2.48.1 — 2026-10-30
 
 ### Fixed
