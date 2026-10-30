@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.48.0'
+const APP_VERSION = '2.48.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.48.1',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          '«Connect this link» and «Sync sign-ups» now sign in the members who submitted the form (they found nobody before), and the replies show in All signups and its Excel / PDF export.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'The signup link shows «Connected» once the form is linked, and it can already be pasted when creating an event — it is connected on the first save.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.48.0',
     date: '30.10.2026',
