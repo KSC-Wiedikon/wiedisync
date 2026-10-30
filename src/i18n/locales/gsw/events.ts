@@ -120,6 +120,8 @@ export default {
   inviteRateLimited: 'Z vill Iiladige i churzer Ziit verschickt — probier s spöter nomal',
   signupFormReplaceConfirm: 'De Aalass het scho es Aamäldeformular. Es nöis erstelle und stattdesse verchnüpfe? S alte Formular und sini Iiträg blibed erhalte.',
   signupFormUnlinkConfirm: 'De Aamäldelink vo dem Aalass entferne? S Formular und sini Iiträg blibed erhalte.',
+  signupFormIsConnected: 'Verbunde – Aamäldige über das Formular zelled.',
+  signupFormNotConnected: 'No nöd verbunde – drück «De Link verbinde», damit Aamäldige drüber zelled.',
   signupFormConnect: 'De Link verbinde',
   signupFormConnected: 'Formular verbunde. Aagmäldeti Mitglieder: {{count}}.',
   signupFormSync: 'Aamäldige übernäh',

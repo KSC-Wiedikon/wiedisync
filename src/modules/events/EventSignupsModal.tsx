@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { saveFile } from '@/utils/saveFile'
 import { toast } from 'sonner'
-import { exportBaseName, renderAnswer, signupsPdf, signupsXlsx, type SignupsExportInput } from './lib/signupsExport'
+import { answersOf, exportBaseName, renderAnswer, signupsPdf, signupsXlsx, submittedAt, type SignupsExportInput } from './lib/signupsExport'
 import { kscwApi } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import type { Event } from '../../types'
@@ -208,11 +208,11 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
                         <TableRow key={String(r.id ?? i)} className="min-h-[44px]">
                           {externalFields.map((f) => (
                             <TableCell key={f.id} className="whitespace-normal break-words">
-                              {renderAnswer(r[f.id])}
+                              {renderAnswer(answersOf(r)[f.id])}
                             </TableCell>
                           ))}
                           <TableCell className="hidden whitespace-normal sm:table-cell">
-                            {r.created_at ? formatDateTimeCompactZurich(String(r.created_at)) : ''}
+                            {submittedAt(r) ? formatDateTimeCompactZurich(submittedAt(r)!) : ''}
                           </TableCell>
                         </TableRow>
                       ))}

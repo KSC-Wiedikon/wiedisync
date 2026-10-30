@@ -36,6 +36,21 @@ export function renderAnswer(v: unknown): string {
 const when = (iso: string | null | undefined) => (iso ? formatDateTimeCompactZurich(iso) : '')
 const STATUS: Record<string, string> = { confirmed: 'Confirmed', tentative: 'Maybe', declined: 'Declined', waitlisted: 'Waitlist' }
 
+/**
+ * An OpnForm submission row carries its answers in `row.data`, keyed by field id (the row
+ * itself is { id, data, form_id, … }); tolerate a flat row too, as admin.astro does.
+ */
+export function answersOf(row: Record<string, unknown>): Record<string, unknown> {
+  const data = row?.data
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : row ?? {}
+}
+
+/** When it was submitted — on the row or inside its answers, depending on the API shape. */
+export function submittedAt(row: Record<string, unknown>): string | null {
+  const v = row?.created_at ?? answersOf(row).created_at
+  return typeof v === 'string' ? v : null
+}
+
 /** Questions of the form, in form order; text blocks / page breaks (`nf-*`) are not answers. */
 export function answerFields(fields: SignupFormField[]): SignupFormField[] {
   return fields.filter((f) => f?.id && !String(f.type ?? '').startsWith('nf-'))
@@ -55,7 +70,7 @@ export function buildSignupSections(input: SignupsExportInput): ExportSection[] 
     sections.push({
       title: 'Form replies',
       columns: [...fields.map((f) => f.name || f.id), 'Submitted'],
-      rows: input.formRows.map((r) => [...fields.map((f) => renderAnswer(r[f.id])), when(r.created_at as string | null)]),
+      rows: input.formRows.map((r) => [...fields.map((f) => renderAnswer(answersOf(r)[f.id])), when(submittedAt(r))]),
     })
   }
   if (input.guests.length) {

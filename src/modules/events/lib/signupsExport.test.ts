@@ -14,7 +14,8 @@ const input: SignupsExportInput = {
     { id: 'c', name: 'Check', type: 'checkbox' },
     { id: 'm', name: 'Extras', type: 'multi_select' },
   ],
-  formRows: [{ e: 'anna@example.com', s: 'Volleyball', f: 'Fondue', c: true, m: ['Wine', 'Dessert'], created_at: '2026-10-30T08:15:00Z' }],
+  // The real OpnForm shape: answers nested under `data`.
+  formRows: [{ id: 1, data: { e: 'anna@example.com', s: 'Volleyball', f: 'Fondue', c: true, m: ['Wine', 'Dessert'], created_at: '2026-10-30T08:15:00Z' } }],
   guests: [{ name: 'Max Gast', email: 'max@example.com', phone: '+41 79 000 00 00', guest_count: 1, note: '=HYPERLINK("x")', date_created: '2026-10-29T10:00:00Z' }],
 }
 
