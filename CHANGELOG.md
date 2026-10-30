@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.51.0 — 2026-10-30
+
+### Added
+
+- Max participants on trainings and events now works. When it is full, a Yes goes on the waiting list (the Yes button turns orange with an hourglass). Guest players give way to team players: a team player who says Yes to a full training takes the seat of the guest who signed up last. When a spot opens, the first person on the waiting list gets it automatically, and a push and the bell tell them.
+
+### Fixed
+
+- The training roster shows «x spots left» or «Full (14/14)» when the training has a maximum, like events.
+
 ## v2.50.0 — 2026-10-30
 
 ### Added
