@@ -119,22 +119,26 @@ export async function memberTeamsAndSections(database, member) {
 }
 
 /**
- * Sign `member` into every live `form_signup_only` event bound to `slug`: audience row
- * (makes the private event visible to them) + confirmed RSVP. Idempotent — a resubmitted
- * form or a retried job changes nothing the second time. Per-session events get the
- * audience row only (a whole-event RSVP means nothing there).
+ * A member's form submission is their RSVP to every live event bound to `slug`
+ * (`events.signup_form_slug`): a confirmed participation. A `form_signup_only` (private)
+ * event also gets the audience row, which is what makes it visible to them; an ordinary
+ * event keeps its audience as it is — adding a row there would turn a club-wide event
+ * into an invite-only one. Idempotent — a resubmitted form, a retried job or a re-sync
+ * changes nothing the second time. Per-session events get no whole-event RSVP.
  */
 export async function signUpForFormEvents(database, slug, member) {
   const events = await database('events')
-    .where({ signup_form_slug: slug, form_signup_only: true })
+    .where({ signup_form_slug: slug })
     .andWhere((q) => q.where('cancelled', false).orWhereNull('cancelled'))
-    .select('id', 'participation_mode')
+    .select('id', 'participation_mode', 'form_signup_only')
   const added = []
   for (const event of events) {
     await database.transaction(async (trx) => {
-      await trx('events_members')
-        .insert({ events_id: event.id, members_id: member.id })
-        .onConflict(['events_id', 'members_id']).ignore()
+      if (event.form_signup_only) {
+        await trx('events_members')
+          .insert({ events_id: event.id, members_id: member.id })
+          .onConflict(['events_id', 'members_id']).ignore()
+      }
       if (event.participation_mode && event.participation_mode !== 'whole') return
       // Targetless ON CONFLICT: the uniques are partial (session_id IS NULL / NOT NULL).
       await trx.raw(`
@@ -153,6 +157,32 @@ export async function signUpForFormEvents(database, slug, member) {
     added.push(event.id)
   }
   return added
+}
+
+/**
+ * Sign in everyone who already submitted the form (connecting a form to an event, or the
+ * admins' "Sync sign-ups"). `submissions` is listAllSubmissions' shape. The email answer
+ * is the form's first email question; a "Name" text question, when there is one, tells
+ * siblings on a shared address apart. Guests (not members) are simply not signed in.
+ */
+export async function syncFormSignups(database, slug, submissions) {
+  const fields = Array.isArray(submissions?.fields) ? submissions.fields : []
+  const emailField = fields.find((f) => f?.type === 'email')
+  const nameField = fields.find((f) => f?.type === 'text' && /name/i.test(String(f.name ?? '')))
+  const result = { submissions: 0, signed_in: 0, not_members: 0, ambiguous: 0, events: [] }
+  if (!emailField) return { ...result, error: 'no_email_question' }
+  const events = new Set()
+  for (const row of submissions?.data ?? []) {
+    result.submissions++
+    const found = await resolveMember(database, row?.[emailField.id], nameField ? row?.[nameField.id] : null)
+    if (found.status === 'not_found') { result.not_members++; continue }
+    if (found.status === 'ambiguous') { result.ambiguous++; continue }
+    const added = await signUpForFormEvents(database, slug, found.member)
+    if (added.length) result.signed_in++
+    added.forEach((id) => events.add(id))
+  }
+  result.events = [...events]
+  return result
 }
 
 export function registerOpnformMembers(router, { database, logger }) {
