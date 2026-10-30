@@ -230,7 +230,7 @@ export default function EventsPage() {
 
   const { data: allParticipationsRaw, isLoading: participationsLoading, refetch: refetchParticipations } = useCollection<Participation>('participations', {
     filter: participationFilter,
-    fields: ['id', 'activity_id', 'activity_type', 'member', 'status', 'note', 'session_id', 'guest_count', 'is_staff', 'waitlisted_at', 'date_created', 'date_updated'],
+    fields: ['id', 'activity_id', 'activity_type', 'member', 'status', 'note', 'session_id', 'guest_count', 'is_staff', 'waitlisted_at', 'promoted_at', 'date_created', 'date_updated'],
     all: true,
     enabled: eventIds.length > 0,
   })

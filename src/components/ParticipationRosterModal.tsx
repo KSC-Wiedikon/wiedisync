@@ -2186,9 +2186,10 @@ export default function ParticipationRosterModal({
       )}
 
       {/* Seats left / Full — trainings.max_participants or events.max_players.
-          Same sum as the server's seat rule (migration 437): players + their +1s. */}
+          Same sum as the server's seat rule (migrations 437/438): players who said
+          Yes or Maybe, plus their +1s. */}
       {maxPlayers != null && maxPlayers > 0 && (() => {
-        const totalConfirmed = confirmed + confirmedGuests
+        const totalConfirmed = confirmed + confirmedGuests + tentative + tentativeGuests
         return (
           <div className={`mb-4 rounded-lg border px-3 py-2 text-xs font-medium tabular-nums ${
             totalConfirmed >= maxPlayers

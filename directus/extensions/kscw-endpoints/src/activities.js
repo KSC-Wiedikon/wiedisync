@@ -43,6 +43,8 @@ const DEFAULT_PARTICIPATION_FIELDS = [
   'guest_count',
   'is_staff',
   'waitlisted_at',
+  // migration 438: the card lets a member moved up after the deadline still say No.
+  'promoted_at',
   'date_created',
   'date_updated',
 ]

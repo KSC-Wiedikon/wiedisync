@@ -52,6 +52,7 @@ export default {
   promotedFromWaitlist: 'Sei stato promosso dalla lista d\'attesa',
   waitlistHint: 'Completo — gli ospiti sono in lista d\'attesa per livello',
   joinedWaitlist: 'Al completo: sei in lista d’attesa e passi avanti automaticamente appena si libera un posto',
+  lateDeclineHint: 'Termine scaduto. Puoi ancora rispondere No: il tuo posto va alla prossima persona in lista d’attesa.',
   saved: 'Salvato',
   notePlaceholder: 'Aggiungi una nota...',
   noteSaved: 'Nota salvata',

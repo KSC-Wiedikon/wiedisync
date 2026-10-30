@@ -879,6 +879,10 @@ export interface Participation extends BaseRecord {
   waitlisted_at: string
   /** System-set (migration 437): when this RSVP asked for a seat — waiting-list order. */
   claimed_at?: string | null
+  /** System-set (migration 438): the answer (Yes / Maybe) a seat gives back while waiting. */
+  requested_status?: 'confirmed' | 'tentative' | null
+  /** System-set (migration 438): when this RSVP moved up from the waiting list. */
+  promoted_at?: string | null
   position_1?: VolleyPosition | null
   position_2?: VolleyPosition | null
   position_3?: VolleyPosition | null
