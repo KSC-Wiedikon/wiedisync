@@ -55,6 +55,7 @@ import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefin
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 import { sweepHallBookings } from './hall-bookings.js'
 import { drainCapacityMoves, cleanupCapacityMoves } from './capacity-moves.js'
+import { sendWaitlistEmail } from './waitlist-email.js'
 import { createCorsCredentialsMiddleware, createWebSocketCookieGuard } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
 import { forbiddenError } from './directus-error.js'
@@ -7602,8 +7603,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ── Waiting list (migration 437) ─────────────────────────────────────────
   // max_participants / max_players are enforced in Postgres (kscw_rebalance_capacity):
   // it moves other people's RSVPs between confirmed and waitlisted and queues each
-  // move. These drain the queue into bell + push — right after an app write, and
-  // every minute for the moves raw-SQL writers cause. See capacity-moves.js.
+  // move. These drain the queue into bell + push + email — right after an app write,
+  // and every minute for the moves raw-SQL writers cause. See capacity-moves.js.
   const drainCapacity = (source) => drainCapacityMoves(database, {
     frontendUrl: FRONTEND_URL,
     log,
@@ -7612,6 +7613,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       (ids, title, body) => sendPushToMembers(database, ids, title, body, url, tag, log),
       titleKey, bodyKey, vars,
     ),
+    email: (args) => sendWaitlistEmail({ database, services, getSchema, log, ...args }),
   }).catch((err) => {
     log.error({ msg: `[capacity-moves/${source}] ${err.message}`, event: 'capacity_moves', stack: err.stack })
   })
@@ -7620,6 +7622,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     action(event, () => { drainCapacity(event) })
   }
   schedule('* * * * *', async () => {
+    // Migration 438: on a training / event with a max, Maybes turn into No at the
+    // respond-by deadline (every team, owner 30.10.2026) and their seats go to the
+    // waiting list. Every minute, so "at the deadline" means at the deadline — the
+    // team-level Maybe sweep below runs once a day at 07:00 UTC.
+    try {
+      const res = await database.raw('SELECT kscw_capacity_maybe_deadline_sweep() AS n')
+      const n = Number(res?.rows?.[0]?.n ?? 0)
+      if (n > 0) log.info(`[capacity] deadline: ${n} Maybe(s) on capped activities turned into No`)
+    } catch (err) {
+      log.error({ msg: `[capacity] Maybe deadline sweep: ${err.message}`, event: 'capacity_maybe_deadline', stack: err.stack })
+      logCronError('capacity_maybe_deadline_sweep', err)
+    }
     await drainCapacity('cron')
     if (new Date().getUTCMinutes() === 17) {
       await cleanupCapacityMoves(database).catch((err) => logCronError('capacity_moves_cleanup', err))
@@ -7826,7 +7840,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
   const SYSTEM_OWNED_ON_UPDATE = {
     // claimed_at (migration 437): the waiting-list order; the DB trigger owns it too.
-    participations: ['waitlisted_at', 'claimed_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
+    participations: ['waitlisted_at', 'claimed_at', 'requested_status', 'promoted_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
     // Stamped from the inviter on create (stampInviter); never re-attributable.
     game_guests: ['invited_by_name', 'invited_by_email'],
     game_guest_teams: ['invited_by_name', 'invited_by_email'],

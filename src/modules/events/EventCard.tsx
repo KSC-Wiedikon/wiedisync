@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rsvpTone } from '../../utils/rsvpTone'
 import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../../utils/optimisticRsvp'
+import { mayDeclineAfterDeadline } from '../../utils/lateDecline'
 
 interface EventCardProps {
   event: Event
@@ -331,6 +332,11 @@ function EventCardParticipation({ event, existingParticipation, participations, 
 
   // Migration 434: on a form-only event the form submission IS the answer.
   const isLocked = deadlinePassed || !!event.form_signup_only
+  // The waiting list may still hand back its seat after the deadline (migration 438);
+  // never on a form-only event, whose answer is the form.
+  const lateDecline = deadlinePassed && !event.form_signup_only && mayDeclineAfterDeadline(
+    existingParticipation,
+    event.respond_by ? getDeadlineDate(event.respond_by, event.start_date ? formatTime(event.start_date) : undefined) : null)
 
   return (
     <div className="space-y-1.5">
@@ -347,6 +353,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
         value={displayStatus}
         onSelect={(status) => { void setStatus(status) }}
         locked={isLocked}
+        lateDecline={lateDecline}
         lockedReason={event.form_signup_only ? tEvents('formSignupLocked') : undefined}
         saved={saveConfirmed}
         options={rsvpOptions(event)}
@@ -495,7 +502,7 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
       }))
       // A full day saves the Yes as `waitlisted` (max_players, migration 437):
       // drop the optimistic answer so the real per-day answers show.
-      if (status === 'confirmed' && saved.some((r) => r?.status === 'waitlisted')) {
+      if (status !== 'declined' && saved.some((r) => r?.status === 'waitlisted')) {
         setOptimisticAll(null)
         toast.info(t('joinedWaitlist'))
         refetch()

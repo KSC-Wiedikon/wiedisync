@@ -74,7 +74,7 @@ export default {
   participation: 'Teilnahme',
   minParticipants: 'Min. Teilnehmer',
   maxParticipants: 'Max. Teilnehmer',
-  maxParticipantsHint: 'Wenn voll, kommen weitere Anmeldungen auf die Warteliste. Gastspieler machen Teamspielern Platz.',
+  maxParticipantsHint: 'Wenn voll, kommen weitere Anmeldungen auf die Warteliste. Vielleicht zählt als Anmeldung und wird beim Anmeldeschluss zu Nein. Gastspieler machen Teamspielern Platz.',
   untilSeasonEnd: 'Unbefristet',
   slotFrom: 'ab',
   slotUntil: 'bis',

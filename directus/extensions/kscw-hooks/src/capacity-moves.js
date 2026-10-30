@@ -4,7 +4,8 @@
  * The seat rule lives in Postgres: kscw_rebalance_capacity moves somebody else's
  * RSVP between `confirmed` and `waitlisted` (a team player took a guest's seat, a
  * seat freed up, the cap changed) and queues each move in
- * `participation_capacity_moves`. This drains that queue into the bell and a push.
+ * `participation_capacity_moves`. This drains that queue into the bell, a push and
+ * an email (waitlist-email.js).
  * kscw-hooks runs it right after an app write (participations / trainings / events
  * actions) and from a one-minute cron, which also picks up the moves that raw-SQL
  * writers cause (OpnForm sign-ups, absence unwinds, auto-confirm sweeps).
@@ -15,7 +16,8 @@
  *   - per RSVP, moves that cancel out inside one drain (bumped, then promoted back)
  *     say nothing; otherwise the latest one is announced;
  *   - the RSVP must still have that status (somebody bumped who has since said No
- *     hears nothing);
+ *     hears nothing). A seat is a Yes or a Maybe (migration 438), so a move
+ *     `confirmed` ("got a seat") matches either;
  *   - the activity must still be ahead and not cancelled.
  */
 
@@ -59,7 +61,9 @@ export function movesToAnnounce(moves, statusById) {
     // A status only ever flips between the two, so first ≠ last means the moves
     // cancelled out: the RSVP ended where it started.
     if (first.move !== last.move) continue
-    if (statusById.get(key) !== last.move) continue
+    const now = statusById.get(key)
+    const stillTrue = last.move === 'confirmed' ? (now === 'confirmed' || now === 'tentative') : now === last.move
+    if (!stillTrue) continue
     out.push(last)
   }
   return out.sort((a, b) => Number(a.id) - Number(b.id))
@@ -112,11 +116,12 @@ async function loadActivities(db, moves) {
  * @param {object} db knex
  * @param {object} opts
  * @param {(memberIds: number[], titleKey: string, bodyKey: string, vars: object, url: string, tag: string) => Promise<unknown>} opts.push
+ * @param {(p: { memberId: number, move: string, activityType: string, vars: object, isGuest: boolean, url: string }) => Promise<unknown>} [opts.email]
  * @param {string} opts.frontendUrl
  * @param {object} opts.log
  * @returns {Promise<{ claimed: number, notified: number }>}
  */
-export async function drainCapacityMoves(db, { push, frontendUrl, log }) {
+export async function drainCapacityMoves(db, { push, email, frontendUrl, log }) {
   const claimed = await claimCapacityMoves(db)
   if (claimed.length === 0) return { claimed: 0, notified: 0 }
 
@@ -130,6 +135,7 @@ export async function drainCapacityMoves(db, { push, frontendUrl, log }) {
 
   const bell = []
   const pushes = new Map()
+  const mails = []
   for (const m of moves) {
     const act = activities.get(`${m.activity_type}|${m.activity_id}`)
     if (!act?.upcoming) continue
@@ -147,6 +153,7 @@ export async function drainCapacityMoves(db, { push, frontendUrl, log }) {
       team: m.activity_type === 'training' ? (act.team ?? null) : null,
       read: false,
     })
+    mails.push({ m, act, vars })
     const groupKey = `${m.activity_type}|${m.activity_id}|${m.move}`
     const group = pushes.get(groupKey) ?? { keys, vars, type: m.activity_type, id: m.activity_id, members: [] }
     group.members.push(m.member)
@@ -160,6 +167,24 @@ export async function drainCapacityMoves(db, { push, frontendUrl, log }) {
       await push(g.members, g.keys.pushTitle, g.keys.pushBody, g.vars, `${frontendUrl}${path}`, `waitlist-${g.type}-${g.id}`)
     } catch (err) {
       log?.warn?.({ msg: `[capacity-moves] push failed: ${err.message}`, event: 'capacity_moves_push', stack: err.stack })
+    }
+  }
+  if (email) {
+    for (const { m, act, vars } of mails) {
+      try {
+        // A lost seat tells a guest why (team players first); the SQL function is
+        // the rebalance's own definition of "guest" for this activity.
+        let isGuest = false
+        if (m.move === 'waitlisted') {
+          const res = await db.raw('SELECT kscw_capacity_guest_level(?, ?, ?::integer, ?::integer) AS lvl',
+            [m.activity_type, String(m.activity_id), m.activity_type === 'training' ? (act.team ?? null) : null, m.member])
+          isGuest = Number(res?.rows?.[0]?.lvl ?? 0) > 0
+        }
+        const path = m.activity_type === 'training' ? `/trainings/${m.activity_id}` : `/events/${m.activity_id}`
+        await email({ memberId: m.member, move: m.move, activityType: m.activity_type, vars, isGuest, url: `${frontendUrl}${path}` })
+      } catch (err) {
+        log?.warn?.({ msg: `[capacity-moves] email failed: ${err.message}`, event: 'capacity_moves_email', stack: err.stack })
+      }
     }
   }
   return { claimed: claimed.length, notified: bell.length }

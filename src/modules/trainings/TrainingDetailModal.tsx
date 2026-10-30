@@ -4,6 +4,7 @@ import Modal from '@/components/Modal'
 import TeamChip from '../../components/TeamChip'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import { mayDeclineAfterDeadline } from '../../utils/lateDecline'
 import IconButton from '../../components/IconButton'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import { useAuth } from '../../hooks/useAuth'
@@ -345,6 +346,9 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
   }
 
   const isLocked = deadlinePassed
+  // The waiting list may still hand back its seat after the deadline (migration 438).
+  const lateDecline = deadlinePassed && mayDeclineAfterDeadline(
+    participation, training.respond_by ? getDeadlineDate(training.respond_by, training.start_time) : null)
 
   if (guestExcluded) {
     return (
@@ -368,6 +372,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
         value={effectiveStatus}
         loading={rsvpLoading}
         locked={isLocked}
+        lateDecline={lateDecline}
         saved={saveConfirmed}
         trailing={rosterButton}
         onSelect={(status) => {
