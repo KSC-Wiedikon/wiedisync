@@ -485,6 +485,47 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
     }
   }
 
+  /**
+   * Binds a form built by hand on forms.kscw.ch (the link typed above) to this event.
+   * The server checks it is ours and signs in everyone who already submitted it. Club
+   * admins only (server-enforced): a bound form's submissions show in the signups view.
+   */
+  async function handleConnectSignupForm() {
+    if (!event || !signupUrl.trim()) return
+    setSignupBusy(true)
+    try {
+      const res = await kscwApi<{ url: string; sync?: { signed_in?: number } }>(
+        `/events/${event.id}/signup-form/connect`,
+        { method: 'POST', body: { url: signupUrl.trim() } },
+      )
+      setSignupUrl(res.url)
+      toast.success(t('signupFormConnected', { count: res.sync?.signed_in ?? 0 }))
+    } catch (err) {
+      const body = (err as { body?: { message?: string; error?: string } }).body
+      toast.error(body?.message || body?.error || t('signupFormFailed'))
+    } finally {
+      setSignupBusy(false)
+    }
+  }
+
+  /** Signs in every member who submitted the bound form so far (idempotent). */
+  async function handleSyncSignupForm() {
+    if (!event) return
+    setSignupBusy(true)
+    try {
+      const res = await kscwApi<{ sync?: { signed_in?: number } }>(
+        `/events/${event.id}/signup-form/sync`,
+        { method: 'POST' },
+      )
+      toast.success(t('signupFormSynced', { count: res.sync?.signed_in ?? 0 }))
+    } catch (err) {
+      const body = (err as { body?: { message?: string; error?: string } }).body
+      toast.error(body?.message || body?.error || t('signupFormFailed'))
+    } finally {
+      setSignupBusy(false)
+    }
+  }
+
   async function handleUnlinkSignupForm() {
     if (!event) return
     if (!(await confirm({ message: t('signupFormUnlinkConfirm'), danger: true }))) return
@@ -896,7 +937,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                   error={signupUrlError || undefined}
                   placeholder="https://forms.kscw.ch/forms/..."
                 />
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button
                     type="button"
                     variant="outline"
@@ -908,6 +949,24 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                   </Button>
                   {signupUrl.trim() && (
                     <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-[44px]"
+                        disabled={signupBusy}
+                        onClick={handleConnectSignupForm}
+                      >
+                        {t('signupFormConnect')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-[44px]"
+                        disabled={signupBusy}
+                        onClick={handleSyncSignupForm}
+                      >
+                        {t('signupFormSync')}
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
