@@ -450,11 +450,16 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     // missing column would degrade silently to "no type" rather than erroring.
     fields: ['id', 'start_date', 'end_date', 'all_day', 'title', 'location', 'description',
              'event_type', 'invite_guests', 'meeting_time', 'teams.teams_id',
-             'invited_members.members_id'],
+             'invited_members.members_id', 'form_signup_only'],
     sort: ['start_date'],
     all: true,
   })
-  const events = eventsRaw ?? []
+  // A private sign-up event (migration 434) is on your calendar once you signed up via
+  // its form. The server already hides it from members; this keeps an admin's member view
+  // (admins read every event) showing what the member sees.
+  const events = useMemo(() => (eventsRaw ?? []).filter((e) => !e.form_signup_only
+    || (e.invited_members ?? []).some((m) => String(typeof m === 'object' && m ? (m as { members_id?: unknown }).members_id : m) === String(user?.id))),
+  [eventsRaw, user?.id])
 
   const { data: hallEventsRaw, isLoading: hallEventsLoading } = useCollection<HallEvent>('hall_events', {
     enabled: fetchHallEvents,

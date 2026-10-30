@@ -798,6 +798,8 @@ export interface Event extends BaseRecord {
    * form; the server signs them in, and the RSVP is read-only for them.
    */
   form_signup_only?: boolean
+  /** Migration 435: pinned on Home for everyone who can see it (admins set it). */
+  pinned?: boolean
   /** The OpnForm bound by the endpoint (migration 385); read-only, written only server-side. */
   signup_form_slug?: string | null
   /**
