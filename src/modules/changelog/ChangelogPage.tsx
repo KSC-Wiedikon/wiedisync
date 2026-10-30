@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.49.0'
+const APP_VERSION = '2.50.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.50.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Treasurer: a ClubDesk invoice to a sponsor or other non-member that carries a member\'s e-mail can be marked «Not a member\'s invoice». It then no longer shows as that member\'s due, and the nightly import keeps it that way.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.49.0',
     date: '30.10.2026',

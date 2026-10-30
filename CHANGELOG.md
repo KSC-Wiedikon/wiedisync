@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.50.0 — 2026-10-30
+
+### Added
+
+- Treasurer: a ClubDesk invoice to a sponsor or other non-member that carries a member's e-mail can be marked «Not a member's invoice». It then no longer shows as that member's due, and the nightly import keeps it that way.
+
 ## v2.49.0 — 2026-10-30
 
 ### Added
