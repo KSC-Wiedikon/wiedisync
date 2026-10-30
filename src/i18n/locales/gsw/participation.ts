@@ -52,6 +52,7 @@ export default {
   promotedFromWaitlist: 'Du bisch vo de Wartelischte bestätigt worde',
   waitlistHint: 'Voll — Gäst werded nach Stufe uf d Wartelischte gsetzt',
   joinedWaitlist: 'Voll: Du bisch uf de Wartelischte und rutschisch automatisch nache, sobald en Platz frei wird',
+  lateDeclineHint: 'Aamäldeschluss isch verbii. Du chasch no absäge: Din Platz gaht a di nächscht Person uf de Wartelischte.',
   saved: 'Gspeicheret',
   notePlaceholder: 'Notiz hinzuefüege…',
   noteSaved: 'Notiz gspeicheret',

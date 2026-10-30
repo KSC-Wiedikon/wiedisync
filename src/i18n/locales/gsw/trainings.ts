@@ -74,7 +74,7 @@ export default {
   participation: 'Teilnahm',
   minParticipants: 'Min. Teilnehmer',
   maxParticipants: 'Max. Teilnehmer',
-  maxParticipantsHint: 'Wänn voll, chömed wiiteri Aamäldige uf d Wartelischte. Gastspieler mached Teamspieler Platz.',
+  maxParticipantsHint: 'Wänn voll, chömed wiiteri Aamäldige uf d Wartelischte. Villicht zellt als Aamäldig und wird bim Aamäldeschluss zu Nei. Gastspieler mached Teamspieler Platz.',
   untilSeasonEnd: 'Unbefristet',
   slotFrom: 'ab',
   slotUntil: 'bis',
