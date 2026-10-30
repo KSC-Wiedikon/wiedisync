@@ -1,4 +1,6 @@
 export default {
+  searchPlaceholder: 'Anlässe suchen: Name, Ort, Datum…',
+  noSearchResults: 'Nichts gefunden.',
   title: 'Events',
   subtitle: 'Vereinsevents und Aktivitäten',
   newEvent: 'Neuer Event',
