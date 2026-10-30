@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-30T09:44:46.552Z
+-- Generated:   2026-10-30T10:08:57.478Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict r8xCLiC4aUjH8e7mIudhERHnwKw0vPx1VE3RNxnYEdYF2PoPCGrGS51o1J6Muym
+\restrict fS9rUQjiSRYBegE6wGNi1CssJaGSrnHcXeCwxWKlvkxtxauSCNIa1qCNPViUtrX
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -7925,7 +7925,7 @@ CREATE TABLE public.finance_invoice_member_overrides (
     id integer NOT NULL,
     match_email character varying(255),
     match_clubdesk_id character varying(32),
-    member integer NOT NULL,
+    member integer,
     reason text,
     created_by_name character varying(255),
     created_by_email character varying(255),
@@ -7950,6 +7950,13 @@ COMMENT ON TABLE public.finance_invoice_member_overrides IS 'Treasurer-set membe
 --
 
 COMMENT ON COLUMN public.finance_invoice_member_overrides.match_clubdesk_id IS 'Pin ONE invoice, by ClubDesk invoice number. Pre-288 rows held a contact id and were moved to match_cd_contact_id.';
+
+
+--
+-- Name: COLUMN finance_invoice_member_overrides.member; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoice_member_overrides.member IS 'Member the matched invoices belong to. NULL = they belong to no member (a sponsor or other non-member contact that carries a member''s e-mail) — the import leaves them unlinked.';
 
 
 --
@@ -8079,6 +8086,7 @@ CREATE TABLE public.finance_invoices (
     recipient_postal_code character varying(16),
     recipient_city character varying(128),
     lines jsonb,
+    not_member boolean DEFAULT false NOT NULL,
     CONSTRAINT finance_invoices_native_status_check CHECK ((((source)::text <> 'native'::text) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))),
     CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text]))),
     CONSTRAINT finance_invoices_status_values CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying, 'paid_partially_written_off'::character varying, 'written_off'::character varying, 'draft'::character varying])::text[]))))
@@ -8195,6 +8203,13 @@ COMMENT ON COLUMN public.finance_invoices.recipient_city IS 'Town as at billing 
 --
 
 COMMENT ON COLUMN public.finance_invoices.lines IS 'Invoice positions: [{"label":"Mitgliederbeitrag 2026/27","amount":440},{"label":"Zuschlag ohne Schreiberlizenz","amount":100}]. NULL = render one line from subject. Sum must equal amount.';
+
+
+--
+-- Name: COLUMN finance_invoices.not_member; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.not_member IS 'Marked "not a member''s invoice" by the treasurer (finance_invoice_member_overrides with member NULL). Set by the ClubDesk import on every run; never linked to a member by e-mail.';
 
 
 --
@@ -20551,7 +20566,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict r8xCLiC4aUjH8e7mIudhERHnwKw0vPx1VE3RNxnYEdYF2PoPCGrGS51o1J6Muym
+\unrestrict fS9rUQjiSRYBegE6wGNi1CssJaGSrnHcXeCwxWKlvkxtxauSCNIa1qCNPViUtrX
 
 
 
@@ -20567,7 +20582,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 439 migration(s) already in the schema above.
+-- Migration tracker seed — 440 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21019,6 +21034,7 @@ FROM (VALUES
   ('432-notify-staff-recipients.sql'),
   ('433-staff-visibility.sql'),
   ('434-events-form-signup-only.sql'),
-  ('435-events-pinned.sql')
+  ('435-events-pinned.sql'),
+  ('436-invoice-not-a-member.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
