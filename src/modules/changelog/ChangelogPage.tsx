@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.46.0'
+const APP_VERSION = '2.47.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.47.0',
+    date: '30.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Admins can download an event\'s signups as Excel or PDF, with every reply to the linked form (all questions, including section and teams), the members signed in on Wiedisync and the guests of the signup page.',
+          'Admins can connect a form they built on forms.kscw.ch to any event («Connect this link»). Everyone who already submitted it is signed in right away; «Sync sign-ups» does it again at any time.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'A member\'s reply to a connected form now counts as their RSVP for the event — on private sign-up events and on ordinary ones.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.46.0',
     date: '30.10.2026',
