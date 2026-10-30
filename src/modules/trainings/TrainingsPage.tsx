@@ -104,7 +104,7 @@ export default function TrainingsPage() {
   const [recurringEditDialogOpen, setRecurringEditDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [recurringOpen, setRecurringOpen] = useState(false)
-  const [rosterTraining, setRosterTraining] = useState<{ id: string; teamId: string; date: string; teamName?: string; showRsvpTime?: boolean; excludedGuestLevels?: number[] } | null>(null)
+  const [rosterTraining, setRosterTraining] = useState<{ id: string; teamId: string; date: string; teamName?: string; showRsvpTime?: boolean; excludedGuestLevels?: number[]; maxParticipants?: number } | null>(null)
   const recurringSelectionMade = useRef(false)
 
   // Single round-trip: trainings + their participations in one request.
@@ -300,6 +300,7 @@ export default function TrainingsPage() {
                   teamName: asObj<Team>(training.team)?.name ?? '',
                   showRsvpTime: isFeatureEnabled(asObj<Team>(training.team)?.features_enabled, 'show_rsvp_time'),
                   excludedGuestLevels: Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : [],
+                  maxParticipants: training.max_participants ?? undefined,
                 })}
                 onEdit={canManageTeam(relId(training.team)) ? handleEdit : undefined}
               />
@@ -374,6 +375,7 @@ export default function TrainingsPage() {
           : t('participation')}
         showRsvpTime={rosterTraining?.showRsvpTime}
         excludedGuestLevels={rosterTraining?.excludedGuestLevels}
+        maxPlayers={rosterTraining?.maxParticipants}
       />
 
       <TrainingDetailModal

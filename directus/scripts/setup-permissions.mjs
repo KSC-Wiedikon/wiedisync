@@ -2116,6 +2116,8 @@ async function main() {
     'event',
     'guest_count', 'is_staff',
     'session_id', 'waitlisted_at',
+    // migration 437 — waiting-list order; the roster sorts the queue by it.
+    'claimed_at',
     'auto_declined_by', 'auto_declined_by_game', 'auto_cancelled_by_closure',
     // migration 352 — the roster needs it to tell a missed deadline apart from
     // a real decline, and members read their own rows through this policy.

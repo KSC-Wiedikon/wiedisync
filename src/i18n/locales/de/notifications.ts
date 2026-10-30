@@ -114,4 +114,8 @@ export default {
   carpool_cancelled: '{{name}} hat die Fahrt abgesagt, such dir eine neue: {{activity}}',
   carpool_requested: '{{name}} sucht eine Mitfahrgelegenheit ({{seats}} Platz/Plätze): {{activity}}',
   carpool_offered: '{{name}} bietet {{seats}} Platz/Plätze an: {{activity}}',
+  waitlist_bumped_training: '{{team}}-Training am {{date}} ist voll: Du bist auf der Warteliste',
+  waitlist_bumped_event: '{{title}} am {{date}} ist voll: Du bist auf der Warteliste',
+  waitlist_promoted_training: 'Platz frei geworden: Du bist für das {{team}}-Training am {{date}} angemeldet',
+  waitlist_promoted_event: 'Platz frei geworden: Du bist für {{title}} am {{date}} angemeldet',
 } as const
