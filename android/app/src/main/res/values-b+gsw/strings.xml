@@ -8,6 +8,6 @@
     <string name="offline_title">Wiedisync isch nöd erreichbar</string>
     <string name="offline_body">Prüef dini Internetverbindig und probiers nomal.</string>
     <string name="retry">Nomal probiere</string>
-    <string name="no_app">Kei App gfunde, wo dä Link cha uftue</string>
+    <string name="no_app">Kei App gfunde, wo dä Link cha ufmache</string>
     <string name="open_failed">Dä Link hät nöd chöne ufgmacht werde</string>
 </resources>

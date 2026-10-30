@@ -9,14 +9,14 @@ export default {
     "clearSearch": "Suechi lösche",
     "contents": "Inhalt",
     "noResults": "Nüt gfunde für «{{query}}».",
-    "backToTop": "Ufe",
+    "backToTop": "Nach obe",
     "openSection": "Link zu dem Abschnitt",
     "helpButton": "Aleitig zu dere Siite ufmache",
     "groups": {
       "basics": "Grundlage",
       "everyday": "Alltag",
       "finance": "Gäld",
-      "teams": "Mannschafte & Coaching",
+      "teams": "Teams & Coaching",
       "admin": "Admin & Planig"
     },
     "audience": {
@@ -34,7 +34,7 @@ export default {
     "matchOne": "1 Träffer",
     "matchMany": "{{count}} Träffer",
     "linkCopied": "Link kopiert",
-    "loadError": "D Aleitig hät nöd chöne glade wärde. Prüef dini Verbindig und probier s nomal."
+    "loadError": "D Aleitig hät nöd chöne glade werde. Prüef dini Verbindig und probiers nomal."
   },
   "start": {
     "title": "Dini Startpünkt",
@@ -51,12 +51,12 @@ export default {
       "vorstand": "Vorstand",
       "admin": "Admin",
       "superadmin": "Superadmin",
-      "member": "Mitglid"
+      "member": "Mitglied"
     },
     "items": {
       "install": "App uf de Homescreen lege",
       "installDesktop": "Uf em Handy",
-      "push": "Push-Benachrichtigunge iischalte",
+      "push": "Push-Benachrichtigige iischalte",
       "pushUnsupported": "I dem Browser nöd möglich",
       "pushDenied": "I de Browser-Iistellige blockiert",
       "profile": "Profil vervollständige",
