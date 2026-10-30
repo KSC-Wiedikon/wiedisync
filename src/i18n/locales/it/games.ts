@@ -1,4 +1,5 @@
 export default {
+  searchPlaceholder: 'Cerca partite: squadra, palestra, data, n. partita…',
   title: 'Partite e risultati',
   subtitle: 'Dati Swiss Volley — prossime partite, risultati, classifiche.',
 

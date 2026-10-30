@@ -1,4 +1,6 @@
 export default {
+  searchPlaceholder: 'Aalääss sueche: Name, Ort, Datum…',
+  noSearchResults: 'Nüt gfunde.',
   title: 'Events',
   subtitle: 'Vereinsevents und Aktivitäte',
   newEvent: 'Neue Event',

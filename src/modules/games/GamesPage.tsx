@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,6 +42,8 @@ import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
 import LiveNowBanner from '../live/components/LiveNowBanner'
+import SearchField from '../../components/SearchField'
+import { matchesSearch, dateSearchText, timeSearchText } from '../../utils/searchText'
 
 /**
  * `guestGameIds` are the fixtures this member was called up to (migration 271).
@@ -327,6 +329,21 @@ export default function GamesPage() {
   })
   const pastGames = useMemo(() => [...endedToday, ...(pastGamesRaw ?? [])], [endedToday, pastGamesRaw])
 
+  // Search: teams, league, hall, game number, date/time (utils/searchText). Typing loads
+  // the longer lists, so the search covers the season, not just the first page.
+  const [query, setQuery] = useState('')
+  const searching = query.trim() !== ''
+  const matchesGame = useCallback((g: Game) => matchesSearch(query, [
+    g.home_team, g.away_team, g.league, g.game_id, asObj<{ name?: string }>(g.kscw_team)?.name,
+    asObj<{ name?: string }>(g.hall)?.name, dateSearchText(g.date), timeSearchText(g.time),
+  ]), [query])
+  const shownGames = useMemo(() => (searching ? games.filter(matchesGame) : games), [games, searching, matchesGame])
+  const shownPastGames = useMemo(() => (searching ? pastGames.filter(matchesGame) : pastGames), [pastGames, searching, matchesGame])
+  const onSearch = (value: string) => {
+    setQuery(value)
+    if (value.trim()) { setShowAll(true); setShowAllPast(true) }
+  }
+
   // Same two guards as TrainingsPage: debounce the burst, and ignore RSVPs that cannot
   // belong to this page. `perPage` reaches 500 after "show all", so an unguarded
   // refetch here re-reads a whole season's games plus their participations through the
@@ -473,8 +490,8 @@ export default function GamesPage() {
   // Shared renderer for the upcoming (card grid) and results (compact list)
   // tabs — both split games into league vs Cup sections and render GameCard.
   const renderGameSections = (variant: 'card' | 'compact') => {
-    const leagueGames = games.filter((g) => !isCupGame(g.league))
-    const cupGames = games.filter((g) => isCupGame(g.league))
+    const leagueGames = shownGames.filter((g) => !isCupGame(g.league))
+    const cupGames = shownGames.filter((g) => isCupGame(g.league))
     const showHeadings = leagueGames.length > 0 && cupGames.length > 0
     const sections: Array<{ key: 'league' | 'cup'; label: string; items: typeof games }> = []
     if (leagueGames.length > 0) sections.push({ key: 'league', label: t('sectionLeague'), items: leagueGames })
@@ -560,6 +577,9 @@ export default function GamesPage() {
         <div>
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />
         </div>
+        {(activeTab === 'upcoming' || activeTab === 'results') && (
+          <SearchField className="max-w-md" value={query} onChange={onSearch} placeholder={t('searchPlaceholder')} />
+        )}
       </div>
 
       <div className="mt-6">
@@ -568,8 +588,8 @@ export default function GamesPage() {
         {/* Upcoming: card grid, split by league vs Cup */}
         {showGames && activeTab === 'upcoming' && (
           <>
-            {games.length === 0 ? (
-              <EmptyState tab={activeTab} />
+            {shownGames.length === 0 ? (
+              <EmptyState tab={activeTab} searching={searching} />
             ) : (
               <>
                 {renderGameSections('card')}
@@ -580,14 +600,14 @@ export default function GamesPage() {
                 )}
               </>
             )}
-            {pastGames.length > 0 && (
+            {shownPastGames.length > 0 && (
               <div className="mt-10">
                 <div className="mb-3 flex items-center gap-3">
                   <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('sectionPast')}</h2>
                   <div className="h-px flex-1 bg-border" />
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pastGames.map((g) => (
+                  {shownPastGames.map((g) => (
                     <GameCard key={g.id} game={g} onClick={setSelectedGame} onEdit={handleEdit} past />
                   ))}
                 </div>
@@ -604,8 +624,8 @@ export default function GamesPage() {
         {/* Results: compact list, split by league vs Cup */}
         {showGames && activeTab === 'results' && (
           <>
-            {games.length === 0 ? (
-              <EmptyState tab={activeTab} />
+            {shownGames.length === 0 ? (
+              <EmptyState tab={activeTab} searching={searching} />
             ) : (
               <>
                 {renderGameSections('compact')}
@@ -715,8 +735,9 @@ const tabIcons: Record<string, React.ReactNode> = {
   dashboard: <BarChart3 className="h-10 w-10" />,
 }
 
-function EmptyState({ tab }: { tab: string }) {
+function EmptyState({ tab, searching = false }: { tab: string; searching?: boolean }) {
   const { t } = useTranslation('games')
+  if (searching) return <SharedEmptyState icon={tabIcons[tab]} title={t('common:noResults')} />
 
   const messages: Record<string, string> = {
     upcoming: t('noUpcoming'),
