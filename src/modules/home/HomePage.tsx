@@ -41,7 +41,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone, UserPlus, Pin, CheckCircle2 } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { gameNumberLabel } from '../../utils/leagueShort'
@@ -761,7 +761,8 @@ export default function HomePage() {
             <NextAppointments
               games={nextGames}
               trainings={nextTrainings}
-              events={events}
+              events={listedEvents}
+              pinnedEvents={pinnedEvents}
               duties={dutyAppointments}
               onGameClick={setSelectedGame}
               onTrainingClick={setSelectedTraining}
@@ -1201,7 +1202,9 @@ function gameIcon(game: ExpandedGame, className: string) {
 type AppointmentItem =
   | { type: 'game'; date: string; data: ExpandedGame }
   | { type: 'training'; date: string; data: TrainingExpanded }
-  | { type: 'event'; date: string; data: EventExpanded }
+  // `pinned`: an admin pin (migration 435) or a private form sign-up (434) — kept
+  // visible like a duty even past the list cap.
+  | { type: 'event'; date: string; data: EventExpanded; pinned?: 'admin' | 'signedUp' }
   | { type: 'duty'; date: string; data: ExpandedGame; roleLabel: string }
 
 /** One row of "My next appointments" — games, trainings, events and duties
@@ -1214,6 +1217,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
 }) {
   const { user } = useAuth()
   const { t: tCal } = useTranslation('calendar')
+  const { t: tEv } = useTranslation('events')
   const tone: RowTone = appointment.type === 'duty' ? 'amber' : user ? rsvpTone(participationStatus) : 'gray'
   const iconClass = 'h-4 w-4 shrink-0 text-muted-foreground/80'
   const titleClass = 'break-words text-sm font-semibold leading-snug text-foreground sm:text-[15px]'
@@ -1264,7 +1268,13 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     if (!ev.all_day && ev.start_date) time = formatTime(ev.start_date)
     railExtra = eventEndExtra(ev)
     title = <p className={titleClass}>{ev.title}</p>
-    if (typeKey) chips = <RowChip tone="violet">{tCal(typeKey)}</RowChip>
+    chips = (typeKey || appointment.pinned) ? (
+      <>
+        {appointment.pinned === 'signedUp' && <RowChip tone="green"><CheckCircle2 aria-hidden />{tEv('formSignupPinned')}</RowChip>}
+        {appointment.pinned === 'admin' && <RowChip tone="brand"><Pin aria-hidden />{tEv('pinnedChip')}</RowChip>}
+        {typeKey && <RowChip tone="violet">{tCal(typeKey)}</RowChip>}
+      </>
+    ) : undefined
     icon = <CalendarDays className={iconClass} />
   }
 
@@ -1295,6 +1305,7 @@ function NextAppointments({
   games,
   trainings,
   events,
+  pinnedEvents,
   duties,
   onGameClick,
   onTrainingClick,
@@ -1305,6 +1316,7 @@ function NextAppointments({
   games: ExpandedGame[]
   trainings: TrainingExpanded[]
   events: EventExpanded[]
+  pinnedEvents: { event: EventExpanded; signedUp: boolean }[]
   duties: MyDuty[]
   onGameClick: (g: ExpandedGame) => void
   onTrainingClick: (t: TrainingExpanded) => void
@@ -1327,6 +1339,10 @@ function NextAppointments({
     for (const ev of events) {
       if (ev.start_date) items.push({ type: 'event', date: toZurichDateString(ev.start_date), data: ev })
     }
+    // `events` arrives without the pinned ones (listedEvents), so no duplicates.
+    for (const { event: ev, signedUp } of pinnedEvents) {
+      if (ev.start_date) items.push({ type: 'event', date: toZurichDateString(ev.start_date), data: ev, pinned: signedUp ? 'signedUp' : 'admin' })
+    }
     for (const d of duties) {
       const g = d.game as ExpandedGame
       if (g.date) items.push({
@@ -1338,7 +1354,7 @@ function NextAppointments({
     }
     items.sort((a, b) => a.date.localeCompare(b.date))
     return items
-  }, [games, trainings, events, duties, tScorer])
+  }, [games, trainings, events, pinnedEvents, duties, tScorer])
 
   // Show the first N date-sorted appointments. A duty is date-sorted inline like
   // everything else, but if it falls beyond the cap (further out than every
@@ -1346,9 +1362,11 @@ function NextAppointments({
   // hidden. "Show more" still reveals the remaining non-duty items.
   const visible = allAppointments.slice(0, visibleCount)
   const overflow = allAppointments.slice(visibleCount)
-  const overflowDuties = overflow.filter((a) => a.type === 'duty')
-  const appointments = [...visible, ...overflowDuties]
-  const hasMore = overflow.some((a) => a.type !== 'duty')
+  // Pinned events behave like duties: never hidden behind "Show more".
+  const isSticky = (a: AppointmentItem) => a.type === 'duty' || (a.type === 'event' && !!a.pinned)
+  const overflowSticky = overflow.filter(isSticky)
+  const appointments = [...visible, ...overflowSticky]
+  const hasMore = overflow.some((a) => !isSticky(a))
 
   if (appointments.length === 0) return null
 
