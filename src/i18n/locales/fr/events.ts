@@ -124,6 +124,7 @@ export default {
   signupFormUnlinkConfirm: 'Retirer le lien d\'inscription de cet événement ? Le formulaire et ses entrées sont conservés.',
   signupFormIsConnected: 'Connecté — les inscriptions via ce formulaire comptent.',
   signupFormNotConnected: 'Pas encore connecté — clique sur «Connecter ce lien» pour que les inscriptions comptent.',
+  signupFormConnectOnSave: 'Le lien est connecté à l\'enregistrement : toutes les personnes ayant déjà envoyé le formulaire sont inscrites.',
   signupFormConnect: 'Connecter ce lien',
   signupFormConnected: 'Formulaire connecté. Membres inscrits : {{count}}.',
   signupFormSync: 'Synchroniser les inscriptions',
