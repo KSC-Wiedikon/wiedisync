@@ -2,7 +2,7 @@
  * OpnForm → Wiedisync member checks (server to server, internal network only)
  *
  *   POST /kscw/opnform/v1/member-lookup  { email, name? }
- *        → { status: 'found', sections, teams } | { status: 'not_found' } | { status: 'ambiguous' }
+ *        → { status: 'found', name, sections, teams } | { status: 'not_found' } | { status: 'ambiguous' }
  *   POST /kscw/opnform/v1/signup         { form_slug, submission_id?, email, name? }
  *        → { status, events: [eventId, …] }
  *
@@ -91,6 +91,11 @@ export async function resolveMember(database, rawEmail, name) {
   return named.length === 1 ? { status: 'found', member: named[0] } : { status: 'ambiguous' }
 }
 
+/** "Anna Müller" — first + last name as Wiedisync holds them. */
+export function memberDisplayName(member) {
+  return [member.first_name, member.last_name].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ')
+}
+
 /** Active teams the member plays in, coaches or is responsible for, plus their sections. */
 export async function memberTeamsAndSections(database, member) {
   const res = await database.raw(`
@@ -173,7 +178,12 @@ export function registerOpnformMembers(router, { database, logger }) {
     const { email, name } = req.body ?? {}
     const found = await resolveMember(database, email, name)
     if (found.status !== 'found') return res.json({ status: found.status })
-    res.json({ status: 'found', ...(await memberTeamsAndSections(database, found.member)) })
+    res.json({
+      status: 'found',
+      // Fills the form's name field when the respondent left it empty.
+      name: memberDisplayName(found.member),
+      ...(await memberTeamsAndSections(database, found.member)),
+    })
   }))
 
   router.post('/opnform/v1/signup', service('signup', async (req, res) => {

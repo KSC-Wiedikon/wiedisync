@@ -157,7 +157,7 @@ describe('service routes', () => {
   it('member-lookup returns sections and teams only for a single match', async () => {
     const found = await harness(fakeDatabase({ members: [ANNA], teams: [{ name: 'H1', sport: 'volleyball' }] }))(
       '/opnform/v1/member-lookup', { headers: auth, body: { email: 'anna@example.com' } })
-    expect(found.body).toEqual({ status: 'found', sections: ['Volleyball'], teams: ['H1'] })
+    expect(found.body).toEqual({ status: 'found', name: 'Anna Müller', sections: ['Volleyball'], teams: ['H1'] })
     expect(found.headers['Cache-Control']).toBe('no-store')
 
     const shared = await harness(fakeDatabase({ members: [ANNA, LUCA] }))(
