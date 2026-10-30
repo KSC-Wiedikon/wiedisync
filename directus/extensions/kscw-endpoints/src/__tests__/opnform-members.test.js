@@ -205,9 +205,10 @@ describe('syncFormSignups', () => {
       }
       return realRaw(sql, params)
     }
+    // Real OpnForm rows nest the answers under `data`; a flat row is tolerated too.
     const res = await syncFormSignups(db, 'kurs', { fields, data: [
-      { e: 'anna@example.com', n: '' },
-      { e: 'guest@example.com', n: 'Guest' },
+      { id: 1, data: { e: 'anna@example.com', n: '' } },
+      { id: 2, data: { e: 'guest@example.com', n: 'Guest' } },
       { e: 'family@example.com', n: 'Someone else' },
     ] })
     expect(res).toEqual({ submissions: 3, signed_in: 1, not_members: 1, ambiguous: 1, events: [7] })

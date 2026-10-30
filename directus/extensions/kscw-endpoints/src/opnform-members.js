@@ -174,7 +174,10 @@ export async function syncFormSignups(database, slug, submissions) {
   const events = new Set()
   for (const row of submissions?.data ?? []) {
     result.submissions++
-    const found = await resolveMember(database, row?.[emailField.id], nameField ? row?.[nameField.id] : null)
+    // ⚠ OpnForm nests the answers: { id, data: { <field id>: answer } } (see scorer-exam.js
+    // answersOf). Reading row[fieldId] matched nobody — "signed in: 0" on 30.10.2026.
+    const answers = (row && row.data) || row || {}
+    const found = await resolveMember(database, answers[emailField.id], nameField ? answers[nameField.id] : null)
     if (found.status === 'not_found') { result.not_members++; continue }
     if (found.status === 'ambiguous') { result.ambiguous++; continue }
     const added = await signUpForFormEvents(database, slug, found.member)

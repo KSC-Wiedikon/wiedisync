@@ -120,6 +120,8 @@ export default {
   inviteRateLimited: 'Too many invitations sent recently — try again later',
   signupFormReplaceConfirm: 'This event already has a signup form. Create a new one and link that instead? The old form and its entries are kept.',
   signupFormUnlinkConfirm: 'Remove the signup link from this event? The form and its entries are kept.',
+  signupFormIsConnected: 'Connected — sign-ups through this form count.',
+  signupFormNotConnected: 'Not connected yet — press «Connect this link» so sign-ups through it count.',
   signupFormConnect: 'Connect this link',
   signupFormConnected: 'Form connected. Members signed in: {{count}}.',
   signupFormSync: 'Sync sign-ups',

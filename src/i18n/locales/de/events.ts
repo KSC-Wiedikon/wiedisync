@@ -120,6 +120,8 @@ export default {
   inviteRateLimited: 'Zu viele Einladungen in kurzer Zeit versendet — versuche es später erneut',
   signupFormReplaceConfirm: 'Dieser Anlass hat bereits ein Anmeldeformular. Ein neues erstellen und stattdessen verknüpfen? Das alte Formular und seine Einträge bleiben erhalten.',
   signupFormUnlinkConfirm: 'Den Anmeldelink von diesem Anlass entfernen? Das Formular und seine Einträge bleiben erhalten.',
+  signupFormIsConnected: 'Verbunden – Anmeldungen über dieses Formular zählen.',
+  signupFormNotConnected: 'Noch nicht verbunden – drücke «Diesen Link verbinden», damit Anmeldungen darüber zählen.',
   signupFormConnect: 'Diesen Link verbinden',
   signupFormConnected: 'Formular verbunden. Angemeldete Mitglieder: {{count}}.',
   signupFormSync: 'Anmeldungen übernehmen',
