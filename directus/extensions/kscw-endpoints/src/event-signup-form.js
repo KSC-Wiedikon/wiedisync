@@ -2,6 +2,8 @@
  * Event signup forms — the public door of the two-door signup model.
  *
  *   POST   /kscw/events/:id/signup-form   — duplicate the OpnForm template, link it
+ *   POST   /kscw/events/:id/signup-form/connect — link an existing forms.kscw.ch form (club admins)
+ *   POST   /kscw/events/:id/signup-form/sync    — sign in every member who submitted it
  *   DELETE /kscw/events/:id/signup-form   — unlink (the OpnForm form is kept)
  *   GET    /kscw/events/:id/signups       — merged internal + external signup list
  *
@@ -11,10 +13,11 @@
  * the event via `events.signup_url`. kscw-website already renders that URL as an
  * "Anmelden" CTA with a live count, so a club-wide event needs no website change.
  *
- * Sending MEMBERS through the OpnForm instead would be the tempting shortcut and
- * it silently breaks the app: an external submission creates no `participations`
- * row, so the event card would read "0 going" while 40 people had signed up.
- * That is why the member-app surface is a *share* affordance, not a signup CTA.
+ * Members CAN go through the form since 2026-10-30: a form whose email question has
+ * "Check email in Wiedisync" (our OpnForm fork) reports each submission to
+ * /kscw/opnform/v1/signup, which writes the member's confirmed `participations` row on
+ * every event bound to the form (opnform-members.js) — so counts and rosters stay right.
+ * Without that option a member's submission is still just a guest row, as before.
  *
  * The form itself is never authored here — see createFormFromTemplate.
  */
@@ -23,6 +26,7 @@ import {
   badSlug, listSubmissions, createFormFromTemplate, findFreeSlug, formUrl,
 } from './opnform.js'
 import { writeUserLog } from './activity-log.js'
+import { syncFormSignups } from './opnform-members.js'
 import { sportAdminCovers } from './event-notify.js'
 
 /**
@@ -130,6 +134,23 @@ function underCreateLimit(user) {
  * trigger ignores slug writes unless the transaction sets `kscw.signup_slug_write`, which
  * is what keeps the items API (and the creator) from re-pointing it.
  */
+/** Full Directus admin, or an app role that manages every event (admin / superuser). */
+export async function isClubAdmin(database, accountability) {
+  if (!accountability?.user) return false
+  if (accountability.admin === true) return true
+  const caller = await database('members').where('user', accountability.user).first('role')
+  return parseRoles(caller?.role).some((r) => ELEVATED_ROLES.has(r))
+}
+
+/** Only our own form server: https://forms.kscw.ch/forms/<slug> (or OPNFORM_BASE_URL). */
+export function isOurFormsUrl(raw) {
+  try {
+    const url = new URL(String(raw ?? '').trim())
+    const ours = new URL(process.env.OPNFORM_BASE_URL || 'https://forms.kscw.ch')
+    return url.protocol === 'https:' && url.host === ours.host
+  } catch { return false }
+}
+
 export async function writeSignupBinding(database, eventId, { url, slug }) {
   await database.transaction(async (trx) => {
     await trx.raw("SELECT set_config('kscw.signup_slug_write', 'on', true)")
@@ -286,6 +307,66 @@ export function registerEventSignupForm(router, { database, logger }) {
       data: { signup_url: null, unlinked: event.signup_url, unlinked_slug: event.signup_form_slug ?? null },
     })
     res.json({ ok: true, signup_url: null, unlinked: event.signup_url })
+  })
+
+  // ── Connect an existing form ─────────────────────────────────────
+  //
+  // For a form built by hand on forms.kscw.ch (not copied from the template). Binding
+  // a form exposes all its submissions in this event's signups view, so — unlike the
+  // template copy, which is a brand-new empty form — only club-level admins may point
+  // an event at an existing one (the F15 rule: never bind from a client-writable URL
+  // without an admin decision). After binding, everyone who already submitted is
+  // signed in (syncFormSignups), so a form that was live before the link loses nobody.
+  router.post('/events/:id/signup-form/connect', async (req, res) => {
+    const event = await loadEvent(req, res)
+    if (!event) return
+    if (!(await isClubAdmin(database, req.accountability))) {
+      return res.status(403).json({ error: 'club_admin_required', message: 'Only admins can connect an existing form.' })
+    }
+    const slug = slugFromSignupUrl(req.body?.url)
+    if (!slug || badSlug(slug) || !isOurFormsUrl(req.body?.url)) {
+      return res.status(400).json({ error: 'invalid_form_url', message: 'Paste a link to a form on forms.kscw.ch.' })
+    }
+    let submissions
+    try {
+      submissions = await listAllSubmissions(slug)
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'form_not_found', message: 'forms.kscw.ch has no form at that link.' })
+      log.warn({ msg: 'connect: OpnForm read failed', event: event.id, slug, status: err.status })
+      return res.status(502).json({ error: 'upstream_error' })
+    }
+    const url = formUrl(slug)
+    await writeSignupBinding(database, event.id, { url, slug })
+    await writeUserLog(database, log, {
+      accountability: req.accountability,
+      action: 'update',
+      collection: 'events',
+      recordId: event.id,
+      data: { signup_url: url, signup_form_slug: slug, connected: true, replaced: event.signup_url || null },
+    })
+    const sync = await syncFormSignups(database, slug, submissions)
+    log.info({ msg: 'event signup form connected', event: event.id, slug, user: req.accountability.user, sync })
+    res.json({ ok: true, url, slug, sync })
+  })
+
+  // ── Re-sync: sign in everyone who submitted the bound form ───────
+  router.post('/events/:id/signup-form/sync', async (req, res) => {
+    const event = await loadEvent(req, res)
+    if (!event) return
+    const slug = event.signup_form_slug && slugFromSignupUrl(event.signup_url) === event.signup_form_slug
+      ? event.signup_form_slug : null
+    if (!slug) return res.status(409).json({ error: 'form_not_linked', message: 'Connect the form first.' })
+    try {
+      const sync = await syncFormSignups(database, slug, await listAllSubmissions(slug))
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update', collection: 'events', recordId: event.id,
+        data: { signup_form_sync: sync },
+      })
+      res.json({ ok: true, sync })
+    } catch (err) {
+      log.warn({ msg: 'signup sync failed', event: event.id, slug, status: err.status })
+      res.status(err.status === 404 ? 404 : 502).json({ error: err.status === 404 ? 'form_not_found' : 'upstream_error' })
+    }
   })
 
   // ── Merged signup list ───────────────────────────────────────────

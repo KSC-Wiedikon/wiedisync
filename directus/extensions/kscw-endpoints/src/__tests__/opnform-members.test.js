@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import crypto from 'node:crypto'
 import {
-  nameTokens, pickByName, resolveMember, memberTeamsAndSections, signUpForFormEvents,
+  nameTokens, pickByName, resolveMember, memberTeamsAndSections, signUpForFormEvents, syncFormSignups,
   registerOpnformMembers, SERVICE_TOKEN_HEADER,
 } from '../opnform-members.js'
 
@@ -118,7 +118,7 @@ describe('memberTeamsAndSections', () => {
 
 describe('signUpForFormEvents', () => {
   it('adds the audience row and a confirmed RSVP for each bound form-only event', async () => {
-    const db = fakeDatabase({ tables: { events: [{ id: 7, participation_mode: 'whole' }] } })
+    const db = fakeDatabase({ tables: { events: [{ id: 7, participation_mode: 'whole', form_signup_only: true }] } })
     expect(await signUpForFormEvents(db, 'kurs-2026', ANNA)).toEqual([7])
     expect(db.writes[0]).toEqual({ table: 'events_members', op: 'insert', row: { events_id: 7, members_id: 11 } })
     const insert = db.raws.find((r) => /INSERT INTO participations/.test(r.sql))
@@ -128,8 +128,15 @@ describe('signUpForFormEvents', () => {
     expect(db.writes[1]).toMatchObject({ table: 'participations', op: 'update', row: { status: 'confirmed' } })
   })
 
+  it('an ordinary bound event gets the RSVP but keeps its audience', async () => {
+    const db = fakeDatabase({ tables: { events: [{ id: 9, participation_mode: 'whole', form_signup_only: false }] } })
+    expect(await signUpForFormEvents(db, 'turnier', ANNA)).toEqual([9])
+    expect(db.writes.some((w) => w.table === 'events_members')).toBe(false)
+    expect(db.raws.find((r) => /INSERT INTO participations/.test(r.sql)).params).toEqual([11, '9'])
+  })
+
   it('per-session events get the audience row only', async () => {
-    const db = fakeDatabase({ tables: { events: [{ id: 8, participation_mode: 'sessions' }] } })
+    const db = fakeDatabase({ tables: { events: [{ id: 8, participation_mode: 'sessions', form_signup_only: true }] } })
     expect(await signUpForFormEvents(db, 'kurs-2026', ANNA)).toEqual([8])
     expect(db.writes.map((w) => w.table)).toEqual(['events_members'])
     expect(db.raws.some((r) => /participations/.test(r.sql))).toBe(false)
@@ -175,11 +182,39 @@ describe('service routes', () => {
   })
 
   it('signup signs a matched member into the bound events', async () => {
-    const db = fakeDatabase({ members: [LUCA], tables: { events: [{ id: 7, participation_mode: null }] } })
+    const db = fakeDatabase({ members: [LUCA], tables: { events: [{ id: 7, participation_mode: null, form_signup_only: true }] } })
     const res = await harness(db)('/opnform/v1/signup', {
       headers: auth, body: { form_slug: 'kurs-2026', submission_id: 'abc', email: 'luca@example.com' },
     })
     expect(res.body).toEqual({ status: 'found', events: [7] })
     expect(db.writes[0].row).toEqual({ events_id: 7, members_id: 12 })
+  })
+})
+
+describe('syncFormSignups', () => {
+  const fields = [{ id: 'e', type: 'email', name: 'Email' }, { id: 'n', type: 'text', name: 'Name' }]
+
+  it('signs in every member who already submitted and counts the rest', async () => {
+    let call = 0
+    const db = fakeDatabase({ tables: { events: [{ id: 7, participation_mode: 'whole', form_signup_only: true }] } })
+    const realRaw = db.raw
+    db.raw = async (sql, params) => {
+      if (/FROM members m/.test(sql)) {
+        call++
+        return { rows: params[0] === 'anna@example.com' ? [ANNA] : params[0] === 'family@example.com' ? [ANNA, LUCA] : [] }
+      }
+      return realRaw(sql, params)
+    }
+    const res = await syncFormSignups(db, 'kurs', { fields, data: [
+      { e: 'anna@example.com', n: '' },
+      { e: 'guest@example.com', n: 'Guest' },
+      { e: 'family@example.com', n: 'Someone else' },
+    ] })
+    expect(res).toEqual({ submissions: 3, signed_in: 1, not_members: 1, ambiguous: 1, events: [7] })
+    expect(call).toBe(3)
+  })
+
+  it('needs an email question', async () => {
+    expect((await syncFormSignups(fakeDatabase(), 'x', { fields: [{ id: 'n', type: 'text' }], data: [{}] })).error).toBe('no_email_question')
   })
 })
