@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog } from 'lucide-react'
+import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog, ArrowUpDown } from 'lucide-react'
 import Modal from '@/components/Modal'
 import IconButton from '@/components/IconButton'
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,7 @@ import type { Participation, Absence, Member, Team, EventSession } from '../type
 import { asObj, flattenMemberIds, disambiguateFirstNames, memberFirstName } from '../utils/relations'
 import { currentLocale, formatDate, getDeadlineDate, formatRelativeTime, formatDateTimeCompact } from '../utils/dateHelpers'
 import { absenceCoversActivity } from '../utils/absenceHelpers'
-import { getPositionI18nKey } from '../utils/memberPositions'
+import { coercePositions, getPositionI18nKey } from '../utils/memberPositions'
 import {
   exportRosterCsv,
   exportRosterImage,
@@ -115,6 +115,43 @@ function byFirstThenLastName<T extends { first_name?: string | null; last_name?:
   return (a.last_name ?? '').localeCompare(b.last_name ?? '', undefined, { sensitivity: 'base' })
 }
 
+/** Position order for the position strip and the position grouping (S, O, M,
+ *  D, L, then basketball, then guests). */
+const POSITION_ORDER = ['setter', 'outside', 'middle', 'opposite', 'libero', 'point_guard', 'shooting_guard', 'small_forward', 'power_forward', 'center', 'guest', 'other']
+
+/** How the roster list is ordered. `name` is the flat list; `position` and
+ *  `status` group it under a header per position / per answer. */
+type RosterSort = 'name' | 'position' | 'status'
+const ROSTER_SORTS: RosterSort[] = ['name', 'position', 'status']
+const ROSTER_SORT_STORAGE_KEY = 'wiedisync.rosterSort'
+
+/** Group key for a member without a player position (empty, `other`, `staff_only`). */
+const NO_POSITION = 'none'
+
+/** Answer groups, in the order a coach reads them. */
+const STATUS_GROUP_ORDER = ['confirmed', 'tentative', 'waitlisted', 'declined', 'no_response']
+
+/** The viewer's last choice, so a coach who groups by position does not have to
+ *  pick it again on every activity. Storage can be missing or throw (private
+ *  mode, blocked site data) — fall back to the name list. */
+function readStoredRosterSort(): RosterSort {
+  try {
+    const v = localStorage.getItem(ROSTER_SORT_STORAGE_KEY)
+    return ROSTER_SORTS.includes(v as RosterSort) ? (v as RosterSort) : 'name'
+  } catch {
+    return 'name'
+  }
+}
+
+/** A member's main position: the first player position they list. A setter /
+ *  outside hybrid groups under setter only — listing them twice would put two
+ *  sets of edit controls for one person on screen and make the group counts add
+ *  up to more than the roster. */
+function primaryPosition(m: Member): string {
+  const pos = coercePositions(m.position).find((p) => p !== 'other' && p !== 'staff_only')
+  return pos ?? NO_POSITION
+}
+
 function formatSessionLabel(session: EventSession): string {
   const dateStr = session.date?.split(' ')[0] ?? ''
   const d = new Date(dateStr + 'T00:00:00')
@@ -180,6 +217,45 @@ function RsvpBrick({ status, label }: { status: Participation['status'] | null; 
     >
       <Icon className="h-3.5 w-3.5" />
     </span>
+  )
+}
+
+type GroupTally = { status: string; count: number; label: string }
+
+const TALLY_META: Record<string, { className: string; Icon: typeof Check }> = {
+  confirmed: { className: 'text-green-700 dark:text-green-400', Icon: Check },
+  tentative: { className: 'text-yellow-700 dark:text-yellow-400', Icon: HelpCircle },
+  waitlisted: { className: 'text-orange-600 dark:text-orange-400', Icon: Hourglass },
+  declined: { className: 'text-red-600 dark:text-red-400', Icon: X },
+  no_response: { className: 'text-muted-foreground', Icon: Minus },
+}
+
+/** Header over one group of the roster list (sorted by position or by answer).
+ *  The tally uses the same glyphs as the row's answer brick (✓ ? ✗ –), so the
+ *  counts read without relying on colour; the words are in `title` and for
+ *  screen readers. */
+function RosterGroupHeader({ label, count, tally }: { label: string; count: number; tally?: GroupTally[] }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-b-border bg-surface-sunken px-3 py-1.5 first:rounded-t-xl">
+      <span className="min-w-0 flex-1 break-words text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label} <span className="tabular-nums">({count})</span>
+      </span>
+      {tally && tally.length > 0 && (
+        <span className="flex shrink-0 items-center gap-2 text-xs font-medium tabular-nums">
+          {tally.map(({ status, count: n, label: statusLabel }) => {
+            const meta = TALLY_META[status] ?? TALLY_META.no_response
+            const Icon = meta.Icon
+            return (
+              <span key={status} title={`${n} ${statusLabel}`} className={`inline-flex items-center gap-0.5 ${meta.className}`}>
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+                {n}
+                <span className="sr-only"> {statusLabel}</span>
+              </span>
+            )
+          })}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -323,6 +399,11 @@ export default function ParticipationRosterModal({
   const [staffParticipationRows, setStaffParticipationRows] = useState<Participation[]>([])
   const [activeSessionTab, setActiveSessionTab] = useState<string | null>(null) // null = overall
   const [statusFilter, setStatusFilter] = useState<string | null>(null) // null = "All"
+  const [sortMode, setSortModeState] = useState<RosterSort>(readStoredRosterSort)
+  const setSortMode = (next: RosterSort) => {
+    setSortModeState(next)
+    try { localStorage.setItem(ROSTER_SORT_STORAGE_KEY, next) } catch { /* storage unavailable — the choice lasts until the modal closes */ }
+  }
   // Team filter (multi-team events only). `null` = all teams; a non-empty Set
   // narrows the ENTIRE modal (counts, list, staff, export) to members belonging
   // to at least one selected team.
@@ -1234,6 +1315,60 @@ export default function ParticipationRosterModal({
     ? waitlistedParts
     : waitlistedParts.filter((wp) => matchesStatusFilter('waitlisted', wp.member))
 
+  // ---- Sort / group (name · position · answer) ------------------------------
+  // "Position" and "Answer" keep the name order inside each group and put a
+  // header over every group, so a coach sees "Middle blocker: 2 yes, 1 no"
+  // without reading every name. Only the roster block is grouped; the waitlist
+  // and Staff sections below keep their own headers.
+  type MemberGroup = { key: string; label: string; members: Member[]; tally?: GroupTally[] }
+  const memberGroups: MemberGroup[] | null = (() => {
+    if (sortMode === 'name') return null
+    const buckets = new Map<string, Member[]>()
+    for (const m of filteredMemberList) {
+      const key = sortMode === 'position' ? primaryPosition(m) : (getMemberStatus(m.id) ?? 'no_response')
+      const list = buckets.get(key)
+      if (list) list.push(m)
+      else buckets.set(key, [m])
+    }
+    const statusLabels: Record<string, string> = {
+      confirmed: t('confirmed'),
+      tentative: t('tentative'),
+      waitlisted: t('waitlisted'),
+      declined: t('declined'),
+      no_response: t('notResponded'),
+    }
+    const order = sortMode === 'position' ? [...POSITION_ORDER, NO_POSITION] : STATUS_GROUP_ORDER
+    return order
+      .filter((key) => buckets.has(key))
+      .map((key) => {
+        let label: string
+        if (sortMode === 'status') label = statusLabels[key] ?? key
+        else if (key === NO_POSITION) label = t('noPosition')
+        else {
+          const i18nKey = getPositionI18nKey(key)
+          label = i18nKey ? tt(i18nKey) : key
+        }
+        const members = buckets.get(key)!
+        // Position groups also say how that position answered; an answer
+        // group IS one answer, so it needs no breakdown.
+        let tally: GroupTally[] | undefined
+        if (sortMode === 'position') {
+          const counts = new Map<string, number>()
+          for (const m of members) {
+            const st = getMemberStatus(m.id) ?? 'no_response'
+            counts.set(st, (counts.get(st) ?? 0) + 1)
+          }
+          tally = STATUS_GROUP_ORDER
+            .filter((st) => counts.has(st))
+            .map((st) => ({ status: st, count: counts.get(st)!, label: statusLabels[st] ?? st }))
+        }
+        return { key, label, members, tally }
+      })
+  })()
+  const displayMemberList = memberGroups ? memberGroups.flatMap((g) => g.members) : filteredMemberList
+  const groupStartingAt = new Map<string, MemberGroup>()
+  for (const g of memberGroups ?? []) groupStartingAt.set(String(g.members[0].id), g)
+
   // ---- Edit attribution (migration 046) ------------------------------------
   // Map directus_users.id → display name for the "Edited by …" line. Seeded
   // from the team's own roster + staff so most edits resolve without an extra
@@ -1603,10 +1738,9 @@ export default function ParticipationRosterModal({
         counts.set(p, (counts.get(p) ?? 0) + 1)
       }
     }
-    // Stable position ordering — same as the existing positionOrder convention
-    // (S, O, M, D, L, …) so the strip reads consistently across exports.
-    const order = ['setter', 'outside', 'middle', 'opposite', 'libero', 'point_guard', 'shooting_guard', 'small_forward', 'power_forward', 'center', 'guest', 'other']
-    return order
+    // Stable position ordering (S, O, M, D, L, …) so the strip reads
+    // consistently across exports and matches the position grouping.
+    return POSITION_ORDER
       .filter((pos) => counts.has(pos))
       .map((pos) => {
         const key = getPositionI18nKey(pos)
@@ -1785,6 +1919,11 @@ export default function ParticipationRosterModal({
           { key: 'no_response', label: t('notResponded'), count: notResponded, dotClass: 'bg-stone-400 dark:bg-gray-500' },
         ] as const
         const active = filterOptions.find((o) => o.key === statusFilter) ?? filterOptions[0]
+        const sortLabels: Record<RosterSort, string> = {
+          name: t('sortName'),
+          position: t('sortPosition'),
+          status: t('sortAnswer'),
+        }
         // Per-team roster counts for the team-filter dropdown (a shared player
         // counts under each of their teams).
         const teamMemberCounts = new Map<string, number>()
@@ -1960,6 +2099,34 @@ export default function ParticipationRosterModal({
                     <span className="flex-1">{opt.label}</span>
                     <span className="text-xs text-muted-foreground/80">{opt.count}</span>
                     {statusFilter === opt.key && <Check className="h-4 w-4 text-primary dark:text-gold-400" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="px-3 text-foreground/85"
+                  aria-label={`${t('sortBy')}: ${sortLabels[sortMode]}`}
+                >
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground/80" />
+                  <span>{sortLabels[sortMode]}</span>
+                  <ChevronDown className="!size-3.5 text-muted-foreground/80" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[180px]">
+                <DropdownMenuLabel>{t('sortBy')}</DropdownMenuLabel>
+                {ROSTER_SORTS.map((mode) => (
+                  <DropdownMenuItem
+                    key={mode}
+                    onClick={() => setSortMode(mode)}
+                    className="flex cursor-pointer items-center gap-2"
+                  >
+                    <span className="flex-1">{sortLabels[mode]}</span>
+                    {sortMode === mode && <Check className="h-4 w-4 text-primary dark:text-gold-400" />}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -2209,13 +2376,15 @@ export default function ParticipationRosterModal({
         <div className="py-8 text-center text-muted-foreground">{t('noResponses')}</div>
       ) : (
         <div className="rounded-xl border border-border">
-          {filteredMemberList.map((member) => {
+          {displayMemberList.map((member) => {
             const status = getMemberStatus(member.id)
             const participation = participationByMember.first.get(member.id)
+            const group = groupStartingAt.get(String(member.id))
 
             return (
+              <Fragment key={member.id}>
+              {group && <RosterGroupHeader label={group.label} count={group.members.length} tally={group.tally} />}
               <div
-                key={member.id}
                 className={`border-b border-b-border border-l-4 last:border-b-0 ${statusBarClass(status)}`}
               >
                 <div className="flex min-h-[44px] items-center gap-3 px-3 py-2 sm:min-h-0">
@@ -2450,6 +2619,7 @@ export default function ParticipationRosterModal({
                   )
                 })()}
               </div>
+              </Fragment>
             )
           })}
 
