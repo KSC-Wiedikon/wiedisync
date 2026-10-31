@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.53.0 — 2026-10-31
+
+### Added
+
+- Coaches: the attendance list («View RSVPs») can be sorted by name, by position or by answer. By position, players are grouped under their position (a player with several positions under the first one), with how many of each position said Yes, Maybe or No; by answer, they are grouped into Yes, Maybe, waiting list, No and no response. The list remembers your choice.
+
+### Changed
+
+- Teams with «Auto-decline "Maybe"» on: a Maybe now turns into No right at the RSVP deadline, not the next morning.
+- Edit roster now uses the full page width, like the team page.
+
 ## v2.52.0 — 2026-10-30
 
 ### Added
