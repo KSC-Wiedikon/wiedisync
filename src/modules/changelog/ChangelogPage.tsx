@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.52.0'
+const APP_VERSION = '2.53.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.53.0',
+    date: '31.10.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Coaches: the attendance list («View RSVPs») can be sorted by name, by position or by answer. By position, players are grouped under their position (a player with several positions under the first one), with how many of each position said Yes, Maybe or No; by answer, they are grouped into Yes, Maybe, waiting list, No and no response. The list remembers your choice.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'Teams with «Auto-decline "Maybe"» on: a Maybe now turns into No right at the RSVP deadline, not the next morning.',
+          'Edit roster now uses the full page width, like the team page.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.52.0',
     date: '30.10.2026',
