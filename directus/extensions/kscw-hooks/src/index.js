@@ -4710,6 +4710,90 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  /**
+   * Team setting `auto_decline_tentative`: a Maybe still open after the RSVP
+   * deadline becomes No. Runs every minute (owner 31.10.2026: "at the
+   * deadline" — it used to wait for the 07:00 UTC run, so a Sunday 20:00
+   * deadline flipped on Monday morning, and a deadline at the activity's own
+   * start time was never acted on at all because by the next run the date
+   * bound below had passed). Idempotent; returns the knex result (rowCount).
+   *
+   * ⚠ `participations.activity_id` is POLYMORPHIC — its meaning depends on
+   * `activity_type`, and the two id spaces overlap almost completely because
+   * both sequences START WITH 1. Until 2026-08-10 this UNION collapsed them
+   * and correlated on `aid` ALONE (audit 2026-08-08, finding 13), so
+   * training 137 being past its deadline declined member 42's "maybe" on
+   * GAME 137 — a different team's activity entirely. Worse, the
+   * `features_enabled` flag was read from whichever row happened to collide,
+   * so one team enabling `auto_decline_tentative` silently applied it
+   * club-wide, and team A's setting decided team B's RSVPs.
+   *
+   * `atype` now travels with each branch and is correlated, which is what
+   * the table's own identity index (activity_type, activity_id, member)
+   * implies and what every sibling query in the 07:00 cron block already did.
+   *
+   * The date bound is the second half of the fix: with no lower bound the
+   * sweep reached the entire back-catalogue and rewrote historical
+   * attendance. `trg_participations_clear_auto_marker` strips the marker
+   * afterwards, so a bogus flip is indistinguishable from a real one — there
+   * is no repair path, only prevention.
+   *
+   * ⚠⚠ The bound is the deadline INSTANT, not its calendar day. Until
+   * 2026-09-06 this read `a.respond_by::date <= CURRENT_DATE`, which is
+   * true from midnight of the deadline day onward — so a 07:00 UTC run
+   * flipped a member's "maybe" to "declined" up to a full day BEFORE their
+   * deadline expired. A team with respond_by at the activity's own start
+   * time (what migration 322 derives, e.g. 20:00) lost the entire day it
+   * had been promised to make up its mind, and the member had no way to
+   * tell: `trg_participations_clear_auto_marker` leaves no marker on this
+   * path, so an early flip is indistinguishable from a real one. 5 teams
+   * had the feature on when this was found.
+   *
+   * `effectiveDeadlineSql` is the same getDeadlineDate() mirror the
+   * no-response sweep uses, and it is needed here for the same reason: a
+   * Europe/Zurich wall time of exactly 00:00:00 is the "no time given"
+   * SENTINEL, which resolves to the activity's own start time (else 23:59),
+   * NOT to midnight. Hence `astart` carried through both UNION branches —
+   * trainings call it start_time, games call it "time".
+   */
+  function declineTentativesPastDeadline() {
+    return database.raw(`
+      UPDATE participations SET status = 'declined'
+      WHERE status = 'tentative'
+        AND activity_type IN ('game', 'training')
+        AND EXISTS (
+          SELECT 1 FROM (
+            SELECT 'training' AS atype, id::text AS aid, respond_by, start_time AS astart, date AS adate, team AS team_id
+              FROM trainings WHERE respond_by IS NOT NULL
+            UNION ALL
+            SELECT 'game' AS atype, id::text AS aid, respond_by, "time" AS astart, date AS adate, kscw_team AS team_id
+              FROM games WHERE respond_by IS NOT NULL
+          ) a
+          JOIN teams t ON t.id = a.team_id
+          WHERE a.atype = participations.activity_type
+            AND a.aid = participations.activity_id
+            AND ${effectiveDeadlineSql('a.respond_by', 'a.astart')} < now()
+            AND a.adate >= CURRENT_DATE
+            AND (t.features_enabled->>'auto_decline_tentative')::boolean = true
+        )
+    `)
+  }
+
+  // ── Cron: Maybe → No at the deadline (every minute) ──
+  // Same reason the capacity Maybe sweep (migration 438) runs every minute: the
+  // deadline is an instant, and a daily run acts on it up to a day late. The
+  // 07:00 participation cron still calls it once more, first, so its
+  // no-response sweep never mistakes a just-expired Maybe for a non-responder.
+  schedule('* * * * *', async () => {
+    try {
+      const res = await declineTentativesPastDeadline()
+      if (res?.rowCount > 0) log.info(`Auto-decline tentative: ${res.rowCount} Maybe(s) past the deadline turned into No`)
+    } catch (err) {
+      log.error({ msg: `Auto-decline tentative: ${err.message}`, event: 'cron.auto_decline_tentative', stack: err.stack })
+      logCronError('auto_decline_tentative', err)
+    }
+  })
+
   // ── 6. Cron: Participation Reminders (07:00 UTC) ───────────────
   // Creates in-app notifications for unresponded members when deadline is tomorrow.
   // Uses batch INSERT...SELECT — no per-member loop.
@@ -4774,65 +4858,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // call costs one no-op UPDATE.
       const autoCancelled = await autoCancelTrainingsUnderMin()
 
-      // Auto-decline tentatives past deadline (per-team feature)
-      //
-      // ⚠ `participations.activity_id` is POLYMORPHIC — its meaning depends on
-      // `activity_type`, and the two id spaces overlap almost completely because
-      // both sequences START WITH 1. Until 2026-08-10 this UNION collapsed them
-      // and correlated on `aid` ALONE (audit 2026-08-08, finding 13), so
-      // training 137 being past its deadline declined member 42's "maybe" on
-      // GAME 137 — a different team's activity entirely. Worse, the
-      // `features_enabled` flag was read from whichever row happened to collide,
-      // so one team enabling `auto_decline_tentative` silently applied it
-      // club-wide, and team A's setting decided team B's RSVPs.
-      //
-      // `atype` now travels with each branch and is correlated, which is what
-      // the table's own identity index (activity_type, activity_id, member)
-      // implies and what every sibling query in this same cron block already did.
-      //
-      // The date bound is the second half of the fix: with no lower bound the
-      // sweep reached the entire back-catalogue and rewrote historical
-      // attendance. `trg_participations_clear_auto_marker` strips the marker
-      // afterwards, so a bogus flip is indistinguishable from a real one — there
-      // is no repair path, only prevention.
-      //
-      // ⚠⚠ The bound is the deadline INSTANT, not its calendar day. Until
-      // 2026-09-06 this read `a.respond_by::date <= CURRENT_DATE`, which is
-      // true from midnight of the deadline day onward — so a 07:00 UTC run
-      // flipped a member's "maybe" to "declined" up to a full day BEFORE their
-      // deadline expired. A team with respond_by at the activity's own start
-      // time (what migration 322 derives, e.g. 20:00) lost the entire day it
-      // had been promised to make up its mind, and the member had no way to
-      // tell: `trg_participations_clear_auto_marker` leaves no marker on this
-      // path, so an early flip is indistinguishable from a real one. 5 teams
-      // had the feature on when this was found.
-      //
-      // `effectiveDeadlineSql` is the same getDeadlineDate() mirror the
-      // no-response sweep uses, and it is needed here for the same reason: a
-      // Europe/Zurich wall time of exactly 00:00:00 is the "no time given"
-      // SENTINEL, which resolves to the activity's own start time (else 23:59),
-      // NOT to midnight. Hence `astart` carried through both UNION branches —
-      // trainings call it start_time, games call it "time".
-      await database.raw(`
-        UPDATE participations SET status = 'declined'
-        WHERE status = 'tentative'
-          AND activity_type IN ('game', 'training')
-          AND EXISTS (
-            SELECT 1 FROM (
-              SELECT 'training' AS atype, id::text AS aid, respond_by, start_time AS astart, date AS adate, team AS team_id
-                FROM trainings WHERE respond_by IS NOT NULL
-              UNION ALL
-              SELECT 'game' AS atype, id::text AS aid, respond_by, "time" AS astart, date AS adate, kscw_team AS team_id
-                FROM games WHERE respond_by IS NOT NULL
-            ) a
-            JOIN teams t ON t.id = a.team_id
-            WHERE a.atype = participations.activity_type
-              AND a.aid = participations.activity_id
-              AND ${effectiveDeadlineSql('a.respond_by', 'a.astart')} < now()
-              AND a.adate >= CURRENT_DATE
-              AND (t.features_enabled->>'auto_decline_tentative')::boolean = true
-          )
-      `)
+      // Auto-decline tentatives past deadline (per-team feature). Also runs
+      // every minute on its own schedule; called here too so it has
+      // settled before the no-response sweep below.
+      await declineTentativesPastDeadline()
 
       // Non-responders past their deadline (migration 352). Runs AFTER the
       // tentative sweep on purpose: a `tentative` that just became `declined`
@@ -7624,8 +7653,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   schedule('* * * * *', async () => {
     // Migration 438: on a training / event with a max, Maybes turn into No at the
     // respond-by deadline (every team, owner 30.10.2026) and their seats go to the
-    // waiting list. Every minute, so "at the deadline" means at the deadline — the
-    // team-level Maybe sweep below runs once a day at 07:00 UTC.
+    // waiting list. Every minute, so "at the deadline" means at the deadline — as
+    // does the team-level Maybe sweep (`declineTentativesPastDeadline`, since 31.10).
     try {
       const res = await database.raw('SELECT kscw_capacity_maybe_deadline_sweep() AS n')
       const n = Number(res?.rows?.[0]?.n ?? 0)

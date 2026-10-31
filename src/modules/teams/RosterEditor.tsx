@@ -293,7 +293,8 @@ export default function RosterEditor() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    // Full width like the team page it edits — a table page never gets a width cap.
+    <div>
       <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Link to="/teams" className="transition-colors hover:text-foreground">{t('title')}</Link>
         <span>/</span>
