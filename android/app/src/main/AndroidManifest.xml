@@ -23,6 +23,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Wiedisync">
 
+        <!-- Passkeys: the sites whose assetlinks.json links this app for sign-in
+             (get_login_creds). Without it Credential Manager refuses with "RP ID cannot
+             be validated" on a real phone, even when the site side is right (svrz_rc
+             1.4.5, 02.11.2026). Per flavor: res/values/asset_statements.xml. -->
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density"

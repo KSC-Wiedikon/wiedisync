@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Passkeys: prod's relying party is kscw.ch (served by the kscw-website repo). -->
+    <string name="asset_statements" translatable="false">[{\"include\": \"https://kscw.ch/.well-known/assetlinks.json\"}]</string>
+</resources>

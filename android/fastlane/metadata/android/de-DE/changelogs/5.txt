@@ -1,0 +1,1 @@
+Anmelden mit Fingerabdruck, Gesicht oder Handy-PIN (Passkeys), sobald du unter Profil → Passkeys einen eingerichtet hast.

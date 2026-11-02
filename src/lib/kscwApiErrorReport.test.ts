@@ -35,7 +35,8 @@ describe('isCredentialEndpoint', () => {
     for (const p of ['/change-password', '/set-password', '/password-request', '/verify-email',
       '/verify-email/confirm', '/check-email', '/signup-invites/redeem', '/identity/keys',
       '/identity/document/12', '/identity/envelopes', '/admin/sql', '/admin/sql/ask',
-      '/email-accounts', '/email-accounts/3', '/web-push/subscribe', '/change-password?x=1']) {
+      '/email-accounts', '/email-accounts/3', '/web-push/subscribe', '/change-password?x=1',
+      '/passkey/login', '/passkey/register-options', '/passkey/register', '/passkey/0b6e3d1c-6f1a-4c1e-9d55-3f0a2b7c9e11']) {
       expect(isCredentialEndpoint(p), p).toBe(true)
     }
   })
@@ -65,6 +66,24 @@ describe('kscwApi error reports', () => {
       await expect(kscwApi('/change-password', { method: 'POST', body: pwBody })).rejects.toMatchObject({ code })
     }
     expect(captureApiError).not.toHaveBeenCalled()
+  })
+
+  it('does not report the designed passkey refusals — lib/passkeys.ts decides what is a fault', async () => {
+    for (const [path, status, code] of [['/passkey/login', 401, 'passkey_unknown'], ['/passkey/login', 400, 'passkey_challenge'],
+      ['/passkey/register-options', 401, 'bad_password'], ['/passkey/register-options', 401, 'otp_required'],
+      ['/passkey/list', 404, undefined]] as const) {
+      respond(status, { error: 'x', code })
+      await expect(kscwApi(path, { method: 'POST', body: { password: 'p' }, noAuthRetry: true })).rejects.toMatchObject({ status })
+    }
+    expect(captureApiError).not.toHaveBeenCalled()
+  })
+
+  it('reports a passkey 5xx WITHOUT the body (the password, the device answer)', async () => {
+    respond(500, { error: 'Internal error' })
+    await expect(kscwApi('/passkey/register-options', { method: 'POST', body: { password: 'Secr3t!' } })).rejects.toThrow() // gitleaks:allow — synthetic fixture
+    expect(captureApiError).toHaveBeenCalledTimes(1)
+    expect(captureApiError.mock.calls[0][1].payload).toBeUndefined()
+    expect(JSON.stringify(captureApiError.mock.calls[0][1])).not.toContain('Secr3t')
   })
 
   it('does not report a password-rule refusal from another route either (keyed on the code)', async () => {

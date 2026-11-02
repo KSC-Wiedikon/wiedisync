@@ -49,6 +49,8 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import java.io.File
 import java.net.URI
 import java.net.URISyntaxException
@@ -147,6 +149,14 @@ class MainActivity : ComponentActivity() {
             javaScriptCanOpenWindowsAutomatically = true
             // The site detects the app by this token (src/utils/pwa.ts → detectNativeApp).
             userAgentString = "$userAgentString WiedisyncApp/android/${BuildConfig.VERSION_NAME}"
+        }
+        // Passkeys (sign in with fingerprint, face or PIN): the WebView runs WebAuthn as this
+        // app, which the RP's /.well-known/assetlinks.json vouches for (get_login_creds) —
+        // kscw.ch for prod, wiedisync-dev.kscw.ch for dev (res/values/asset_statements.xml).
+        // An older WebView without the feature has no PublicKeyCredential, and the site
+        // simply hides the passkey button.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
+            WebSettingsCompat.setWebAuthenticationSupport(webView.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP)
         }
         CookieManager.getInstance().setAcceptCookie(true)
         webView.webViewClient = Client()
