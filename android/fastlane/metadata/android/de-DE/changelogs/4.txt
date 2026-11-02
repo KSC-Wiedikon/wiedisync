@@ -1,0 +1,1 @@
+Benachrichtigungen funktionieren jetzt ohne zusätzliche App: Ohne UnifiedPush-App (Sunup, ntfy) kommen sie über die Google-Play-Dienste. Wer schon eine UnifiedPush-App nutzt, für den ändert sich nichts.

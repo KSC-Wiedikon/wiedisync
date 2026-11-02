@@ -1,0 +1,1 @@
+Notifications now work without an extra app: without a UnifiedPush app (Sunup, ntfy), they come through Google Play services. If you already use a UnifiedPush app, nothing changes.

@@ -7,7 +7,8 @@ import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
 
 /**
- * Receives from the member's UnifiedPush distributor (Sunup, ntfy, …). Messages
+ * Receives from the member's UnifiedPush distributor (Sunup, ntfy, …, or the
+ * built-in one that goes through Google Play services). Messages
  * are Web Push sent by the kscw-push worker, already decrypted by the connector;
  * the payload is the same JSON public/sw.js shows: {title, body, url, tag}.
  */

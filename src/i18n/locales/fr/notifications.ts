@@ -71,7 +71,7 @@ export default {
   pushErrorGeneric: 'Service push inaccessible. Verifiez les parametres de votre navigateur ou essayez Chrome/Firefox.',
   pushSubscribeFailed: 'Impossible d\'activer les notifications push.',
   pushUnsubscribeFailed: 'Impossible de desactiver les notifications push.',
-  pushNoDistributor: 'Les notifications nécessitent une application UnifiedPush gratuite. Installez Sunup ou ntfy depuis F-Droid, puis réessayez.',
+  pushNoDistributor: 'Ce téléphone n\'a pas les services Google Play. Pour les notifications, il faut une application UnifiedPush gratuite : installez Sunup ou ntfy depuis F-Droid, puis réessayez.',
   pushServerNotSupported: 'Ce serveur push n\'est pas pris en charge. Utilisez Sunup ou ntfy comme application UnifiedPush.',
   pushTest: 'Envoyer une notification de test',
   pushTestSent: 'Test envoyé. Il devrait arriver sur cet appareil dans quelques secondes.',

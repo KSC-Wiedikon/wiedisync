@@ -1,6 +1,8 @@
 package ch.kscw.wiedisync
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -174,6 +176,14 @@ class NativeBridge(
         if (vapid.isBlank()) return fail(id, "registration_failed", "missing VAPID key")
         activity.requestNotificationPermission { granted ->
             if (!granted) return@requestNotificationPermission fail(id, "permission_denied")
+            // The app is a distributor itself now (embedded FCM distributor), so
+            // "no distributor" means no distributor APP. Without one, Google's push
+            // through Play Services; a member who installed Sunup or ntfy keeps it.
+            if (UnifiedPush.getDistributors(activity).none { it != activity.packageName }) {
+                if (!hasPlayServices()) return@requestNotificationPermission fail(id, "no_distributor")
+                UnifiedPush.saveDistributor(activity, activity.packageName)
+                return@requestNotificationPermission register(id, vapid)
+            }
             UnifiedPush.tryUseCurrentOrDefaultDistributor(activity) { useDefault ->
                 main.post {
                     when {
@@ -188,6 +198,16 @@ class NativeBridge(
             }
         }
     }
+
+    private fun hasPlayServices(): Boolean = runCatching {
+        val pm = activity.packageManager
+        if (Build.VERSION.SDK_INT >= 33) {
+            pm.getPackageInfo(PLAY_SERVICES, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(PLAY_SERVICES, 0)
+        }
+    }.isSuccess
 
     private fun register(id: Int, vapid: String) {
         pendingSubscribe += id
@@ -244,5 +264,7 @@ class NativeBridge(
         val MAX_MESSAGE_CHARS = Downloads.MAX_SAVE_BYTES / 3 * 4 + 64 * 1024
         /** The end of `JSON.stringify({ ...params, id, type })`. */
         val TAIL_ID = Regex("\"id\":(\\d+),\"type\":\"[^\"]*\"\\}$")
+        /** Google Play services: what the embedded FCM distributor registers through. */
+        const val PLAY_SERVICES = "com.google.android.gms"
     }
 }

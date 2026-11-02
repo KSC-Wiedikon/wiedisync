@@ -9,3 +9,10 @@ SourceCode: https://github.com/KSC-Wiedikon/wiedisync/tree/prod/android
 IssueTracker: https://github.com/KSC-Wiedikon/wiedisync/issues
 Changelog: https://github.com/KSC-Wiedikon/wiedisync/releases
 AutoName: Wiedisync
+# Since 1.1.0 (2026-11-02): without a UnifiedPush app, notifications go through
+# Google's push service via Play services (embedded-fcm-distributor, LGPL, no
+# Google code in the APK). Optional, so not NonFreeDep; flagged honestly.
+AntiFeatures:
+  NonFreeNet:
+    en-US: Without a UnifiedPush app (Sunup, ntfy), notifications go through Google's push service (Google Play services).
+    de-DE: Ohne UnifiedPush-App (Sunup, ntfy) kommen Benachrichtigungen über den Push-Dienst von Google (Google-Play-Dienste).

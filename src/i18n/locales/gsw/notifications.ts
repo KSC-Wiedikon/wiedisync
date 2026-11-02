@@ -71,7 +71,7 @@ export default {
   pushErrorGeneric: 'Push-Dienst nöd erreichbar. Prüef dini Browser-Iistellige oder verwend Chrome/Firefox.',
   pushSubscribeFailed: 'Push-Benachrichtigige händ nöd chöne aktiviert werde.',
   pushUnsubscribeFailed: 'Push-Benachrichtigige händ nöd chöne deaktiviert werde.',
-  pushNoDistributor: 'Für Benachrichtigige bruuchsch e gratis UnifiedPush-App. Installier Sunup oder ntfy us F-Droid und probiers dänn nomal.',
+  pushNoDistributor: 'Das Telefon hät kei Google-Play-Dienscht. Für Benachrichtigige bruuchsch e gratis UnifiedPush-App: Installier Sunup oder ntfy us F-Droid und probiers dänn nomal.',
   pushServerNotSupported: 'De Push-Server wird nöd unterstützt. Bitte verwend Sunup oder ntfy als UnifiedPush-App.',
   pushTest: 'Test-Benachrichtigung schicke',
   pushTestSent: 'Test gschickt. Er söt i es paar Sekunde uf dem Grät acho.',

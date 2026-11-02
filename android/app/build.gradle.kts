@@ -29,8 +29,8 @@ android {
         applicationId = "ch.kscw.wiedisync"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.1.0"
     }
 
     flavorDimensions += "env"
@@ -101,7 +101,13 @@ dependencies {
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.webkit:webkit:1.17.1")
-    // Push without Google: UnifiedPush (Apache-2.0). Endpoints are Web Push
-    // (RFC 8030/8291 + VAPID), so the existing kscw-push worker sends to them.
+    // Push: UnifiedPush (Apache-2.0). Endpoints are Web Push (RFC 8030/8291 +
+    // VAPID), so the existing kscw-push worker sends to them.
     implementation("org.unifiedpush.android:connector:3.3.5")
+    // Without a distributor app (Sunup, ntfy), Google's push through Play Services
+    // (2026-11-02). Open source (LGPL-2.1), no Firebase SDK and no Google code: it
+    // registers with Play Services using our VAPID key, and the endpoint it hands
+    // back (fcm.googleapis.com/fcm/send/…) takes the worker's Web Push as is. A
+    // phone without Play Services still needs a distributor app.
+    implementation("org.unifiedpush.android:embedded-fcm-distributor:3.1.0")
 }
