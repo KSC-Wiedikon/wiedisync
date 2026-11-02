@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-10-30T10:08:57.478Z
+-- Generated:   2026-11-02T21:52:54.824Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fS9rUQjiSRYBegE6wGNi1CssJaGSrnHcXeCwxWKlvkxtxauSCNIa1qCNPViUtrX
+\restrict 3JCGrSY6NllyBUTplYy6EA81OLCHCFZu8iXFSBMuQ2wfuZxrbSEq0TukN2N3zk3
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -663,6 +663,26 @@ COMMENT ON FUNCTION public.is_managed_shadow_row(p_email text, p_status text, p_
 
 
 --
+-- Name: kscw_activity_capacity(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_activity_capacity(p_type text, p_activity text, OUT cap integer, OUT team integer, OUT closed boolean) RETURNS SETOF record
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT NULLIF(GREATEST(COALESCE(t.max_participants, 0), 0), 0), t.team,
+         COALESCE(t.cancelled OR t.date < (now() AT TIME ZONE 'Europe/Zurich')::date, false)
+    FROM trainings t
+   WHERE p_type = 'training' AND t.id = p_activity::integer
+  UNION ALL
+  SELECT NULLIF(GREATEST(COALESCE(e.max_players, 0), 0), 0), NULL::integer,
+         COALESCE(e.cancelled OR COALESCE(e.end_date, e.start_date) < now(), false)
+    FROM events e
+   WHERE p_type = 'event' AND e.id = p_activity::integer
+$$;
+
+
+--
 -- Name: kscw_av_refresh_trigger(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -673,6 +693,80 @@ BEGIN
   PERFORM refresh_absence_visibility();
   RETURN NULL;                       -- AFTER STATEMENT trigger
 END $$;
+
+
+--
+-- Name: kscw_capacity_effective_deadline(timestamp with time zone, time without time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_capacity_effective_deadline(p_respond_by timestamp with time zone, p_start time without time zone) RETURNS timestamp with time zone
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT CASE
+    WHEN (p_respond_by AT TIME ZONE 'Europe/Zurich')::time = '00:00:00'
+      THEN (((p_respond_by AT TIME ZONE 'Europe/Zurich')::date + COALESCE(p_start, '23:59'::time))
+            AT TIME ZONE 'Europe/Zurich')
+    ELSE p_respond_by
+  END
+$$;
+
+
+--
+-- Name: kscw_capacity_guest_level(text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_capacity_guest_level(p_type text, p_activity text, p_team integer, p_member integer) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT COALESCE(CASE
+    WHEN p_type = 'training' THEN (
+      SELECT min(COALESCE(mt.guest_level, 0)) FROM member_teams mt
+       WHERE mt.team = p_team AND mt.member = p_member)
+    WHEN p_type = 'event' THEN (
+      SELECT min(COALESCE(mt.guest_level, 0)) FROM member_teams mt
+        JOIN events_teams et ON et.teams_id = mt.team
+       WHERE et.events_id = p_activity::integer AND mt.member = p_member)
+  END, 0)
+$$;
+
+
+--
+-- Name: kscw_capacity_maybe_deadline_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_capacity_maybe_deadline_sweep() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_n integer;
+BEGIN
+  WITH due AS (
+    SELECT 'training'::text AS atype, t.id::text AS aid
+      FROM trainings t
+     WHERE t.max_participants > 0 AND NOT t.cancelled AND t.respond_by IS NOT NULL
+       AND t.date >= (now() AT TIME ZONE 'Europe/Zurich')::date
+       AND kscw_capacity_effective_deadline(t.respond_by, t.start_time) < now()
+    UNION ALL
+    SELECT 'event'::text, e.id::text
+      FROM events e
+     WHERE e.max_players > 0 AND NOT e.cancelled AND e.respond_by IS NOT NULL
+       AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= now())
+       AND kscw_capacity_effective_deadline(e.respond_by, (e.start_date AT TIME ZONE 'Europe/Zurich')::time) < now()
+  )
+  UPDATE participations p
+     SET status = 'declined'
+    FROM due
+   WHERE p.activity_type = due.atype
+     AND p.activity_id = due.aid
+     AND NOT p.is_staff
+     AND (p.status = 'tentative' OR (p.status = 'waitlisted' AND p.requested_status = 'tentative'));
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n;
+END;
+$$;
 
 
 --
@@ -1131,6 +1225,96 @@ BEGIN
   PERFORM refresh_participation_visibility();
   RETURN NULL;                       -- AFTER STATEMENT trigger
 END $$;
+
+
+--
+-- Name: kscw_rebalance_capacity(text, text, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_rebalance_capacity(p_type text, p_activity text, p_session text, p_written integer DEFAULT NULL::integer) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_cap integer;
+  v_team integer;
+  v_closed boolean;
+  v_moved integer := 0;
+BEGIN
+  IF p_type IS NULL OR p_type NOT IN ('training', 'event')
+     OR p_activity IS NULL OR p_activity !~ '^[0-9]{1,9}$' THEN
+    RETURN 0;
+  END IF;
+
+  -- Most activities have no cap: leave before the lock when there is nothing to do
+  -- (no cap and nobody waiting), or the activity is over / cancelled / gone.
+  SELECT c.cap, c.closed INTO v_cap, v_closed FROM kscw_activity_capacity(p_type, p_activity) c;
+  IF NOT FOUND OR v_closed THEN
+    RETURN 0;
+  END IF;
+  IF v_cap IS NULL AND NOT EXISTS (
+    SELECT 1 FROM participations p
+     WHERE p.activity_type = p_type AND p.activity_id = p_activity
+       AND p.session_id IS NOT DISTINCT FROM p_session
+       AND p.status = 'waitlisted') THEN
+    RETURN 0;
+  END IF;
+
+  -- One rebalance per activity at a time (see migration 437 for the lock rationale).
+  PERFORM pg_advisory_xact_lock(437, hashtext(p_type || ':' || p_activity));
+
+  SELECT c.cap, c.team, c.closed INTO v_cap, v_team, v_closed FROM kscw_activity_capacity(p_type, p_activity) c;
+  IF NOT FOUND OR v_closed THEN
+    RETURN 0;
+  END IF;
+
+  PERFORM set_config('kscw.capacity_rebalancing', 'on', true);
+
+  WITH pool AS (
+    SELECT p.id, p.member, p.status, p.requested_status,
+           1 + GREATEST(COALESCE(p.guest_count, 0), 0) AS seats,
+           kscw_capacity_guest_level(p_type, p_activity, v_team, p.member) AS lvl,
+           p.claimed_at AS claimed
+      FROM participations p
+     WHERE p.activity_type = p_type
+       AND p.activity_id = p_activity
+       AND p.session_id IS NOT DISTINCT FROM p_session
+       AND NOT p.is_staff
+       AND p.status IN ('confirmed', 'tentative', 'waitlisted')
+  ), ranked AS (
+    SELECT id,
+           CASE
+             WHEN v_cap IS NULL
+               OR sum(seats) OVER (ORDER BY (lvl > 0), lvl, claimed NULLS FIRST, id
+                                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) <= v_cap
+               THEN CASE WHEN status = 'waitlisted' THEN COALESCE(requested_status, 'confirmed') ELSE status END
+             ELSE 'waitlisted'
+           END AS want
+      FROM pool
+  ), moved AS (
+    UPDATE participations p
+       SET status = r.want
+      FROM ranked r
+     WHERE p.id = r.id
+       AND p.status IS DISTINCT FROM r.want
+    RETURNING p.id, p.member, p.status, p.claimed_at
+  ), queued AS (
+    -- move 'confirmed' = got a seat (as a Yes or a Maybe), 'waitlisted' = lost it.
+    INSERT INTO participation_capacity_moves (participation, member, activity_type, activity_id, session_id, move)
+    SELECT m.id, m.member, p_type, p_activity, p_session,
+           CASE WHEN m.status = 'waitlisted' THEN 'waitlisted' ELSE 'confirmed' END
+      FROM moved m
+     WHERE m.id IS DISTINCT FROM p_written
+       AND m.member IS NOT NULL
+       AND COALESCE(m.claimed_at, '-infinity'::timestamptz) < transaction_timestamp()
+    RETURNING 1
+  )
+  SELECT count(*) INTO v_moved FROM moved;
+
+  PERFORM set_config('kscw.capacity_rebalancing', 'off', true);
+  RETURN v_moved;
+END;
+$_$;
 
 
 --
@@ -1848,6 +2032,32 @@ $$;
 
 
 --
+-- Name: trg_activity_capacity_changed(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_activity_capacity_changed() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_type text := CASE TG_TABLE_NAME WHEN 'trainings' THEN 'training' ELSE 'event' END;
+  v_session text;
+BEGIN
+  FOR v_session IN
+    SELECT DISTINCT p.session_id FROM participations p
+     WHERE p.activity_type = v_type
+       AND p.activity_id = NEW.id::text
+       AND p.status IN ('confirmed', 'tentative', 'waitlisted')
+       AND NOT p.is_staff
+  LOOP
+    PERFORM kscw_rebalance_capacity(v_type, NEW.id::text, v_session, NULL);
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: trg_activity_purge_polymorphic(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1929,6 +2139,19 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: trg_directus_users_password_passkeys(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_directus_users_password_passkeys() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM passkeys WHERE "user" = NEW.id;
+  RETURN NULL;
+END $$;
 
 
 --
@@ -2468,6 +2691,102 @@ BEGIN
   END IF;
   RETURN NULL;
 END $$;
+
+
+--
+-- Name: trg_participations_capacity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_participations_capacity() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_setting('kscw.capacity_rebalancing', true) = 'on' THEN
+    RETURN NULL;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.activity_type IN ('training', 'event')
+       AND OLD.status IN ('confirmed', 'tentative', 'waitlisted') AND NOT OLD.is_staff THEN
+      PERFORM kscw_rebalance_capacity(OLD.activity_type, OLD.activity_id, OLD.session_id, NULL);
+    END IF;
+    RETURN NULL;
+  END IF;
+
+  IF NEW.activity_type IS NULL OR NEW.activity_type NOT IN ('training', 'event') THEN
+    RETURN NULL;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status IN ('confirmed', 'tentative', 'waitlisted') AND NOT NEW.is_staff THEN
+      PERFORM kscw_rebalance_capacity(NEW.activity_type, NEW.activity_id, NEW.session_id, NEW.id);
+    END IF;
+    RETURN NULL;
+  END IF;
+
+  IF ((OLD.status IN ('confirmed', 'tentative', 'waitlisted') AND NOT OLD.is_staff)
+      OR (NEW.status IN ('confirmed', 'tentative', 'waitlisted') AND NOT NEW.is_staff))
+     AND (OLD.status IS DISTINCT FROM NEW.status
+          OR OLD.is_staff IS DISTINCT FROM NEW.is_staff
+          OR OLD.guest_count IS DISTINCT FROM NEW.guest_count) THEN
+    PERFORM kscw_rebalance_capacity(NEW.activity_type, NEW.activity_id, NEW.session_id, NEW.id);
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: trg_participations_capacity_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_participations_capacity_stamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  -- claimed_at: entering the seat set from outside (members write their own rows with
+  -- every field, so a written value is ignored — a backdated claim would jump the queue).
+  IF TG_OP = 'INSERT' THEN
+    NEW.claimed_at := CASE WHEN NEW.status IN ('confirmed', 'tentative', 'waitlisted') THEN clock_timestamp() END;
+  ELSIF NEW.status IN ('confirmed', 'tentative', 'waitlisted')
+        AND (OLD.status IS NULL OR OLD.status NOT IN ('confirmed', 'tentative', 'waitlisted')) THEN
+    NEW.claimed_at := clock_timestamp();
+  ELSE
+    NEW.claimed_at := OLD.claimed_at;
+  END IF;
+
+  -- requested_status: the answer a seat gives back.
+  IF NEW.status IN ('confirmed', 'tentative') THEN
+    NEW.requested_status := NEW.status;
+  ELSIF TG_OP = 'INSERT' THEN
+    NEW.requested_status := CASE WHEN NEW.status = 'waitlisted' THEN 'confirmed' END;
+  ELSE
+    NEW.requested_status := OLD.requested_status;
+  END IF;
+
+  -- promoted_at: from the waiting list to a seat; gone when the seat is.
+  IF TG_OP = 'UPDATE' AND OLD.status = 'waitlisted' AND NEW.status IN ('confirmed', 'tentative') THEN
+    NEW.promoted_at := clock_timestamp();
+  ELSIF TG_OP = 'INSERT' OR NEW.status IS NULL OR NEW.status NOT IN ('confirmed', 'tentative') THEN
+    NEW.promoted_at := NULL;
+  ELSE
+    NEW.promoted_at := OLD.promoted_at;
+  END IF;
+
+  -- waitlisted_at: set on entering the waiting list, cleared on leaving it unless the
+  -- writer sets it (the 1970 auto-decline sentinel lives on declined rows only).
+  IF NEW.status = 'waitlisted' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'waitlisted') THEN
+    NEW.waitlisted_at := clock_timestamp();
+  ELSIF TG_OP = 'UPDATE' AND OLD.status = 'waitlisted' AND NEW.status IS DISTINCT FROM 'waitlisted'
+        AND NEW.waitlisted_at IS NOT DISTINCT FROM OLD.waitlisted_at THEN
+    NEW.waitlisted_at := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -4993,7 +5312,7 @@ CREATE TABLE public.games (
     meeting_offset_minutes integer DEFAULT 60,
     vm_nomination_claimed_at timestamp with time zone,
     bb_extra_duty_teams json,
-    carpool_enabled boolean DEFAULT false NOT NULL,
+    carpool_enabled boolean DEFAULT true NOT NULL,
     carpool_teams jsonb,
     provisional_sets_json json,
     provisional_home_score integer,
@@ -5090,7 +5409,7 @@ COMMENT ON COLUMN public.games.vm_nomination_claimed_at IS 'When the current nom
 -- Name: COLUMN games.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer / request rides). Default off; the coach/TR switches it on per game. Rides live in carpools (migration 378).';
+COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer rides, Going / Return). Default ON since migration 440; the coach/TR can switch it off per game. Rides live in carpools (migration 378).';
 
 
 --
@@ -10701,6 +11020,45 @@ ALTER SEQUENCE public.notifications_id_seq OWNED BY public.notifications.id;
 
 
 --
+-- Name: participation_capacity_moves; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participation_capacity_moves (
+    id bigint NOT NULL,
+    participation integer,
+    member integer NOT NULL,
+    activity_type character varying(16) NOT NULL,
+    activity_id character varying(255) NOT NULL,
+    session_id character varying(255),
+    move character varying(16) NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    notified_at timestamp with time zone,
+    CONSTRAINT participation_capacity_moves_move_chk CHECK (((move)::text = ANY ((ARRAY['confirmed'::character varying, 'waitlisted'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE participation_capacity_moves; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.participation_capacity_moves IS 'Seat changes made by kscw_rebalance_capacity to somebody else''s RSVP (bumped to the waiting list, or promoted from it). kscw-hooks claims rows with notified_at IS NULL, writes the bell notification + push, and deletes claimed rows after 30 days. Not a Directus collection.';
+
+
+--
+-- Name: participation_capacity_moves_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.participation_capacity_moves ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.participation_capacity_moves_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: participation_visibility; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10739,6 +11097,9 @@ CREATE TABLE public.participations (
     auto_declined_by_game integer,
     event integer,
     auto_declined_deadline boolean DEFAULT false NOT NULL,
+    claimed_at timestamp with time zone,
+    requested_status character varying(16),
+    promoted_at timestamp with time zone,
     CONSTRAINT participations_activity_type_chk CHECK (((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[]))),
     CONSTRAINT participations_status_chk CHECK (((status)::text = ANY ((ARRAY['confirmed'::character varying, 'declined'::character varying, 'tentative'::character varying, 'waitlisted'::character varying])::text[])))
 );
@@ -10784,6 +11145,27 @@ COMMENT ON COLUMN public.participations.event IS 'Derived mirror of activity_id 
 --
 
 COMMENT ON COLUMN public.participations.auto_declined_deadline IS 'true = this declined row was written by the deadline sweep (kscw-hooks daily cron) because the member never responded before respond_by, not by a human. Cleared to false by trg_participations_clear_auto_marker the moment anyone changes `status`, so a surviving true is the definitive "still system-owned" signal — same contract as auto_declined_by (absences). Read by ParticipationRosterModal to label the row "No response — auto-declined" instead of a bare "Declined".';
+
+
+--
+-- Name: COLUMN participations.claimed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participations.claimed_at IS 'System-set (trg_participations_capacity_stamp): when this row entered confirmed/waitlisted from another status. First come, first served order for max_participants / max_players; unchanged when the capacity rebalance moves the row between confirmed and waitlisted. NULL when the row holds no claim (declined / tentative / never answered).';
+
+
+--
+-- Name: COLUMN participations.requested_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participations.requested_status IS 'System-set (trg_participations_capacity_stamp): the answer this RSVP holds a seat with — confirmed (Yes) or tentative (Maybe). Kept while the row is `waitlisted`, so a promotion gives back the answer the member gave.';
+
+
+--
+-- Name: COLUMN participations.promoted_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participations.promoted_at IS 'System-set: when the capacity rebalance moved this RSVP from the waiting list to a seat. Cleared when it leaves the seat. The app lets a member moved up after the deadline still say No.';
 
 
 --
@@ -10998,6 +11380,35 @@ CREATE SEQUENCE public.participations_id_seq
 --
 
 ALTER SEQUENCE public.participations_id_seq OWNED BY public.participations.id;
+
+
+--
+-- Name: passkeys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.passkeys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    "user" uuid NOT NULL,
+    credential_id text NOT NULL,
+    public_key text NOT NULL,
+    counter bigint DEFAULT 0 NOT NULL,
+    transports text[] DEFAULT '{}'::text[] NOT NULL,
+    backed_up boolean DEFAULT false NOT NULL,
+    label text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone,
+    CONSTRAINT passkeys_counter_nonnegative CHECK ((counter >= 0)),
+    CONSTRAINT passkeys_credential_id_format CHECK (((credential_id ~ '^[A-Za-z0-9_-]+$'::text) AND (length(credential_id) <= 1024))),
+    CONSTRAINT passkeys_label_length CHECK (((length(label) >= 1) AND (length(label) <= 80))),
+    CONSTRAINT passkeys_public_key_format CHECK (((public_key ~ '^[A-Za-z0-9_-]+$'::text) AND (length(public_key) <= 4096)))
+);
+
+
+--
+-- Name: TABLE passkeys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.passkeys IS 'Passkeys (WebAuthn) for signing in without the password. Written only by kscw-endpoints passkeys.js; not a Directus collection. Removed on any password change (trg_directus_users_password_passkeys).';
 
 
 --
@@ -15076,6 +15487,14 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: participation_capacity_moves participation_capacity_moves_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_capacity_moves
+    ADD CONSTRAINT participation_capacity_moves_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: participation_visibility participation_visibility_pair_uniq; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15097,6 +15516,22 @@ ALTER TABLE ONLY public.participation_visibility
 
 ALTER TABLE ONLY public.participations
     ADD CONSTRAINT participations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: passkeys passkeys_credential_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.passkeys
+    ADD CONSTRAINT passkeys_credential_id_unique UNIQUE (credential_id);
+
+
+--
+-- Name: passkeys passkeys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.passkeys
+    ADD CONSTRAINT passkeys_pkey PRIMARY KEY (id);
 
 
 --
@@ -17154,6 +17589,13 @@ CREATE INDEX notifications_team_index ON public.notifications USING btree (team)
 
 
 --
+-- Name: participation_capacity_moves_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participation_capacity_moves_pending_idx ON public.participation_capacity_moves USING btree (id) WHERE (notified_at IS NULL);
+
+
+--
 -- Name: participation_visibility_viewer_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -17186,6 +17628,13 @@ CREATE INDEX participations_event_idx ON public.participations USING btree (even
 --
 
 CREATE INDEX participations_member_index ON public.participations USING btree (member);
+
+
+--
+-- Name: passkeys_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX passkeys_user_idx ON public.passkeys USING btree ("user");
 
 
 --
@@ -17728,6 +18177,13 @@ CREATE TRIGGER trg_events_0_purge_polymorphic AFTER DELETE ON public.events FOR 
 
 
 --
+-- Name: events trg_events_capacity_changed; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_capacity_changed AFTER UPDATE OF max_players, cancelled ON public.events FOR EACH ROW WHEN (((old.max_players IS DISTINCT FROM new.max_players) OR (old.cancelled AND (NOT new.cancelled)))) EXECUTE FUNCTION public.trg_activity_capacity_changed();
+
+
+--
 -- Name: events_members trg_events_members_keys_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18001,6 +18457,20 @@ CREATE TRIGGER trg_news_publish_image AFTER INSERT OR UPDATE OF image ON public.
 
 
 --
+-- Name: participations trg_participations_capacity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_participations_capacity AFTER INSERT OR DELETE OR UPDATE OF status, is_staff, guest_count ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_capacity();
+
+
+--
+-- Name: participations trg_participations_capacity_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_participations_capacity_stamp BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_capacity_stamp();
+
+
+--
 -- Name: participations trg_participations_clear_auto_marker; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18271,6 +18741,13 @@ CREATE TRIGGER trg_teams_sport_section AFTER UPDATE OF sport ON public.teams FOR
 --
 
 CREATE TRIGGER trg_trainings_0_purge_polymorphic AFTER DELETE ON public.trainings FOR EACH ROW EXECUTE FUNCTION public.trg_activity_purge_polymorphic('training');
+
+
+--
+-- Name: trainings trg_trainings_capacity_changed; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_trainings_capacity_changed AFTER UPDATE OF max_participants, cancelled ON public.trainings FOR EACH ROW WHEN (((old.max_participants IS DISTINCT FROM new.max_participants) OR (old.cancelled AND (NOT new.cancelled)))) EXECUTE FUNCTION public.trg_activity_capacity_changed();
 
 
 --
@@ -19893,6 +20370,22 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: participation_capacity_moves participation_capacity_moves_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_capacity_moves
+    ADD CONSTRAINT participation_capacity_moves_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participation_capacity_moves participation_capacity_moves_participation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_capacity_moves
+    ADD CONSTRAINT participation_capacity_moves_participation_fkey FOREIGN KEY (participation) REFERENCES public.participations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: participation_visibility participation_visibility_participation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19938,6 +20431,14 @@ ALTER TABLE ONLY public.participations
 
 ALTER TABLE ONLY public.participations
     ADD CONSTRAINT participations_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: passkeys passkeys_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.passkeys
+    ADD CONSTRAINT passkeys_user_fkey FOREIGN KEY ("user") REFERENCES public.directus_users(id) ON DELETE CASCADE;
 
 
 --
@@ -20566,7 +21067,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fS9rUQjiSRYBegE6wGNi1CssJaGSrnHcXeCwxWKlvkxtxauSCNIa1qCNPViUtrX
+\unrestrict 3JCGrSY6NllyBUTplYy6EA81OLCHCFZu8iXFSBMuQ2wfuZxrbSEq0TukN2N3zk3
 
 
 
@@ -20577,12 +21078,14 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- ============================================================================
 DROP TRIGGER IF EXISTS trg_directus_files_folder_guard ON public.directus_files;
 CREATE TRIGGER trg_directus_files_folder_guard BEFORE INSERT OR UPDATE OF folder ON public.directus_files FOR EACH ROW EXECUTE FUNCTION public.kscw_directus_files_folder_guard();
+DROP TRIGGER IF EXISTS trg_directus_users_password_passkeys ON public.directus_users;
+CREATE TRIGGER trg_directus_users_password_passkeys AFTER UPDATE OF password ON public.directus_users FOR EACH ROW WHEN (((old.password)::text IS DISTINCT FROM (new.password)::text)) EXECUTE FUNCTION public.trg_directus_users_password_passkeys();
 DROP TRIGGER IF EXISTS trg_directus_users_revoke_managed ON public.directus_users;
 CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, password ON public.directus_users FOR EACH ROW WHEN ((((old.email)::text IS DISTINCT FROM (new.email)::text) OR ((old.status)::text IS DISTINCT FROM (new.status)::text) OR ((old.password)::text IS DISTINCT FROM (new.password)::text))) EXECUTE FUNCTION public.trg_directus_users_revoke_managed();
 
 
 -- ============================================================================
--- Migration tracker seed — 440 migration(s) already in the schema above.
+-- Migration tracker seed — 444 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21035,6 +21538,10 @@ FROM (VALUES
   ('433-staff-visibility.sql'),
   ('434-events-form-signup-only.sql'),
   ('435-events-pinned.sql'),
-  ('436-invoice-not-a-member.sql')
+  ('436-invoice-not-a-member.sql'),
+  ('437-capacity-waitlist.sql'),
+  ('438-capacity-maybe-seat.sql'),
+  ('439-passkeys.sql'),
+  ('440-games-carpool-default-on.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
