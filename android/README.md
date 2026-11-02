@@ -5,7 +5,7 @@ A small Kotlin app around the live site. It is one WebView on
 
 | Feature | How |
 |---|---|
-| Push notifications | [UnifiedPush](https://unifiedpush.org) (no Google). The member installs a distributor app, e.g. Sunup or ntfy from F-Droid. Endpoints are plain Web Push, so the existing `kscw-push` worker sends to them. |
+| Push notifications | [UnifiedPush](https://unifiedpush.org). With a distributor app (Sunup, ntfy from F-Droid) through that app; without one, through Google Play services via the built-in [embedded FCM distributor](https://codeberg.org/UnifiedPush/android-embedded_fcm_distributor) (LGPL, no Firebase SDK: it registers with Play services using our VAPID key and gets an `fcm.googleapis.com/fcm/send/…` endpoint). Either way the endpoint is plain Web Push, so the existing `kscw-push` worker sends to it. A phone with neither gets the "install Sunup or ntfy" hint. |
 | Downloads | Exports from `saveFile()` (`src/utils/saveFile.ts`) arrive over the bridge and go to the public Downloads folder: at most 25 MB, only the types the site exports (`Downloads.SAVABLE_TYPES`; a new export type has to be added there), never an app package. Real `https` downloads go through DownloadManager, with the WebView's cookies only for our own hosts. |
 | Share | The Android share sheet. |
 | File upload | The system file picker, plus the camera for image inputs. Only `content://` files reach the page. |
@@ -46,4 +46,4 @@ Our origins (and only those, via `WebViewCompat.addWebMessageListener`) see `win
 adb install -r app/build/outputs/apk/dev/debug/app-dev-debug.apk
 ```
 
-Debug builds enable WebView debugging: open `chrome://inspect`, or forward `localabstract:webview_devtools_remote_<pid>` and drive the page over CDP. For push, install a distributor (Sunup from F-Droid) in the emulator and run `adb shell pm grant ch.kscw.wiedisync.dev android.permission.POST_NOTIFICATIONS`.
+Debug builds enable WebView debugging: open `chrome://inspect`, or forward `localabstract:webview_devtools_remote_<pid>` and drive the page over CDP. For push, run `adb shell pm grant ch.kscw.wiedisync.dev android.permission.POST_NOTIFICATIONS`. A Google Play emulator image uses the built-in Google path; install a distributor (Sunup from F-Droid) to test UnifiedPush. Turn airplane mode off first (`adb shell cmd connectivity airplane-mode disable`) — an error page instead of the site means no network.
