@@ -1,7 +1,7 @@
 export default {
   banner: {
     title: 'Add Wiedisync to your home screen',
-    body: 'Install the app for faster access and a full-screen experience.',
+    body: 'Install the app for faster access, a full-screen view and notifications (on an iPhone, the only way to get them).',
     showHow: 'Show me how',
     remindLater: 'Remind me later',
     understood: 'I understood',

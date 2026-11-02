@@ -1,7 +1,7 @@
 export default {
   banner: {
     title: 'Wiedisync zum Startbildschirm hinzufügen',
-    body: 'Installiere die App für schnelleren Zugriff und eine Vollbild-Ansicht.',
+    body: 'Installiere die App für schnelleren Zugriff, eine Vollbild-Ansicht und Benachrichtigungen (auf dem iPhone nur so).',
     showHow: "So geht's",
     remindLater: 'Später erinnern',
     understood: 'Verstanden',

@@ -1,7 +1,7 @@
 export default {
   banner: {
     title: "Ajoutez Wiedisync à votre écran d'accueil",
-    body: "Installez l'application pour un accès plus rapide et un affichage plein écran.",
+    body: "Installez l'application pour un accès plus rapide, un affichage plein écran et les notifications (sur iPhone, c'est la seule façon de les recevoir).",
     showHow: 'Montrez-moi comment',
     remindLater: 'Me le rappeler plus tard',
     understood: "J'ai compris",
