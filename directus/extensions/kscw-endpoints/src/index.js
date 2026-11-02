@@ -40,6 +40,7 @@ import { registerGameResult } from './game-result.js'
 import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
+import { registerPasskeys } from './passkeys.js'
 import { registerImpersonate } from './impersonate.js'
 import { registerHousehold } from './household.js'
 import { registerJsExport } from './js-export.js'
@@ -2820,6 +2821,7 @@ export default {
     registerNominationPush(router, ctx)
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx, { validatePassword })
+    registerPasskeys(router, ctx)
     registerImpersonate(router, ctx)
     registerHousehold(router, ctx)
     registerJsExport(router, ctx)

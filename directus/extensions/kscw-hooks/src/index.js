@@ -658,6 +658,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 1a. Passkeys go with the password (migration 439) ────────────
+  // Every password write — the reset link, the e-mail OTP, the signup invite, the
+  // authenticated /set-password, /change-password and the admin UI — goes through
+  // UsersService, so this one action catches them all. If someone stole the password and
+  // set up a passkey with it, changing the password must lock them out too; the member
+  // sets theirs up again with one tap (Profile → Passkeys says so).
+  action('users.update', async ({ keys, payload }) => {
+    if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'password')) return
+    const ids = (Array.isArray(keys) ? keys : [keys]).filter(Boolean).map(String)
+    if (!ids.length) return
+    try {
+      const n = await database('passkeys').whereIn('user', ids).delete()
+      if (n) log.info({ msg: `password changed: removed ${n} passkey(s)`, event: 'passkeys_password_change', userIds: ids })
+    } catch (err) {
+      log.error({ msg: `password changed but passkeys were NOT removed: ${err.message}`, event: 'passkeys_password_change', userIds: ids, stack: err.stack })
+      logWarning('passkeys_password_change', err.message, { userIds: ids, stack: err.stack })
+    }
+  })
+
   // ── 1b. Role Sync — keep Directus user role in sync ─────────────
   // When members.role changes or coach/TR junctions change, update the
   // linked Directus user's role to the correct tier.

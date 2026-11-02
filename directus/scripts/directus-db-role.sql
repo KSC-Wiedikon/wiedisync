@@ -109,7 +109,8 @@ DECLARE
     'directus_sessions', 'directus_shares',
     'password_reset_tokens', 'email_verifications',
     'identity_documents', 'identity_document_keys',
-    'game_vm_sheets'
+    'game_vm_sheets',
+    'passkeys'
   ];
   -- Bearer secrets whose names do not say so (table.column).
   deny_columns constant text[] := ARRAY[
