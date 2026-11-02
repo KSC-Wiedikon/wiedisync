@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.55.0'
+const APP_VERSION = '2.57.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,27 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.57.0',
+    date: '02.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Car pooling: «Also driving back» when you offer a ride posts your car on the Return board too, with its own time. Rides now show «Also back» or «Also going» when the driver drives both ways.',
+          "Live: the referees' names under the score, and turning your phone sideways shows the scoreboard full screen. The screen stays on while a match is running.",
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'Car pooling is now on for every game by default; a coach can still switch it off for a game.',
+          'Game, training and event windows: the share, Contact and Cancel buttons are smaller and fit on one row on a phone.',
+          'Car pooling form: the date has its own row, so it no longer runs into the time on a phone.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.55.0',
     date: '02.11.2026',

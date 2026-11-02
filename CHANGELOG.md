@@ -2,6 +2,19 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.57.0 — 2026-11-02
+
+### Added
+
+- Car pooling: «Also driving back» when you offer a ride posts your car on the Return board too, with its own time. Rides now show «Also back» or «Also going» when the driver drives both ways.
+- Live: the referees' names under the score, and turning your phone sideways shows the scoreboard full screen. The screen stays on while a match is running.
+
+### Changed
+
+- Car pooling is now on for every game by default; a coach can still switch it off for a game.
+- Game, training and event windows: the share, Contact and Cancel buttons are smaller and fit on one row on a phone.
+- Car pooling form: the date has its own row, so it no longer runs into the time on a phone.
+
 ## v2.55.0 — 2026-11-02
 
 ### Added
