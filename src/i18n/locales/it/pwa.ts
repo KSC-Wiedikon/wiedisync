@@ -1,7 +1,7 @@
 export default {
   banner: {
     title: 'Aggiungi Wiedisync alla schermata Home',
-    body: "Installa l'app per un accesso più rapido e una visualizzazione a schermo intero.",
+    body: "Installa l'app per un accesso più rapido, lo schermo intero e le notifiche (su iPhone è l'unico modo per riceverle).",
     showHow: 'Mostrami come',
     remindLater: 'Ricordamelo più tardi',
     understood: 'Ho capito',

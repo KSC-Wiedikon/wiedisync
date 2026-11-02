@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.55.0 — 2026-11-02
+
+### Added
+
+- On Home, a one-time «Get reminders on this device» card turns on notifications with one tap. «Not now» hides it for good; the switch stays in the notifications panel.
+
+### Changed
+
+- The «Add to home screen» banner now says that on an iPhone, installing is the only way to get notifications.
+
 ## v2.54.0 — 2026-11-02
 
 ### Added

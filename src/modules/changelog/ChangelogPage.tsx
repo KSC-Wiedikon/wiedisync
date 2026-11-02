@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.54.0'
+const APP_VERSION = '2.55.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.55.0',
+    date: '02.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'On Home, a one-time «Get reminders on this device» card turns on notifications with one tap. «Not now» hides it for good; the switch stays in the notifications panel.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'The «Add to home screen» banner now says that on an iPhone, installing is the only way to get notifications.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.54.0',
     date: '02.11.2026',

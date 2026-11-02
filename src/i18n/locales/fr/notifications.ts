@@ -79,6 +79,11 @@ export default {
   pushTestFailed: 'Le test n\'a pas pu être livré. Désactivez puis réactivez les notifications push.',
   pushTestRateLimited: 'Veuillez attendre quelques minutes avant le prochain test.',
   pushTestNotSubscribed: 'Les notifications push ne sont pas activées sur cet appareil.',
+  pushPromptTitle: 'Recevoir des rappels sur cet appareil',
+  pushPromptBody: 'Délais de réponse, changements d\'entraînements et de matchs, liste d\'attente : en notification, même quand Wiedisync est fermé.',
+  pushPromptEnable: 'Activer',
+  pushPromptLater: 'Pas maintenant',
+  pushPromptDone: 'Les notifications sont activées sur cet appareil.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} non lue',
   unreadShort_other: '{{count}} non lues',
