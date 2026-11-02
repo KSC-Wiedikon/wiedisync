@@ -3,7 +3,7 @@ Wiedisync ist die Mitglieder-App des KSC Wiedikon, des Volleyball- und Basketbal
 <ul>
 <li>Trainings, Spiele und Events, mit Anmeldung und Absenzen</li>
 <li>Einsätze, Fahrgemeinschaften, Hallenplan und Vereinsnews</li>
-<li>Benachrichtigungen ohne Google: Sie kommen über UnifiedPush. Installiere eine kostenlose UnifiedPush-App wie Sunup oder ntfy (beide auf F-Droid) und schalte dann in Wiedisync die Benachrichtigungen ein.</li>
+<li>Benachrichtigungen: Schalte sie in Wiedisync ein. Sie kommen über UnifiedPush: mit einer UnifiedPush-App wie Sunup oder ntfy (beide auf F-Droid) über diese App, sonst über die Google-Play-Dienste. Ein Telefon ohne Google-Play-Dienste braucht eine dieser Apps.</li>
 <li>Exporte (CSV, PDF, Kalenderdateien) landen direkt in deinem Download-Ordner</li>
 </ul>
 

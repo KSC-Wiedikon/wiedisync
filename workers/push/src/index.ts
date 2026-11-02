@@ -103,7 +103,10 @@ const MAX_SUBSCRIPTIONS = 500
 // (state is per-isolate, reset on cold start) — a durable cap belongs in a
 // Cloudflare Rate Limiting rule or KV/Durable-Object binding, but this still
 // blunts a single hot caller hammering one isolate.
-const RATE_LIMIT_MAX = 30 // requests
+// 120, not 30 (2026-11-02): Directus now sends at most 40 subscriptions per call
+// (the Free plan's 50-subrequest cap), so one club-wide announcement in five
+// languages is a dozen calls, and two crons can land in the same minute.
+const RATE_LIMIT_MAX = 120 // requests
 const RATE_LIMIT_WINDOW_MS = 60_000 // per 60s
 const rateLimitHits = new Map<string, number[]>()
 
@@ -273,7 +276,10 @@ async function createVapidJwt(
   const now = Math.floor(Date.now() / 1000)
   const claims = {
     aud: audience,
-    exp: now + 86400, // 24h
+    // 12 h, not 24: RFC 8292 caps `exp` at 24 h from the push service's own
+    // clock, so exactly 24 h is refused by a service whose clock runs a second
+    // behind ours. 12 h is what the web-push libraries use (2026-11-02).
+    exp: now + 12 * 3600,
     sub: sub && /^mailto:[^@\s]+@[^@\s]+$/.test(sub) ? sub : 'mailto:kontakt@kscw.ch',
   }
 
