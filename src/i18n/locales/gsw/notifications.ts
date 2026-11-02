@@ -79,6 +79,11 @@ export default {
   pushTestFailed: 'De Test isch nöd acho. Schalt d Push-Benachrichtigige us und wieder ii.',
   pushTestRateLimited: 'Bitte wart es paar Minute bis zum nächschte Test.',
   pushTestNotSubscribed: 'Uf dem Grät sind Push-Benachrichtigige nöd aktiviert.',
+  pushPromptTitle: 'Erinnerige uf dem Grät',
+  pushPromptBody: 'Antwortfriste, Änderige a Trainings und Spiel, Wartelischte: als Benachrichtigung, au wänn Wiedisync zue isch.',
+  pushPromptEnable: 'Iischalte',
+  pushPromptLater: 'Jetzt nöd',
+  pushPromptDone: 'Benachrichtigige sind uf dem Grät a.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} ungläse',
   unreadShort_other: '{{count}} ungläse',

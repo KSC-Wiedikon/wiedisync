@@ -80,6 +80,11 @@ export default {
   pushTestFailed: 'Der Test konnte nicht zugestellt werden. Schalte Push-Benachrichtigungen aus und wieder ein.',
   pushTestRateLimited: 'Bitte warte ein paar Minuten bis zum nächsten Test.',
   pushTestNotSubscribed: 'Auf diesem Gerät sind Push-Benachrichtigungen nicht aktiviert.',
+  pushPromptTitle: 'Erinnerungen auf diesem Gerät',
+  pushPromptBody: 'Antwortfristen, Änderungen an Trainings und Spielen, Wartelisten: als Benachrichtigung, auch wenn Wiedisync geschlossen ist.',
+  pushPromptEnable: 'Einschalten',
+  pushPromptLater: 'Nicht jetzt',
+  pushPromptDone: 'Benachrichtigungen sind auf diesem Gerät an.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} ungelesen',
   unreadShort_other: '{{count}} ungelesen',
