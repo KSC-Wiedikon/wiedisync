@@ -17,7 +17,7 @@ function ServingDot({ label }: { label: string }) {
 }
 
 /** A team's big current-set points. */
-function TeamScore({ team, align }: { team: TeamView; align: 'start' | 'end' }) {
+function TeamScore({ team, align, big }: { team: TeamView; align: 'start' | 'end'; big?: boolean }) {
   const end = align === 'end'
   return (
     // `key` on the score remounts this node when a point lands, which restarts
@@ -25,7 +25,8 @@ function TeamScore({ team, align }: { team: TeamView; align: 'start' | 'end' }) 
     <div
       key={team.points}
       className={cn(
-        'text-6xl font-black tabular-nums leading-none animate-score-bump sm:text-7xl',
+        'font-black tabular-nums leading-none animate-score-bump',
+        big ? 'text-[length:min(40vh,22vw)] leading-none' : 'text-6xl sm:text-7xl',
         end ? 'origin-right text-right' : 'origin-left text-left',
       )}
     >
@@ -46,7 +47,7 @@ function TeamCounts({ team, align, isBeach }: { team: TeamView; align: 'start' |
 }
 
 /** Volleyball and beach: points in the current set, sets won, serve, set history. */
-export default function VolleyballBoard({ state }: { state: BoardState }) {
+export default function VolleyballBoard({ state, big = false }: { state: BoardState; big?: boolean }) {
   const { t } = useTranslation('live')
   const [a, b] = toTeams(state)
   const results = state.set_results ?? []
@@ -54,14 +55,17 @@ export default function VolleyballBoard({ state }: { state: BoardState }) {
   const sport = isBeach ? 'beach' : 'volleyball'
 
   return (
-    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
+    <div className={cn(
+      'rounded-2xl border border-hairline bg-card shadow-card',
+      big ? 'flex h-full w-full flex-col justify-center px-6 py-3' : 'p-4 sm:p-6',
+    )}>
       {/* Completed sets */}
       {results.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-1.5">
+        <div className={cn('flex flex-wrap items-center justify-center gap-1.5', big ? 'mb-2' : 'mb-4')}>
           {results.map((r, i) => (
             <span
               key={i}
-              className="rounded-md border bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground"
+              className={cn('rounded-md border bg-muted px-2 py-0.5 font-semibold tabular-nums text-muted-foreground', big ? 'text-sm' : 'text-xs')}
               title={t('set', { n: i + 1 })}
             >
               <span className={cn(r.a > r.b && 'text-foreground')}>{r.a}</span>
@@ -95,12 +99,12 @@ export default function VolleyballBoard({ state }: { state: BoardState }) {
           />
         </div>
 
-        <TeamScore team={a} align="start" />
+        <TeamScore team={a} align="start" big={big} />
         <div className="px-1 text-center">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             {t('sets')}
           </div>
-          <div className="text-2xl font-bold tabular-nums sm:text-4xl">
+          <div className={cn('font-bold tabular-nums', big ? 'text-5xl' : 'text-2xl sm:text-4xl')}>
             {a.sets}
             <span className="mx-1 text-muted-foreground/60">:</span>
             {b.sets}
@@ -109,7 +113,7 @@ export default function VolleyballBoard({ state }: { state: BoardState }) {
             {t('set', { n: currentSetNumber(state) })}
           </div>
         </div>
-        <TeamScore team={b} align="end" />
+        <TeamScore team={b} align="end" big={big} />
 
         <div className="mt-1">
           <TeamCounts team={a} align="start" isBeach={isBeach} />

@@ -27,10 +27,12 @@ interface ShareActivityButtonProps {
   title?: string
   /** Drop the text label — for modal headers, where the row is already crowded. */
   iconOnly?: boolean
+  /** Icon-only size: `sm` (36/32px) to sit beside the small modal-header buttons. */
+  size?: 'md' | 'sm'
   className?: string
 }
 
-export default function ShareActivityButton({ kind, id, title, iconOnly, className }: ShareActivityButtonProps) {
+export default function ShareActivityButton({ kind, id, title, iconOnly, size = 'md', className }: ShareActivityButtonProps) {
   const { t } = useTranslation('common')
 
   async function handleShare(e: React.MouseEvent) {
@@ -77,7 +79,7 @@ export default function ShareActivityButton({ kind, id, title, iconOnly, classNa
 
   if (iconOnly) {
     return (
-      <IconButton label={t('shareLink')} onClick={handleShare} className={cn('text-muted-foreground', className)}>
+      <IconButton label={t('shareLink')} size={size} onClick={handleShare} className={cn('text-muted-foreground', className)}>
         <Share2 />
       </IconButton>
     )

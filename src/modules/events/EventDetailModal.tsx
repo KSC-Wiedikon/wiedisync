@@ -165,14 +165,14 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
   // A fragment, not a wrapper: Modal lays headerAction out in its own
   // `flex flex-wrap items-center gap-2`, and a nested non-wrapping flex would
-  // defeat the wrap. Heights all come from the Button scale (Share = IconButton,
-  // Cancel/Contact = default Buttons), so the three never step.
+  // defeat the wrap. All three are the small tier of the Button scale (Share =
+  // IconButton sm, Cancel/Contact = sm Buttons), so they never step and fit one line.
   const headerBroadcast = (
     <>
       {/* Members' door. Distinct from the `signup_url` block further down, which
           is the guests' door — see ShareActivityButton for why they must not be
           collapsed into one link. */}
-      <ShareActivityButton kind="event" id={event.id} title={event.title} iconOnly />
+      <ShareActivityButton kind="event" id={event.id} title={event.title} iconOnly size="sm" />
       <CancelActivityButton
         kind="event"
         activityId={event.id}
@@ -183,6 +183,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
       />
       {user ? (
         <BroadcastButton
+          size="sm"
           activity={{
             type: 'event',
             id: Number(event.id),

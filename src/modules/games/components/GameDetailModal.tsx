@@ -620,18 +620,19 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               played fixture is just as shareable as one to an upcoming game; the
               broadcast/cancel pair keeps its original scheduled-or-cancelled
               gate, and `empty:hidden` no longer fires since share always renders.
-              All three take their height from the Button scale (Share is an
-              IconButton, Contact/Cancel default-size Buttons) — 44px on a phone,
-              36px from sm — so the row never steps. */}
+              All of them are the small tier of the Button scale (Share is an
+              IconButton sm, Contact/Cancel/Video sm Buttons) — 36px on a phone,
+              32px from sm — so the row never steps and fits one line on a phone. */}
           <div className="mt-3 flex flex-wrap items-center gap-2 empty:hidden">
             <ShareActivityButton
               kind="game"
               id={game.id}
               title={`${homeLabel} vs ${awayLabel}`}
               iconOnly
+              size="sm"
             />
             {videoUrl && (
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" size="sm">
                 <a href={videoUrl} target="_blank" rel="noopener noreferrer" title={t('wieplayVideoTitle')} aria-label={t('wieplayVideoTitle')}>
                   <Video aria-hidden />{t('wieplayVideo')}
                 </a>
@@ -641,6 +642,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               <>
               {game.status === 'scheduled' && (
                 <BroadcastButton
+                  size="sm"
                   labelAlwaysVisible
                   activity={{
                     type: 'game',

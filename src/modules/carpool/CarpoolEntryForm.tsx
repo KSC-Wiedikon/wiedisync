@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import DatePicker from '@/components/ui/DatePicker'
 import { TeamPickerMulti, type TeamPickerOption } from '@/components/ui/TeamPicker'
 import type { CarpoolDirection, CarpoolEntryInput, CarpoolKind } from './carpoolApi'
@@ -27,7 +28,14 @@ interface CarpoolEntryFormProps {
   minSeats?: number
   /** Teams an offer can be for (migration 380). Picker shown when ≥2. */
   teamOptions?: readonly TeamPickerOption[]
-  onSubmit: (input: CarpoolEntryInput) => Promise<void>
+  /**
+   * New Going offer only: the day the "Also driving back" ride would go on the
+   * Return board. Absent (or null) = no round-trip toggle — editing, a request,
+   * the Return board itself, or the driver already has a return ride that day.
+   */
+  backDate?: string | null
+  /** `back` = also post the same car on the Return board, leaving at `back.time`. */
+  onSubmit: (input: CarpoolEntryInput, back?: { date: string; time: string | null }) => Promise<void>
   onCancel: () => void
 }
 
@@ -36,7 +44,7 @@ interface CarpoolEntryFormProps {
  * dialog: the banner itself lives inside the game/training/event modals, and a
  * dialog on top of those fights their focus traps.
  */
-export default function CarpoolEntryForm({ kind, direction, defaultDate, initial, suggestedTime, takenDays = [], minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
+export default function CarpoolEntryForm({ kind, direction, defaultDate, initial, suggestedTime, takenDays = [], minSeats = 1, teamOptions = [], backDate, onSubmit, onCancel }: CarpoolEntryFormProps) {
   const { t } = useTranslation('carpool')
   const { t: tc } = useTranslation('common')
   const editing = !!initial
@@ -47,6 +55,9 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
   const [location, setLocation] = useState<string>(initial?.departure_location ?? '')
   const [notes, setNotes] = useState<string>(initial?.notes ?? '')
   const [saving, setSaving] = useState(false)
+  const [alsoBack, setAlsoBack] = useState(false)
+  const [backTime, setBackTime] = useState('')
+  const canRoundTrip = !editing && kind === 'offer' && direction === 'there' && !!backDate
   const idp = `carpool-${kind}-${direction}`
   // One ride per way per day: the server refuses a second one, so say it here.
   const dayTaken = !!date && takenDays.includes(date)
@@ -64,7 +75,7 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
         teams: kind === 'offer' ? teams.filter((id) => teamOptions.some((o) => o.id === id)).map(Number) : [],
         departure_location: location.trim() || null,
         notes: notes.trim() || null,
-      })
+      }, canRoundTrip && alsoBack ? { date: backDate!, time: backTime || null } : undefined)
     } finally {
       setSaving(false)
     }
@@ -79,15 +90,10 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
         <span className="font-normal text-muted-foreground"> · {t(`tab_${direction}`)}</span>
       </p>
 
-      {/* The day + clock of this way (Going or Return) — a return can be on
-          another day than the way there (multi-day events). */}
-      <div className="grid grid-cols-2 gap-3">
-        <DatePicker id={`${idp}-date`} label={t('departureDate')} value={date} onChange={setDate} />
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idp}-time`}>{t('departureTime')}</Label>
-          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
-        </div>
-      </div>
+      {/* The day of this way (Going or Return) — a return can be on another day
+          than the way there (multi-day events). Full width: next to the clock,
+          the dd.mm.yyyy field ran into it on a phone. */}
+      <DatePicker id={`${idp}-date`} label={t('departureDate')} value={date} onChange={setDate} />
       {dayTaken && (
         <p role="alert" className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -96,7 +102,11 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor={`${idp}-time`}>{t('departureTime')}</Label>
+          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
+        </div>
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor={`${idp}-seats`}>{t(kind === 'offer' ? 'seatsOffer' : 'seatsRequest')}</Label>
           <select
             id={`${idp}-seats`}
@@ -108,6 +118,29 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
           </select>
         </div>
       </div>
+
+      {/* Round trip: the same car also goes on the Return board, so passengers
+          see the driver takes them back too. Two rides, one per board — each can
+          be edited or withdrawn on its own afterwards. */}
+      {canRoundTrip && (
+        <div className="space-y-3 rounded-lg bg-surface-sunken p-3">
+          <label htmlFor={`${idp}-also-back`} className="flex cursor-pointer items-start gap-3">
+            <Switch id={`${idp}-also-back`} checked={alsoBack} onCheckedChange={setAlsoBack} className="mt-0.5" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-foreground">{t('alsoBack')}</span>
+              <span className="block text-xs text-muted-foreground">{t('alsoBackHint')}</span>
+            </span>
+          </label>
+          {alsoBack && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor={`${idp}-back-time`}>{t('returnTime')}</Label>
+                <Input id={`${idp}-back-time`} type="time" step={300} value={backTime} onChange={(e) => setBackTime(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Which of the invited teams this ride is for (offers only). */}
       {kind === 'offer' && teamOptions.length >= 2 && (
