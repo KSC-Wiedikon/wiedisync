@@ -247,6 +247,12 @@ UPDATE email_accounts SET password_enc = NULL WHERE password_enc IS NOT NULL;
 TRUNCATE push_subscriptions;
 DELETE FROM email_verifications;
 DELETE FROM directus_sessions;
+-- Passkeys (migration 439): prod keys are for RP kscw.ch and cannot sign in on
+-- dev anyway (dev is RP wiedisync-dev.kscw.ch), but a prod credential has no
+-- business here. Guarded: the clone may come from a prod without the table yet.
+DO $$ BEGIN
+  IF to_regclass('public.passkeys') IS NOT NULL THEN EXECUTE 'DELETE FROM passkeys'; END IF;
+END $$;
 
 \if :scrub_pii
 

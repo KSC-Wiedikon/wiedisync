@@ -612,6 +612,10 @@ const PII_FIELDS = new Set([
 const PII_FRAGMENTS = [
   'password', 'passwd', 'secret', 'token', 'ticket', 'cookie', 'authorization',
   'privatekey', 'wrappedkey', 'apikey', 'e2ee',
+  // A passkey answer (WebAuthn): the signed client data, the authenticator data and
+  // the account handle. kscwApi never attaches a /passkey/ body (credential
+  // endpoint); these catch a copy that reaches a report any other way.
+  'clientdatajson', 'attestationobject', 'authenticatordata', 'userhandle',
   'email', 'phone', 'iban', 'ahv', 'birth', 'geburt',
   'address', 'adresse', 'street', 'strasse', 'postcode', 'postal',
 ]
@@ -622,7 +626,8 @@ const PII_FRAGMENTS = [
  * and redacting those would blind the log for nothing.
  */
 // `city` is the English `ort` (registrations since migration 413).
-const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'city', 'zip', 'dob'])
+// `signature` is the passkey answer's signature (and a mailbox signature, which names people).
+const PII_WORDS = new Set(['pwd', 'salt', 'kdf', 'otp', 'pin', 'plz', 'ort', 'city', 'zip', 'dob', 'signature'])
 
 /**
  * Whether a payload key holds something that must not reach Sentry or the JSONL log.

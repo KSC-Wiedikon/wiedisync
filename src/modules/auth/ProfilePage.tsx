@@ -16,6 +16,7 @@ import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions
 import { memberName, memberFirstName, flattenMemberIds } from '../../utils/relations'
 import { formatDate, toISODate } from '../../utils/dateHelpers'
 import DeleteAccountModal from './DeleteAccountModal'
+import PasskeysCard from './PasskeysCard'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
 import MyRegistrationDocs from './MyRegistrationDocs'
@@ -752,6 +753,8 @@ export default function ProfilePage() {
           <p className="mt-3 text-sm text-muted-foreground">{t('noActiveAbsences')}</p>
         )}
       </div>
+
+      <PasskeysCard />
 
       {/* Danger Zone */}
       <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/30 p-5 dark:border-red-900/40 dark:bg-red-950/10">
