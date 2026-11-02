@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { API_URL, getCurrentMemberId, isImpersonating, kscwApi } from '../lib/api'
+import { API_URL, getActingMemberId, getCurrentMemberId, isImpersonating, kscwApi } from '../lib/api'
 import { captureApiError } from '../lib/sentry'
 import {
   hasNativeBridge, hasNativeFeature, isNativeBridgeError, nativeRequest, onNativeEvent,
@@ -51,6 +51,78 @@ function probeWebSubscription(setState: Dispatch<SetStateAction<PushState>>): vo
     })
 }
 
+// ── Web backend: keep the server's row in step with the browser ───────
+// The toggle reads the BROWSER's subscription, so a row the server lost, or a
+// subscription made with an older key, showed "on" while nothing ever arrived
+// (2026-11-02). On every app open the push sync re-registers what the browser
+// holds, and re-subscribes when that subscription was made with another key.
+
+/** POST /web-push/subscribe for a browser subscription. */
+function registerWebSubscription(sub: PushSubscription) {
+  const json = sub.toJSON()
+  return kscwApi('/web-push/subscribe', {
+    method: 'POST',
+    body: {
+      endpoint: json.endpoint,
+      keys_p256dh: json.keys?.p256dh || '',
+      keys_auth: json.keys?.auth || '',
+      user_agent: navigator.userAgent,
+    },
+  })
+}
+
+/** The VAPID public key from Directus (public endpoint, no auth needed). */
+async function fetchVapidKey(): Promise<string> {
+  const resp = await fetch(`${API_URL}/kscw/web-push/vapid-public-key`)
+  if (!resp.ok) throw new Error(`VAPID key fetch failed: ${resp.status}`)
+  const { publicKey } = await resp.json()
+  return publicKey
+}
+
+/**
+ * Whether a subscription's `applicationServerKey` is `publicKey`. A browser that
+ * does not report the key counts as a match: there is nothing to compare.
+ */
+export function subscriptionUsesKey(applicationServerKey: ArrayBuffer | null | undefined, publicKey: string): boolean {
+  if (!applicationServerKey) return true
+  const held = new Uint8Array(applicationServerKey)
+  const current = urlBase64ToUint8Array(publicKey)
+  return held.length === current.length && held.every((byte, i) => byte === current[i])
+}
+
+/**
+ * Re-register this browser's subscription with the server, re-subscribing first
+ * when it was made with another key (the push service would refuse every push).
+ * Skipped while impersonating or acting for a household member: the device must
+ * not be bound to someone else in the background.
+ */
+async function resyncWebSubscription(): Promise<void> {
+  if (isImpersonating() || getActingMemberId() != null) return
+  if (!detectPushSupport() || Notification.permission !== 'granted' || !navigator.onLine) return
+  const reg = await navigator.serviceWorker.ready
+  let sub = await reg.pushManager.getSubscription()
+  if (!sub) return
+  const publicKey = await fetchVapidKey()
+  if (!subscriptionUsesKey(sub.options?.applicationServerKey, publicKey)) {
+    const staleEndpoint = sub.endpoint
+    await sub.unsubscribe()
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+    })
+    kscwApi('/web-push/unsubscribe', { method: 'POST', body: { endpoint: staleEndpoint } }).catch(() => undefined)
+  }
+  const key = `${getCurrentMemberId()}:${sub.endpoint}`
+  if (key === resyncedKey) return
+  resyncedKey = key
+  try {
+    await registerWebSubscription(sub)
+  } catch (err) {
+    resyncedKey = null
+    throw err
+  }
+}
+
 // ── Native backend (Android app) ──────────────────────────────────────
 // The app's WebView has no Push API. It registers with the user's UnifiedPush
 // distributor (Sunup, ntfy) instead, and the endpoint it gets back is an
@@ -70,7 +142,7 @@ function registerNativeSubscription(sub: NativePushSubscription) {
   })
 }
 
-/** member:endpoint last re-registered this page load — the hook remounts with every panel open. */
+/** member:endpoint last re-registered this page load (web or app) — the hook remounts with every panel open. */
 let resyncedKey: string | null = null
 
 /**
@@ -104,17 +176,23 @@ function isEndpointRejected(err: unknown): boolean {
  * or, inside the Android app, the same through the native bridge (UnifiedPush).
  */
 /**
- * App-wide, mounted once in Layout. Inside the Android app, keeps the server's
- * push row in step with the UnifiedPush endpoint the app holds: a distributor
- * can rotate the endpoint while the app is closed, and `usePushNotifications`
- * only runs while the notification panel or the guide is open — without this
- * a rotated endpoint would silently stop all pushes to this phone.
+ * App-wide, mounted once in Layout. Keeps the server's push row in step with
+ * the subscription this device holds, because `usePushNotifications` only runs
+ * while the notification panel or the guide is open:
+ * - in a browser, the PushManager subscription (see resyncWebSubscription);
+ * - inside the Android app, the UnifiedPush endpoint the app holds. A
+ *   distributor can rotate it while the app is closed, and without this a
+ *   rotated endpoint would silently stop all pushes to this phone.
  */
-export function useNativePushSync(): void {
+export function usePushSync(): void {
   const { user } = useAuth()
   const userId = user?.id
   useEffect(() => {
-    if (!userId || !hasNativeBridge()) return
+    if (!userId) return
+    if (!hasNativeBridge()) {
+      resyncWebSubscription().catch((err) => captureApiError(err, { operation: 'usePushSync.web' }))
+      return
+    }
     let cancelled = false
     let offEndpoint: (() => void) | undefined
     hasNativeFeature('push')
@@ -122,12 +200,12 @@ export function useNativePushSync(): void {
         if (!offered || cancelled) return
         // A non-null endpoint event only comes from a registration the member made.
         offEndpoint = onNativeEvent<{ subscription?: NativePushSubscription | null }>('push-endpoint', ({ subscription }) => {
-          if (subscription) resyncNativeSubscription(subscription, 'useNativePushSync.pushEndpoint')
+          if (subscription) resyncNativeSubscription(subscription, 'usePushSync.pushEndpoint')
         })
         const { subscription } = await nativeRequest<NativePushState>('push.state')
-        if (!cancelled && subscription) resyncNativeSubscription(subscription, 'useNativePushSync.resync')
+        if (!cancelled && subscription) resyncNativeSubscription(subscription, 'usePushSync.resync')
       })
-      .catch((err) => captureApiError(err, { operation: 'useNativePushSync' }))
+      .catch((err) => captureApiError(err, { operation: 'usePushSync' }))
     return () => {
       cancelled = true
       offEndpoint?.()
@@ -159,6 +237,8 @@ export function usePushNotifications() {
 
   // Set once the bridge confirms it offers push; every action then goes native.
   const [native, setNative] = useState(false)
+  // A "Send test notification" request is in flight.
+  const [testing, setTesting] = useState(false)
   // For the push-endpoint listener, which outlives the render it was made in.
   const subscribedRef = useRef(false)
   useEffect(() => { subscribedRef.current = state.subscribed }, [state.subscribed])
@@ -221,13 +301,25 @@ export function usePushNotifications() {
 
       // The app asks for the Android notification permission, then waits on the
       // distributor's registration callback — both can take a while.
-      const { subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
+      let { subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
         'push.subscribe', { vapidPublicKey: publicKey }, 60_000,
       )
       held = subscription
       setState(s => ({ ...s, permission: 'granted' }))
 
-      await registerNativeSubscription(subscription)
+      try {
+        await registerNativeSubscription(subscription)
+      } catch (err) {
+        // The server refused the distributor's endpoint (a self-hosted ntfy, say).
+        // An app build that can push through Play services switches to that
+        // instead of giving up (app 1.1.0+, 2026-11-02).
+        if (!isEndpointRejected(err) || !(await hasNativeFeature('pushEmbedded'))) throw err
+        ;({ subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
+          'push.subscribe', { vapidPublicKey: publicKey, embedded: true }, 60_000,
+        ))
+        held = subscription
+        await registerNativeSubscription(subscription)
+      }
       resyncedKey = `${getCurrentMemberId()}:${subscription.endpoint}`
       setState(s => ({ ...s, subscribed: true, loading: false }))
       return true
@@ -242,6 +334,10 @@ export function usePushNotifications() {
       if (held) nativeRequest('push.unsubscribe').catch(() => undefined)
       if (isNativeBridgeError(err, 'no_distributor')) {
         toast.error(t('pushNoDistributor'), { duration: 10_000 })
+      } else if (isNativeBridgeError(err, 'distributor_silent')) {
+        // The distributor app never answered (never opened, or force-stopped) and
+        // this phone has no Play services to fall back on.
+        toast.error(t('pushDistributorSilent', { app: err.detail || 'UnifiedPush' }), { duration: 10_000 })
       } else if (isEndpointRejected(err)) {
         // kscwApi already logged the 400 (with the endpoint host).
         toast.error(t('pushServerNotSupported'), { duration: 10_000 })
@@ -272,31 +368,25 @@ export function usePushNotifications() {
         return false
       }
 
-      // Get VAPID public key from Directus (public endpoint, no auth needed)
-      const vapidResp = await fetch(`${API_URL}/kscw/web-push/vapid-public-key`)
-      if (!vapidResp.ok) throw new Error(`VAPID key fetch failed: ${vapidResp.status}`)
-      const { publicKey } = await vapidResp.json()
+      const publicKey = await fetchVapidKey()
 
-      // Subscribe via PushManager
+      // Subscribe via PushManager. A subscription made with another key makes
+      // subscribe() throw InvalidStateError, and every push to it is refused
+      // anyway, so it goes first.
       const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      if (existing && !subscriptionUsesKey(existing.options?.applicationServerKey, publicKey)) {
+        await existing.unsubscribe()
+      }
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         // Pass Uint8Array directly — some Chrome Android versions fail with .buffer
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       })
 
-      const subJson = subscription.toJSON()
-
       // Register with Directus (uses kscwApi with 401 retry)
-      await kscwApi('/web-push/subscribe', {
-        method: 'POST',
-        body: {
-          endpoint: subJson.endpoint,
-          keys_p256dh: subJson.keys?.p256dh || '',
-          keys_auth: subJson.keys?.auth || '',
-          user_agent: navigator.userAgent,
-        },
-      })
+      await registerWebSubscription(subscription)
+      resyncedKey = `${getCurrentMemberId()}:${subscription.endpoint}`
 
       setState(s => ({ ...s, subscribed: true, loading: false }))
       return true
@@ -365,10 +455,59 @@ export function usePushNotifications() {
     }
   }, [state.supported, state.loading, state.probing, native, t])
 
+  /**
+   * "Send test notification": registers this device's subscription again (the
+   * same upsert as the push sync), then asks the server for a push to exactly
+   * this endpoint. The toast says whether the push service took it.
+   */
+  const sendTest = useCallback(async () => {
+    if (testing || isImpersonating()) return
+    setTesting(true)
+    try {
+      let endpoint: string | null = null
+      if (native) {
+        const { subscription } = await nativeRequest<NativePushState>('push.state')
+        if (subscription) {
+          await registerNativeSubscription(subscription)
+          endpoint = subscription.endpoint
+        }
+      } else {
+        const reg = await navigator.serviceWorker.ready
+        const subscription = await reg.pushManager.getSubscription()
+        if (subscription) {
+          await registerWebSubscription(subscription)
+          endpoint = subscription.endpoint
+        }
+      }
+      if (!endpoint) {
+        setState(s => ({ ...s, subscribed: false }))
+        toast.error(t('pushTestNotSubscribed'))
+        return
+      }
+      const result = await kscwApi<{ registered: boolean; sent: number; failed: number }>('/web-push/test-self', {
+        method: 'POST',
+        body: { endpoint },
+      })
+      if (result.sent > 0) toast.success(t('pushTestSent'))
+      else toast.error(t('pushTestFailed'), { duration: 10_000 })
+    } catch (err) {
+      if ((err as { status?: number } | null)?.status === 429) {
+        toast.error(t('pushTestRateLimited'))
+      } else {
+        captureApiError(err, { operation: 'usePushNotifications.sendTest' })
+        toast.error(t('pushTestFailed'), { duration: 10_000 })
+      }
+    } finally {
+      setTesting(false)
+    }
+  }, [testing, native, t])
+
   return {
     ...state,
+    testing,
     subscribe,
     unsubscribe,
+    sendTest,
   }
 }
 

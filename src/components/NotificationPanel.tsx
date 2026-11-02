@@ -390,6 +390,22 @@ export default function NotificationPanel({
                 </Button>
               )}
             </div>
+            {/* Lets a member check THIS device end to end: the toggle only knows
+                what the browser holds, not whether a push actually arrives. */}
+            {push.subscribed && !push.probing && push.permission !== 'denied' && (
+              <div className="mt-2 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void push.sendTest()}
+                  loading={push.testing}
+                  disabled={push.loading}
+                >
+                  {t('pushTest')}
+                </Button>
+              </div>
+            )}
           </div>
         )}
         </div>

@@ -1,6 +1,8 @@
 package ch.kscw.wiedisync
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -43,6 +45,9 @@ class NativeBridge(
     private var proxy: JavaScriptReplyProxy? = null
     /** `push.subscribe` requests waiting for the distributor's NEW_ENDPOINT. */
     private val pendingSubscribe = mutableListOf<Int>()
+    /** The VAPID key of the registration in flight, for the fallback below. */
+    private var pendingVapid: String? = null
+    private val distributorSilent = Runnable { onDistributorSilent() }
     private val pushListener: (PushStore.Event) -> Unit = { event -> main.post { onPushEvent(event) } }
 
     init {
@@ -94,11 +99,13 @@ class NativeBridge(
                 JSONObject()
                     .put("platform", "android")
                     .put("appVersion", BuildConfig.VERSION_NAME)
-                    .put("features", JSONArray(listOf("saveFile", "share", "push", "systemBars"))),
+                    // pushEmbedded: this build can push through Play services (embedded FCM
+                    // distributor) and this phone has them — the page may ask for it outright.
+                    .put("features", JSONArray(listOf("saveFile", "share", "push", "systemBars") + if (hasPlayServices()) listOf("pushEmbedded") else emptyList())),
             )
             "share" -> share(id, msg)
             "push.state" -> ok(id, pushState())
-            "push.subscribe" -> pushSubscribe(id, msg.str("vapidPublicKey"))
+            "push.subscribe" -> pushSubscribe(id, msg.str("vapidPublicKey"), msg.optBoolean("embedded"))
             "push.unsubscribe" -> {
                 UnifiedPush.unregister(activity)
                 PushStore.clear(activity)
@@ -170,10 +177,27 @@ class NativeBridge(
         .put("subscription", PushStore.subscription(activity)?.toJson() ?: JSONObject.NULL)
         .put("distributor", UnifiedPush.getAckDistributor(activity) ?: JSONObject.NULL)
 
-    private fun pushSubscribe(id: Int, vapid: String) {
+    /**
+     * `embedded`: the page asks for Google's push outright, because the server
+     * refused the endpoint the distributor app gave (a self-hosted ntfy).
+     */
+    private fun pushSubscribe(id: Int, vapid: String, embedded: Boolean) {
         if (vapid.isBlank()) return fail(id, "registration_failed", "missing VAPID key")
         activity.requestNotificationPermission { granted ->
             if (!granted) return@requestNotificationPermission fail(id, "permission_denied")
+            if (embedded) {
+                if (!hasPlayServices()) return@requestNotificationPermission fail(id, "no_distributor")
+                UnifiedPush.saveDistributor(activity, activity.packageName)
+                return@requestNotificationPermission register(id, vapid)
+            }
+            // The app is a distributor itself now (embedded FCM distributor), so
+            // "no distributor" means no distributor APP. Without one, Google's push
+            // through Play Services; a member who installed Sunup or ntfy keeps it.
+            if (UnifiedPush.getDistributors(activity).none { it != activity.packageName }) {
+                if (!hasPlayServices()) return@requestNotificationPermission fail(id, "no_distributor")
+                UnifiedPush.saveDistributor(activity, activity.packageName)
+                return@requestNotificationPermission register(id, vapid)
+            }
             UnifiedPush.tryUseCurrentOrDefaultDistributor(activity) { useDefault ->
                 main.post {
                     when {
@@ -189,17 +213,65 @@ class NativeBridge(
         }
     }
 
+    private fun hasPlayServices(): Boolean = runCatching {
+        val pm = activity.packageManager
+        if (Build.VERSION.SDK_INT >= 33) {
+            pm.getPackageInfo(PLAY_SERVICES, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(PLAY_SERVICES, 0)
+        }
+    }.isSuccess
+
     private fun register(id: Int, vapid: String) {
         pendingSubscribe += id
+        pendingVapid = vapid
+        // A distributor app that was never opened, or was force-stopped, gets no
+        // broadcasts and never answers: the button spun for the page's whole 60 s
+        // and then gave up without a word (2026-11-02). The built-in one answers
+        // within a second, so only an app distributor gets the deadline.
+        main.removeCallbacks(distributorSilent)
+        if (UnifiedPush.getSavedDistributor(activity) != activity.packageName) {
+            main.postDelayed(distributorSilent, DISTRIBUTOR_ANSWER_MS)
+        }
         try {
             UnifiedPush.register(activity, messageForDistributor = activity.getString(R.string.app_name), vapid = vapid)
         } catch (_: UnifiedPush.VapidNotValidException) {
             pendingSubscribe -= id
+            main.removeCallbacks(distributorSilent)
             fail(id, "registration_failed", "invalid VAPID key")
         }
     }
 
+    /** The distributor app did not answer in time: Google's push if possible, else say which app to open. */
+    private fun onDistributorSilent() {
+        val waiting = pendingSubscribe.toList()
+        val vapid = pendingVapid
+        if (waiting.isEmpty() || vapid == null) return
+        pendingSubscribe.clear()
+        if (hasPlayServices()) {
+            UnifiedPush.saveDistributor(activity, activity.packageName)
+            waiting.drop(1).forEach { pendingSubscribe += it }
+            register(waiting.first(), vapid)
+            return
+        }
+        val name = UnifiedPush.getSavedDistributor(activity)?.let(::appLabel) ?: "UnifiedPush"
+        waiting.forEach { fail(it, "distributor_silent", name) }
+    }
+
+    private fun appLabel(packageName: String): String? = runCatching {
+        val pm = activity.packageManager
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getApplicationInfo(packageName, 0)
+        }
+        pm.getApplicationLabel(info).toString()
+    }.getOrNull()
+
     private fun onPushEvent(event: PushStore.Event) {
+        main.removeCallbacks(distributorSilent)
         val waiting = pendingSubscribe.toList()
         pendingSubscribe.clear()
         when (event) {
@@ -244,5 +316,9 @@ class NativeBridge(
         val MAX_MESSAGE_CHARS = Downloads.MAX_SAVE_BYTES / 3 * 4 + 64 * 1024
         /** The end of `JSON.stringify({ ...params, id, type })`. */
         val TAIL_ID = Regex("\"id\":(\\d+),\"type\":\"[^\"]*\"\\}$")
+        /** Google Play services: what the embedded FCM distributor registers through. */
+        const val PLAY_SERVICES = "com.google.android.gms"
+        /** How long a distributor app gets to answer a registration before the fallback. */
+        const val DISTRIBUTOR_ANSWER_MS = 10_000L
     }
 }
