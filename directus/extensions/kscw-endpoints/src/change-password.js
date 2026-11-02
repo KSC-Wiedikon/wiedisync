@@ -94,7 +94,12 @@ export function registerChangePassword(router, { database, services, getSchema, 
       const { AuthenticationService } = services
       const auth = new AuthenticationService({ schema: await getSchema(), accountability: null })
       try {
-        await auth.login('default', { email: user.email, password: String(current) })
+        const check = await auth.login('default', { email: user.email, password: String(current) })
+        // login() files a session for the check; nobody holds it — it would sit in
+        // directus_sessions for REFRESH_TOKEN_TTL.
+        if (check?.refreshToken) await database('directus_sessions').where('token', check.refreshToken).delete()
+        // The address resolves case-insensitively: make sure it was THIS account's password.
+        if (String(check?.id) !== String(userId)) throw new Error('password checked against another account')
       } catch {
         // Deliberately vague and deliberately not logged as an error — a wrong current
         // password is a user typo, not a system fault (same reasoning as the auth 4xx

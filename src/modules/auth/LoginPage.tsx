@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Fingerprint } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
+import { cn } from '@/lib/utils'
 import { safeReturnPath } from '../../utils/activityLinks'
 import { safeWieplayReturn } from '../../utils/wieplayReturn'
 import { API_URL } from '../../lib/api'
 import SupportContact from '@/components/SupportContact'
 import LanguageDropdown from '@/components/LanguageDropdown'
+import { anyPasskeyHere, isPasskeyCancel, passkeyErrorText, passkeysPossible } from '../../lib/passkeys'
 
 export default function LoginPage() {
-  const { login, user } = useAuth()
+  const { login, loginWithPasskey, user } = useAuth()
   const { theme } = useTheme()
   const { t } = useTranslation('auth')
   const navigate = useNavigate()
@@ -38,6 +41,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Passkeys (lib/passkeys.ts): only on the club's own hosts with WebAuthn. Decided once
+  // per visit. Somebody set one up or used one in this browser → the passkey leads.
+  const [canPasskey] = useState(() => passkeysPossible())
+  const [passkeyFirst] = useState(() => canPasskey && anyPasskeyHere())
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
+  const [passkeyError, setPasskeyError] = useState('')
   const [showAccountExists, setShowAccountExists] = useState(() => {
     if (locationState?.accountExists) {
       sessionStorage.setItem('login-redirect-exists', 'true')
@@ -65,18 +74,24 @@ export default function LoginPage() {
     else navigate(returnTo, { replace: true })
   }, [user, navigate, returnTo, wieplayReturn])
 
+  // Where a successful sign-in goes — the same for the password and the passkey.
+  function finishSignIn() {
+    sessionStorage.removeItem('login-redirect-email')
+    sessionStorage.removeItem('login-redirect-exists')
+    sessionStorage.removeItem('login-redirect-shared')
+    if (wieplayReturn) window.location.assign(wieplayReturn)
+    else navigate(returnTo, { replace: true })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setPasskeyError('')
     setLoading(true)
     setShowAccountExists(false)
     try {
       await login(email, password)
-      sessionStorage.removeItem('login-redirect-email')
-      sessionStorage.removeItem('login-redirect-exists')
-      sessionStorage.removeItem('login-redirect-shared')
-      if (wieplayReturn) window.location.assign(wieplayReturn)
-      else navigate(returnTo, { replace: true })
+      finishSignIn()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message.toLowerCase() : ''
       if (!navigator.onLine || msg.includes('fetch') || msg.includes('network')) {
@@ -90,6 +105,52 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
+
+  async function handlePasskey() {
+    if (passkeyBusy || loading) return
+    setError('')
+    setPasskeyError('')
+    setShowAccountExists(false)
+    setPasskeyBusy(true)
+    try {
+      await loginWithPasskey()
+      finishSignIn()
+    } catch (err: unknown) {
+      // Closing the device's sheet is not an error. Anything else: say so; the password form stays.
+      if (!isPasskeyCancel(err)) setPasskeyError(passkeyErrorText(t, err))
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
+
+  const passkeyBlock = canPasskey && (
+    <div>
+      <Button
+        type="button"
+        variant={passkeyFirst ? 'default' : 'outline'}
+        onClick={handlePasskey}
+        loading={passkeyBusy}
+        disabled={loading}
+        icon={<Fingerprint />}
+        className={cn('h-12 w-full rounded-xl font-semibold sm:h-12', passkeyFirst && 'shadow-sm shadow-primary/20')}
+        data-testid="passkey-sign-in"
+      >
+        {passkeyBusy ? t('passkeyWaiting') : t('passkeySignIn')}
+      </Button>
+      {passkeyError && (
+        <p role="alert" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          {passkeyError}
+        </p>
+      )}
+    </div>
+  )
+  const orDivider = (
+    <div className="my-5 flex items-center gap-3" aria-hidden="true">
+      <span className="h-px flex-1 bg-border" />
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('passkeyOr')}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  )
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
@@ -117,6 +178,13 @@ export default function LoginPage() {
                 <p className="mt-1 text-xs font-normal">{t('sharedEmailHouseholdHint')}</p>
               )}
             </div>
+          )}
+
+          {passkeyFirst && (
+            <>
+              {passkeyBlock}
+              {orDivider}
+            </>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -156,10 +224,24 @@ export default function LoginPage() {
               <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
             )}
 
-            <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
+            {/* One filled button per card: when the passkey leads, the password button steps back. */}
+            <Button
+              type="submit"
+              variant={passkeyFirst ? 'outline' : 'default'}
+              loading={loading}
+              disabled={passkeyBusy}
+              className={cn('h-12 w-full rounded-xl font-semibold sm:h-12', !passkeyFirst && 'shadow-sm shadow-primary/20')}
+            >
               {loading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
+
+          {canPasskey && !passkeyFirst && (
+            <>
+              {orDivider}
+              {passkeyBlock}
+            </>
+          )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {t('noAccountYet')}{' '}

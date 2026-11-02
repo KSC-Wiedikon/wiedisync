@@ -15,6 +15,17 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - Game, training and event windows: the share, Contact and Cancel buttons are smaller and fit on one row on a phone.
 - Car pooling form: the date has its own row, so it no longer runs into the time on a phone.
 
+## v2.56.0 — 2026-11-02
+
+### Added
+
+- Sign in with your fingerprint, face or phone PIN (passkeys). After signing in with your password, Wiedisync offers to set one up on that device; you can also add one under Profile → Passkeys. Nothing about your fingerprint or face ever leaves your device. You get an email whenever a passkey is added, and changing your password removes all your passkeys.
+- Optional, per device: «Ask for fingerprint when opening the app» (Profile → Passkeys). Works without signal too.
+
+### Security
+
+- Changing your password while signed in now always needs your current password.
+
 ## v2.55.0 — 2026-11-02
 
 ### Added

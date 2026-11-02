@@ -35,6 +35,25 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: '2.56.0',
+    date: '02.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Sign in with your fingerprint, face or phone PIN (passkeys). After signing in with your password, Wiedisync offers to set one up on that device; you can also add one under Profile → Passkeys. Nothing about your fingerprint or face ever leaves your device. You get an email whenever a passkey is added, and changing your password removes all your passkeys.',
+          'Optional, per device: «Ask for fingerprint when opening the app» (Profile → Passkeys). Works without signal too.',
+        ],
+      },
+      {
+        title: 'Security',
+        items: [
+          'Changing your password while signed in now always needs your current password.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.55.0',
     date: '02.11.2026',
     sections: [

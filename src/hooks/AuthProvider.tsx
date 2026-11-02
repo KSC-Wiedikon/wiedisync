@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, setActingMemberId, getActingMemberId, setActingDeniedHandler, isActingDeniedError, readMeAsOwner, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
+import { login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setAuthHint, setCurrentMemberId, setImpersonating, setActingMemberId, getActingMemberId, setActingDeniedHandler, isActingDeniedError, readMeAsOwner, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { clearAllCachedDocuments, clearDeviceKey, sweepCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs, isTransientNetworkMessage } from '../lib/sentry'
@@ -18,6 +18,10 @@ import { LICENCE_TYPES } from '../types'
 import type { Member, Team, LicenceType } from '../types'
 import { AuthContext, type AuthContextValue, type MemberUser, type HouseholdMember } from './useAuth'
 import { bootstrapIdentityKey } from '../lib/identityBootstrap'
+import { rememberPasskeyHere, signInWithPasskey } from '../lib/passkeys'
+import { usePasskeyOffer } from './usePasskeyOffer'
+import PasskeyOfferHost from '../modules/auth/PasskeyOfferHost'
+import AppLock from '../modules/auth/AppLock'
 
 // ── Roles ───────────────────────────────────────────────────────────
 
@@ -89,6 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // consumer already gates on `isAuthenticated()` / `user`, so the value seen is
   // the same, just one render earlier.
   const [isLoading, setIsLoading] = useState(() => isAuthenticated())
+  // The session came back from a cold start (the init effect), not from a sign-in made
+  // in this page's lifetime — only then may the optional app lock greet it (AppLock).
+  const [sessionRestored, setSessionRestored] = useState(false)
+  // "Sign in faster next time?" after a password sign-in (holds that password, briefly).
+  const { offer: passkeyOffer, consider: considerPasskeyOffer, close: closePasskeyOffer, password: passkeyOfferPassword } = usePasskeyOffer()
 
   const [coachTeamIds, setCoachTeamIds] = useState<string[]>([])
   const [coachTeamNames, setCoachTeamNames] = useState<string[]>([])
@@ -304,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const member = await fetchMember()
         if (member) {
           setRealUser(member)
+          setSessionRestored(true)
           setIsSpielplaner(!!member.is_scheduler)
           setCurrentMemberId(member.id)
           // Documents another member pre-loaded on this device, or past their window, go.
@@ -388,35 +398,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Actions ─────────────────────────────────────────────────────
 
+  /**
+   * Everything a sign-in does once the session cookie is set — the ONE copy, shared by
+   * the password and the passkey path so the two cannot drift. Returns the member, or
+   * null when the login has no linked member (then nothing is set, as before).
+   */
+  const startSignedInSession = useCallback(async (method: 'password' | 'passkey'): Promise<MemberUser | null> => {
+    const member = await fetchMember()
+    if (!member) return null
+    setRealUser(member)
+    // Signed in just now: the app lock never greets this session (AppLock).
+    setSessionRestored(false)
+    setIsSpielplaner(!!member.is_scheduler)
+    setCurrentMemberId(member.id)
+    // A different member logging in on this device must not inherit the previous
+    // one's pre-loaded squad (security audit 2026-10, M4). Same sweep as boot.
+    void sweepCachedDocuments(Number(member.id))
+    addBreadcrumb('auth.login_success', { memberId: member.id, method })
+    setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
+    setLastActingId(readLastActing(member.id))
+    await loadTeamContext(member.id)
+    // The household bar must appear right after an in-app login too, not only
+    // after a cold start. Loaded, never restored — see the init effect.
+    void loadHousehold()
+    return member
+  }, [fetchMember, loadTeamContext, loadHousehold])
+
   const login = useCallback(async (email: string, password: string) => {
     addBreadcrumb('auth.login_attempt')
     await apiLogin(email, password)
-    const member = await fetchMember()
-    if (member) {
-      setRealUser(member)
-      setIsSpielplaner(!!member.is_scheduler)
-      setCurrentMemberId(member.id)
-      // A different member logging in on this device must not inherit the previous
-      // one's pre-loaded squad (security audit 2026-10, M4). Same sweep as boot.
-      void sweepCachedDocuments(Number(member.id))
-      addBreadcrumb('auth.login_success', { memberId: member.id })
-      setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
-      setLastActingId(readLastActing(member.id))
-      await loadTeamContext(member.id)
-      // The household bar must appear right after an in-app login too, not only
-      // after a cold start. Loaded, never restored — see the init effect.
-      void loadHousehold()
+    const member = await startSignedInSession('password')
+    if (!member) return
 
-      // Create or unlock the member's encryption key. This is the ONLY moment the app holds
-      // the plaintext password — every other render restores the session from an httpOnly
-      // cookie — so it is the only place this can happen without asking them to re-type it.
-      //
-      // Fire-and-forget on purpose: it must never block or fail a login. Nothing else in the
-      // app depends on the key, and a member who cannot set one up simply cannot use the
-      // identity-document feature until they log in again.
-      void bootstrapIdentityKey(Number(member.id), password).catch(() => {})
-    }
-  }, [fetchMember, loadTeamContext, loadHousehold])
+    // Create or unlock the member's encryption key. This is the ONLY moment the app holds
+    // the plaintext password — every other render restores the session from an httpOnly
+    // cookie — so it is the only place this can happen without asking them to re-type it.
+    //
+    // Fire-and-forget on purpose: it must never block or fail a login. Nothing else in the
+    // app depends on the key, and a member who cannot set one up simply cannot use the
+    // identity-document feature until they log in again.
+    void bootstrapIdentityKey(Number(member.id), password).catch(() => {})
+
+    // "Sign in faster next time?" — setting a passkey up needs this same password, so the
+    // offer (usePasskeyOffer) keeps it in memory while it is open. Never blocks the login.
+    void considerPasskeyOffer(member.id, password)
+  }, [startSignedInSession, considerPasskeyOffer])
+
+  /**
+   * Sign in with this device's fingerprint, face or PIN. Throws like `login` — on a
+   * cancelled device sheet too (lib/passkeys `isPasskeyCancel` tells the caller).
+   */
+  const loginWithPasskey = useCallback(async () => {
+    addBreadcrumb('auth.login_attempt', { method: 'passkey' })
+    const { credentialId, onDevice } = await signInWithPasskey()
+    // The server set the session cookie exactly like /auth/login in session mode. From
+    // here it is the cold-restore path of the init effect: the hint, then the SDK's
+    // refresh, which stores the session (and arms autoRefresh) — client.login() does
+    // that for the password path, nothing did it for this cookie yet.
+    setAuthHint(true)
+    await refreshAuth()
+    const member = await startSignedInSession('passkey')
+    // No bootstrapIdentityKey: there is no password. The identity-document feature
+    // asks for it when it needs the key (useIdentityKeys → `locked`).
+    if (member) rememberPasskeyHere(member.id, credentialId, onDevice)
+  }, [startSignedInSession])
 
   const logout = useCallback(async () => {
     // Wipe the E2EE material FIRST, while `realUser` still names whose device
@@ -438,6 +483,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (realUser?.id) await clearDeviceKey(Number(realUser.id))
     } catch { /* never block logout */ }
+    // An open passkey offer holds the password just typed: it goes with the session.
+    closePasskeyOffer()
 
     // User-initiated: also unbind this device's push subscription (F37).
     apiLogout({ unbindPush: true })
@@ -462,7 +509,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberSports(new Set()); setPlayerSports(new Set()); setGuestLevelByTeam({}); setTeamSportById({})
     setTeamsReady(false)
     queryClient.clear()
-  }, [realUser])
+  }, [realUser, closePasskeyOffer])
 
   const refreshTeamContext = useCallback(async () => {
     if (user?.id) await loadTeamContext(user.id)
@@ -823,7 +870,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport, playerSport,
-    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, loginWithPasskey, logout,
     refreshTeamContext, refreshUser,
   }), [
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
@@ -833,7 +880,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport, playerSport,
-    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, isRevisor, canReadFinance, getGuestLevel, isGuestIn, isLoading, login, loginWithPasskey, logout,
     refreshTeamContext, refreshUser,
   ])
 
@@ -843,5 +890,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // BootOverlay's authBooting (isAuthenticated() && isLoading) covers the restore
   // window, and Layout/AuthRoute gate their content on the same auth state, so
   // nothing unauthenticated flashes underneath the overlay.
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  //
+  // The passkey offer and the app lock render here, not on a page: the offer outlives the
+  // sign-in page (it unmounts the moment the sign-in succeeds), and both must work in all
+  // three apps (member app, Spielplanung, books), which share only this provider.
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <PasskeyOfferHost offer={passkeyOffer} password={passkeyOfferPassword} onClose={closePasskeyOffer} />
+      <AppLock member={realUser} restored={sessionRestored} onSignOut={logout} />
+    </AuthContext.Provider>
+  )
 }

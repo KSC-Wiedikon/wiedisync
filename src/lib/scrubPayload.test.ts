@@ -80,6 +80,27 @@ describe('scrubPayload', () => {
     expect(scrubPayload([{ password: 'x' }, { team: 3 }])).toEqual([{ password: '[REDACTED]' }, { team: 3 }])
   })
 
+  it('redacts a passkey answer (WebAuthn) wherever a copy of one lands', () => {
+    const answer = {
+      challengeId: 'c1',
+      response: {
+        id: 'cred-id', type: 'public-key',
+        response: {
+          clientDataJSON: 'CDJ', authenticatorData: 'AD', signature: 'SIG', userHandle: 'UH', attestationObject: 'AO',
+        },
+      },
+    }
+    const out = JSON.stringify(scrubPayload(answer))
+    for (const secret of ['CDJ', 'AD', 'SIG', 'UH', 'AO']) expect(out, secret).not.toContain(`"${secret}"`)
+    expect(scrubPayload(answer)).toEqual({
+      challengeId: 'c1',
+      response: {
+        id: 'cred-id', type: 'public-key',
+        response: { clientDataJSON: '[REDACTED]', authenticatorData: '[REDACTED]', signature: '[REDACTED]', userHandle: '[REDACTED]', attestationObject: '[REDACTED]' },
+      },
+    })
+  })
+
   it('passes primitives through', () => {
     expect(scrubPayload('text')).toBe('text')
     expect(scrubPayload(null)).toBeNull()
