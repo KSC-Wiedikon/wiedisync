@@ -301,13 +301,25 @@ export function usePushNotifications() {
 
       // The app asks for the Android notification permission, then waits on the
       // distributor's registration callback — both can take a while.
-      const { subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
+      let { subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
         'push.subscribe', { vapidPublicKey: publicKey }, 60_000,
       )
       held = subscription
       setState(s => ({ ...s, permission: 'granted' }))
 
-      await registerNativeSubscription(subscription)
+      try {
+        await registerNativeSubscription(subscription)
+      } catch (err) {
+        // The server refused the distributor's endpoint (a self-hosted ntfy, say).
+        // An app build that can push through Play services switches to that
+        // instead of giving up (app 1.1.0+, 2026-11-02).
+        if (!isEndpointRejected(err) || !(await hasNativeFeature('pushEmbedded'))) throw err
+        ;({ subscription } = await nativeRequest<{ subscription: NativePushSubscription }>(
+          'push.subscribe', { vapidPublicKey: publicKey, embedded: true }, 60_000,
+        ))
+        held = subscription
+        await registerNativeSubscription(subscription)
+      }
       resyncedKey = `${getCurrentMemberId()}:${subscription.endpoint}`
       setState(s => ({ ...s, subscribed: true, loading: false }))
       return true
@@ -322,6 +334,10 @@ export function usePushNotifications() {
       if (held) nativeRequest('push.unsubscribe').catch(() => undefined)
       if (isNativeBridgeError(err, 'no_distributor')) {
         toast.error(t('pushNoDistributor'), { duration: 10_000 })
+      } else if (isNativeBridgeError(err, 'distributor_silent')) {
+        // The distributor app never answered (never opened, or force-stopped) and
+        // this phone has no Play services to fall back on.
+        toast.error(t('pushDistributorSilent', { app: err.detail || 'UnifiedPush' }), { duration: 10_000 })
       } else if (isEndpointRejected(err)) {
         // kscwApi already logged the 400 (with the endpoint host).
         toast.error(t('pushServerNotSupported'), { duration: 10_000 })

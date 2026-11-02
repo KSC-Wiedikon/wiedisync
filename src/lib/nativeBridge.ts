@@ -19,7 +19,8 @@
  */
 import { captureApiError } from './sentry'
 
-export type NativeFeature = 'saveFile' | 'share' | 'push' | 'systemBars'
+/** `pushEmbedded`: app 1.1.0+ on a phone with Play services — push.subscribe takes `embedded: true`. */
+export type NativeFeature = 'saveFile' | 'share' | 'push' | 'systemBars' | 'pushEmbedded'
 
 /** A UnifiedPush registration, shaped like `PushSubscription.toJSON()`. */
 export interface NativePushSubscription {
@@ -38,6 +39,8 @@ export interface NativePushState {
 /** Rejection of `nativeRequest`: `code` is the native error code, or `'timeout'` / `'unavailable'`. */
 export interface NativeBridgeError extends Error {
   code: string
+  /** The app's `message`, when it sent one (e.g. which distributor app did not answer). */
+  detail?: string
 }
 
 type NativeMessage = { data: unknown }
@@ -82,6 +85,7 @@ function bridgeError(code: string, message?: string): NativeBridgeError {
   const err = new Error(message ? `Native ${code}: ${message}` : `Native ${code}`) as NativeBridgeError
   err.name = 'NativeBridgeError'
   err.code = code
+  if (message) err.detail = message
   return err
 }
 
