@@ -7,14 +7,14 @@ import os from 'os'
 import path from 'path'
 
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'web-push-test-self-'))
-let registerWebPush, validatePushEndpoint
+let registerWebPush, validatePushEndpoint, sendPushToMembers, PUSH_BATCH_SIZE
 
 beforeAll(async () => {
   // Both are read at import time.
   process.env.PUSH_AUTH_SECRET = 'x'.repeat(40)
   process.env.ERROR_LOG_DIR = logDir
   vi.resetModules()
-  ;({ registerWebPush, validatePushEndpoint } = await import('../web-push.js'))
+  ;({ registerWebPush, validatePushEndpoint, sendPushToMembers, PUSH_BATCH_SIZE } = await import('../web-push.js'))
 })
 afterAll(() => {
   delete process.env.PUSH_AUTH_SECRET
@@ -121,5 +121,47 @@ describe('validatePushEndpoint — same hosts as the Worker', () => {
     expect(validatePushEndpoint('https://storage.googleapis.com/bucket/x').ok).toBe(false)
     expect(validatePushEndpoint('https://android.googleapis.com/gcm/send/abc').ok).toBe(false)
     expect(validatePushEndpoint('https://login.windows.com/x').ok).toBe(false)
+  })
+})
+
+// The club's Cloudflare account is on the Free plan: 50 subrequests per Worker
+// call, one per subscription. A fanout goes out in calls of at most 40.
+describe('sendPushToMembers — batches for the Free plan', () => {
+  it('sends 90 subscriptions as 40 + 40 + 10 and adds up the results', async () => {
+    const rows = Array.from({ length: 90 }, (_, i) => ({
+      id: i, endpoint: `https://fcm.googleapis.com/fcm/send/d${i}`, keys_p256dh: 'p', keys_auth: 'a',
+    }))
+    const db = () => {
+      const chain = { whereIn: () => chain, where: () => chain, select: async () => rows, delete: async () => 0 }
+      return chain
+    }
+    const sizes = []
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      const n = JSON.parse(init.body).subscriptions.length
+      sizes.push(n)
+      return new Response(JSON.stringify({ sent: n, failed: 0, errors: [], expired: [] }), { status: 200 })
+    }))
+    const result = await sendPushToMembers(db, [1, 2], 'T', 'B', 'https://x', 'tag', { info() {}, warn() {}, error() {} })
+    expect(PUSH_BATCH_SIZE).toBeLessThan(50)
+    expect(sizes).toEqual([40, 40, 10])
+    expect(result).toEqual({ sent: 90, failed: 0, cleaned: 0 })
+  })
+
+  it('counts a refused batch as failed and still sends the next one', async () => {
+    const rows = Array.from({ length: 50 }, (_, i) => ({
+      id: i, endpoint: `https://fcm.googleapis.com/fcm/send/d${i}`, keys_p256dh: 'p', keys_auth: 'a',
+    }))
+    const db = () => {
+      const chain = { whereIn: () => chain, where: () => chain, select: async () => rows, delete: async () => 0 }
+      return chain
+    }
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      const n = JSON.parse(init.body).subscriptions.length
+      if (call++ === 0) return new Response('{"error":"rate limited"}', { status: 429 })
+      return new Response(JSON.stringify({ sent: n, failed: 0, errors: [], expired: [] }), { status: 200 })
+    }))
+    const result = await sendPushToMembers(db, [1], 'T', 'B', 'https://x', 'tag', { info() {}, warn() {}, error() {} })
+    expect(result).toEqual({ sent: 10, failed: 40, cleaned: 0 })
   })
 })

@@ -139,6 +139,12 @@ export async function sendPushToMembers(db, memberIds, title, body, url, tag, lo
 
 // ── Internal: call CF Worker and clean up expired subs ──────────────
 
+// The Worker makes one outbound request per subscription, and the club's
+// Cloudflare account is on the Free plan: at most 50 subrequests per Worker
+// call, so a club-wide fanout in one call had every push past the 50th fail
+// ("Too many subrequests"). 40 per call leaves headroom (2026-11-02).
+export const PUSH_BATCH_SIZE = 40
+
 async function _sendPush(db, subscriptions, title, body, url, tag, log) {
   const subs = subscriptions.map(s => ({
     endpoint: s.endpoint,
@@ -153,52 +159,57 @@ async function _sendPush(db, subscriptions, title, body, url, tag, log) {
     return result
   }
 
-  try {
-    const resp = await fetch(`${PUSH_WORKER_URL}/push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${PUSH_AUTH_SECRET}`,
-      },
-      body: JSON.stringify({
-        subscriptions: subs,
-        title: title || 'KSC Wiedikon',
-        body: body || '',
-        url: url || FRONTEND_URL,
-        ...(tag ? { tag } : {}),
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
+  const payload = {
+    title: title || 'KSC Wiedikon',
+    body: body || '',
+    url: url || FRONTEND_URL,
+    ...(tag ? { tag } : {}),
+  }
+  const errors = []
+  for (let i = 0; i < subs.length; i += PUSH_BATCH_SIZE) {
+    const batch = subs.slice(i, i + PUSH_BATCH_SIZE)
+    try {
+      const resp = await fetch(`${PUSH_WORKER_URL}/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${PUSH_AUTH_SECRET}`,
+        },
+        body: JSON.stringify({ subscriptions: batch, ...payload }),
+        signal: AbortSignal.timeout(15000),
+      })
 
-    if (resp.ok) {
-      const data = await resp.json()
-      result.sent = data.sent || 0
-      result.failed = data.failed || 0
-      if (result.failed > 0) {
+      if (resp.ok) {
+        const data = await resp.json()
+        result.sent += data.sent || 0
+        result.failed += data.failed || 0
         // The Worker's per-subscription errors are the push service's answers
         // ("403: …" for a key mismatch, "401: …" for a bad VAPID token). They
         // never contain the endpoint, so they are safe to log.
-        const errors = (data.errors || []).slice(0, 3).map(e => String(e).slice(0, 160))
-        log?.warn?.(`[push] Sent ${result.sent}, failed ${result.failed}, expired ${data.expired?.length || 0}: ${errors.join(' | ')}`)
-        if (result.sent === 0) reportPushFailure('Push service refused every subscription', { failed: result.failed, errors })
-      }
+        for (const e of data.errors || []) if (errors.length < 3) errors.push(String(e).slice(0, 160))
 
-      // Clean up expired/gone subscriptions
-      if (data.expired?.length > 0) {
-        for (const endpoint of data.expired) {
+        // Clean up expired/gone subscriptions
+        for (const endpoint of data.expired || []) {
           try {
             const deleted = await db('push_subscriptions').where('endpoint', endpoint).delete()
             if (deleted > 0) result.cleaned++
           } catch { /* ignore */ }
         }
+      } else {
+        result.failed += batch.length
+        log?.warn?.(`[push] Worker returned ${resp.status}`)
+        reportPushFailure(`Push Worker returned ${resp.status}`, { status: resp.status, subscriptions: batch.length })
       }
-    } else {
-      log?.warn?.(`[push] Worker returned ${resp.status}`)
-      reportPushFailure(`Push Worker returned ${resp.status}`, { status: resp.status, subscriptions: subs.length })
+    } catch (err) {
+      result.failed += batch.length
+      log?.error?.(`[push] Worker call failed: ${err.message}`)
+      reportPushFailure(`Push Worker call failed: ${err.message}`, { subscriptions: batch.length })
     }
-  } catch (err) {
-    log?.error?.(`[push] Worker call failed: ${err.message}`)
-    reportPushFailure(`Push Worker call failed: ${err.message}`, { subscriptions: subs.length })
+  }
+
+  if (result.failed > 0 && errors.length > 0) {
+    log?.warn?.(`[push] Sent ${result.sent}, failed ${result.failed}, cleaned ${result.cleaned}: ${errors.join(' | ')}`)
+    if (result.sent === 0) reportPushFailure('Push service refused every subscription', { failed: result.failed, errors })
   }
 
   return result
