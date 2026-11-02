@@ -50,6 +50,17 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-11-02 — deliberate WIDENING (owner's go): passkeys — a second way in, next to the password
+
+A new credential type, so a new entry point: `/kscw/passkey/login-options` + `/login` are public and mint a session. What bounds it:
+- **Phishing-proof by construction.** RP `kscw.ch` (prod) / `wiedisync-dev.kscw.ch` (dev), and the server accepts an answer only from an EXACT origin list (`passkeys-core.js` `PASSKEY_SITES`: the member app, Spielplanung, Accounting; dev: the dev member app; plus the Android app's `apk-key-hash`). Not "any *.kscw.ch": the club website and other club apps share the RP ID but can never sign anyone in. Challenges are single-use, 3 min, held in memory; user verification is required; the counter must move forward unless the key does not count.
+- **No session code of our own.** The verified key writes a 60 s seed row in `directus_sessions` and Directus's own `AuthenticationService.refresh(seed, { session: true })` issues the session — the active/suspended check, licence lock, roles, `auth.jwt` and rotation are Directus's. The cookie options mirror `SESSION_COOKIE_OPTIONS`.
+- **Adding a key needs the password** (Directus's own login → counts toward `auth_login_attempts`) **and the TOTP code** when the account has one — else a stolen password alone could add a key and skip the code. Not while acting for a household member. Max 10 per account. Every new key mails the login address.
+- **A password change or reset removes all keys** (kscw-hooks `users.update` — every password write goes through UsersService), so changing the password locks out a key someone added with a stolen one.
+- **Storage**: table `passkeys` (migration 439), public keys only; not a Directus collection (items API, admin UI, realtime and policies cannot see it); SQL workspace reader denied (`directus-db-role.sql`); dev scrub deletes the rows. Every add / remove / passkey sign-in → `user_logs`.
+- Side fix: `/change-password` verified the current password with `login()` and left that session row behind for `REFRESH_TOKEN_TTL`; now deleted at once.
+- Accepted: the optional "ask for fingerprint when opening" lock is a device-local check (it must work offline in a gym) — it stops someone picking up an unlocked phone, not someone with developer tools on the device.
+
 ### 2026-11-02 — push: the subscribe allowlist narrowed to the Worker's, and a member self-test
 
 - **Narrowed:** `PUSH_ENDPOINT_ALLOWED_SUFFIXES` (`kscw-endpoints/src/web-push.js`) now lists exactly the Worker's `ALLOWED_PUSH_HOSTS`: `.googleapis.com` → `.fcm.googleapis.com`, and the bare `.windows.com` is gone (`.notify.windows.com` stays). Any other Google or Microsoft host was stored, then refused by the Worker on every push, and the member's toggle said "on". Tests: `kscw-endpoints/src/__tests__/web-push-test-self.test.js`.
