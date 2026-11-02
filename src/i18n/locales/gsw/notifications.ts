@@ -73,6 +73,11 @@ export default {
   pushUnsubscribeFailed: 'Push-Benachrichtigige händ nöd chöne deaktiviert werde.',
   pushNoDistributor: 'Für Benachrichtigige bruuchsch e gratis UnifiedPush-App. Installier Sunup oder ntfy us F-Droid und probiers dänn nomal.',
   pushServerNotSupported: 'De Push-Server wird nöd unterstützt. Bitte verwend Sunup oder ntfy als UnifiedPush-App.',
+  pushTest: 'Test-Benachrichtigung schicke',
+  pushTestSent: 'Test gschickt. Er söt i es paar Sekunde uf dem Grät acho.',
+  pushTestFailed: 'De Test isch nöd acho. Schalt d Push-Benachrichtigige us und wieder ii.',
+  pushTestRateLimited: 'Bitte wart es paar Minute bis zum nächschte Test.',
+  pushTestNotSubscribed: 'Uf dem Grät sind Push-Benachrichtigige nöd aktiviert.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} ungläse',
   unreadShort_other: '{{count}} ungläse',

@@ -9,7 +9,7 @@ import { useAdminMode } from '../hooks/useAdminMode'
 import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
 import { useIdentityAutoShrink } from '../hooks/useIdentityAutoShrink'
 import { useIdentityAutoRepair } from '../hooks/useIdentityAutoRepair'
-import { useNativePushSync } from '../hooks/usePushNotifications'
+import { usePushSync } from '../hooks/usePushNotifications'
 import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
@@ -33,7 +33,7 @@ export default function Layout() {
   // in the background — only a device holding a key can (see the hook).
   useIdentityAutoRepair()
   // Android app only: re-registers a push endpoint the distributor rotated (see the hook).
-  useNativePushSync()
+  usePushSync()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()

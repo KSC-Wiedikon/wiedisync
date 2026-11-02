@@ -8,9 +8,12 @@
  *   POST /kscw/web-push/subscribe         — register/update subscription (auth)
  *   POST /kscw/web-push/unsubscribe       — remove subscription (auth)
  *   POST /kscw/web-push/test              — send test push (admin only)
+ *   POST /kscw/web-push/test-self         — send a test push to your own device (auth)
  */
 
 import { FRONTEND_URL } from './email-template.js'
+import { logWarning } from './error-log.js'
+import { memberLangToCode, tPush } from './push-i18n.js'
 
 // ── Subscription endpoint validation ────────────────────────────────
 // Allow-list of public push providers we accept as `endpoint` hostnames. The
@@ -22,12 +25,14 @@ import { FRONTEND_URL } from './email-template.js'
 // push server. Only the two public ones are listed — a self-hosted ntfy is
 // rejected on purpose (an arbitrary host is exactly what this list exists to
 // refuse); the subscribe toast tells the user to use Sunup or ntfy instead.
+// Same hosts as ALLOWED_PUSH_HOSTS in workers/push/src/index.ts (2026-11-02): a
+// host accepted here but refused by the Worker was a subscription that said "on"
+// and never delivered, so the two lists are now identical.
 const PUSH_ENDPOINT_ALLOWED_SUFFIXES = [
-  '.googleapis.com',          // FCM (Chrome, Edge on most platforms)
+  '.fcm.googleapis.com',      // FCM (Chrome, Edge on most platforms)
   '.push.apple.com',          // APNs (Safari, iOS)
   '.push.services.mozilla.com', // Mozilla autopush (Firefox; also the Sunup UnifiedPush distributor)
-  '.windows.com',             // WNS (legacy Edge/UWP)
-  '.notify.windows.com',      // WNS alternate
+  '.notify.windows.com',      // WNS (Edge on Windows)
   '.ntfy.sh',                 // UnifiedPush via the ntfy app's default server (2026-10-10)
 ]
 
@@ -144,6 +149,7 @@ async function _sendPush(db, subscriptions, title, body, url, tag, log) {
 
   if (!PUSH_AUTH_SECRET) {
     log?.error?.('[push] PUSH_AUTH_SECRET not configured — skipping push')
+    reportPushFailure('PUSH_AUTH_SECRET not configured — no push is sent', { subscriptions: subs.length })
     return result
   }
 
@@ -168,6 +174,14 @@ async function _sendPush(db, subscriptions, title, body, url, tag, log) {
       const data = await resp.json()
       result.sent = data.sent || 0
       result.failed = data.failed || 0
+      if (result.failed > 0) {
+        // The Worker's per-subscription errors are the push service's answers
+        // ("403: …" for a key mismatch, "401: …" for a bad VAPID token). They
+        // never contain the endpoint, so they are safe to log.
+        const errors = (data.errors || []).slice(0, 3).map(e => String(e).slice(0, 160))
+        log?.warn?.(`[push] Sent ${result.sent}, failed ${result.failed}, expired ${data.expired?.length || 0}: ${errors.join(' | ')}`)
+        if (result.sent === 0) reportPushFailure('Push service refused every subscription', { failed: result.failed, errors })
+      }
 
       // Clean up expired/gone subscriptions
       if (data.expired?.length > 0) {
@@ -180,12 +194,48 @@ async function _sendPush(db, subscriptions, title, body, url, tag, log) {
       }
     } else {
       log?.warn?.(`[push] Worker returned ${resp.status}`)
+      reportPushFailure(`Push Worker returned ${resp.status}`, { status: resp.status, subscriptions: subs.length })
     }
   } catch (err) {
     log?.error?.(`[push] Worker call failed: ${err.message}`)
+    reportPushFailure(`Push Worker call failed: ${err.message}`, { subscriptions: subs.length })
   }
 
   return result
+}
+
+// A push that cannot go out used to leave no trace outside the container log
+// (2026-11-02: a member never got one, and nothing said why). The error log and
+// Sentry get one entry per failure kind per 10 minutes, so a dead Worker during
+// a 500-member fanout is one line, not 500.
+const PUSH_FAILURE_REPORT_MS = 10 * 60_000
+const lastPushFailureReport = new Map()
+
+function reportPushFailure(message, extra) {
+  const kind = message.replace(/\d+/g, 'N')
+  const now = Date.now()
+  if (now - (lastPushFailureReport.get(kind) || 0) < PUSH_FAILURE_REPORT_MS) return
+  lastPushFailureReport.set(kind, now)
+  try { logWarning('push_send_failed', message, extra) } catch { /* logging never breaks a send */ }
+}
+
+// ── Self test: "Send test notification" in the notification panel ────
+// A member checks that THIS device gets pushes. Only the caller's own rows,
+// optionally narrowed to one endpoint (the device asking), and a few per
+// member per ten minutes, so the button cannot be used to spam a phone.
+const SELF_TEST_WINDOW_MS = 10 * 60_000
+const SELF_TEST_MAX = 3
+const selfTestHits = new Map()
+
+function selfTestAllowed(memberId, now = Date.now()) {
+  const recent = (selfTestHits.get(memberId) || []).filter(t => now - t < SELF_TEST_WINDOW_MS)
+  if (recent.length >= SELF_TEST_MAX) {
+    selfTestHits.set(memberId, recent)
+    return false
+  }
+  recent.push(now)
+  selfTestHits.set(memberId, recent)
+  return true
 }
 
 // ── Register routes ─────────────────────────────────────────────────
@@ -286,6 +336,42 @@ export function registerWebPush(router, ctx) {
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `web-push/unsubscribe: ${err.message}`, endpoint: 'web-push/unsubscribe', userId: req.accountability?.user, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/web-push/test-self — a test push to the caller's own device(s).
+  // `{ endpoint }` narrows it to the device asking. `registered: false` means
+  // the server holds no row for it — the device was never (or no longer)
+  // registered, which is exactly what a member needs to know.
+  router.post('/web-push/test-self', async (req, res) => {
+    try {
+      if (!req.accountability?.user) {
+        log.warn({ msg: 'web-push/test-self: unauthenticated request', endpoint: 'web-push/test-self', method: req.method })
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+
+      const member = await database('members').where('user', req.accountability.user).select('id', 'language').first()
+      if (!member) return res.status(400).json({ error: 'Member not found' })
+
+      const endpoint = typeof req.body?.endpoint === 'string' && req.body.endpoint ? req.body.endpoint : null
+      let query = database('push_subscriptions').where('member', member.id)
+      if (endpoint) query = query.where('endpoint', endpoint)
+      const subscriptions = await query.select('id', 'endpoint', 'keys_p256dh', 'keys_auth')
+      if (subscriptions.length === 0) return res.json({ registered: false, sent: 0, failed: 0 })
+
+      if (!selfTestAllowed(member.id)) return res.status(429).json({ error: 'rate_limited' })
+
+      const lang = memberLangToCode(member.language)
+      const result = await _sendPush(
+        database, subscriptions,
+        tPush(lang, 'selftest.title'), tPush(lang, 'selftest.body'),
+        FRONTEND_URL, 'self-test', log,
+      )
+      log.info(`Self-test push for member ${member.id}: ${JSON.stringify(result)}`)
+      res.json({ registered: true, sent: result.sent, failed: result.failed })
+    } catch (err) {
+      log.error({ msg: `web-push/test-self: ${err.message}`, endpoint: 'web-push/test-self', userId: req.accountability?.user, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

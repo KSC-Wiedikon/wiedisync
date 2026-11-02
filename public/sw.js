@@ -27,6 +27,22 @@ self.addEventListener('push', function(event) {
   )
 })
 
+// The push service replaced or dropped this browser's subscription (Firefox
+// rotates them; any browser may after a key change). Make a new one with the
+// same key so the device keeps a working endpoint. The worker has no login, so
+// the server learns the new endpoint when the app is next opened (the push sync
+// in Layout re-registers whatever subscription the browser holds).
+self.addEventListener('pushsubscriptionchange', function(event) {
+  if (event.newSubscription) return
+  var old = event.oldSubscription
+  var key = old && old.options && old.options.applicationServerKey
+  if (!key) return
+  event.waitUntil(
+    self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .catch(function(err) { console.warn('[SW] Re-subscribe failed:', err) })
+  )
+})
+
 self.addEventListener('notificationclick', function(event) {
   event.notification.close()
 

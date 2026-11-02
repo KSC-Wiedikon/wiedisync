@@ -73,6 +73,11 @@ export default {
   pushUnsubscribeFailed: 'Impossible de desactiver les notifications push.',
   pushNoDistributor: 'Les notifications nécessitent une application UnifiedPush gratuite. Installez Sunup ou ntfy depuis F-Droid, puis réessayez.',
   pushServerNotSupported: 'Ce serveur push n\'est pas pris en charge. Utilisez Sunup ou ntfy comme application UnifiedPush.',
+  pushTest: 'Envoyer une notification de test',
+  pushTestSent: 'Test envoyé. Il devrait arriver sur cet appareil dans quelques secondes.',
+  pushTestFailed: 'Le test n\'a pas pu être livré. Désactivez puis réactivez les notifications push.',
+  pushTestRateLimited: 'Veuillez attendre quelques minutes avant le prochain test.',
+  pushTestNotSubscribed: 'Les notifications push ne sont pas activées sur cet appareil.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} non lue',
   unreadShort_other: '{{count}} non lues',

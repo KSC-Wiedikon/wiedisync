@@ -273,7 +273,10 @@ async function createVapidJwt(
   const now = Math.floor(Date.now() / 1000)
   const claims = {
     aud: audience,
-    exp: now + 86400, // 24h
+    // 12 h, not 24: RFC 8292 caps `exp` at 24 h from the push service's own
+    // clock, so exactly 24 h is refused by a service whose clock runs a second
+    // behind ours. 12 h is what the web-push libraries use (2026-11-02).
+    exp: now + 12 * 3600,
     sub: sub && /^mailto:[^@\s]+@[^@\s]+$/.test(sub) ? sub : 'mailto:kontakt@kscw.ch',
   }
 

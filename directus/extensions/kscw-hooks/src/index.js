@@ -139,8 +139,27 @@ const GAME_SQUAD_JOIN = `JOIN (
 const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.kscw.workers.dev'
 const PUSH_AUTH_SECRET = process.env.PUSH_AUTH_SECRET || ''
 
+// The reminder crons used to return here without a word when the secret was
+// missing or the Worker refused, so a member could go months without a push and
+// nothing said why (2026-11-02). Each failure kind now reaches the error log and
+// Sentry at most once per 10 minutes; the container log keeps every one.
+const PUSH_FAILURE_REPORT_MS = 10 * 60_000
+const lastPushFailureReport = new Map()
+function reportPushFailure(log, message, extra) {
+  log?.warn?.({ msg: `[push] ${message}`, event: 'push_send', ...extra })
+  const kind = message.replace(/\d+/g, 'N')
+  const now = Date.now()
+  if (now - (lastPushFailureReport.get(kind) || 0) < PUSH_FAILURE_REPORT_MS) return
+  lastPushFailureReport.set(kind, now)
+  logWarning('push_send_failed', message, extra)
+}
+
 async function sendPushToMembers(db, memberIds, title, body, url, tag, log) {
-  if (!memberIds || memberIds.length === 0 || !PUSH_AUTH_SECRET) return
+  if (!memberIds || memberIds.length === 0) return
+  if (!PUSH_AUTH_SECRET) {
+    reportPushFailure(log, 'PUSH_AUTH_SECRET not configured — no push is sent', { memberCount: memberIds.length })
+    return
+  }
   try {
     const subscriptions = await db('push_subscriptions')
       .whereIn('member', memberIds)
@@ -173,6 +192,14 @@ async function sendPushToMembers(db, memberIds, title, body, url, tag, log) {
         await db('push_subscriptions').whereIn('endpoint', data.expired).delete()
       }
       log.info(`[push] Sent ${data.sent || 0}, failed ${data.failed || 0}, cleaned ${data.expired?.length || 0}`)
+      // The Worker's errors are the push service's answers ("403: …" for a key
+      // mismatch); they never contain the endpoint.
+      if (data.failed > 0 && !(data.sent > 0)) {
+        const errors = (data.errors || []).slice(0, 3).map(e => String(e).slice(0, 160))
+        reportPushFailure(log, 'Push service refused every subscription', { failed: data.failed, errors })
+      }
+    } else {
+      reportPushFailure(log, `Push Worker returned ${resp.status}`, { status: resp.status, subscriptionCount: subscriptions.length })
     }
   } catch (err) {
     log.warn({ msg: `[push] Failed: ${err.message}`, event: 'push_send', memberCount: memberIds?.length, stack: err.stack })
