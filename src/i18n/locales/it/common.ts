@@ -196,6 +196,7 @@ export default {
   cancelTrainingAction: 'Annulla allenamento',
   cancelEventAction: 'Annulla evento',
   cancelGameAction: 'Annulla partita',
+  cancelShortAction: 'Annulla',
   reinstateAction: 'Ripristina',
   cancelTrainingConfirm: 'Annullare questo allenamento? La squadra viene avvisata e lo slot palestra è liberato per altre squadre.',
   cancelEventConfirm: 'Annullare questo evento? La squadra viene avvisata.',

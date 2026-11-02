@@ -52,6 +52,8 @@ export default {
 
   updatedAt: 'Aktualisiert {{time}}',
 
+  referees: 'Schiedsrichter',
+
   // Final summary (match over)
   finalSetCol: 'Satz',
   finalScoreCol: 'Resultat',

@@ -76,7 +76,8 @@ function rowToEnvelope(row: LiveScoreRow): Envelope {
         }
   const seq = num(row.ts)
   const ts = seq || (row.date_updated ? Date.parse(row.date_updated) : 0) || Date.now()
-  return { v: 1, channel: row.channel, status, seq, event: row.event ?? null, ts, match }
+  const gameId = row.game_id != null && Number.isFinite(Number(row.game_id)) ? Number(row.game_id) : null
+  return { v: 1, channel: row.channel, status, seq, event: row.event ?? null, ts, match, gameId }
 }
 
 /**
