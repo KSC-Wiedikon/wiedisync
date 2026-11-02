@@ -72,6 +72,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
         id={training.id}
         title={team?.name ?? t('title')}
         iconOnly
+        size="sm"
       />
       <CancelActivityButton
         kind="training"
@@ -83,6 +84,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
       />
       {user ? (
         <BroadcastButton
+          size="sm"
           activity={{
             type: 'training',
             id: Number(training.id),

@@ -89,6 +89,8 @@ export interface Envelope {
   event: MatchEvent
   ts: number
   match: BoardState | null
+  /** The fixture a `game-<id>` row belongs to; null/absent on a board's own row. */
+  gameId?: number | null
 }
 
 /**

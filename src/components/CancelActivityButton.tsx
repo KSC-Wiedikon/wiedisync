@@ -17,7 +17,7 @@ interface CancelActivityButtonProps {
   isCancelled: boolean
   /** Teams the activity belongs to. Empty array = club-wide (admin only). */
   teamIds: string[]
-  /** 'icon' = card action bar; 'inline' = labelled button for modal headers. */
+  /** 'icon' = card action bar; 'inline' = small labelled button ("Cancel") for modal headers. */
   variant?: 'icon' | 'inline'
   /** Called after a successful patch so the parent can refetch or close. */
   onDone?: () => void
@@ -111,6 +111,9 @@ export default function CancelActivityButton({
         <Button
           type="button"
           variant="outline"
+          size="sm"
+          aria-label={actionLabel}
+          title={actionLabel}
           onClick={(e) => {
             e.stopPropagation()
             setDialogOpen(true)
@@ -122,7 +125,9 @@ export default function CancelActivityButton({
           }
         >
           {isCancelled ? <RotateCcw aria-hidden /> : <Ban aria-hidden />}
-          {actionLabel}
+          {/* Short label so the modal's action row fits one line on a phone; the
+              full "Cancel game" stays the accessible name and tooltip. */}
+          {isCancelled ? actionLabel : t('cancelShortAction')}
         </Button>
       )}
 
