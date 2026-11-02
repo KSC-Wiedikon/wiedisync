@@ -11,7 +11,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ### Changed
 
-- Car pooling is now on for every game by default; a coach can still switch it off for a game.
+- Car pooling switches on by itself for away games, a week before the game; a coach can still switch any game on or off.
 - Game, training and event windows: the share, Contact and Cancel buttons are smaller and fit on one row on a phone.
 - Car pooling form: the date has its own row, so it no longer runs into the time on a phone.
 
