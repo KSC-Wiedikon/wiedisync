@@ -1,7 +1,7 @@
 export default {
   banner: {
     title: 'Wiedisync zum Startbildschirm hinzuefüege',
-    body: 'Installier d App für schnällere Zuegriff und e Vollbild-Aasicht.',
+    body: 'Installier d App für schnällere Zuegriff, e Vollbild-Aasicht und Benachrichtigige (ufem iPhone nur so).',
     showHow: 'Zeig mer wie',
     remindLater: 'Spöter erinnere',
     understood: 'Verstande',

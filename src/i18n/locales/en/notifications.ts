@@ -80,6 +80,11 @@ export default {
   pushTestFailed: 'The test could not be delivered. Turn push notifications off and on again.',
   pushTestRateLimited: 'Please wait a few minutes before the next test.',
   pushTestNotSubscribed: 'Push notifications are not turned on for this device.',
+  pushPromptTitle: 'Get reminders on this device',
+  pushPromptBody: 'RSVP deadlines, changes to your trainings and games, waiting-list moves: as a notification, even when Wiedisync is closed.',
+  pushPromptEnable: 'Turn on',
+  pushPromptLater: 'Not now',
+  pushPromptDone: 'Notifications are on for this device.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} unread',
   unreadShort_other: '{{count}} unread',

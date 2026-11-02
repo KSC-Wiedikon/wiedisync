@@ -79,6 +79,11 @@ export default {
   pushTestFailed: 'Il test non è stato recapitato. Disattiva e riattiva le notifiche push.',
   pushTestRateLimited: 'Aspetta qualche minuto prima del prossimo test.',
   pushTestNotSubscribed: 'Le notifiche push non sono attive su questo dispositivo.',
+  pushPromptTitle: 'Promemoria su questo dispositivo',
+  pushPromptBody: 'Scadenze per rispondere, modifiche ad allenamenti e partite, lista d\'attesa: come notifica, anche con Wiedisync chiuso.',
+  pushPromptEnable: 'Attiva',
+  pushPromptLater: 'Non ora',
+  pushPromptDone: 'Le notifiche sono attive su questo dispositivo.',
   // Unread badge (aria-labels)
   unreadShort_one: '{{count}} non letta',
   unreadShort_other: '{{count}} non lette',

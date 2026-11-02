@@ -49,6 +49,7 @@ import { RailLeague } from '@/components/RailLeague'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
+import PushPrompt from './PushPrompt'
 import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import YourDuesCard from '../finance/YourDuesCard'
@@ -560,6 +561,7 @@ export default function HomePage() {
   return (
     <div className="min-w-0">
       <InstallBanner />
+      <PushPrompt />
       {isInitialLoading ? null : (<>
 
       {/* Header row: shield · Wiedisync · hosting partner (phone). Equal side
