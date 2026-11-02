@@ -154,6 +154,44 @@ describe('ceremonies with a software authenticator', () => {
     expect(newCounter).toBe(1)
   })
 
+  it('a challenge id is a token this process signed: forged, altered or foreign ones are refused', async () => {
+    const c = createPasskeyCeremonies(config)
+    const other = createPasskeyCeremonies(config)
+    const device = softAuthenticator()
+    const stored = await setUp(c, device)
+    const lookup = async () => stored
+    const auth = await c.authenticationOptions()
+    const answer = device.get(auth.options, APP)
+    const [payload, sig] = auth.challengeId.split('.')
+    const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload, 'base64url').toString()), e: Date.now() + 1e9 })).toString('base64url')
+    for (const id of [`${forged}.${sig}`, `${payload}.${sig.slice(0, -2)}xx`, payload, `${payload}.${sig}.x`, '', null, 'x'.repeat(5000)]) {
+      await expect(c.finishAuthentication({ challengeId: id, response: answer, lookup })).rejects.toMatchObject({ code: 'challenge' })
+    }
+    // Another process (another key) did not sign it.
+    await expect(other.finishAuthentication({ challengeId: auth.challengeId, response: answer, lookup })).rejects.toMatchObject({ code: 'challenge' })
+    // Expired.
+    let t = Date.now()
+    const clock = createPasskeyCeremonies(config, { now: () => t })
+    const old = await clock.authenticationOptions()
+    t += 4 * 60 * 1000
+    await expect(clock.finishAuthentication({ challengeId: old.challengeId, response: answer, lookup })).rejects.toMatchObject({ code: 'challenge' })
+    // The real one still works, once.
+    await c.finishAuthentication({ challengeId: auth.challengeId, response: answer, lookup })
+    expect(c.used).toBe(2) // the set-up's challenge and this one
+
+  })
+
+  it('an answer from inside a frame of another site is refused', async () => {
+    const c = createPasskeyCeremonies(config)
+    const device = softAuthenticator()
+    const stored = await setUp(c, device)
+    const auth = await c.authenticationOptions()
+    const answer = device.get(auth.options, APP)
+    const cd = JSON.parse(Buffer.from(answer.response.clientDataJSON, 'base64url').toString())
+    answer.response.clientDataJSON = Buffer.from(JSON.stringify({ ...cd, crossOrigin: true })).toString('base64url')
+    await expect(c.finishAuthentication({ challengeId: auth.challengeId, response: answer, lookup: async () => stored })).rejects.toMatchObject({ code: 'origin' })
+  })
+
   it('a challenge works once, and only for what it was issued for', async () => {
     const c = createPasskeyCeremonies(config)
     const device = softAuthenticator()
@@ -289,16 +327,16 @@ const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/6
 const fakeJwt = (exp = Math.floor(Date.now() / 1000) + 7 * 86400) =>
   `h.${Buffer.from(JSON.stringify({ id: 'user-1', exp })).toString('base64url')}.s`
 
-function setup({ env = { ...PROD, SESSION_COOKIE_NAME: 'kscw_session', SESSION_COOKIE_SECURE: true, SESSION_COOKIE_SAME_SITE: 'lax' }, password = 'Volley1ball', otpNeeded = false, status = 'active' } = {}) {
+function setup({ env = { ...PROD, SESSION_COOKIE_NAME: 'kscw_session', SESSION_COOKIE_SECURE: true, SESSION_COOKIE_SAME_SITE: 'lax' }, password = 'Volley1ball', otpNeeded = false, status = 'active', checkResolvesTo = 'user-1' } = {}) {
   const tables = {
     directus_users: [{ id: 'user-1', email: 'anna@example.ch', status, provider: 'default' }],
-    members: [{ id: 42, user: 'user-1', first_name: 'Anna', last_name: 'Muster', language: 'english' }],
+    members: [{ id: 42, user: 'user-1', first_name: 'Anna', last_name: 'Muster', language: 'english', wiedisync_active: false, last_online_at: null }],
     directus_sessions: [],
     passkeys: [],
     user_logs: [],
   }
   const database = fakeDb(tables)
-  const calls = { refresh: [], login: [], mails: [], activity: [], emitted: [] }
+  const calls = { refresh: [], login: [], mails: [], activity: [] }
   class AuthenticationService {
     async login(provider, payload, options) {
       calls.login.push({ provider, payload, options })
@@ -306,7 +344,7 @@ function setup({ env = { ...PROD, SESSION_COOKIE_NAME: 'kscw_session', SESSION_C
       if (otpNeeded && options?.otp !== '123456') throw Object.assign(new Error('otp'), { code: 'INVALID_OTP' })
       const token = `check-${calls.login.length}`
       tables.directus_sessions.push({ token, user: 'user-1' })
-      return { refreshToken: token }
+      return { refreshToken: token, id: checkResolvesTo }
     }
     async refresh(token, options) {
       calls.refresh.push({ token, options })
@@ -320,14 +358,14 @@ function setup({ env = { ...PROD, SESSION_COOKIE_NAME: 'kscw_session', SESSION_C
   class ActivityService { async createOne(a) { calls.activity.push(a) } }
   const routes = {}
   const router = new Proxy({}, { get: (_, m) => (p, h) => { routes[`${String(m).toUpperCase()} ${p}`] = h } })
-  const emitter = { emitAction: (event, meta) => calls.emitted.push({ event, meta }) }
-  registerPasskeys(router, { database, services: { AuthenticationService, MailService, ActivityService }, getSchema: async () => ({}), logger, emitter, env })
-  const call = async (route, { body = {}, user = null, acting = false, params = {}, origin = APP } = {}) => {
+  registerPasskeys(router, { database, services: { AuthenticationService, MailService, ActivityService }, getSchema: async () => ({}), logger, env })
+  const call = async (route, { body = {}, user = null, acting = false, params = {}, origin = APP, cookies = {} } = {}) => {
     const res = makeRes()
     const req = {
-      body, params,
-      accountability: { user, ip: '203.0.113.7', userAgent: UA, origin, ...(acting ? { kscwGuardian: { user: 'u-main', memberId: 50 } } : {}) },
-      headers: { 'user-agent': UA }, get: (h) => (h.toLowerCase() === 'user-agent' ? UA : origin), socket: { remoteAddress: '203.0.113.7' },
+      body, params, cookies,
+      // Directus's ip is the left-most X-Forwarded-For (client-written); Cloudflare's header wins.
+      accountability: { user, ip: '198.51.100.66', userAgent: UA, origin, ...(acting ? { kscwGuardian: { user: 'u-main', memberId: 50 } } : {}) },
+      headers: { 'user-agent': UA, 'cf-connecting-ip': '203.0.113.7' }, get: (h) => (h.toLowerCase() === 'user-agent' ? UA : origin), socket: { remoteAddress: '203.0.113.7' },
     }
     await routes[route](req, res)
     return res
@@ -355,6 +393,13 @@ describe('POST /passkey/register-options + /register', () => {
     expect(ok.statusCode).toBe(200)
     expect(s.calls.login.at(-1)).toMatchObject({ provider: 'default', payload: { email: 'anna@example.ch' } })
     expect(s.tables.directus_sessions).toEqual([])
+  })
+
+  it('the password must be THIS account\'s (an address that resolves elsewhere does not count)', async () => {
+    const s = setup({ checkResolvesTo: 'user-2' })
+    const res = await s.call('POST /passkey/register-options', { user: 'user-1', body: { password: 'Volley1ball' } })
+    expect(res.statusCode).toBe(401)
+    expect(res.body.code).toBe('bad_password')
   })
 
   it('an account with an authenticator app also needs its code', async () => {
@@ -396,12 +441,37 @@ describe('POST /passkey/register-options + /register', () => {
   })
 })
 
+/** login-options' challenge cookie, as the browser would send it back. */
+const challengeCookieOf = (res) => {
+  const c = res.cookies.find((x) => x.name === 'kscw_passkey_challenge')
+  return c ? { kscw_passkey_challenge: c.value } : {}
+}
+
 describe('POST /passkey/login', () => {
   async function signIn(s, device, origin = APP) {
     const opts = await s.call('POST /passkey/login-options', { origin })
     expect(opts.statusCode).toBe(200)
-    return s.call('POST /passkey/login', { origin, body: { challengeId: opts.body.data.challengeId, response: device.get(opts.body.data.options, origin) } })
+    return s.call('POST /passkey/login', { origin, cookies: challengeCookieOf(opts), body: { challengeId: opts.body.data.challengeId, response: device.get(opts.body.data.options, origin) } })
   }
+
+  it('login-options binds the ceremony to this browser with an httpOnly cookie, and login wants it back', async () => {
+    const s = setup()
+    const device = softAuthenticator()
+    await setUpViaRoutes(s, device)
+    const opts = await s.call('POST /passkey/login-options')
+    const cookie = opts.cookies.find((c) => c.name === 'kscw_passkey_challenge')
+    expect(cookie.value).toBe(opts.body.data.challengeId)
+    expect(cookie.opts).toMatchObject({ httpOnly: true, secure: true, sameSite: 'lax', path: '/kscw/passkey' })
+    const answer = device.get(opts.body.data.options, APP)
+    // Relayed elsewhere (no cookie), or with another ceremony's cookie: refused.
+    const relayed = await s.call('POST /passkey/login', { body: { challengeId: opts.body.data.challengeId, response: answer } })
+    expect(relayed.statusCode).toBe(400)
+    expect(relayed.body.code).toBe('passkey_challenge')
+    const other = await s.call('POST /passkey/login-options')
+    const mixed = await s.call('POST /passkey/login', { cookies: challengeCookieOf(other), body: { challengeId: opts.body.data.challengeId, response: answer } })
+    expect(mixed.body.code).toBe('passkey_challenge')
+    expect(s.calls.refresh).toHaveLength(0)
+  })
 
   it('turns a verified key into a Directus session: seed row → refresh(session) → the cookie', async () => {
     const s = setup()
@@ -422,8 +492,9 @@ describe('POST /passkey/login', () => {
     expect(res.cookies[0].name).toBe('kscw_session')
     expect(res.cookies[0].opts).toMatchObject({ httpOnly: true, secure: true, sameSite: 'lax' })
     expect(res.cookies[0].opts.maxAge).toBeGreaterThan(6 * 86400 * 1000)
-    // What login() would have done besides.
-    expect(s.calls.emitted).toEqual([expect.objectContaining({ event: 'auth.login', meta: expect.objectContaining({ status: 'success', user: 'user-1', provider: 'passkey' }) })])
+    // What login() and kscw-hooks' auth.login action would have done besides.
+    expect(s.tables.members[0].wiedisync_active).toBe(true)
+    expect(s.tables.members[0].last_online_at).toBeInstanceOf(Date)
     expect(s.calls.activity[0]).toMatchObject({ action: 'login', user: 'user-1', collection: 'directus_users' })
     expect(s.tables.user_logs.at(-1)).toMatchObject({ action: 'login', collection_name: 'passkeys' })
     expect(s.tables.passkeys[0].counter).toBe(1)
@@ -450,8 +521,9 @@ describe('POST /passkey/login', () => {
     await setUpViaRoutes(s, device)
     const opts = await s.call('POST /passkey/login-options')
     const answer = device.get(opts.body.data.options, APP)
-    expect((await s.call('POST /passkey/login', { body: { challengeId: opts.body.data.challengeId, response: answer } })).statusCode).toBe(200)
-    const replay = await s.call('POST /passkey/login', { body: { challengeId: opts.body.data.challengeId, response: answer } })
+    const cookies = challengeCookieOf(opts)
+    expect((await s.call('POST /passkey/login', { cookies, body: { challengeId: opts.body.data.challengeId, response: answer } })).statusCode).toBe(200)
+    const replay = await s.call('POST /passkey/login', { cookies, body: { challengeId: opts.body.data.challengeId, response: answer } })
     expect(replay.body.code).toBe('passkey_challenge')
     const evil = await signIn(s, device, 'https://kscw.ch')
     expect(evil.body.code).toBe('passkey_origin')

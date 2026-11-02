@@ -17,15 +17,17 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
 import { isoBase64URL, isoUint8Array } from '@simplewebauthn/server/helpers'
-import { randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 /** How long the device's sheet may stay open. */
 export const PASSKEY_CEREMONY_MS = 2 * 60 * 1000
 /** A challenge waits a little longer than the sheet, for a slow network. */
 export const PASSKEY_CHALLENGE_TTL_MS = PASSKEY_CEREMONY_MS + 60 * 1000
-/** Outstanding challenges at most. The sign-in options need no session, so the map has a
- *  ceiling that does not depend on the rate limits; the oldest go first. */
-export const PASSKEY_CHALLENGES_MAX = 5000
+/** Challenges already answered (kept until they expire, so an answer cannot be sent twice).
+ *  Only a token this process signed gets in, and only when it is answered — asking for options
+ *  costs the server nothing (security review 02.11.2026: a map of ISSUED challenges could be
+ *  flooded from many IPv6 /64s until real ones were pushed out). Full → refuse (fail closed). */
+export const PASSKEY_USED_MAX = 20000
 /** Passkeys one account may have: phones, tablets, laptops and their replacements fit; a
  *  script making thousands does not. */
 export const PASSKEYS_PER_USER_MAX = 10
@@ -91,13 +93,18 @@ export function originAllowed(origin, config) {
   return typeof origin === 'string' && origin.length > 0 && config.origins.includes(origin)
 }
 
-/** The origin a browser wrote into the answer (clientDataJSON), or ''. */
-export function originOf(response) {
+/** What the browser wrote into the answer (clientDataJSON): its origin, and whether it ran in
+ *  a frame of another site. */
+export function clientDataOf(response) {
   try {
-    const json = isoUint8Array.toUTF8String(isoBase64URL.toBuffer(String(response?.response?.clientDataJSON || '')))
-    const origin = JSON.parse(json)?.origin
-    return typeof origin === 'string' ? origin : ''
-  } catch { return '' }
+    const data = JSON.parse(isoUint8Array.toUTF8String(isoBase64URL.toBuffer(String(response?.response?.clientDataJSON || ''))))
+    return { origin: typeof data?.origin === 'string' ? data.origin : '', crossOrigin: data?.crossOrigin === true }
+  } catch { return { origin: '', crossOrigin: false } }
+}
+
+/** The origin a browser wrote into the answer, or ''. */
+export function originOf(response) {
+  return clientDataOf(response).origin
 }
 
 /** "iPhone · Safari", "Android · Chrome", "Android · App": the list in the profile and the
@@ -142,42 +149,52 @@ export class PasskeyError extends Error {
 }
 
 /**
- * The two ceremonies with their challenges, held in this process: a restart costs whoever
- * had the sheet open one more tap. Each challenge is taken out of the map before it is
- * checked, so an answer sent twice finds nothing.
+ * The two ceremonies. A challenge is not stored when it is issued: its id is a token this
+ * process signs (HMAC, a key made at start) carrying the challenge, what it is for, whose it
+ * is and when it expires. When it is answered, the signature is checked and the challenge
+ * goes into the used set, so an answer sent twice finds it there. A restart costs whoever
+ * had the sheet open one more tap.
  */
-export function createPasskeyCeremonies(config, now = Date.now) {
-  const challenges = new Map()
+export function createPasskeyCeremonies(config, { now = Date.now, secret = randomBytes(32) } = {}) {
+  const used = new Map() // challenge → expiresAt
+  let lastSweep = 0
+
+  const mac = (payload) => createHmac('sha256', secret).update(payload).digest('base64url')
 
   function sweep() {
     const t = now()
-    for (const [id, entry] of challenges) if (entry.expiresAt < t) challenges.delete(id)
+    lastSweep = t
+    for (const [c, exp] of used) if (exp < t) used.delete(c)
   }
 
-  function issue(entry) {
-    sweep()
-    while (challenges.size >= PASSKEY_CHALLENGES_MAX) {
-      const oldest = challenges.keys().next().value
-      if (oldest === undefined) break
-      challenges.delete(oldest)
-    }
-    const id = randomBytes(18).toString('base64url')
-    challenges.set(id, { ...entry, expiresAt: now() + PASSKEY_CHALLENGE_TTL_MS })
-    return id
+  function issue({ challenge, purpose, userId }) {
+    const payload = Buffer.from(JSON.stringify({ c: challenge, p: purpose, u: userId, e: now() + PASSKEY_CHALLENGE_TTL_MS })).toString('base64url')
+    return `${payload}.${mac(payload)}`
   }
 
   function take(id, purpose) {
-    const entry = typeof id === 'string' ? challenges.get(id) : undefined
-    if (entry) challenges.delete(id)
-    if (!entry || entry.purpose !== purpose || entry.expiresAt < now()) {
-      throw new PasskeyError('challenge', 'challenge unknown, used or expired')
-    }
-    return entry
+    const bad = () => new PasskeyError('challenge', 'challenge unknown, used or expired')
+    if (typeof id !== 'string' || id.length > 2048) throw bad()
+    const [payload, sig, extra] = id.split('.')
+    if (!payload || !sig || extra !== undefined) throw bad()
+    const want = Buffer.from(mac(payload))
+    const got = Buffer.from(sig)
+    if (want.length !== got.length || !timingSafeEqual(want, got)) throw bad()
+    let entry
+    try { entry = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) } catch { throw bad() }
+    if (!entry || entry.p !== purpose || typeof entry.c !== 'string' || !(entry.e >= now())) throw bad()
+    if (now() - lastSweep > 1000) sweep()
+    if (used.has(entry.c)) throw bad()
+    if (used.size >= PASSKEY_USED_MAX) throw new PasskeyError('challenge', 'too many answers in flight')
+    used.set(entry.c, entry.e)
+    return { challenge: entry.c, purpose: entry.p, userId: entry.u }
   }
 
-  /** The answer's origin, checked against the list before the library sees it. */
+  /** The answer's origin, checked against the list before the library sees it — and never
+   *  from inside a frame of another site (Safari sends no topOrigin for the library to check). */
   function allowedOrigin(response) {
-    const origin = originOf(response)
+    const { origin, crossOrigin } = clientDataOf(response)
+    if (crossOrigin) throw new PasskeyError('origin', 'answered inside a cross-origin frame')
     if (!originAllowed(origin, config)) throw new PasskeyError('origin', `origin not allowed: ${origin.slice(0, 80)}`)
     return origin
   }
@@ -185,7 +202,7 @@ export function createPasskeyCeremonies(config, now = Date.now) {
   return {
     config,
     sweep,
-    get pending() { return challenges.size },
+    get used() { return used.size },
 
     /**
      * Options for setting up a passkey. The user handle is the Directus user id (a UUID,
@@ -214,13 +231,13 @@ export function createPasskeyCeremonies(config, now = Date.now) {
     async finishRegistration({ challengeId, userId, response }) {
       const entry = take(challengeId, 'register')
       if (entry.userId !== String(userId)) throw new PasskeyError('mismatch', 'challenge issued for another account')
-      const origin = allowedOrigin(response)
+      allowedOrigin(response)
       let verification
       try {
         verification = await verifyRegistrationResponse({
           response,
           expectedChallenge: entry.challenge,
-          expectedOrigin: origin,
+          expectedOrigin: config.origins,
           expectedRPID: config.rpId,
           requireUserVerification: true,
         })
@@ -256,7 +273,7 @@ export function createPasskeyCeremonies(config, now = Date.now) {
       const credentialId = typeof response?.id === 'string' ? response.id : ''
       // Checked before it goes anywhere near a query.
       if (!CREDENTIAL_ID_RE.test(credentialId)) throw new PasskeyError('invalid', 'no usable credential id')
-      const origin = allowedOrigin(response)
+      allowedOrigin(response)
       const passkey = await lookup(credentialId)
       if (!passkey) throw new PasskeyError('unknown', 'no such passkey')
       // The user handle, when the device sends one, must be the account the key is filed
@@ -272,7 +289,7 @@ export function createPasskeyCeremonies(config, now = Date.now) {
         verification = await verifyAuthenticationResponse({
           response,
           expectedChallenge: entry.challenge,
-          expectedOrigin: origin,
+          expectedOrigin: config.origins,
           expectedRPID: config.rpId,
           credential: {
             id: passkey.credentialId,

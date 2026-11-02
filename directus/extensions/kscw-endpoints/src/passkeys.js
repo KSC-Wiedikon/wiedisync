@@ -19,9 +19,10 @@
  * (dist/services/authentication.js, dist/constants.js SESSION_COOKIE_OPTIONS) — re-check both
  * after a Directus upgrade; the ext smoke probes login-options.
  *
- * What login() does that refresh() doesn't is done here by hand: the `auth.login` action
- * (kscw-hooks: wiedisync_active, last_online_at), the activity row Directus writes for a
- * login, and our own user_logs entry. A passkey with user verification is two factors (the
+ * What login() does that refresh() doesn't is done here by hand: what kscw-hooks' `auth.login`
+ * action does (wiedisync_active, last_online_at — written here, because an endpoint's
+ * `emitter` is the extension-local one and never reaches the hooks), the activity row
+ * Directus writes for a login, and our own user_logs entry. A passkey with user verification is two factors (the
  * device and the fingerprint/face/PIN), so an account with TOTP is not asked for its code at
  * sign-in — but it IS asked when setting a passkey up, or a stolen password alone could add
  * a key and skip the code for good.
@@ -29,7 +30,12 @@
  * Setting one up needs the password (checked by Directus's own login, so wrong guesses count
  * toward auth_login_attempts and the account's suspension), never while acting for a
  * household member. Every new key is mailed to the login address. Any password change or
- * reset removes all of the account's keys (kscw-hooks `users.update`).
+ * reset removes all of the account's keys (trigger trg_directus_users_password_passkeys,
+ * migration 439 — in the same transaction as the password, whatever wrote it).
+ *
+ * The sign-in ceremony is bound to the browser that started it: login-options sets a
+ * short-lived httpOnly cookie with the challenge id, and login wants it back — an answer
+ * relayed from a script on another page cannot be replayed elsewhere.
  */
 
 import { randomBytes } from 'node:crypto'
@@ -39,6 +45,7 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, escHtml, FRONTEND_URL } from './email-template.js'
 import {
   CREDENTIAL_ID_RE,
+  PASSKEY_CHALLENGE_TTL_MS,
   PASSKEYS_PER_USER_MAX,
   PasskeyError,
   createPasskeyCeremonies,
@@ -48,6 +55,8 @@ import {
 
 /** The seed row only has to survive the refresh() call right after it. */
 const SEED_SESSION_MS = 60 * 1000
+/** The cookie that binds a sign-in ceremony to the browser that asked for it. */
+export const CHALLENGE_COOKIE = 'kscw_passkey_challenge'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -76,12 +85,17 @@ export function sessionCookieOptions(env, accessToken, now = Date.now()) {
   return opts
 }
 
+/** Who is asking: the IP from Cloudflare's header (clientIp), not Directus's left-most
+ *  X-Forwarded-For, which the client writes (SECURITY.md finding 12). directus_sessions.origin
+ *  is varchar(255): a longer Origin header must not turn a sign-in into a 500. */
 function requestMeta(req) {
   const acc = req.accountability || {}
+  const origin = acc.origin ?? req.get?.('origin') ?? null
+  const ip = clientIp(req)
   return {
-    ip: acc.ip ?? clientIp(req) ?? null,
+    ip: ip && ip !== 'unknown' ? ip : (acc.ip ?? null),
     userAgent: acc.userAgent ?? req.get?.('user-agent') ?? null,
-    origin: acc.origin ?? req.get?.('origin') ?? null,
+    origin: typeof origin === 'string' ? origin.slice(0, 255) : null,
   }
 }
 
@@ -206,24 +220,38 @@ function createKeyedLimiter(max, windowMs) {
 }
 
 export function registerPasskeys(router, ctx) {
-  const { database, services, getSchema, logger, emitter } = ctx
+  const { database, services, getSchema, logger } = ctx
   const env = ctx.env || process.env
   const log = logger.child({ endpoint: 'passkeys' })
   const config = passkeyConfig(env)
   const ceremonies = config ? createPasskeyCeremonies(config) : null
 
-  const optionsIp = createLimiter(30, 60 * 1000)
-  const loginIp = createLimiter(20, 60 * 1000)
+  // A hall's wifi is one IP for a whole team: generous per IP, the challenge and the
+  // signature are the real gate.
+  const optionsIp = createLimiter(60, 60 * 1000)
+  const loginIp = createLimiter(30, 60 * 1000)
   const setupUser = createKeyedLimiter(10, 60 * 60 * 1000)
   const manageUser = createKeyedLimiter(60, 60 * 1000)
 
   const unavailable = (res) => res.status(503).json({ error: 'Passkeys are not available', code: 'passkeys_unavailable' })
   const tooMany = (res) => res.status(429).json({ error: 'Too many attempts — try again later', code: 'rate_limited' })
-  const refuse = (res, err) => {
+  /** A refused ceremony: logged (code, page, account if known — never the answer itself), so
+   *  a copied key (counter backwards) or a page that is not ours shows up in the logs. */
+  const refuse = (res, err, { route, userId = null, req } = {}) => {
     const code = err instanceof PasskeyError ? err.code : 'invalid'
     const status = code === 'challenge' ? 400 : 401
+    log.warn({
+      msg: `passkey ${route} refused: ${code}`, endpoint: `passkey/${route}`, code, userId,
+      origin: req ? requestMeta(req).origin : null, detail: String(err?.message || '').slice(0, 200),
+    })
     return res.status(status).json({ error: 'The passkey could not be verified', code: `passkey_${code}` })
   }
+  const challengeCookieOptions = () => ({
+    httpOnly: true,
+    secure: Boolean(env.SESSION_COOKIE_SECURE),
+    sameSite: 'lax',
+    path: '/kscw/passkey',
+  })
   /** Signed in as yourself, not acting for a household member. */
   const self = (req, res) => {
     const userId = req.accountability?.user
@@ -247,7 +275,9 @@ export function registerPasskeys(router, ctx) {
     if (!ceremonies) return unavailable(res)
     if (!optionsIp.take(req)) return tooMany(res)
     try {
-      res.json({ data: await ceremonies.authenticationOptions() })
+      const data = await ceremonies.authenticationOptions()
+      res.cookie(CHALLENGE_COOKIE, data.challengeId, { ...challengeCookieOptions(), maxAge: PASSKEY_CHALLENGE_TTL_MS })
+      res.json({ data })
     } catch (err) {
       log.error({ msg: `passkey login-options: ${err.message}`, endpoint: 'passkey/login-options', stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -258,6 +288,12 @@ export function registerPasskeys(router, ctx) {
     if (!ceremonies) return unavailable(res)
     if (!loginIp.take(req)) return tooMany(res)
     const { challengeId, response } = req.body ?? {}
+    // Bound to the browser that asked: the challenge id must come back in its cookie too.
+    const bound = req.cookies?.[CHALLENGE_COOKIE]
+    res.clearCookie?.(CHALLENGE_COOKIE, challengeCookieOptions())
+    if (typeof challengeId !== 'string' || bound !== challengeId) {
+      return refuse(res, new PasskeyError('challenge', bound ? 'challenge cookie does not match' : 'no challenge cookie'), { route: 'login', req })
+    }
     let result
     try {
       result = await ceremonies.finishAuthentication({
@@ -278,21 +314,21 @@ export function registerPasskeys(router, ctx) {
         log.error({ msg: `passkey login verify: ${err.message}`, endpoint: 'passkey/login', stack: err.stack })
         return res.status(500).json({ error: 'Internal error' })
       }
-      return refuse(res, err)
+      return refuse(res, err, { route: 'login', req })
     }
 
     const { passkey, newCounter } = result
     const meta = requestMeta(req)
     try {
       // The counter only moves forward; a key that does not count (most synced passkeys
-      // report 0) stays at 0.
+      // report 0) stays at 0. No row updated = the key was removed meanwhile (a password
+      // change, Profile → Remove) or a parallel sign-in got there first: no session.
       const moved = await database('passkeys')
         .where('id', passkey.id)
         .andWhere((q) => q.where('counter', '<', newCounter).orWhere('counter', 0))
         .update({ counter: newCounter, last_used_at: new Date() })
-      if (!moved && newCounter > 0) {
-        log.warn({ msg: 'passkey login: counter did not move forward', endpoint: 'passkey/login', userId: passkey.userId })
-        return res.status(401).json({ error: 'The passkey could not be verified', code: 'passkey_invalid' })
+      if (!moved) {
+        return refuse(res, new PasskeyError('invalid', 'key removed or counter did not move forward'), { route: 'login', userId: passkey.userId, req })
       }
 
       const schema = await getSchema()
@@ -303,6 +339,7 @@ export function registerPasskeys(router, ctx) {
         const code = directusCode(err)
         if (code === 'USER_SUSPENDED') return res.status(401).json({ error: 'This account is suspended', code: 'user_suspended' })
         if (code === 'INVALID_CREDENTIALS') return res.status(401).json({ error: 'This account cannot sign in', code: 'passkey_invalid' })
+        if (code === 'RESOURCE_RESTRICTED') return res.status(403).json({ error: 'Sign-in is not possible right now', code: 'resource_restricted' })
         throw err
       }
 
@@ -318,9 +355,13 @@ export function registerPasskeys(router, ctx) {
       } catch (err) {
         log.warn({ msg: `passkey login activity row: ${err.message}`, endpoint: 'passkey/login', userId: passkey.userId })
       }
-      emitter?.emitAction?.('auth.login', {
-        payload: { method: 'passkey' }, status: 'success', user: passkey.userId, provider: 'passkey',
-      }, { database, schema, accountability })
+      // kscw-hooks' auth.login action, by hand (it cannot hear this endpoint's emitter).
+      try {
+        await database('members').where('user', passkey.userId).where('wiedisync_active', false).update({ wiedisync_active: true })
+        await database('members').where('user', passkey.userId).update({ last_online_at: new Date() })
+      } catch (err) {
+        log.warn({ msg: `passkey login post-login writes: ${err.message}`, endpoint: 'passkey/login', userId: passkey.userId })
+      }
       await writeUserLog(database, log, {
         accountability, action: 'login', collection: 'passkeys', recordId: passkey.id, data: { what: 'passkey_login' },
       })
@@ -354,6 +395,10 @@ export function registerPasskeys(router, ctx) {
       try {
         const check = await auth.login('default', { email: user.email, password: String(password) }, { otp: otp ? String(otp) : undefined })
         if (check?.refreshToken) await database('directus_sessions').where('token', check.refreshToken).delete()
+        // The address resolves case-insensitively: make sure it was THIS account's password.
+        if (String(check?.id) !== String(userId)) {
+          return res.status(401).json({ error: 'Current password is incorrect', code: 'bad_password' })
+        }
       } catch (err) {
         const code = directusCode(err)
         // INVALID_OTP comes only after the password itself was right.
@@ -397,7 +442,7 @@ export function registerPasskeys(router, ctx) {
         log.error({ msg: `passkey register verify: ${err.message}`, endpoint: 'passkey/register', userId, stack: err.stack })
         return res.status(500).json({ error: 'Internal error' })
       }
-      return refuse(res, err)
+      return refuse(res, err, { route: 'register', userId, req })
     }
     try {
       const label = passkeyDeviceLabel(requestMeta(req).userAgent).slice(0, 80)
@@ -482,7 +527,7 @@ export function registerPasskeys(router, ctx) {
     }
   })
 
-  // Expired challenges go even when nobody asks for new ones.
+  // Answered challenges leave the used set when they expire, even when nobody signs in.
   if (ceremonies) {
     const timer = setInterval(() => ceremonies.sweep(), 60 * 1000)
     timer.unref?.()

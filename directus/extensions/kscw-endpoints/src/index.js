@@ -1681,7 +1681,7 @@ export default {
     // theirs. It also self-destructs: changing the password invalidates the
     // caller's own session, so the app 401-storms on the next page (member 263,
     // 2026-08-10 11:20 — ~20 failed queries and 8 dead refreshes in 4 seconds).
-    // Mode 1 is for "authenticated, no email, no token" and nothing else.
+    // Mode 1 ("authenticated, no email, no token") is closed since 2026-11-02 — see below.
 
     router.post('/set-password', async (req, res) => {
       try {
@@ -1861,11 +1861,12 @@ export default {
           // Clean up used verifications
           await database('email_verifications').where('email', email).delete()
         } else if (req.accountability?.user) {
-          // Mode 1: Authenticated user changing password. LAST on purpose — see
-          // the ordering note above the handler.
-          userId = req.accountability.user
-          const member = await database('members').where('user', userId).select('id').first()
-          memberId = member?.id
+          // Mode 1 (authenticated, no email, no token) is CLOSED since 2026-11-02 (passkeys
+          // security review): it changed the password on a session alone, so a stolen
+          // session became a permanent credential — and with it a passkey. Nothing in the
+          // app called it any more; a signed-in member changes the password through
+          // /kscw/change-password, which checks the current one.
+          return res.status(403).json({ error: 'Use /kscw/change-password to change your password', code: 'use_change_password' })
         } else {
           return res.status(401).json({ error: 'Authentication or email required' })
         }

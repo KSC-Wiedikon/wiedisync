@@ -5,13 +5,17 @@
 -- `kscw.ch` on prod (one key for the member app, Spielplanung, Accounting and later WiePlay),
 -- `wiedisync-dev.kscw.ch` on dev. kscw-endpoints/src/passkeys.js owns every read and write.
 --
--- Deliberately NOT a Directus collection: no directus_collections / directus_fields row, so
--- the items API, the admin UI, realtime and every policy stay blind to it — no permission rows
--- (setup-permissions.mjs is unchanged). The SQL workspace reader gets no grant either
--- (directus-db-role.sql deny_tables; revoked below for the window until that file runs again).
+-- Deliberately NOT a Directus collection: no directus_collections / directus_fields row and no
+-- permission rows (setup-permissions.mjs is unchanged), so no non-admin policy can reach it —
+-- Directus still lists unconfigured tables to an admin, who can already reset any password.
+-- The SQL workspace reader gets no grant either (directus-db-role.sql deny_tables; revoked
+-- below for the window until that file runs again).
 --
--- A password change or reset removes the account's passkeys (kscw-hooks `users.update`): if
--- someone stole the password and added a key, changing the password must lock them out.
+-- A password change or reset removes the account's passkeys: if someone stole the password and
+-- added a key, changing the password must lock them out. A trigger, not a hook (security review
+-- 02.11.2026): Directus fires item actions after the commit without awaiting them, so a hook
+-- could lose the delete (restart, DB error) or race a passkey sign-in, and raw-SQL password
+-- writes skip hooks entirely. Here the keys go in the same transaction as the password.
 
 BEGIN;
 
@@ -39,9 +43,23 @@ CREATE TABLE IF NOT EXISTS passkeys (
 
 CREATE INDEX IF NOT EXISTS passkeys_user_idx ON passkeys ("user");
 
+CREATE OR REPLACE FUNCTION trg_directus_users_password_passkeys()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM passkeys WHERE "user" = NEW.id;
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_directus_users_password_passkeys ON directus_users;
+CREATE TRIGGER trg_directus_users_password_passkeys
+  AFTER UPDATE OF password ON directus_users
+  FOR EACH ROW WHEN (OLD.password IS DISTINCT FROM NEW.password)
+  EXECUTE FUNCTION trg_directus_users_password_passkeys();
+
 COMMENT ON TABLE public.passkeys IS
   'Passkeys (WebAuthn) for signing in without the password. Written only by kscw-endpoints '
-  'passkeys.js; not a Directus collection. Removed on any password change (kscw-hooks).';
+  'passkeys.js; not a Directus collection. Removed on any password change '
+  '(trg_directus_users_password_passkeys).';
 
 DO $$
 BEGIN
