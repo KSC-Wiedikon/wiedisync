@@ -5115,6 +5115,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 9a. Cron: car pooling on for away games, a week ahead (migration 441) ───
+  // Away games get their car pooling board automatically 7 days before; a game
+  // whose switch a coach touched by hand is left alone. The rule lives in SQL
+  // (carpool_auto_enable_away_games) so a re-run or a manual psql call does the
+  // same thing. Hourly, so a fixture synced in during the week is caught soon.
+  schedule('10 * * * *', async () => {
+    const startedAt = Date.now()
+    try {
+      const r = await database.raw('SELECT carpool_auto_enable_away_games() AS n')
+      const n = Number(r?.rows?.[0]?.n ?? 0)
+      if (n > 0) log.info(`Carpool auto-enable cron: ${n} away game(s) switched on`)
+      await logCronRun(database, 'carpool_auto_enable', { status: 'ok', rowsChanged: n, durationMs: Date.now() - startedAt })
+    } catch (err) {
+      log.error({ msg: `Carpool auto-enable cron: ${err.message}`, event: 'cron.carpool_auto_enable', stack: err.stack })
+      logCronError('carpool_auto_enable', err)
+      await logCronRun(database, 'carpool_auto_enable', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── 9b. Cron: stage ClubDesk value conflicts after a cron sync-down ──────────
   // Migration 338 made a value disagreement a DECISION (a `conflict` proposal)
   // instead of a row on a board that could not remember an answer. Staging runs
