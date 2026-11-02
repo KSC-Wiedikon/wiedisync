@@ -200,6 +200,7 @@ export default {
   cancelTrainingAction: 'Cancel training',
   cancelEventAction: 'Cancel event',
   cancelGameAction: 'Cancel game',
+  cancelShortAction: 'Cancel',
   reinstateAction: 'Reinstate',
   cancelTrainingConfirm: 'Cancel this training? The team is notified and the hall slot is freed for other teams.',
   cancelEventConfirm: 'Cancel this event? The team is notified.',

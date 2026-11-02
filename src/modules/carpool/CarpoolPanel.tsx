@@ -91,14 +91,33 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
     }
   }
 
-  const submitComposer = async (input: CarpoolEntryInput) => {
+  const submitComposer = async (input: CarpoolEntryInput, back?: { date: string; time: string | null }) => {
     if (!composer) return
     try {
       if (composer.editId != null) await act(() => actions.update(composer.editId!, input), 'saved')
-      else await act(() => actions.create({ ...input, kind: composer.kind }), composer.kind === 'offer' ? 'offerPosted' : 'requestPosted')
+      else if (back) {
+        // Round trip: the Going ride first, then the same car on the Return
+        // board. If the second one fails the first stays posted — the toast says
+        // so and the driver can add the return ride from the Return tab.
+        await act(() => actions.create({ ...input, kind: 'offer' }))
+        try {
+          await act(
+            () => actions.create({ ...input, kind: 'offer', direction: 'back', departure_date: back.date, departure_time: back.time }),
+            'offerPostedBoth',
+          )
+        } catch {
+          setComposer(null)
+          return
+        }
+      } else await act(() => actions.create({ ...input, kind: composer.kind }), composer.kind === 'offer' ? 'offerPosted' : 'requestPosted')
       setComposer(null)
     } catch { /* toast already shown, keep the form open with its input */ }
   }
+
+  // Drivers with a car on the other board too — "Also back" / "Also going" on
+  // their row, so a passenger knows the ride covers both ways.
+  const otherWayDrivers = new Set(pool[leg === 'there' ? 'back' : 'there'].offers.map((o) => o.member.id))
+  const lastDay = activity.last_date ?? activity.date
 
   const withdraw = async (entry: CarpoolOffer | CarpoolRequest) => {
     const withRiders = entry.kind === 'offer' && entry.passengers.length > 0
@@ -238,6 +257,9 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
               minSeats={editing?.kind === 'offer' ? Math.max(1, editing.seats_taken) : 1}
               suggestedTime={leg === 'there' ? suggestedTime : null}
               teamOptions={teamOptions}
+              // Round trip on a new Going offer: the return goes on the last day,
+              // unless the driver already has a return ride that day.
+              backDate={leg === 'there' && lastDay && !myRideDays(pool.back, 'offer').includes(lastDay) ? lastDay : null}
               onSubmit={submitComposer}
               onCancel={() => setComposer(null)}
             />
@@ -262,6 +284,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                     chips={<>
                       {o.mine && <RowChip tone="sky">{t('youDrive')}</RowChip>}
                       {o.i_am_passenger && <RowChip tone="sky">{t('youRide')}</RowChip>}
+                      {otherWayDrivers.has(o.member.id) && <RowChip tone="green">{t(leg === 'there' ? 'alsoBackChip' : 'alsoGoingChip')}</RowChip>}
                       {o.teams.length > 0 && <RowChip tone="violet" wrap>{t('forTeamsList', { teams: o.teams.map((tid) => teamName.get(tid)).filter(Boolean).join(', ') })}</RowChip>}
                     </>}
                     tools={<>

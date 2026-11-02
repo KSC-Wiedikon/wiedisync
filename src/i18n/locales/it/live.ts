@@ -52,6 +52,8 @@ export default {
 
   updatedAt: 'Aggiornato {{time}}',
 
+  referees: 'Arbitri',
+
   // Final summary (match over)
   finalSetCol: 'Set',
   finalScoreCol: 'Punteggio',

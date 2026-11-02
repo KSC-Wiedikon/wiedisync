@@ -18,7 +18,7 @@ function periodLabel(period: number, t: TFunction<'live'>): string | null {
   return period <= 4 ? t('quarter', { n: period }) : t('overtimeN', { n: period - 4 })
 }
 
-function TeamColumn({ team, align }: { team: TeamView; align: 'start' | 'end' }) {
+function TeamColumn({ team, align, big }: { team: TeamView; align: 'start' | 'end'; big?: boolean }) {
   const { t } = useTranslation('live')
   const end = align === 'end'
   return (
@@ -30,7 +30,8 @@ function TeamColumn({ team, align }: { team: TeamView; align: 'start' | 'end' })
       <div
         key={team.points}
         className={cn(
-          'mt-1 text-6xl font-black tabular-nums leading-none animate-score-bump sm:text-7xl',
+          'mt-1 font-black tabular-nums leading-none animate-score-bump',
+          big ? 'text-[length:min(40vh,18vw)] leading-none' : 'text-6xl sm:text-7xl',
           end ? 'origin-right' : 'origin-left',
         )}
       >
@@ -54,7 +55,7 @@ function TeamColumn({ team, align }: { team: TeamView; align: 'start' | 'end' })
 }
 
 /** Basketball: running score, period, team fouls + bonus, possession arrow. No sets. */
-export default function BasketballBoard({ state }: { state: BoardState }) {
+export default function BasketballBoard({ state, big = false }: { state: BoardState; big?: boolean }) {
   const { t } = useTranslation('live')
   const [a, b] = toTeams(state)
   const period = periodLabel(state.period, t)
@@ -62,15 +63,18 @@ export default function BasketballBoard({ state }: { state: BoardState }) {
   const possession = state.serving_team
 
   return (
-    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
+    <div className={cn(
+      'rounded-2xl border border-hairline bg-card shadow-card',
+      big ? 'flex h-full w-full flex-col justify-center px-6 py-3' : 'p-4 sm:p-6',
+    )}>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
-        <TeamColumn team={a} align="start" />
+        <TeamColumn team={a} align="start" big={big} />
 
         <div className="px-1 text-center">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             {t('period')}
           </div>
-          <div className="text-2xl font-bold tabular-nums sm:text-4xl">{period ?? '—'}</div>
+          <div className={cn('font-bold tabular-nums', big ? 'text-5xl' : 'text-2xl sm:text-4xl')}>{period ?? '—'}</div>
           {/* Possession arrow — points at the team that gets the next held-ball call. */}
           <div className="mt-1 flex h-6 items-center justify-center text-foreground">
             {possession === 'left' && (
@@ -87,7 +91,7 @@ export default function BasketballBoard({ state }: { state: BoardState }) {
           </div>
         </div>
 
-        <TeamColumn team={b} align="end" />
+        <TeamColumn team={b} align="end" big={big} />
       </div>
     </div>
   )

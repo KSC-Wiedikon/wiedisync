@@ -7,6 +7,9 @@ import FinalSummary from './components/FinalSummary'
 import RecentMatches from './components/RecentMatches'
 import Scoreboard from './components/Scoreboard'
 import { useLiveMatch } from './useLiveMatch'
+import { useLiveReferees } from './useLiveReferees'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 
 type Tone = 'live' | 'final' | 'idle' | 'pending'
 
@@ -55,6 +58,44 @@ export default function LivePage() {
 
   const hasMatch = !!envelope?.match
   const isFinal = envelope?.status === 'final'
+  const referees = useLiveReferees(envelope)
+  // A phone turned sideways shows the board alone, filling the screen (over the
+  // tab bar). Height-bound so a tablet or a laptop keeps the normal page.
+  const landscape = useMediaQuery('(orientation: landscape) and (max-height: 540px)')
+  const fullScreen = landscape && hasMatch && !isFinal
+  // Keep the screen on while a match is running — people watch for a whole set
+  // without touching the phone.
+  useScreenWakeLock(hasMatch && !isFinal)
+
+  const refereeLine = referees.length > 0 && (
+    <p className="text-xs text-muted-foreground">
+      <span className="font-medium text-foreground/80">{t('referees')}:</span> {referees.join(' · ')}
+    </p>
+  )
+
+  if (fullScreen) {
+    return (
+      <div
+        className="fixed inset-0 z-[60] flex flex-col gap-2 bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))]"
+        role="region"
+        aria-label={t('title')}
+      >
+        <div className="flex min-h-0 flex-1">
+          <Scoreboard state={envelope!.match!} big />
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted-foreground">
+          {refereeLine}
+          {eventNote && (
+            <span className="rounded-md bg-accent px-2 py-0.5 font-medium text-accent-foreground">{eventNote}</span>
+          )}
+          <span className="ml-auto flex items-center gap-2">
+            {lastReceivedAt && <span>{t('updatedAt', { time: formatTimeZurich(new Date(lastReceivedAt)) })}</span>}
+            <StatusPill tone={tone} label={label} />
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
@@ -86,6 +127,8 @@ export default function LivePage() {
           ) : (
             <Scoreboard state={envelope!.match!} />
           )}
+
+          {refereeLine && <div className="mt-3 px-1">{refereeLine}</div>}
 
           <div className="mt-3 flex min-h-5 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {eventNote && !isFinal ? (

@@ -200,6 +200,7 @@ export default {
   cancelTrainingAction: 'Training absagen',
   cancelEventAction: 'Anlass absagen',
   cancelGameAction: 'Spiel absagen',
+  cancelShortAction: 'Absagen',
   reinstateAction: 'Wiederherstellen',
   cancelTrainingConfirm: 'Dieses Training absagen? Das Team wird benachrichtigt und der Hallenplatz für andere Teams freigegeben.',
   cancelEventConfirm: 'Diesen Anlass absagen? Das Team wird benachrichtigt.',

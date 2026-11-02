@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowLeftRight, Eye, Minus, Pencil, Plus, Undo2 } from 'lucide-react'
@@ -14,6 +14,7 @@ import {
   isValidSetScore, matchOver, nextSet, removePoint, reopen, type ScoreState, type Side,
 } from './scoring'
 import { useGameScoring, type SyncState } from './useGameScoring'
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 
 /**
  * Phone live scoring for one game — point-hub's console reduced to a phone at the side
@@ -207,19 +208,7 @@ export default function ScorePage() {
   const swapped = manualSwap !== endsChanged(state)
 
   // Keep the screen on while scoring — a phone that dims mid-rally costs a point.
-  useEffect(() => {
-    type Sentinel = { release: () => Promise<void> }
-    const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<Sentinel> } }
-    let lock: Sentinel | null = null
-    const grab = () => { nav.wakeLock?.request('screen').then((l) => { lock = l }).catch(() => {}) }
-    grab()
-    const onVisible = () => { if (document.visibilityState === 'visible') grab() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible)
-      void lock?.release().catch(() => {})
-    }
-  }, [])
+  useScreenWakeLock()
 
   const game = meta?.game
   const home = game?.home_team ?? ''

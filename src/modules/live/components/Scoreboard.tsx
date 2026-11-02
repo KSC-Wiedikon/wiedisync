@@ -11,11 +11,14 @@ import VolleyballBoard from './VolleyballBoard'
  *
  * `state.sport` is already normalised by useLiveMatch, so an unknown value from a
  * newer board firmware lands on the volleyball layout rather than a blank page.
+ *
+ * `big` = the phone turned sideways: the board fills the screen (LivePage), so the
+ * numbers scale with the viewport height instead of the card.
  */
-export default function Scoreboard({ state }: { state: BoardState }) {
+export default function Scoreboard({ state, big = false }: { state: BoardState; big?: boolean }) {
   return state.sport === 'basketball' ? (
-    <BasketballBoard state={state} />
+    <BasketballBoard state={state} big={big} />
   ) : (
-    <VolleyballBoard state={state} />
+    <VolleyballBoard state={state} big={big} />
   )
 }

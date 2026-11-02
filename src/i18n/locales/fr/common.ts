@@ -196,6 +196,7 @@ export default {
   cancelTrainingAction: 'Annuler l’entraînement',
   cancelEventAction: 'Annuler l’événement',
   cancelGameAction: 'Annuler le match',
+  cancelShortAction: 'Annuler',
   reinstateAction: 'Rétablir',
   cancelTrainingConfirm: 'Annuler cet entraînement ? L’équipe est notifiée et le créneau de salle est libéré pour d’autres équipes.',
   cancelEventConfirm: 'Annuler cet événement ? L’équipe est notifiée.',

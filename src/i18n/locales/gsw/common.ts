@@ -200,6 +200,7 @@ export default {
   cancelTrainingAction: 'Training absäge',
   cancelEventAction: 'Aalass absäge',
   cancelGameAction: 'Spiel absäge',
+  cancelShortAction: 'Absäge',
   reinstateAction: 'Wiederhärstelle',
   cancelTrainingConfirm: 'Das Training absäge? S Team wird benachrichtigt und de Halleplatz für anderi Teams freigäh.',
   cancelEventConfirm: 'De Aalass absäge? S Team wird benachrichtigt.',

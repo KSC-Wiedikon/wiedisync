@@ -52,6 +52,8 @@ export default {
 
   updatedAt: 'Updated {{time}}',
 
+  referees: 'Referees',
+
   // Final summary (match over)
   finalSetCol: 'Set',
   finalScoreCol: 'Score',
