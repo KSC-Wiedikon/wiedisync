@@ -629,6 +629,21 @@ const T = {
     fr: '{name} cherche un covoiturage ({seats} place(s)) : {activity}',
     it: '{name} cerca un passaggio ({seats} posto/i): {activity}',
   },
+  // "Send test notification" in the notification panel (2026-11-02).
+  'selftest.title': {
+    de: 'Testbenachrichtigung',
+    gsw: 'Test-Benachrichtigung',
+    en: 'Test notification',
+    fr: 'Notification de test',
+    it: 'Notifica di prova',
+  },
+  'selftest.body': {
+    de: 'Benachrichtigungen funktionieren auf diesem Gerät.',
+    gsw: 'Benachrichtigige funktioniered uf dem Grät.',
+    en: 'Notifications work on this device.',
+    fr: 'Les notifications fonctionnent sur cet appareil.',
+    it: 'Le notifiche funzionano su questo dispositivo.',
+  },
   'carpool_offered.push': {
     de: '{name} bietet {seats} Platz/Plätze an: {activity}',
     gsw: '{name} bütet {seats} Platz/Plätz a: {activity}',

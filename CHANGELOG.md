@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.54.0 — 2026-11-02
+
+### Added
+
+- «Send test notification» under the push switch in the notifications panel: it sends a push to this device, and tells you whether it went through.
+
+### Fixed
+
+- Push notifications that never arrived although the switch said «On». The app now registers your device with the server again every time it opens, and renews a subscription that was made with an old key or replaced by the browser.
+
 ## v2.53.0 — 2026-10-31
 
 ### Added

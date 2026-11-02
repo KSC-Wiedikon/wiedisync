@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.53.0'
+const APP_VERSION = '2.54.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.54.0',
+    date: '02.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '«Send test notification» under the push switch in the notifications panel: it sends a push to this device, and tells you whether it went through.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'Push notifications that never arrived although the switch said «On». The app now registers your device with the server again every time it opens, and renews a subscription that was made with an old key or replaced by the browser.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.53.0',
     date: '31.10.2026',

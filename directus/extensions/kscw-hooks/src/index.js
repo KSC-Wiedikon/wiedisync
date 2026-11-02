@@ -138,41 +138,82 @@ const GAME_SQUAD_JOIN = `JOIN (
 
 const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.kscw.workers.dev'
 const PUSH_AUTH_SECRET = process.env.PUSH_AUTH_SECRET || ''
+// Subscriptions per Worker call — see sendPushToMembers. Same as kscw-endpoints/web-push.js.
+const PUSH_BATCH_SIZE = 40
+
+// The reminder crons used to return here without a word when the secret was
+// missing or the Worker refused, so a member could go months without a push and
+// nothing said why (2026-11-02). Each failure kind now reaches the error log and
+// Sentry at most once per 10 minutes; the container log keeps every one.
+const PUSH_FAILURE_REPORT_MS = 10 * 60_000
+const lastPushFailureReport = new Map()
+function reportPushFailure(log, message, extra) {
+  log?.warn?.({ msg: `[push] ${message}`, event: 'push_send', ...extra })
+  const kind = message.replace(/\d+/g, 'N')
+  const now = Date.now()
+  if (now - (lastPushFailureReport.get(kind) || 0) < PUSH_FAILURE_REPORT_MS) return
+  lastPushFailureReport.set(kind, now)
+  logWarning('push_send_failed', message, extra)
+}
 
 async function sendPushToMembers(db, memberIds, title, body, url, tag, log) {
-  if (!memberIds || memberIds.length === 0 || !PUSH_AUTH_SECRET) return
+  if (!memberIds || memberIds.length === 0) return
+  if (!PUSH_AUTH_SECRET) {
+    reportPushFailure(log, 'PUSH_AUTH_SECRET not configured — no push is sent', { memberCount: memberIds.length })
+    return
+  }
   try {
     const subscriptions = await db('push_subscriptions')
       .whereIn('member', memberIds)
       .select('endpoint', 'keys_p256dh', 'keys_auth')
     if (subscriptions.length === 0) return
 
-    const resp = await fetch(`${PUSH_WORKER_URL}/push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${PUSH_AUTH_SECRET}`,
-      },
-      body: JSON.stringify({
-        subscriptions: subscriptions.map(s => ({
-          endpoint: s.endpoint,
-          keys: { p256dh: s.keys_p256dh, auth: s.keys_auth },
-        })),
-        title: title || 'KSC Wiedikon',
-        body: body || '',
-        url: url || FRONTEND_URL,
-        ...(tag ? { tag } : {}),
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
+    // At most PUSH_BATCH_SIZE per Worker call: the club's Cloudflare account is
+    // on the Free plan (50 subrequests per call, one per subscription), so a
+    // club-wide fanout in one call lost every push past the 50th (2026-11-02).
+    const totals = { sent: 0, failed: 0, cleaned: 0 }
+    const errors = []
+    for (let i = 0; i < subscriptions.length; i += PUSH_BATCH_SIZE) {
+      const batch = subscriptions.slice(i, i + PUSH_BATCH_SIZE)
+      const resp = await fetch(`${PUSH_WORKER_URL}/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${PUSH_AUTH_SECRET}`,
+        },
+        body: JSON.stringify({
+          subscriptions: batch.map(s => ({
+            endpoint: s.endpoint,
+            keys: { p256dh: s.keys_p256dh, auth: s.keys_auth },
+          })),
+          title: title || 'KSC Wiedikon',
+          body: body || '',
+          url: url || FRONTEND_URL,
+          ...(tag ? { tag } : {}),
+        }),
+        signal: AbortSignal.timeout(15000),
+      })
 
-    if (resp.ok) {
+      if (!resp.ok) {
+        totals.failed += batch.length
+        reportPushFailure(log, `Push Worker returned ${resp.status}`, { status: resp.status, subscriptionCount: batch.length })
+        continue
+      }
       const data = await resp.json()
       // Clean up expired subscriptions
       if (data.expired?.length > 0) {
         await db('push_subscriptions').whereIn('endpoint', data.expired).delete()
       }
-      log.info(`[push] Sent ${data.sent || 0}, failed ${data.failed || 0}, cleaned ${data.expired?.length || 0}`)
+      totals.sent += data.sent || 0
+      totals.failed += data.failed || 0
+      totals.cleaned += data.expired?.length || 0
+      // The Worker's errors are the push service's answers ("403: …" for a key
+      // mismatch); they never contain the endpoint.
+      for (const e of data.errors || []) if (errors.length < 3) errors.push(String(e).slice(0, 160))
+    }
+    log.info(`[push] Sent ${totals.sent}, failed ${totals.failed}, cleaned ${totals.cleaned}`)
+    if (totals.failed > 0 && totals.sent === 0 && errors.length > 0) {
+      reportPushFailure(log, 'Push service refused every subscription', { failed: totals.failed, errors })
     }
   } catch (err) {
     log.warn({ msg: `[push] Failed: ${err.message}`, event: 'push_send', memberCount: memberIds?.length, stack: err.stack })
