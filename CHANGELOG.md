@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.56.0 — 2026-11-02
+
+### Added
+
+- Sign in with your fingerprint, face or phone PIN (passkeys). After signing in with your password, Wiedisync offers to set one up on that device; you can also add one under Profile → Passkeys. Nothing about your fingerprint or face ever leaves your device. You get an email whenever a passkey is added, and changing your password removes all your passkeys.
+- Optional, per device: «Ask for fingerprint when opening the app» (Profile → Passkeys). Works without signal too.
+
+### Security
+
+- Changing your password while signed in now always needs your current password.
+
 ## v2.55.0 — 2026-11-02
 
 ### Added

@@ -1071,6 +1071,14 @@ const EXPECTED_VALIDATION_ENDPOINTS = new Set([
   // ChangePasswordModal. Was missing, so every typo filed an `api_error`.
   '/change-password',
   '/register',
+  // Passkeys (lib/passkeys.ts): a removed key, a wrong password, an authenticator code
+  // needed, a timed-out ceremony — each shown inline. lib/passkeys.ts reports the
+  // refusals that ARE a fault (origin, signature) itself, never a cancel.
+  '/passkey/login-options',
+  '/passkey/login',
+  '/passkey/register-options',
+  '/passkey/register',
+  '/passkey/list',
 ])
 
 // Endpoints whose request body IS a credential or key material: passwords
@@ -1096,6 +1104,9 @@ const CREDENTIAL_ENDPOINT_PREFIXES = [
   '/admin/sql',
   '/email-accounts',
   '/web-push/',
+  // The password (register-options) and the device's signed WebAuthn answer
+  // (clientDataJSON, authenticatorData, signature, userHandle, attestationObject).
+  '/passkey/',
 ]
 
 /** True when a kscwApi path's body must never be attached to an error report. Exported for the unit test. */
@@ -1195,10 +1206,15 @@ const EXPECTED_ERROR_CODES = new Set([
  * hurt — a stale/expired access token makes Directus' global auth middleware
  * reject the request with 401 *before* the public endpoint runs, which surfaced
  * as a spurious "Invalid link" on first load (WIEDISYNC first-load bug).
+ *
+ * `noAuthRetry: true` skips the refresh-and-resend on a 401/403. For a request that
+ * must reach the server exactly once: a password check (a resend counts a second
+ * failed attempt toward the account's lockout) or a single-use passkey challenge (the
+ * resend is refused as used, hiding the real answer).
  */
 export async function kscwApi<T = unknown>(
   path: string,
-  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean; actAs?: number; asOwner?: boolean },
+  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean; actAs?: number; asOwner?: boolean; noAuthRetry?: boolean },
 ): Promise<T> {
   const method = options?.method || 'GET'
   const anonymous = options?.anonymous === true
@@ -1266,7 +1282,7 @@ export async function kscwApi<T = unknown>(
   // Token refresh race: retry once after refreshing if we got 401/403.
   // Skipped for anonymous calls — there's no auth to refresh, and a public
   // endpoint's own 401 ("Invalid or expired link") must surface unchanged.
-  if (!actingRefused && !anonymous && (res.status === 401 || res.status === 403) && isAuthenticated()) {
+  if (!actingRefused && !anonymous && !options?.noAuthRetry && (res.status === 401 || res.status === 403) && isAuthenticated()) {
     try {
       await refreshAuth()
       res = await doFetch()

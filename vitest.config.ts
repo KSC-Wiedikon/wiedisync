@@ -5,6 +5,8 @@ export default defineConfig({
   // The backend vocabulary modules the app imports (same aliases as vite.config.ts).
   resolve: {
     alias: {
+      // The app's own `@/…` imports (vite.config.ts) — component tests import them.
+      '@': path.resolve(import.meta.dirname, './src'),
       '@bb-docs': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/bb-docs.js'),
       '@registration-values': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/registration-values.js'),
       '@member-values': path.resolve(import.meta.dirname, './directus/extensions/kscw-endpoints/src/member-values.js'),
@@ -23,7 +25,9 @@ export default defineConfig({
     // that gate set PUBLIC_URL themselves.
     env: { PUBLIC_URL: 'https://directus.kscw.ch' },
     include: [
-      'src/**/*.test.ts',
+      // .tsx: component and hook tests, each opting into a DOM with
+      // `// @vitest-environment happy-dom` (the default stays node).
+      'src/**/*.test.{ts,tsx}',
       'directus/extensions/**/__tests__/**/*.test.js',
     ],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],

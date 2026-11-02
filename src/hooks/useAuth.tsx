@@ -109,6 +109,9 @@ export interface AuthContextValue {
   isGuestIn: (teamId: string) => boolean
   isLoading: boolean
   login: (email: string, password: string, turnstileToken?: string) => Promise<void>
+  /** Sign in with this device's passkey (fingerprint, face, PIN). Rejects on a cancelled
+   *  device sheet too — `isPasskeyCancel` (lib/passkeys) tells the caller. */
+  loginWithPasskey: () => Promise<void>
   logout: () => void
   /** Re-derive team context (member/coach team ids etc.) after a membership
    *  change — e.g. leaving a team — without a full page reload. */
