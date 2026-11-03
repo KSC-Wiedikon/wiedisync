@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-02T21:52:54.824Z
+-- Generated:   2026-11-03T12:50:34.649Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3JCGrSY6NllyBUTplYy6EA81OLCHCFZu8iXFSBMuQ2wfuZxrbSEq0TukN2N3zk3
+\restrict 6FikfwY5zGxcnskgW56E5NedNT5p39cGGqXncXJnIYbzDV0aegdac0Gx3CmOqkT
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -245,6 +245,52 @@ END $$;
 --
 
 COMMENT ON FUNCTION public.bb_vb_time_overlap(p_vb_start time without time zone, p_vb_end time without time zone, p_bb_time text) IS 'Does a volleyball slot (start, end) collide with a basketball tip-off on the same floor? Mirrors vbBlocksSlot() in hallOccupancy.ts: VB occupies start-30..end+30, BB occupies tip..tip+120, strict overlap. NULL/unparseable input fails SAFE (true).';
+
+
+--
+-- Name: carpool_auto_enable_away_games(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.carpool_auto_enable_away_games() RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  today date := (now() AT TIME ZONE 'Europe/Zurich')::date;
+  n integer;
+BEGIN
+  UPDATE games g
+     SET carpool_enabled = true
+   WHERE g.carpool_enabled = false
+     AND g.status = 'scheduled'
+     AND g.type = 'away'
+     AND g.date BETWEEN today AND today + 7
+     AND NOT carpool_switched_by_hand(g.id);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END
+$$;
+
+
+--
+-- Name: carpool_switched_by_hand(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.carpool_switched_by_hand(p_game integer) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT EXISTS (
+           SELECT 1 FROM user_logs l
+            WHERE l.collection_name = 'games'
+              AND l.record_id = p_game::text
+              AND l.data::jsonb ? 'carpool_enabled'
+         )
+      OR EXISTS (
+           SELECT 1 FROM directus_revisions r
+            WHERE r.collection = 'games'
+              AND r.item = p_game::text
+              AND r.delta::jsonb ? 'carpool_enabled'
+         )
+$$;
 
 
 --
@@ -3601,6 +3647,10 @@ CREATE TABLE public.members (
     dues_paid_at date,
     licence_ordered_at date,
     permissions_section text DEFAULT 'both'::text NOT NULL,
+    email_notify_rsvp_reminders boolean DEFAULT true NOT NULL,
+    email_notify_activity_reminders boolean DEFAULT true NOT NULL,
+    activity_reminder_lead_minutes integer DEFAULT 1440 NOT NULL,
+    CONSTRAINT members_activity_reminder_lead_minutes_range CHECK (((activity_reminder_lead_minutes >= 15) AND (activity_reminder_lead_minutes <= 10080))),
     CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
     CONSTRAINT members_club_section_values CHECK (((club_section IS NULL) OR ((club_section)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
@@ -5312,7 +5362,7 @@ CREATE TABLE public.games (
     meeting_offset_minutes integer DEFAULT 60,
     vm_nomination_claimed_at timestamp with time zone,
     bb_extra_duty_teams json,
-    carpool_enabled boolean DEFAULT true NOT NULL,
+    carpool_enabled boolean DEFAULT false NOT NULL,
     carpool_teams jsonb,
     provisional_sets_json json,
     provisional_home_score integer,
@@ -5409,7 +5459,7 @@ COMMENT ON COLUMN public.games.vm_nomination_claimed_at IS 'When the current nom
 -- Name: COLUMN games.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer rides, Going / Return). Default ON since migration 440; the coach/TR can switch it off per game. Rides live in carpools (migration 378).';
+COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer rides, Going / Return). Default off; away games are switched on automatically 7 days before (carpool_auto_enable_away_games(), migration 441); the coach/TR can switch any game on or off. Rides live in carpools (migration 378).';
 
 
 --
@@ -6858,6 +6908,48 @@ CREATE SEQUENCE public.email_accounts_id_seq
 --
 
 ALTER SEQUENCE public.email_accounts_id_seq OWNED BY public.email_accounts.id;
+
+
+--
+-- Name: email_reminders_sent; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_reminders_sent (
+    id bigint NOT NULL,
+    member integer NOT NULL,
+    activity_type text NOT NULL,
+    activity_id text NOT NULL,
+    kind text NOT NULL,
+    sent_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT email_reminders_sent_activity_type_chk CHECK ((activity_type = ANY (ARRAY['training'::text, 'game'::text, 'event'::text]))),
+    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text])))
+);
+
+
+--
+-- Name: TABLE email_reminders_sent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.email_reminders_sent IS 'Send log of the RSVP + activity reminder emails (kscw-hooks email-reminders.js). One row per member, activity and kind; the crons skip anything already here.';
+
+
+--
+-- Name: email_reminders_sent_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_reminders_sent_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_reminders_sent_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_reminders_sent_id_seq OWNED BY public.email_reminders_sent.id;
 
 
 --
@@ -13594,6 +13686,13 @@ ALTER TABLE ONLY public.email_accounts ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: email_reminders_sent id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_reminders_sent ALTER COLUMN id SET DEFAULT nextval('public.email_reminders_sent_id_seq'::regclass);
+
+
+--
 -- Name: email_sends id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -14716,6 +14815,22 @@ ALTER TABLE ONLY public.country_name_aliases
 
 ALTER TABLE ONLY public.email_accounts
     ADD CONSTRAINT email_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_reminders_sent email_reminders_sent_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_reminders_sent
+    ADD CONSTRAINT email_reminders_sent_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_reminders_sent email_reminders_sent_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_reminders_sent
+    ADD CONSTRAINT email_reminders_sent_unique UNIQUE (member, activity_type, activity_id, kind);
 
 
 --
@@ -16277,6 +16392,13 @@ CREATE UNIQUE INDEX email_accounts_address_key ON public.email_accounts USING bt
 --
 
 CREATE INDEX email_accounts_sport_idx ON public.email_accounts USING btree (sport);
+
+
+--
+-- Name: email_reminders_sent_sent_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_reminders_sent_sent_at_idx ON public.email_reminders_sent USING btree (sent_at);
 
 
 --
@@ -19234,6 +19356,14 @@ ALTER TABLE ONLY public.country_name_aliases
 
 
 --
+-- Name: email_reminders_sent email_reminders_sent_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_reminders_sent
+    ADD CONSTRAINT email_reminders_sent_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
 -- Name: email_sends email_sends_sent_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -21067,7 +21197,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3JCGrSY6NllyBUTplYy6EA81OLCHCFZu8iXFSBMuQ2wfuZxrbSEq0TukN2N3zk3
+\unrestrict 6FikfwY5zGxcnskgW56E5NedNT5p39cGGqXncXJnIYbzDV0aegdac0Gx3CmOqkT
 
 
 
@@ -21085,7 +21215,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 444 migration(s) already in the schema above.
+-- Migration tracker seed — 446 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21542,6 +21672,8 @@ FROM (VALUES
   ('437-capacity-waitlist.sql'),
   ('438-capacity-maybe-seat.sql'),
   ('439-passkeys.sql'),
-  ('440-games-carpool-default-on.sql')
+  ('440-games-carpool-default-on.sql'),
+  ('441-carpool-auto-away-week.sql'),
+  ('442-email-reminders.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
