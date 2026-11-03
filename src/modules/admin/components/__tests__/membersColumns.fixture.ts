@@ -7,7 +7,8 @@
 // hand-linked VIS columns from migration 312, which shipped unclassified and
 // were only given a schema entry on 2026-08-14, + migration 335's
 // `deactivated_at`, minus the seven messaging columns dropped with the feature
-// on 2026-09-15 (111), minus `nationalitaet` dropped by migration 418 (110):
+// on 2026-09-15 (111), minus `nationalitaet` dropped by migration 418 (110),
+// + the three email-reminder columns of migration 442 (113):
 //
 //   ssh kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -143,4 +144,9 @@ export const MEMBERS_COLUMNS: string[] = [
   // Migration 335 — when the club membership was last switched off, so a
   // retention period for an ex-member has a start date. Trigger-owned.
   'deactivated_at',
+  // Migration 442 — email reminders: two default-on switches and the lead time
+  // of the activity reminder. Member-edited in Profile → Email notifications.
+  'email_notify_rsvp_reminders',
+  'email_notify_activity_reminders',
+  'activity_reminder_lead_minutes',
 ]
