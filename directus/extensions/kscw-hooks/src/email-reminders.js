@@ -12,8 +12,8 @@
  *     minutes; each activity once per member (several due in the same run share
  *     one email).
  *   - Activity reminder (`email_notify_activity_reminders`): one email per
- *     activity the member said Yes or Maybe to, `activity_reminder_lead_minutes`
- *     before it starts. Checked every 5 minutes; a reminder whose moment passed
+ *     game or event (not trainings — owner, 03.11.2026) the member said Yes or
+ *     Maybe to, `activity_reminder_lead_minutes` before it starts. Checked every 5 minutes; a reminder whose moment passed
  *     more than 2 h ago is dropped, so turning the setting on (or a deploy) never
  *     mails a backlog.
  *   - Weekly overview (`email_notify_weekly_digest`, migration 443): Sunday
@@ -47,6 +47,8 @@ export const ACTIVITY_REMINDER_LEAD_OPTIONS = Object.freeze([60, 120, 180, 360, 
 export const RSVP_LEAD_HOURS = 6
 /** Activity types that get an answer reminder (owner: games and events, not trainings). */
 export const RSVP_ACTIVITY_TYPES = Object.freeze(['game', 'event'])
+/** Activity types that get a reminder before they start (owner: no trainings either). */
+export const ACTIVITY_REMINDER_TYPES = Object.freeze(['game', 'event'])
 export const ACTIVITY_REMINDER_GRACE_MINUTES = 120
 /** Weekly overview: Sunday, from this Zurich hour, with two catch-up hours. */
 export const WEEKLY_DIGEST_HOUR_ZURICH = 18
@@ -194,7 +196,8 @@ export function activityCandidatesQuery(h, nowIso) {
   const horizon = `p.ts + make_interval(mins => COALESCE((
       SELECT max(activity_reminder_lead_minutes) FROM members
       WHERE email_notify_activity_reminders = true AND wiedisync_active = true), 0))`
-  const sql = `${baseCtes(h, `a.starts_at <= ${horizon}`)}
+  const types = ACTIVITY_REMINDER_TYPES.map((t) => `'${t}'`).join(', ')
+  const sql = `${baseCtes(h, `a.activity_type IN (${types}) AND a.starts_at <= ${horizon}`)}
     SELECT ${SELECT_COLUMNS}, an.yes, an.maybe, m.activity_reminder_lead_minutes AS lead_minutes
     FROM answers an
     JOIN acts a ON a.activity_type = an.activity_type AND a.activity_id = an.activity_id
@@ -364,7 +367,7 @@ const COPY = {
     activity: 'Activité', date: 'Date', time: 'Heure', place: 'Lieu',
     allDay: 'Toute la journée',
     answerBy: (d) => `Répondre d'ici le ${d}`,
-    footer: (url) => `Tu reçois cet e-mail parce que les rappels sont activés dans ton profil. Les désactiver : ${url}`,
+    footer: (url) => `Tu reçois cet e-mail parce que les rappels sont activés dans ton profil. Pour les désactiver : ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Ta réponse manque : ${label}`,
       subjectMany: (n) => `WiediSync — Ta réponse manque pour ${n} activités`,
@@ -399,7 +402,7 @@ const COPY = {
     activity: 'Attività', date: 'Data', time: 'Ora', place: 'Luogo',
     allDay: 'Tutto il giorno',
     answerBy: (d) => `Rispondi entro il ${d}`,
-    footer: (url) => `Ricevi questa e-mail perché i promemoria sono attivi nel tuo profilo. Disattivarli: ${url}`,
+    footer: (url) => `Ricevi questa e-mail perché i promemoria sono attivi nel tuo profilo. Per disattivarli: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Manca la tua risposta: ${label}`,
       subjectMany: (n) => `WiediSync — Manca la tua risposta per ${n} attività`,
@@ -423,7 +426,7 @@ const COPY = {
       title: 'Promemoria',
       introYes: 'Sei iscritto/a a:',
       introMaybe: 'Hai risposto «Forse» a:',
-      outroYes: "Alla fine non puoi? Rispondi No nell'app.",
+      outroYes: 'Non riesci? Cambia la tua partecipazione.',
       outroOpen: "Rispondi Sì o No nell'app, così la tua squadra può organizzarsi.",
       cta: 'Apri in WiediSync',
     },
@@ -439,8 +442,10 @@ export function localeFor(language) {
 const zurichDate = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' })
 const zurichTime = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false })
 
+/** Capitalised like every other label ("Mer", "Mer."), whatever ICU returns. */
 function weekdayShort(d, locale) {
-  return new Intl.DateTimeFormat(WEEKDAY_LOCALE[locale] || 'de-CH', { timeZone: 'Europe/Zurich', weekday: 'short' }).format(d)
+  const wd = new Intl.DateTimeFormat(WEEKDAY_LOCALE[locale] || 'de-CH', { timeZone: 'Europe/Zurich', weekday: 'short' }).format(d)
+  return wd.charAt(0).toUpperCase() + wd.slice(1)
 }
 
 /** "Di., 04.11.2026" — Swiss dot date, weekday in the member's language. */

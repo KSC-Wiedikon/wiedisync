@@ -41,10 +41,11 @@ describe('candidate queries', () => {
     expect(sql).toContain('e.form_signup_only = false')
   })
 
-  it('activity: Yes or Maybe only, per-member lead time with a grace window', () => {
+  it('activity: games and events, Yes or Maybe only, per-member lead time with a grace window', () => {
     const { sql, bindings } = activityCandidatesQuery(h, '2026-11-03T17:05:00Z')
     expect(bindings).toEqual(['2026-11-03T17:05:00Z'])
     expect(sql.match(/\?/g)).toHaveLength(1)
+    expect(sql).toContain("a.activity_type IN ('game', 'event')")
     expect(sql).toContain('an.yes OR (an.maybe AND NOT an.no AND NOT an.waiting)')
     expect(sql).toContain('make_interval(mins => m.activity_reminder_lead_minutes) <= p.ts')
     expect(sql).toContain("> p.ts - interval '120 minutes'")
@@ -68,6 +69,7 @@ describe('content', () => {
     expect(c.text).toContain('Hallo Anna,')
     // Weekday abbreviations come from ICU ("Mi" or "Mi."), the date format is fixed.
     expect(c.text).toMatch(/Mi\.?, 04\.11\.2026, 20:00 · KWI A/)
+    expect(c.text).toContain('Ausschalten: https://')
     expect(c.text).toContain('Antworten bis 04.11.2026, 09:00')
     expect(c.text).toMatch(/\/trainings\/42$/m)
     expect(c.html).toContain('/trainings/42')
@@ -85,7 +87,12 @@ describe('content', () => {
 
   it('activity reminder: Yes vs Maybe wording, per locale', () => {
     const yes = activityReminderContent({ locale: 'fr', firstName: 'Anna', item: { ...training, yes: true } })
-    expect(yes.subject).toMatch(/^WiediSync — Rappel : Entraînement H3, mer\.?, 04\.11\.2026, 20:00$/)
+    expect(yes.subject).toMatch(/^WiediSync — Rappel : Entraînement H3, Mer\.?, 04\.11\.2026, 20:00$/)
+    expect(yes.text).toContain('Pour les désactiver : https://')
+    const itYes = activityReminderContent({ locale: 'it', item: { ...game, yes: true } })
+    expect(itYes.subject).toMatch(/, Mer\.?, 04\.11\.2026, 20:00$/)
+    expect(itYes.text).toContain('Non riesci? Cambia la tua partecipazione.')
+    expect(itYes.text).toContain('Per disattivarli: https://')
     expect(yes.text).toContain('Tu as dit Oui pour :')
     const maybe = activityReminderContent({ locale: 'it', item: { ...game, yes: false, maybe: true } })
     expect(maybe.text).toContain('Hai risposto «Forse» a:')
