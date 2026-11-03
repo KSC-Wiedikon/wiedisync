@@ -33,7 +33,7 @@ const CHANGELOG: ChangelogEntry[] = [
         title: 'Added',
         items: [
           "Email reminder to answer: 6 hours before the answer deadline of a game or event, an email if you haven't answered yet (Yes, No or Maybe all count as an answer).",
-          'Email reminder before activities: an email before each training, game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).',
+          'Email reminder before games and events: an email before each game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).',
           'Both are on by default and can be switched off under Profile → Email notifications. Scorer duties keep their own reminder.',
         ],
       },

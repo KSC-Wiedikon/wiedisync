@@ -702,8 +702,8 @@ const NOTIFICATIONS = block('notifications', undefined, [
     help: 'Email 6 h before a game or event answer deadline while no answer is given.',
   },
   {
-    key: 'email_notify_activity_reminders', label: 'Email reminder before activities', kind: 'bool',
-    help: 'For trainings, games and events the member said Yes or Maybe to.',
+    key: 'email_notify_activity_reminders', label: 'Email reminder before games and events', kind: 'bool',
+    help: 'For games and events the member said Yes or Maybe to (not trainings).',
   },
   {
     key: 'activity_reminder_lead_minutes', label: 'Activity reminder lead time (minutes)', kind: 'number',
