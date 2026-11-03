@@ -259,7 +259,8 @@ function EmailNotificationCard() {
                 <span className="text-sm text-muted-foreground" id="reminder-lead-label">{t('reminderLeadLabel')}</span>
                 <Select value={String(lead)} onValueChange={changeLead} disabled={saving === 'lead'}>
                   <SelectTrigger className="w-44 shrink-0" aria-labelledby="reminder-lead-label">
-                    <SelectValue />
+                    {/* Explicit label: Radix's copied item text showed up twice here. */}
+                    <SelectValue>{leadLabel(lead)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {(REMINDER_LEAD_OPTIONS.includes(lead as (typeof REMINDER_LEAD_OPTIONS)[number])
