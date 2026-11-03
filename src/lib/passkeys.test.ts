@@ -249,8 +249,9 @@ describe('the app lock\'s local check', () => {
     expect(publicKey.userVerification).toBe('required')
     expect(publicKey.timeout).toBe(60000)
     expect((publicKey.challenge as Uint8Array).byteLength).toBe(32)
-    expect(publicKey.allowCredentials).toHaveLength(1)
-    expect([...new Uint8Array(publicKey.allowCredentials![0].id as ArrayBuffer)]).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    // Discoverable, like a sign-in (a request naming the key failed in the Android app's
+    // WebView); the answer is matched to this device's keys instead (next test).
+    expect(publicKey.allowCredentials).toBeUndefined()
 
     // Two checks never share a challenge.
     await unlockOnThisDevice(7)
