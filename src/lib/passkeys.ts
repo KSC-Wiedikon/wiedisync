@@ -21,7 +21,6 @@
  */
 
 import {
-  base64URLStringToBuffer,
   browserSupportsWebAuthn,
   platformAuthenticatorIsAvailable,
   startAuthentication,
@@ -399,7 +398,11 @@ export async function unlockOnThisDevice(memberId: string | number): Promise<Loc
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         rpId,
-        allowCredentials: credentialIds.map((id) => ({ type: 'public-key' as const, id: base64URLStringToBuffer(id) })),
+        // No allowCredentials: the same discoverable request as a sign-in, and the answer
+        // is matched to this device's keys below. Inside the Android app (WebView, WebAuthn
+        // run as the app) a request naming the key made Google's sheet look for it on a
+        // security key or another phone instead of the passkey right on this one — the
+        // lock never unlocked (owner's phone, 03.11.2026), while sign-in worked.
         userVerification: 'required',
         timeout: 60_000,
       },
