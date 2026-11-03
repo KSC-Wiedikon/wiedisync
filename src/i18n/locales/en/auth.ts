@@ -308,6 +308,17 @@ export default {
   emailNotifyFormSubmissions: 'Form submissions',
   emailNotifyAnnouncements: 'Club news',
   emailNotifyEvents: 'Event invitations',
+  emailNotifyRsvpReminders: 'Reminder to answer',
+  emailNotifyRsvpRemindersHint: "An email up to two days before an answer deadline if you haven't said Yes or No yet (Maybe counts as no answer).",
+  emailNotifyActivityReminders: 'Reminder before activities',
+  emailNotifyActivityRemindersHint: 'An email before each training, game or event you said Yes or Maybe to.',
+  reminderLeadLabel: 'Send it',
+  reminderLeadMinutes_one: '{{count}} minute before',
+  reminderLeadMinutes_other: '{{count}} minutes before',
+  reminderLeadHours_one: '{{count}} hour before',
+  reminderLeadHours_other: '{{count}} hours before',
+  reminderLeadDays_one: '{{count}} day before',
+  reminderLeadDays_other: '{{count}} days before',
 
   // Identity document (end-to-end encrypted)
   idTitle: 'Identity document',

@@ -687,7 +687,7 @@ const PRIVACY = block('privacy', undefined, [
   },
 ])
 
-// ── 1.i Notifications (8) ───────────────────────────────────────────────────
+// ── 1.i Notifications (11) ──────────────────────────────────────────────────
 const NOTIFICATIONS = block('notifications', undefined, [
   {
     key: 'auto_confirm_trainings', label: 'Auto-confirm trainings', kind: 'bool',
@@ -697,6 +697,18 @@ const NOTIFICATIONS = block('notifications', undefined, [
   { key: 'auto_confirm_events', label: 'Auto-confirm events', kind: 'bool' },
   { key: 'email_notify_events', label: 'Email about events', kind: 'bool' },
   { key: 'email_notify_announcements', label: 'Email about announcements', kind: 'bool' },
+  {
+    key: 'email_notify_rsvp_reminders', label: 'Email reminder to answer', kind: 'bool',
+    help: 'Daily digest before an answer deadline while Yes or No is missing.',
+  },
+  {
+    key: 'email_notify_activity_reminders', label: 'Email reminder before activities', kind: 'bool',
+    help: 'For trainings, games and events the member said Yes or Maybe to.',
+  },
+  {
+    key: 'activity_reminder_lead_minutes', label: 'Activity reminder lead time (minutes)', kind: 'number',
+    help: '15 to 10080. The profile offers 1 hour to 2 days.',
+  },
   {
     key: 'email_notify_registrations', label: 'Email about new registrations', kind: 'bool',
     help: 'Staff notification, not a member one.',
