@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Fingerprint } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,12 @@ interface AppLockProps {
  * app", off by default): a full-screen curtain after a cold start with a restored session
  * and after ≥ 5 minutes in the background (useAppLock). Unlocking is a local check on
  * this device — offline too — never a sign-in; the session behind it stays as it was.
+ *
+ * The device's fingerprint/face sheet opens by itself as soon as the curtain is up and the
+ * page is visible and focused (owner, 03.11.2026: "go straight to the fingerprint"). Once
+ * per lock: closing the sheet leaves the Unlock button, nothing asks again on its own.
+ * Where the browser refuses a request without a tap (Safari), that refusal reads as a
+ * closed sheet — the button is the way in, no error shown.
  */
 export default function AppLock({ member, restored, onSignOut }: AppLockProps) {
   const hint = usePasskeyHint(member?.id)
@@ -37,7 +43,6 @@ function LockScreen({ member, onUnlocked, onSignOut }: { member: MemberUser; onU
   const [failed, setFailed] = useState(false)
   const name = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
 
-  // From the tap only: Safari refuses a passkey request without a user gesture.
   async function tryUnlock() {
     if (busy) return
     setBusy(true)
@@ -50,6 +55,29 @@ function LockScreen({ member, onUnlocked, onSignOut }: { member: MemberUser; onU
       setBusy(false)
     }
   }
+
+  // Straight to the device's sheet, once, when the page can show it: visible and focused
+  // (Chrome refuses a request from a page without focus; right after the app comes back
+  // to the front, focus can arrive a moment after visibility).
+  const autoStarted = useRef(false)
+  const tryUnlockRef = useRef(tryUnlock)
+  useEffect(() => { tryUnlockRef.current = tryUnlock })
+  useEffect(() => {
+    const start = () => {
+      if (autoStarted.current) return
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return
+      autoStarted.current = true
+      void tryUnlockRef.current()
+    }
+    start()
+    if (autoStarted.current) return
+    document.addEventListener('visibilitychange', start)
+    window.addEventListener('focus', start)
+    return () => {
+      document.removeEventListener('visibilitychange', start)
+      window.removeEventListener('focus', start)
+    }
+  }, [])
 
   return (
     <div
