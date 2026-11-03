@@ -305,6 +305,17 @@ export default {
   emailNotifyFormSubmissions: 'Formular-Einsendungen',
   emailNotifyAnnouncements: 'Vereinsnews',
   emailNotifyEvents: 'Anlass-Einladungen',
+  emailNotifyRsvpReminders: 'Erinnerung zum Antworten',
+  emailNotifyRsvpRemindersHint: 'Eine E-Mail bis zu zwei Tage vor einer Antwortfrist, wenn du noch nicht Ja oder Nein gesagt hast («Vielleicht» zählt als keine Antwort).',
+  emailNotifyActivityReminders: 'Erinnerung vor Aktivitäten',
+  emailNotifyActivityRemindersHint: 'Eine E-Mail vor jedem Training, Spiel oder Anlass, für das du Ja oder Vielleicht gesagt hast.',
+  reminderLeadLabel: 'Senden',
+  reminderLeadMinutes_one: '{{count}} Minute vorher',
+  reminderLeadMinutes_other: '{{count}} Minuten vorher',
+  reminderLeadHours_one: '{{count}} Stunde vorher',
+  reminderLeadHours_other: '{{count}} Stunden vorher',
+  reminderLeadDays_one: '{{count}} Tag vorher',
+  reminderLeadDays_other: '{{count}} Tage vorher',
 
   // Ausweisdokument (Ende-zu-Ende-verschlüsselt)
   idTitle: 'Ausweisdokument',

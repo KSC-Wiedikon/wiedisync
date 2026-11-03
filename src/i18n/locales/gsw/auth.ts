@@ -308,6 +308,17 @@ export default {
   emailNotifyFormSubmissions: 'Formular-Iisändige',
   emailNotifyAnnouncements: 'Vereinsnews',
   emailNotifyEvents: 'Iiladige zu Aaläss',
+  emailNotifyRsvpReminders: 'Erinnerig zum Antworte',
+  emailNotifyRsvpRemindersHint: 'E E-Mail bis zu zwei Täg vor ere Antwortfrischt, wänn du nonig Ja oder Nei gseit häsch («Villicht» zählt als kei Antwort).',
+  emailNotifyActivityReminders: 'Erinnerig vor Aktivitäte',
+  emailNotifyActivityRemindersHint: 'E E-Mail vor jedem Training, Spiel oder Aalass, wo du Ja oder Villicht gseit häsch.',
+  reminderLeadLabel: 'Schicke',
+  reminderLeadMinutes_one: '{{count}} Minute vorher',
+  reminderLeadMinutes_other: '{{count}} Minute vorher',
+  reminderLeadHours_one: '{{count}} Stund vorher',
+  reminderLeadHours_other: '{{count}} Stunde vorher',
+  reminderLeadDays_one: '{{count}} Tag vorher',
+  reminderLeadDays_other: '{{count}} Täg vorher',
 
   // Identity document (end-to-end encrypted)
   idTitle: 'Uswiisdokumänt',

@@ -204,6 +204,10 @@ export interface Member extends BaseRecord {
   email_notify_form_submissions?: boolean
   email_notify_announcements?: boolean
   email_notify_events?: boolean
+  // Email reminders (migration 442). Default-on; lead time in minutes (15 … 10080).
+  email_notify_rsvp_reminders?: boolean
+  email_notify_activity_reminders?: boolean
+  activity_reminder_lead_minutes?: number
   birthdate_visibility: 'full' | 'year_only' | 'hidden'
   website_visible: boolean
   // Website-scoped name privacy (migration 116). When true, the public website

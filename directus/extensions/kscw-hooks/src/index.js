@@ -43,6 +43,7 @@ import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { createActingMemberMiddleware } from './acting-member.js'
+import { createEmailReminders, isRsvpDigestHour } from './email-reminders.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -4442,9 +4443,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .where('date_created', '<', cutoff.toISOString())
         .delete()
 
+      // Reminder send log (migration 442): its rows only matter until the activity is over.
+      const reminderLog = await database('email_reminders_sent')
+        .where('sent_at', '<', new Date(Date.now() - 60 * 86400_000).toISOString())
+        .delete()
+
       const pastCount = (pastGames?.rowCount || 0) + (pastTrainings?.rowCount || 0) + (pastEvents?.rowCount || 0)
       const total = pastCount + (orphaned?.rowCount || 0) + old
       if (total > 0) log.info(`Notification cleanup: ${total} deleted (past=${pastCount}, orphaned=${orphaned?.rowCount || 0}, old=${old})`)
+      if (reminderLog > 0) log.info(`Reminder log cleanup: ${reminderLog} rows older than 60 days deleted`)
     } catch (err) {
       log.error({ msg: `Notification cleanup: ${err.message}`, event: 'cron.notification_cleanup', stack: err.stack })
       logCronError('notification_cleanup', err)
@@ -5040,6 +5047,43 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `Daily reminders: ${err.message}`, event: 'cron.daily_reminders', stack: err.stack })
       logCronError('daily_reminders', err)
+    }
+  })
+
+  // ── 7b. Cron: Email reminders (migration 442) ──────────────────
+  // Owner 03.11.2026 after a team poll: "your answer is missing" as a daily
+  // digest at 18:00 Zurich, and "your activity starts soon" at each member's
+  // own lead time (checked every 5 minutes). Both are per-member switches in
+  // Profile → Email notifications; the rules live in email-reminders.js.
+  const emailReminders = createEmailReminders({
+    database, services, getSchema, log,
+    sql: { gameSquadJoin: GAME_SQUAD_JOIN, eventEligibilitySql, effectiveDeadlineSql },
+  })
+
+  schedule('5 * * * *', async () => {
+    if (!isRsvpDigestHour()) return
+    try {
+      const r = await emailReminders.runRsvpDigest()
+      if (r.emails > 0) log.info(`RSVP reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
+    } catch (err) {
+      log.error({ msg: `RSVP reminder emails: ${err.message}`, event: 'cron.rsvp_reminder_emails', stack: err.stack })
+      logCronError('rsvp_reminder_emails', err)
+    }
+  })
+
+  // A slow SES day must not stack runs on top of each other.
+  let activityRemindersRunning = false
+  schedule('*/5 * * * *', async () => {
+    if (activityRemindersRunning) return
+    activityRemindersRunning = true
+    try {
+      const r = await emailReminders.runActivityReminders()
+      if (r.emails > 0) log.info(`Activity reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
+    } catch (err) {
+      log.error({ msg: `Activity reminder emails: ${err.message}`, event: 'cron.activity_reminder_emails', stack: err.stack })
+      logCronError('activity_reminder_emails', err)
+    } finally {
+      activityRemindersRunning = false
     }
   })
 
