@@ -312,6 +312,8 @@ export default {
   emailNotifyRsvpRemindersHint: "An email 6 hours before the answer deadline of a game or event if you haven't answered yet (Yes, No or Maybe).",
   emailNotifyActivityReminders: 'Reminder before activities',
   emailNotifyActivityRemindersHint: 'An email before each training, game or event you said Yes or Maybe to.',
+  emailNotifyWeeklyDigest: 'Weekly overview',
+  emailNotifyWeeklyDigestHint: 'Sunday at 18:00: your trainings, games and events of the coming week, with your answers.',
   reminderLeadLabel: 'Send it',
   reminderLeadMinutes_one: '{{count}} minute before',
   reminderLeadMinutes_other: '{{count}} minutes before',

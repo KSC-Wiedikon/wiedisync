@@ -364,6 +364,8 @@ export default {
   emailNotifyRsvpRemindersHint: 'Una e-mail 6 ore prima della scadenza per rispondere a una partita o a un evento, se non hai ancora risposto (Sì, No o Forse).',
   emailNotifyActivityReminders: 'Promemoria prima delle attività',
   emailNotifyActivityRemindersHint: "Una e-mail prima di ogni allenamento, partita o evento a cui hai risposto Sì o Forse.",
+  emailNotifyWeeklyDigest: 'Panoramica settimanale',
+  emailNotifyWeeklyDigestHint: 'Domenica alle 18:00: i tuoi allenamenti, partite ed eventi della settimana successiva, con le tue risposte.',
   reminderLeadLabel: 'Invia',
   reminderLeadMinutes_one: '{{count}} minuto prima',
   reminderLeadMinutes_other: '{{count}} minuti prima',
