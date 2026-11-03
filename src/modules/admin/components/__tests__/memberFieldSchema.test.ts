@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 110 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(110)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(110)
+  it('has 113 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(113)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(113)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -108,7 +108,7 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('roles_access')).toBe(3)
     expect(count('finance')).toBe(22) // 21 columns + __fee_amount
     expect(count('privacy')).toBe(3)
-    expect(count('notifications')).toBe(8)
+    expect(count('notifications')).toBe(11)
     expect(count('clubdesk')).toBe(5)
     expect(count('transfer')).toBe(4)
     expect(count('system')).toBe(10)
@@ -314,6 +314,7 @@ describe('isBulkEditable', () => {
     'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
     'email_notify_events', 'email_notify_announcements', 'email_notify_registrations',
     'email_notify_join_requests', 'email_notify_form_submissions',
+    'email_notify_rsvp_reminders', 'email_notify_activity_reminders', 'activity_reminder_lead_minutes',
     // clubdesk
     'clubdesk_sync_exclude',
     // transfer

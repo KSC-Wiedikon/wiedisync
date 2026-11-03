@@ -9,6 +9,7 @@ import { kscwApi } from '../../lib/api'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import { getFileUrl } from '../../utils/fileUrl'
@@ -120,12 +121,18 @@ function AutoSignInCard() {
  * turning one off suppresses that email (or, for form submissions, that push) in
  * the backend send paths — never the in-app notification bell. Each row only
  * shows to people who can actually receive that notification, so a plain member
- * sees just club news + event invitations.
+ * sees the two reminders, club news and event invitations.
+ *
+ * The two reminder rows (migration 442) come first: the RSVP digest before a
+ * deadline, and the activity reminder with its own lead time, picked under the
+ * switch while it is on.
  */
 type NotifyRow = {
   key: string
   field: keyof Pick<
     NonNullable<ReturnType<typeof useAuth>['user']>,
+    | 'email_notify_rsvp_reminders'
+    | 'email_notify_activity_reminders'
     | 'email_notify_registrations'
     | 'email_notify_join_requests'
     | 'email_notify_form_submissions'
@@ -133,8 +140,13 @@ type NotifyRow = {
     | 'email_notify_events'
   >
   label: string
+  hint?: string
   show: boolean
 }
+
+/** Lead times offered for the activity reminder, in minutes (DB accepts 15 … 10080). */
+const REMINDER_LEAD_OPTIONS = [60, 120, 180, 360, 720, 1440, 2880] as const
+const DEFAULT_REMINDER_LEAD = 1440
 
 function EmailNotificationCard() {
   const { user, isAdmin, isCoach, teamResponsibleIds } = useAuth()
@@ -142,6 +154,14 @@ function EmailNotificationCard() {
   const isLeader = isCoach || teamResponsibleIds.length > 0
 
   const allRows: NotifyRow[] = [
+    {
+      key: 'rsvpReminders', field: 'email_notify_rsvp_reminders',
+      label: t('emailNotifyRsvpReminders'), hint: t('emailNotifyRsvpRemindersHint'), show: true,
+    },
+    {
+      key: 'activityReminders', field: 'email_notify_activity_reminders',
+      label: t('emailNotifyActivityReminders'), hint: t('emailNotifyActivityRemindersHint'), show: true,
+    },
     { key: 'registrations', field: 'email_notify_registrations', label: t('emailNotifyRegistrations'), show: isAdmin },
     { key: 'joinRequests', field: 'email_notify_join_requests', label: t('emailNotifyJoinRequests'), show: isLeader },
     { key: 'forms', field: 'email_notify_form_submissions', label: t('emailNotifyFormSubmissions'), show: isLeader },
@@ -156,6 +176,7 @@ function EmailNotificationCard() {
     Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])),
   )
   const [saving, setSaving] = useState<string | null>(null)
+  const [lead, setLead] = useState<number>(() => user?.activity_reminder_lead_minutes ?? DEFAULT_REMINDER_LEAD)
 
   // Re-sync from the auth user when it refreshes elsewhere (the useState
   // initializer only runs on mount). Keyed on the specific opt-out flags — the
@@ -163,6 +184,9 @@ function EmailNotificationCard() {
   // (no cascading re-render). `String()` keeps `undefined` (default-on) and
   // `false` (opted out) distinguishable.
   const syncKey = [
+    user?.email_notify_rsvp_reminders,
+    user?.email_notify_activity_reminders,
+    user?.activity_reminder_lead_minutes,
     user?.email_notify_registrations,
     user?.email_notify_join_requests,
     user?.email_notify_form_submissions,
@@ -173,6 +197,7 @@ function EmailNotificationCard() {
   if (prevSyncKey !== syncKey) {
     setPrevSyncKey(syncKey)
     setState(Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])))
+    setLead(user?.activity_reminder_lead_minutes ?? DEFAULT_REMINDER_LEAD)
   }
 
   if (!user || rows.length === 0) return null
@@ -189,20 +214,64 @@ function EmailNotificationCard() {
     }
   }
 
+  async function changeLead(value: string) {
+    const next = Number(value)
+    const prev = lead
+    setLead(next)
+    setSaving('lead')
+    try {
+      await updateRecord('members', user!.id, { activity_reminder_lead_minutes: next })
+    } catch {
+      setLead(prev) // revert on failure
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  function leadLabel(minutes: number) {
+    if (minutes % 1440 === 0) return t('reminderLeadDays', { count: minutes / 1440 })
+    if (minutes % 60 === 0) return t('reminderLeadHours', { count: minutes / 60 })
+    return t('reminderLeadMinutes', { count: minutes })
+  }
+
   return (
     <div className="mt-8">
       <h2 className="text-base font-semibold tracking-tight text-foreground">{t('emailNotifyTitle')}</h2>
       <p className="mt-1 text-xs text-muted-foreground">{t('emailNotifyHint')}</p>
       <div className="mt-3 divide-y divide-border/60 rounded-2xl border border-hairline bg-card shadow-card">
         {rows.map((r) => (
-          <div key={r.key} className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm font-medium text-foreground">{r.label}</span>
-            <Switch
-              checked={state[r.key]}
-              disabled={saving === r.key}
-              onCheckedChange={(v) => toggle(r, v)}
-              aria-label={r.label}
-            />
+          <div key={r.key} className="px-4 py-3">
+            <div className="flex min-h-[44px] items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-foreground">{r.label}</span>
+                {r.hint && <p className="mt-0.5 text-xs text-muted-foreground">{r.hint}</p>}
+              </div>
+              <Switch
+                checked={state[r.key]}
+                disabled={saving === r.key}
+                onCheckedChange={(v) => toggle(r, v)}
+                aria-label={r.label}
+                className="shrink-0"
+              />
+            </div>
+            {r.key === 'activityReminders' && state[r.key] && (
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground" id="reminder-lead-label">{t('reminderLeadLabel')}</span>
+                <Select value={String(lead)} onValueChange={changeLead} disabled={saving === 'lead'}>
+                  <SelectTrigger className="w-44 shrink-0" aria-labelledby="reminder-lead-label">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(REMINDER_LEAD_OPTIONS.includes(lead as (typeof REMINDER_LEAD_OPTIONS)[number])
+                      ? REMINDER_LEAD_OPTIONS
+                      : [...REMINDER_LEAD_OPTIONS, lead].sort((a, b) => a - b)
+                    ).map((m) => (
+                      <SelectItem key={m} value={String(m)}>{leadLabel(m)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         ))}
       </div>
