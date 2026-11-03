@@ -361,7 +361,7 @@ export default {
   emailNotifyAnnouncements: 'Actualités du club',
   emailNotifyEvents: 'Invitations aux événements',
   emailNotifyRsvpReminders: 'Rappel pour répondre',
-  emailNotifyRsvpRemindersHint: "Un e-mail jusqu'à deux jours avant un délai de réponse, si tu n'as pas encore répondu Oui ou Non (« Peut-être » compte comme pas de réponse).",
+  emailNotifyRsvpRemindersHint: "Un e-mail 6 heures avant le délai de réponse d'un match ou d'un événement, si tu n'as pas encore répondu (Oui, Non ou Peut-être).",
   emailNotifyActivityReminders: 'Rappel avant les activités',
   emailNotifyActivityRemindersHint: 'Un e-mail avant chaque entraînement, match ou événement pour lequel tu as répondu Oui ou Peut-être.',
   reminderLeadLabel: 'Envoyer',

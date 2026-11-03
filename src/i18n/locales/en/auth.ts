@@ -309,7 +309,7 @@ export default {
   emailNotifyAnnouncements: 'Club news',
   emailNotifyEvents: 'Event invitations',
   emailNotifyRsvpReminders: 'Reminder to answer',
-  emailNotifyRsvpRemindersHint: "An email up to two days before an answer deadline if you haven't said Yes or No yet (Maybe counts as no answer).",
+  emailNotifyRsvpRemindersHint: "An email 6 hours before the answer deadline of a game or event if you haven't answered yet (Yes, No or Maybe).",
   emailNotifyActivityReminders: 'Reminder before activities',
   emailNotifyActivityRemindersHint: 'An email before each training, game or event you said Yes or Maybe to.',
   reminderLeadLabel: 'Send it',
