@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-03T12:50:34.649Z
+-- Generated:   2026-11-03T14:38:57.577Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6FikfwY5zGxcnskgW56E5NedNT5p39cGGqXncXJnIYbzDV0aegdac0Gx3CmOqkT
+\restrict EpvcIe9iIm7dBqdbeZ2y3xBI6bdXbwvC1mKUU1AnIwtXCiZWbcfREqfizHXT6M4
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -3650,6 +3650,7 @@ CREATE TABLE public.members (
     email_notify_rsvp_reminders boolean DEFAULT true NOT NULL,
     email_notify_activity_reminders boolean DEFAULT true NOT NULL,
     activity_reminder_lead_minutes integer DEFAULT 1440 NOT NULL,
+    email_notify_weekly_digest boolean DEFAULT true NOT NULL,
     CONSTRAINT members_activity_reminder_lead_minutes_range CHECK (((activity_reminder_lead_minutes >= 15) AND (activity_reminder_lead_minutes <= 10080))),
     CONSTRAINT members_cantonal_school_no_legacy CHECK (((cantonal_school IS NULL) OR ((lower(btrim((cantonal_school)::text)) <> 'nein'::text) AND (btrim((cantonal_school)::text) <> ALL (ARRAY[''::text, 'Andere Kantonsschule'::text]))))),
     CONSTRAINT members_club_section_values CHECK (((club_section IS NULL) OR ((club_section)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'club'::character varying])::text[])))),
@@ -6922,7 +6923,7 @@ CREATE TABLE public.email_reminders_sent (
     kind text NOT NULL,
     sent_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT email_reminders_sent_activity_type_chk CHECK ((activity_type = ANY (ARRAY['training'::text, 'game'::text, 'event'::text]))),
-    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text])))
+    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text, 'weekly'::text])))
 );
 
 
@@ -21197,7 +21198,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6FikfwY5zGxcnskgW56E5NedNT5p39cGGqXncXJnIYbzDV0aegdac0Gx3CmOqkT
+\unrestrict EpvcIe9iIm7dBqdbeZ2y3xBI6bdXbwvC1mKUU1AnIwtXCiZWbcfREqfizHXT6M4
 
 
 
@@ -21215,7 +21216,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 446 migration(s) already in the schema above.
+-- Migration tracker seed — 447 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21674,6 +21675,7 @@ FROM (VALUES
   ('439-passkeys.sql'),
   ('440-games-carpool-default-on.sql'),
   ('441-carpool-auto-away-week.sql'),
-  ('442-email-reminders.sql')
+  ('442-email-reminders.sql'),
+  ('443-weekly-digest-email.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
