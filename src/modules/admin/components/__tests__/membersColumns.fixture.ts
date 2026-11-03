@@ -8,7 +8,8 @@
 // were only given a schema entry on 2026-08-14, + migration 335's
 // `deactivated_at`, minus the seven messaging columns dropped with the feature
 // on 2026-09-15 (111), minus `nationalitaet` dropped by migration 418 (110),
-// + the three email-reminder columns of migration 442 (113):
+// + the three email-reminder columns of migration 442 (113), + the weekly
+// overview switch of migration 443 (114):
 //
 //   ssh kscw-server "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -149,4 +150,6 @@ export const MEMBERS_COLUMNS: string[] = [
   'email_notify_rsvp_reminders',
   'email_notify_activity_reminders',
   'activity_reminder_lead_minutes',
+  // Migration 443 — the Sunday overview email switch (default on).
+  'email_notify_weekly_digest',
 ]

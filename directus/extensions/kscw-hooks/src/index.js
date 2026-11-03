@@ -43,7 +43,7 @@ import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { createActingMemberMiddleware } from './acting-member.js'
-import { createEmailReminders } from './email-reminders.js'
+import { createEmailReminders, isWeeklyDigestTime } from './email-reminders.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -5083,6 +5083,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
     } finally {
       emailRemindersRunning = false
+    }
+  })
+
+  // Weekly overview (migration 443): Sunday 18:05 Zurich, with catch-up runs at
+  // 19:05 and 20:05 that skip everyone who already got theirs.
+  schedule('5 * * * *', async () => {
+    if (!isWeeklyDigestTime()) return
+    try {
+      const r = await emailReminders.runWeeklyDigest()
+      if (r.emails > 0) log.info(`Weekly overview emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
+    } catch (err) {
+      log.error({ msg: `Weekly overview emails: ${err.message}`, event: 'cron.weekly_digest_emails', stack: err.stack })
+      logCronError('weekly_digest_emails', err)
     }
   })
 

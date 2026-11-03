@@ -309,6 +309,8 @@ export default {
   emailNotifyRsvpRemindersHint: 'Eine E-Mail 6 Stunden vor der Antwortfrist eines Spiels oder Anlasses, wenn du noch nicht geantwortet hast (Ja, Nein oder Vielleicht).',
   emailNotifyActivityReminders: 'Erinnerung vor Aktivitäten',
   emailNotifyActivityRemindersHint: 'Eine E-Mail vor jedem Training, Spiel oder Anlass, für das du Ja oder Vielleicht gesagt hast.',
+  emailNotifyWeeklyDigest: 'Wochenübersicht',
+  emailNotifyWeeklyDigestHint: 'Sonntag um 18:00: deine Trainings, Spiele und Anlässe der kommenden Woche, mit deinen Antworten.',
   reminderLeadLabel: 'Senden',
   reminderLeadMinutes_one: '{{count}} Minute vorher',
   reminderLeadMinutes_other: '{{count}} Minuten vorher',

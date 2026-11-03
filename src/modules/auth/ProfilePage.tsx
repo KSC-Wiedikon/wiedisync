@@ -123,9 +123,9 @@ function AutoSignInCard() {
  * shows to people who can actually receive that notification, so a plain member
  * sees the two reminders, club news and event invitations.
  *
- * The two reminder rows (migration 442) come first: the RSVP digest before a
- * deadline, and the activity reminder with its own lead time, picked under the
- * switch while it is on.
+ * The reminder rows come first: the answer reminder before a game / event
+ * deadline and the activity reminder with its own lead time, picked under the
+ * switch while it is on (migration 442), then the Sunday overview (443).
  */
 type NotifyRow = {
   key: string
@@ -133,6 +133,7 @@ type NotifyRow = {
     NonNullable<ReturnType<typeof useAuth>['user']>,
     | 'email_notify_rsvp_reminders'
     | 'email_notify_activity_reminders'
+    | 'email_notify_weekly_digest'
     | 'email_notify_registrations'
     | 'email_notify_join_requests'
     | 'email_notify_form_submissions'
@@ -162,6 +163,10 @@ function EmailNotificationCard() {
       key: 'activityReminders', field: 'email_notify_activity_reminders',
       label: t('emailNotifyActivityReminders'), hint: t('emailNotifyActivityRemindersHint'), show: true,
     },
+    {
+      key: 'weeklyDigest', field: 'email_notify_weekly_digest',
+      label: t('emailNotifyWeeklyDigest'), hint: t('emailNotifyWeeklyDigestHint'), show: true,
+    },
     { key: 'registrations', field: 'email_notify_registrations', label: t('emailNotifyRegistrations'), show: isAdmin },
     { key: 'joinRequests', field: 'email_notify_join_requests', label: t('emailNotifyJoinRequests'), show: isLeader },
     { key: 'forms', field: 'email_notify_form_submissions', label: t('emailNotifyFormSubmissions'), show: isLeader },
@@ -187,6 +192,7 @@ function EmailNotificationCard() {
     user?.email_notify_rsvp_reminders,
     user?.email_notify_activity_reminders,
     user?.activity_reminder_lead_minutes,
+    user?.email_notify_weekly_digest,
     user?.email_notify_registrations,
     user?.email_notify_join_requests,
     user?.email_notify_form_submissions,
