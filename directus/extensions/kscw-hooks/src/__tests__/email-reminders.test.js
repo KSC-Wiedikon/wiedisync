@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   rsvpCandidatesQuery, activityCandidatesQuery, rsvpDigestContent, activityReminderContent,
-  isRsvpDigestHour, groupByMember, localeFor, activityLabel, createEmailReminders,
+  groupByMember, localeFor, activityLabel, createEmailReminders,
 } from '../email-reminders.js'
 
 const h = {
@@ -22,14 +22,15 @@ const game = {
 }
 
 describe('candidate queries', () => {
-  it('RSVP: deadline window only, Maybe still open, deduped on the rsvp log', () => {
+  it('answer reminder: games and events, 6 h before the deadline, only without any answer', () => {
     const { sql, bindings } = rsvpCandidatesQuery(h, '2026-11-03T17:05:00Z')
     expect(bindings).toEqual(['2026-11-03T17:05:00Z'])
     expect(sql.match(/\?/g)).toHaveLength(1)
-    expect(sql).toContain("a.deadline <= p.ts + interval '48 hours'")
+    expect(sql).toContain("a.activity_type IN ('game', 'event')")
+    expect(sql).toContain("a.deadline <= p.ts + interval '6 hours'")
     expect(sql).toContain('a.deadline > p.ts')
-    expect(sql).toContain('NOT COALESCE(an.yes, false) AND NOT COALESCE(an.no, false) AND NOT COALESCE(an.waiting, false)')
-    expect(sql).not.toMatch(/an\.maybe, false\)\s*AND/)
+    // Yes, No and Maybe all count as an answer: no participation row at all.
+    expect(sql).toContain('AND an.member IS NULL')
     expect(sql).toContain('m.email_notify_rsvp_reminders = true')
     expect(sql).toContain("s.kind = 'rsvp'")
     // guests stay out: roster guest players and guests on games
@@ -73,10 +74,11 @@ describe('content', () => {
     expect(c.text).toContain('/profile')
   })
 
-  it('RSVP digest, several items: count in subject, Maybe noted, HTML escaped', () => {
-    const c = rsvpDigestContent({ locale: 'en', firstName: 'Anna', items: [training, { ...game, maybe: true }] })
+  it('RSVP digest, several items: count in subject, HTML escaped', () => {
+    const c = rsvpDigestContent({ locale: 'en', firstName: 'Anna', items: [training, game] })
     expect(c.subject).toBe('WiediSync — Your answer is missing for 2 activities')
-    expect(c.text).toContain('You said Maybe.')
+    expect(c.text).toContain("You haven't answered yet:")
+    expect(c.text).not.toContain('Maybe')
     expect(c.html).toContain('VBC &lt;Züri&gt;')
     expect(c.html).not.toContain('VBC <Züri>')
   })
@@ -106,12 +108,6 @@ describe('content', () => {
 })
 
 describe('helpers', () => {
-  it('digest hour follows Zurich time across DST', () => {
-    expect(isRsvpDigestHour(new Date('2026-11-03T17:05:00Z'))).toBe(true) // CET
-    expect(isRsvpDigestHour(new Date('2026-07-03T16:05:00Z'))).toBe(true) // CEST
-    expect(isRsvpDigestHour(new Date('2026-11-03T16:05:00Z'))).toBe(false)
-  })
-
   it('groups rows by member in order', () => {
     const g = groupByMember([{ member: 1, a: 1 }, { member: 2, a: 2 }, { member: 1, a: 3 }])
     expect([...g.keys()]).toEqual([1, 2])
@@ -163,13 +159,13 @@ describe('sending', () => {
     const db = fakeDb(rows)
     const send = vi.fn(async () => {})
     const r = createEmailReminders(deps(db, send))
-    expect(await r.runRsvpDigest(new Date('2026-11-03T17:05:00Z'))).toMatchObject({ emails: 2, sent: 2, failed: 0 })
+    expect(await r.runRsvpReminders(new Date('2026-11-03T17:05:00Z'))).toMatchObject({ emails: 2, sent: 2, failed: 0 })
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[0][0].subject).toBe('WiediSync — Deine Antwort fehlt bei 2 Aktivitäten')
     expect(send.mock.calls[1][0]).toMatchObject({ to: 'ben@example.ch', subject: 'WiediSync — Your answer is missing: Training H3' })
     expect(db.log.size).toBe(3)
     // Same candidates again (e.g. a second run before the log is read): nothing new is sent.
-    expect(await r.runRsvpDigest()).toMatchObject({ sent: 0, skipped: 2 })
+    expect(await r.runRsvpReminders()).toMatchObject({ sent: 0, skipped: 2 })
     expect(send).toHaveBeenCalledTimes(2)
   })
 

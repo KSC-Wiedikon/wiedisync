@@ -306,7 +306,7 @@ export default {
   emailNotifyAnnouncements: 'Vereinsnews',
   emailNotifyEvents: 'Anlass-Einladungen',
   emailNotifyRsvpReminders: 'Erinnerung zum Antworten',
-  emailNotifyRsvpRemindersHint: 'Eine E-Mail bis zu zwei Tage vor einer Antwortfrist, wenn du noch nicht Ja oder Nein gesagt hast («Vielleicht» zählt als keine Antwort).',
+  emailNotifyRsvpRemindersHint: 'Eine E-Mail 6 Stunden vor der Antwortfrist eines Spiels oder Anlasses, wenn du noch nicht geantwortet hast (Ja, Nein oder Vielleicht).',
   emailNotifyActivityReminders: 'Erinnerung vor Aktivitäten',
   emailNotifyActivityRemindersHint: 'Eine E-Mail vor jedem Training, Spiel oder Anlass, für das du Ja oder Vielleicht gesagt hast.',
   reminderLeadLabel: 'Senden',

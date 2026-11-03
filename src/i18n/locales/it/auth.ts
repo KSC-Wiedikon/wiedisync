@@ -361,7 +361,7 @@ export default {
   emailNotifyAnnouncements: 'Notizie del club',
   emailNotifyEvents: 'Inviti agli eventi',
   emailNotifyRsvpReminders: 'Promemoria per rispondere',
-  emailNotifyRsvpRemindersHint: 'Una e-mail fino a due giorni prima di una scadenza, se non hai ancora risposto Sì o No («Forse» conta come nessuna risposta).',
+  emailNotifyRsvpRemindersHint: 'Una e-mail 6 ore prima della scadenza per rispondere a una partita o a un evento, se non hai ancora risposto (Sì, No o Forse).',
   emailNotifyActivityReminders: 'Promemoria prima delle attività',
   emailNotifyActivityRemindersHint: "Una e-mail prima di ogni allenamento, partita o evento a cui hai risposto Sì o Forse.",
   reminderLeadLabel: 'Invia',

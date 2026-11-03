@@ -699,7 +699,7 @@ const NOTIFICATIONS = block('notifications', undefined, [
   { key: 'email_notify_announcements', label: 'Email about announcements', kind: 'bool' },
   {
     key: 'email_notify_rsvp_reminders', label: 'Email reminder to answer', kind: 'bool',
-    help: 'Daily digest before an answer deadline while Yes or No is missing.',
+    help: 'Email 6 h before a game or event answer deadline while no answer is given.',
   },
   {
     key: 'email_notify_activity_reminders', label: 'Email reminder before activities', kind: 'bool',
