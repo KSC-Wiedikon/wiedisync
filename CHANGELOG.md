@@ -2,12 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.59.0 — 2026-11-03
+
+### Added
+
+- Weekly overview: on Sunday at 18:00 an email with your trainings, games and events of the coming week, each with your answer and, if still open, the deadline. On by default; switch it off under Profile → Email notifications.
+
 ## v2.58.0 — 2026-11-03
 
 ### Added
 
 - Email reminder to answer: 6 hours before the answer deadline of a game or event, an email if you haven't answered yet (Yes, No or Maybe all count as an answer).
-- Email reminder before activities: an email before each training, game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).
+- Email reminder before games and events: an email before each game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).
 - Both are on by default and can be switched off under Profile → Email notifications. Scorer duties keep their own reminder.
 
 ## v2.57.0 — 2026-11-02

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.58.0'
+const APP_VERSION = '2.59.0'
 
 interface ChangelogEntry {
   version: string
@@ -14,6 +14,18 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.59.0',
+    date: '03.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Weekly overview: on Sunday at 18:00 an email with your trainings, games and events of the coming week, each with your answer and, if still open, the deadline. On by default; switch it off under Profile → Email notifications.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.58.0',
     date: '03.11.2026',
     sections: [
@@ -21,7 +33,7 @@ const CHANGELOG: ChangelogEntry[] = [
         title: 'Added',
         items: [
           "Email reminder to answer: 6 hours before the answer deadline of a game or event, an email if you haven't answered yet (Yes, No or Maybe all count as an answer).",
-          'Email reminder before activities: an email before each training, game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).',
+          'Email reminder before games and events: an email before each game or event you said Yes or Maybe to. Choose when it arrives, from 1 hour to 2 days before (default: 1 day).',
           'Both are on by default and can be switched off under Profile → Email notifications. Scorer duties keep their own reminder.',
         ],
       },

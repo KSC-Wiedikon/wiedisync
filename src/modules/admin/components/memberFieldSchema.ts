@@ -687,7 +687,7 @@ const PRIVACY = block('privacy', undefined, [
   },
 ])
 
-// ── 1.i Notifications (11) ──────────────────────────────────────────────────
+// ── 1.i Notifications (12) ──────────────────────────────────────────────────
 const NOTIFICATIONS = block('notifications', undefined, [
   {
     key: 'auto_confirm_trainings', label: 'Auto-confirm trainings', kind: 'bool',
@@ -702,12 +702,16 @@ const NOTIFICATIONS = block('notifications', undefined, [
     help: 'Email 6 h before a game or event answer deadline while no answer is given.',
   },
   {
-    key: 'email_notify_activity_reminders', label: 'Email reminder before activities', kind: 'bool',
-    help: 'For trainings, games and events the member said Yes or Maybe to.',
+    key: 'email_notify_activity_reminders', label: 'Email reminder before games and events', kind: 'bool',
+    help: 'For games and events the member said Yes or Maybe to (not trainings).',
   },
   {
     key: 'activity_reminder_lead_minutes', label: 'Activity reminder lead time (minutes)', kind: 'number',
     help: '15 to 10080. The profile offers 1 hour to 2 days.',
+  },
+  {
+    key: 'email_notify_weekly_digest', label: 'Weekly overview email', kind: 'bool',
+    help: 'Sunday 18:00: the coming week with the member\'s answers.',
   },
   {
     key: 'email_notify_registrations', label: 'Email about new registrations', kind: 'bool',

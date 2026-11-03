@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   rsvpCandidatesQuery, activityCandidatesQuery, rsvpDigestContent, activityReminderContent,
-  groupByMember, localeFor, activityLabel, createEmailReminders,
+  weeklyCandidatesQuery, weeklyDigestContent, isWeeklyDigestTime, answerStatus, groupByMember, localeFor, activityLabel, createEmailReminders,
 } from '../email-reminders.js'
 
 const h = {
@@ -41,10 +41,11 @@ describe('candidate queries', () => {
     expect(sql).toContain('e.form_signup_only = false')
   })
 
-  it('activity: Yes or Maybe only, per-member lead time with a grace window', () => {
+  it('activity: games and events, Yes or Maybe only, per-member lead time with a grace window', () => {
     const { sql, bindings } = activityCandidatesQuery(h, '2026-11-03T17:05:00Z')
     expect(bindings).toEqual(['2026-11-03T17:05:00Z'])
     expect(sql.match(/\?/g)).toHaveLength(1)
+    expect(sql).toContain("a.activity_type IN ('game', 'event')")
     expect(sql).toContain('an.yes OR (an.maybe AND NOT an.no AND NOT an.waiting)')
     expect(sql).toContain('make_interval(mins => m.activity_reminder_lead_minutes) <= p.ts')
     expect(sql).toContain("> p.ts - interval '120 minutes'")
@@ -68,6 +69,7 @@ describe('content', () => {
     expect(c.text).toContain('Hallo Anna,')
     // Weekday abbreviations come from ICU ("Mi" or "Mi."), the date format is fixed.
     expect(c.text).toMatch(/Mi\.?, 04\.11\.2026, 20:00 · KWI A/)
+    expect(c.text).toContain('Ausschalten: https://')
     expect(c.text).toContain('Antworten bis 04.11.2026, 09:00')
     expect(c.text).toMatch(/\/trainings\/42$/m)
     expect(c.html).toContain('/trainings/42')
@@ -85,7 +87,12 @@ describe('content', () => {
 
   it('activity reminder: Yes vs Maybe wording, per locale', () => {
     const yes = activityReminderContent({ locale: 'fr', firstName: 'Anna', item: { ...training, yes: true } })
-    expect(yes.subject).toMatch(/^WiediSync — Rappel : Entraînement H3, mer\.?, 04\.11\.2026, 20:00$/)
+    expect(yes.subject).toMatch(/^WiediSync — Rappel : Entraînement H3, Mer\.?, 04\.11\.2026, 20:00$/)
+    expect(yes.text).toContain('Pour les désactiver : https://')
+    const itYes = activityReminderContent({ locale: 'it', item: { ...game, yes: true } })
+    expect(itYes.subject).toMatch(/, Mer\.?, 04\.11\.2026, 20:00$/)
+    expect(itYes.text).toContain('Non riesci? Cambia la tua partecipazione.')
+    expect(itYes.text).toContain('Per disattivarli: https://')
     expect(yes.text).toContain('Tu as dit Oui pour :')
     const maybe = activityReminderContent({ locale: 'it', item: { ...game, yes: false, maybe: true } })
     expect(maybe.text).toContain('Hai risposto «Forse» a:')
@@ -191,5 +198,68 @@ describe('sending', () => {
     const r = createEmailReminders(deps(db, send))
     expect(await r.runActivityReminders()).toMatchObject({ emails: 4, sent: 0, skipped: 4 })
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('weekly overview', () => {
+  it('query: the coming Monday–Sunday, expected people plus Yes/Maybe, once per member', () => {
+    const { sql, bindings } = weeklyCandidatesQuery(h, '2026-11-08T17:05:00Z')
+    expect(bindings).toEqual(['2026-11-08T17:05:00Z'])
+    expect(sql.match(/\?/g)).toHaveLength(1)
+    expect(sql).toContain("date_trunc('week', p.ts AT TIME ZONE 'Europe/Zurich') + interval '7 days'")
+    expect(sql).toContain("date_trunc('week', p.ts AT TIME ZONE 'Europe/Zurich') + interval '14 days'")
+    expect(sql).toContain('SELECT activity_type, activity_id, member FROM answers WHERE yes OR maybe')
+    expect(sql).toContain('m.email_notify_weekly_digest = true')
+    expect(sql).toContain("s.kind = 'weekly'")
+  })
+
+  it('Sunday 18:00–20:59 Zurich only, across DST', () => {
+    expect(isWeeklyDigestTime(new Date('2026-11-08T17:05:00Z'))).toBe(true) // Sun 18:05 CET
+    expect(isWeeklyDigestTime(new Date('2026-11-08T19:05:00Z'))).toBe(true) // Sun 20:05 CET
+    expect(isWeeklyDigestTime(new Date('2026-11-08T20:05:00Z'))).toBe(false) // Sun 21:05
+    expect(isWeeklyDigestTime(new Date('2026-07-05T16:05:00Z'))).toBe(true) // Sun 18:05 CEST
+    expect(isWeeklyDigestTime(new Date('2026-11-07T17:05:00Z'))).toBe(false) // Saturday
+  })
+
+  it('answer status: a Yes on any session wins, then Maybe, waiting list, No, open', () => {
+    expect(answerStatus({ yes: true, no: true })).toBe('yes')
+    expect(answerStatus({ maybe: true, no: true })).toBe('maybe')
+    expect(answerStatus({ waiting: true })).toBe('waiting')
+    expect(answerStatus({ no: true })).toBe('no')
+    expect(answerStatus({})).toBe('open')
+  })
+
+  it('content: every activity with its answer, open count in the subject, deadline only while ahead', () => {
+    const now = '2026-11-08T17:05:00Z'
+    const items = [
+      { ...training, starts_at: '2026-11-09T19:00:00Z', deadline: '2026-11-09T12:00:00Z', yes: true },
+      { ...game, starts_at: '2026-11-14T13:00:00Z', deadline: '2026-11-12T22:59:00Z' },
+      { ...training, activity_id: '43', starts_at: '2026-11-11T19:00:00Z', deadline: '2026-11-08T12:00:00Z' },
+    ]
+    const c = weeklyDigestContent({ locale: 'de', firstName: 'Anna', items, now })
+    expect(c.subject).toMatch(/^WiediSync — Deine Woche ab Mo\.?, 09\.11\.2026 · 2 offen$/)
+    expect(c.text).toContain('Deine Antwort: Ja')
+    expect(c.text).toContain('Deine Antwort: Noch keine Antwort')
+    expect(c.text).toContain('Antworten bis 12.11.2026, 23:59')
+    expect(c.text).not.toContain('Antworten bis 08.11.2026')
+    expect(c.text).toContain('Offene Antworten gibst du mit einem Tipp in der App.')
+    expect(c.html).toContain('VBC &lt;Züri&gt;')
+    const done = weeklyDigestContent({ locale: 'en', items: [{ ...training, yes: true }], now })
+    expect(done.subject).not.toContain('open')
+    expect(done.text).toContain('All answered. Thanks!')
+  })
+
+  it('sends one overview per member and logs every listed activity', async () => {
+    const rows = [
+      { ...training, yes: true },
+      { ...game },
+      { ...training, member: 9, email: 'ben@example.ch', first_name: 'Ben', language: 'french', no: true },
+    ]
+    const db = fakeDb(rows)
+    const send = vi.fn(async () => {})
+    const r = createEmailReminders(deps(db, send))
+    expect(await r.runWeeklyDigest(new Date('2026-11-01T17:05:00Z'))).toMatchObject({ emails: 2, sent: 2 })
+    expect(send.mock.calls[1][0].text).toContain('Ta réponse : Non')
+    expect(db.log.size).toBe(3)
   })
 })

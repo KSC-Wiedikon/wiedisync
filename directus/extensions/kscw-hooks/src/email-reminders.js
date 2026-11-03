@@ -12,10 +12,16 @@
  *     minutes; each activity once per member (several due in the same run share
  *     one email).
  *   - Activity reminder (`email_notify_activity_reminders`): one email per
- *     activity the member said Yes or Maybe to, `activity_reminder_lead_minutes`
- *     before it starts. Checked every 5 minutes; a reminder whose moment passed
+ *     game or event (not trainings — owner, 03.11.2026) the member said Yes or
+ *     Maybe to, `activity_reminder_lead_minutes` before it starts. Checked every 5 minutes; a reminder whose moment passed
  *     more than 2 h ago is dropped, so turning the setting on (or a deploy) never
  *     mails a backlog.
+ *   - Weekly overview (`email_notify_weekly_digest`, migration 443): Sunday
+ *     18:00 Zurich, one email listing the member's trainings, games and events
+ *     of the coming Monday–Sunday with their answer (and the deadline while it
+ *     is open). Only sent when the week has something. The cron looks again at
+ *     19:00 and 20:00 in case 18:00 was missed; a member who already got theirs
+ *     is skipped.
  *
  * Who is "expected" follows the existing reminder crons: a team's roster with
  * guest players left out (they are invited, not expected — the deadline sweep
@@ -41,7 +47,12 @@ export const ACTIVITY_REMINDER_LEAD_OPTIONS = Object.freeze([60, 120, 180, 360, 
 export const RSVP_LEAD_HOURS = 6
 /** Activity types that get an answer reminder (owner: games and events, not trainings). */
 export const RSVP_ACTIVITY_TYPES = Object.freeze(['game', 'event'])
+/** Activity types that get a reminder before they start (owner: no trainings either). */
+export const ACTIVITY_REMINDER_TYPES = Object.freeze(['game', 'event'])
 export const ACTIVITY_REMINDER_GRACE_MINUTES = 120
+/** Weekly overview: Sunday, from this Zurich hour, with two catch-up hours. */
+export const WEEKLY_DIGEST_HOUR_ZURICH = 18
+const WEEKLY_DIGEST_LAST_HOUR_ZURICH = 20
 /** Look-ahead for loading activities: deadlines can sit weeks before a start. */
 const HORIZON_DAYS = 60
 
@@ -185,7 +196,8 @@ export function activityCandidatesQuery(h, nowIso) {
   const horizon = `p.ts + make_interval(mins => COALESCE((
       SELECT max(activity_reminder_lead_minutes) FROM members
       WHERE email_notify_activity_reminders = true AND wiedisync_active = true), 0))`
-  const sql = `${baseCtes(h, `a.starts_at <= ${horizon}`)}
+  const types = ACTIVITY_REMINDER_TYPES.map((t) => `'${t}'`).join(', ')
+  const sql = `${baseCtes(h, `a.activity_type IN (${types}) AND a.starts_at <= ${horizon}`)}
     SELECT ${SELECT_COLUMNS}, an.yes, an.maybe, m.activity_reminder_lead_minutes AS lead_minutes
     FROM answers an
     JOIN acts a ON a.activity_type = an.activity_type AND a.activity_id = an.activity_id
@@ -202,6 +214,42 @@ export function activityCandidatesQuery(h, nowIso) {
           AND s.activity_id = a.activity_id AND s.kind = 'activity'
       )
     ORDER BY a.starts_at, m.id`
+  return { sql, bindings: [nowIso] }
+}
+
+/**
+ * The coming Monday–Sunday for every member with the weekly overview on: every
+ * activity they are expected at or said Yes / Maybe to, with their answer.
+ * Members who already got this week's overview (a 'weekly' log row for one of
+ * these activities) are left out, so a catch-up run never sends twice.
+ * @returns {{ sql: string, bindings: any[] }}
+ */
+export function weeklyCandidatesQuery(h, nowIso) {
+  // date_trunc('week') is Monday 00:00; +7 days = the coming Monday (run on Sunday).
+  const weekStart = `((date_trunc('week', p.ts AT TIME ZONE 'Europe/Zurich') + interval '7 days') AT TIME ZONE 'Europe/Zurich')`
+  const weekEnd = `((date_trunc('week', p.ts AT TIME ZONE 'Europe/Zurich') + interval '14 days') AT TIME ZONE 'Europe/Zurich')`
+  const sql = `${baseCtes(h, `a.starts_at >= ${weekStart} AND a.starts_at < ${weekEnd}`)}${expectedCte(h)},
+    people AS (
+      SELECT activity_type, activity_id, member FROM expected
+      UNION
+      SELECT activity_type, activity_id, member FROM answers WHERE yes OR maybe
+    )
+    SELECT ${SELECT_COLUMNS},
+           COALESCE(an.yes, false) AS yes, COALESCE(an.no, false) AS no,
+           COALESCE(an.maybe, false) AS maybe, COALESCE(an.waiting, false) AS waiting
+    FROM people x
+    JOIN acts a ON a.activity_type = x.activity_type AND a.activity_id = x.activity_id
+    JOIN members m ON m.id = x.member
+    LEFT JOIN answers an
+      ON an.activity_type = x.activity_type AND an.activity_id = x.activity_id AND an.member = x.member
+    WHERE m.wiedisync_active = true
+      AND m.email_notify_weekly_digest = true
+      AND NOT EXISTS (
+        SELECT 1 FROM email_reminders_sent s
+        JOIN acts a2 ON a2.activity_type = s.activity_type AND a2.activity_id = s.activity_id
+        WHERE s.member = m.id AND s.kind = 'weekly'
+      )
+    ORDER BY m.id, a.starts_at, a.activity_type, a.activity_id`
   return { sql, bindings: [nowIso] }
 }
 
@@ -222,6 +270,16 @@ const COPY = {
       intro: 'Hier hast du noch nicht geantwortet:',
       outro: 'Ein Tipp in der App genügt. So weiss dein Team, mit wem es rechnen kann.',
       cta: 'Jetzt antworten',
+    },
+    status: { yes: 'Ja', no: 'Nein', maybe: 'Vielleicht', waiting: 'Warteliste', open: 'Noch keine Antwort' },
+    yourAnswer: 'Deine Antwort:',
+    weekly: {
+      subject: (day, open) => `WiediSync — Deine Woche ab ${day}${open ? ` · ${open} offen` : ''}`,
+      title: 'Deine Woche',
+      intro: 'Das steht nächste Woche an:',
+      outroOpen: 'Offene Antworten gibst du mit einem Tipp in der App.',
+      outroDone: 'Alles beantwortet. Danke!',
+      cta: 'WiediSync öffnen',
     },
     activityMail: {
       subject: (label, when) => `WiediSync — Erinnerung: ${label}, ${when}`,
@@ -248,6 +306,16 @@ const COPY = {
       outro: 'En Tipp i de App längt. So weiss dis Team, mit wem es cha rächne.',
       cta: 'Jetzt antworte',
     },
+    status: { yes: 'Ja', no: 'Nei', maybe: 'Villicht', waiting: 'Wartelischtä', open: 'Nonig gantwortet' },
+    yourAnswer: 'Dini Antwort:',
+    weekly: {
+      subject: (day, open) => `WiediSync — Dini Wuche ab ${day}${open ? ` · ${open} offe` : ''}`,
+      title: 'Dini Wuche',
+      intro: 'Das staht nächschti Wuche aa:',
+      outroOpen: 'Offeni Antworte gisch mit eme Tipp i de App.',
+      outroDone: 'Alles beantwortet. Merci!',
+      cta: 'WiediSync öffne',
+    },
     activityMail: {
       subject: (label, when) => `WiediSync — Erinnerig: ${label}, ${when}`,
       title: 'Erinnerig',
@@ -273,6 +341,16 @@ const COPY = {
       outro: 'One tap in the app is enough. It tells your team who they can count on.',
       cta: 'Answer now',
     },
+    status: { yes: 'Yes', no: 'No', maybe: 'Maybe', waiting: 'Waiting list', open: 'No answer yet' },
+    yourAnswer: 'Your answer:',
+    weekly: {
+      subject: (day, open) => `WiediSync — Your week from ${day}${open ? ` · ${open} open` : ''}`,
+      title: 'Your week',
+      intro: 'Coming up next week:',
+      outroOpen: 'Open answers take one tap in the app.',
+      outroDone: 'All answered. Thanks!',
+      cta: 'Open WiediSync',
+    },
     activityMail: {
       subject: (label, when) => `WiediSync — Reminder: ${label}, ${when}`,
       title: 'Reminder',
@@ -289,7 +367,7 @@ const COPY = {
     activity: 'Activité', date: 'Date', time: 'Heure', place: 'Lieu',
     allDay: 'Toute la journée',
     answerBy: (d) => `Répondre d'ici le ${d}`,
-    footer: (url) => `Tu reçois cet e-mail parce que les rappels sont activés dans ton profil. Les désactiver : ${url}`,
+    footer: (url) => `Tu reçois cet e-mail parce que les rappels sont activés dans ton profil. Pour les désactiver : ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Ta réponse manque : ${label}`,
       subjectMany: (n) => `WiediSync — Ta réponse manque pour ${n} activités`,
@@ -297,6 +375,16 @@ const COPY = {
       intro: "Tu n'as pas encore répondu ici :",
       outro: "Un geste dans l'app suffit. Ton équipe sait ainsi sur qui compter.",
       cta: 'Répondre maintenant',
+    },
+    status: { yes: 'Oui', no: 'Non', maybe: 'Peut-être', waiting: "Liste d'attente", open: 'Pas encore répondu' },
+    yourAnswer: 'Ta réponse :',
+    weekly: {
+      subject: (day, open) => `WiediSync — Ta semaine dès le ${day}${open ? ` · ${open} sans réponse` : ''}`,
+      title: 'Ta semaine',
+      intro: 'Au programme la semaine prochaine :',
+      outroOpen: "Les réponses manquantes se donnent d'un geste dans l'app.",
+      outroDone: 'Tout est répondu. Merci !',
+      cta: 'Ouvrir WiediSync',
     },
     activityMail: {
       subject: (label, when) => `WiediSync — Rappel : ${label}, ${when}`,
@@ -314,7 +402,7 @@ const COPY = {
     activity: 'Attività', date: 'Data', time: 'Ora', place: 'Luogo',
     allDay: 'Tutto il giorno',
     answerBy: (d) => `Rispondi entro il ${d}`,
-    footer: (url) => `Ricevi questa e-mail perché i promemoria sono attivi nel tuo profilo. Disattivarli: ${url}`,
+    footer: (url) => `Ricevi questa e-mail perché i promemoria sono attivi nel tuo profilo. Per disattivarli: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Manca la tua risposta: ${label}`,
       subjectMany: (n) => `WiediSync — Manca la tua risposta per ${n} attività`,
@@ -323,12 +411,22 @@ const COPY = {
       outro: "Basta un tocco nell'app. Così la tua squadra sa su chi può contare.",
       cta: 'Rispondi ora',
     },
+    status: { yes: 'Sì', no: 'No', maybe: 'Forse', waiting: "Lista d'attesa", open: 'Nessuna risposta' },
+    yourAnswer: 'La tua risposta:',
+    weekly: {
+      subject: (day, open) => `WiediSync — La tua settimana da ${day}${open ? ` · ${open} senza risposta` : ''}`,
+      title: 'La tua settimana',
+      intro: 'In programma la prossima settimana:',
+      outroOpen: "Le risposte mancanti si danno con un tocco nell'app.",
+      outroDone: 'Tutto risposto. Grazie!',
+      cta: 'Apri WiediSync',
+    },
     activityMail: {
       subject: (label, when) => `WiediSync — Promemoria: ${label}, ${when}`,
       title: 'Promemoria',
       introYes: 'Sei iscritto/a a:',
       introMaybe: 'Hai risposto «Forse» a:',
-      outroYes: "Alla fine non puoi? Rispondi No nell'app.",
+      outroYes: 'Non riesci? Cambia la tua partecipazione.',
       outroOpen: "Rispondi Sì o No nell'app, così la tua squadra può organizzarsi.",
       cta: 'Apri in WiediSync',
     },
@@ -344,8 +442,10 @@ export function localeFor(language) {
 const zurichDate = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' })
 const zurichTime = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false })
 
+/** Capitalised like every other label ("Mer", "Mer."), whatever ICU returns. */
 function weekdayShort(d, locale) {
-  return new Intl.DateTimeFormat(WEEKDAY_LOCALE[locale] || 'de-CH', { timeZone: 'Europe/Zurich', weekday: 'short' }).format(d)
+  const wd = new Intl.DateTimeFormat(WEEKDAY_LOCALE[locale] || 'de-CH', { timeZone: 'Europe/Zurich', weekday: 'short' }).format(d)
+  return wd.charAt(0).toUpperCase() + wd.slice(1)
 }
 
 /** "Di., 04.11.2026" — Swiss dot date, weekday in the member's language. */
@@ -508,6 +608,98 @@ export function activityReminderContent({ locale, firstName, item }) {
   return { subject: t.subject(label, when), html, text }
 }
 
+/** Yes beats a No on another session; then Maybe, waiting list, No, open. */
+export function answerStatus(item) {
+  if (item.yes) return 'yes'
+  if (item.maybe) return 'maybe'
+  if (item.waiting) return 'waiting'
+  if (item.no) return 'no'
+  return 'open'
+}
+
+const STATUS_COLOUR = { yes: '#4ade80', no: '#f87171', maybe: '#fbbf24', waiting: '#fbbf24', open: '#fbbf24' }
+
+/**
+ * The Sunday overview of the coming week.
+ * @param {object} p
+ * @param {string} p.locale
+ * @param {string} [p.firstName]
+ * @param {Array<object>} p.items one member's rows for the week, in start order
+ * @param {Date|string} [p.now] the run time (only for "deadline still ahead")
+ */
+export function weeklyDigestContent({ locale, firstName, items, now = new Date() }) {
+  const tt = COPY[locale] || COPY.de
+  const t = tt.weekly
+  const profileUrl = `${FRONTEND_URL}/profile`
+  const nowMs = new Date(now).getTime()
+  const entries = items.map((item) => {
+    const status = answerStatus(item)
+    const deadlineAhead = status === 'open' && item.deadline && new Date(item.deadline).getTime() > nowMs
+    return {
+      label: activityLabel(item, locale),
+      when: formatWhen(item, locale),
+      place: item.place || '',
+      status,
+      answer: `${tt.yourAnswer} ${tt.status[status]}`,
+      deadline: deadlineAhead ? tt.answerBy(`${zurichDate.format(new Date(item.deadline))}, ${formatTime(item.deadline)}`) : '',
+      url: activityUrl(item),
+    }
+  })
+  const open = entries.filter((e) => e.status === 'open').length
+  const firstDay = items.length ? formatDay(items[0].starts_at, locale) : ''
+
+  const listHtml = entries.map((e) =>
+    '<tr><td style="padding:12px 16px;border-bottom:1px solid #334155">' +
+    `<a href="${escHtml(e.url)}" style="font-size:15px;font-weight:600;color:#ffffff;text-decoration:underline">${escHtml(e.label)}</a>` +
+    `<div style="font-size:13px;color:#cbd5e1;margin-top:2px">${escHtml([e.when, e.place].filter(Boolean).join(' · '))}</div>` +
+    `<div style="font-size:13px;color:${STATUS_COLOUR[e.status]};margin-top:2px">${escHtml(e.answer)}</div>` +
+    (e.deadline ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px">${escHtml(e.deadline)}</div>` : '') +
+    '</td></tr>',
+  ).join('')
+
+  const outro = open ? t.outroOpen : t.outroDone
+  const bodyHtml =
+    `<div style="font-size:14px;color:#e2e8f0;margin-bottom:12px">${escHtml(t.intro)}</div>` +
+    `<table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden">${listHtml}</table>` +
+    `<div style="font-size:13px;color:#94a3b8;margin-top:16px">${escHtml(outro)}</div>`
+
+  const html = buildEmailLayout(bodyHtml, {
+    title: t.title,
+    greeting: firstName ? tt.greeting(firstName) : undefined,
+    ctaUrl: FRONTEND_URL,
+    ctaLabel: t.cta,
+    ctaTextColor: '#ffffff',
+    footerExtra: tt.footer(profileUrl),
+  })
+
+  const text = joinLines([
+    firstName ? `${tt.greeting(firstName)},` : '',
+    '',
+    t.intro,
+    '',
+    ...entries.flatMap((e) => [
+      `- ${e.label}`,
+      `  ${[e.when, e.place].filter(Boolean).join(' · ')}`,
+      `  ${e.answer}`,
+      ...(e.deadline ? [`  ${e.deadline}`] : []),
+      `  ${e.url}`,
+    ]),
+    '',
+    outro,
+    '',
+    tt.footer(profileUrl),
+  ])
+  return { subject: t.subject(firstDay, open), html, text }
+}
+
+/** True on Sunday between 18:00 and 20:59 Zurich (the 19/20 h runs are catch-ups). */
+export function isWeeklyDigestTime(ts = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(ts)
+  const weekday = parts.find((x) => x.type === 'weekday')?.value
+  const hour = Number(parts.find((x) => x.type === 'hour')?.value)
+  return weekday === 'Sun' && hour >= WEEKLY_DIGEST_HOUR_ZURICH && hour <= WEEKLY_DIGEST_LAST_HOUR_ZURICH
+}
+
 // ── Sending ──────────────────────────────────────────────────────────────────
 
 function usableEmail(raw) {
@@ -614,5 +806,16 @@ export function createEmailReminders({ database, services, getSchema, log, sql }
     return sendJobs('activity', jobs, ({ locale, firstName, items }) => activityReminderContent({ locale, firstName, item: items[0] }))
   }
 
-  return { runRsvpReminders, runActivityReminders, rsvpCandidates, activityCandidates }
+  async function weeklyCandidates(now = new Date()) {
+    const q = weeklyCandidatesQuery(sql, now.toISOString())
+    return (await database.raw(q.sql, q.bindings)).rows
+  }
+
+  /** The Sunday overview: one email per member with something next week. */
+  async function runWeeklyDigest(now = new Date()) {
+    const jobs = [...groupByMember(await weeklyCandidates(now))].map(([memberId, items]) => ({ memberId, items }))
+    return sendJobs('weekly', jobs, ({ locale, firstName, items }) => weeklyDigestContent({ locale, firstName, items, now }))
+  }
+
+  return { runRsvpReminders, runActivityReminders, runWeeklyDigest, rsvpCandidates, activityCandidates, weeklyCandidates }
 }
