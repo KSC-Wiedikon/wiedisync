@@ -43,7 +43,7 @@ import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { createActingMemberMiddleware } from './acting-member.js'
-import { createEmailReminders, isRsvpDigestHour } from './email-reminders.js'
+import { createEmailReminders } from './email-reminders.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -5051,39 +5051,38 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   })
 
   // ── 7b. Cron: Email reminders (migration 442) ──────────────────
-  // Owner 03.11.2026 after a team poll: "your answer is missing" as a daily
-  // digest at 18:00 Zurich, and "your activity starts soon" at each member's
-  // own lead time (checked every 5 minutes). Both are per-member switches in
-  // Profile → Email notifications; the rules live in email-reminders.js.
+  // Owner 03.11.2026 after a team poll: "your answer is missing" 6 h before a
+  // game / event deadline to people with no answer at all, and "your activity
+  // starts soon" at each member's own lead time. Both checked every 5 minutes;
+  // both are per-member switches in Profile → Email notifications. The rules
+  // live in email-reminders.js.
   const emailReminders = createEmailReminders({
     database, services, getSchema, log,
     sql: { gameSquadJoin: GAME_SQUAD_JOIN, eventEligibilitySql, effectiveDeadlineSql },
   })
 
-  schedule('5 * * * *', async () => {
-    if (!isRsvpDigestHour()) return
-    try {
-      const r = await emailReminders.runRsvpDigest()
-      if (r.emails > 0) log.info(`RSVP reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
-    } catch (err) {
-      log.error({ msg: `RSVP reminder emails: ${err.message}`, event: 'cron.rsvp_reminder_emails', stack: err.stack })
-      logCronError('rsvp_reminder_emails', err)
-    }
-  })
-
   // A slow SES day must not stack runs on top of each other.
-  let activityRemindersRunning = false
+  let emailRemindersRunning = false
   schedule('*/5 * * * *', async () => {
-    if (activityRemindersRunning) return
-    activityRemindersRunning = true
+    if (emailRemindersRunning) return
+    emailRemindersRunning = true
     try {
-      const r = await emailReminders.runActivityReminders()
-      if (r.emails > 0) log.info(`Activity reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
-    } catch (err) {
-      log.error({ msg: `Activity reminder emails: ${err.message}`, event: 'cron.activity_reminder_emails', stack: err.stack })
-      logCronError('activity_reminder_emails', err)
+      try {
+        const r = await emailReminders.runRsvpReminders()
+        if (r.emails > 0) log.info(`RSVP reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
+      } catch (err) {
+        log.error({ msg: `RSVP reminder emails: ${err.message}`, event: 'cron.rsvp_reminder_emails', stack: err.stack })
+        logCronError('rsvp_reminder_emails', err)
+      }
+      try {
+        const r = await emailReminders.runActivityReminders()
+        if (r.emails > 0) log.info(`Activity reminder emails: sent=${r.sent}, skipped=${r.skipped}, failed=${r.failed}`)
+      } catch (err) {
+        log.error({ msg: `Activity reminder emails: ${err.message}`, event: 'cron.activity_reminder_emails', stack: err.stack })
+        logCronError('activity_reminder_emails', err)
+      }
     } finally {
-      activityRemindersRunning = false
+      emailRemindersRunning = false
     }
   })
 

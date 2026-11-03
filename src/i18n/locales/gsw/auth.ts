@@ -309,7 +309,7 @@ export default {
   emailNotifyAnnouncements: 'Vereinsnews',
   emailNotifyEvents: 'Iiladige zu Aaläss',
   emailNotifyRsvpReminders: 'Erinnerig zum Antworte',
-  emailNotifyRsvpRemindersHint: 'E E-Mail bis zu zwei Täg vor ere Antwortfrischt, wänn du nonig Ja oder Nei gseit häsch («Villicht» zählt als kei Antwort).',
+  emailNotifyRsvpRemindersHint: 'E E-Mail 6 Stund vor de Antwortfrischt vomene Spiel oder Aalass, wänn du nonig gantwortet häsch (Ja, Nei oder Villicht).',
   emailNotifyActivityReminders: 'Erinnerig vor Aktivitäte',
   emailNotifyActivityRemindersHint: 'E E-Mail vor jedem Training, Spiel oder Aalass, wo du Ja oder Villicht gseit häsch.',
   reminderLeadLabel: 'Schicke',

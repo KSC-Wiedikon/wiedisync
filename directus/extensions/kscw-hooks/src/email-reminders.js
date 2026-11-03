@@ -4,16 +4,13 @@
  *
  * Two emails, each switchable per member in Profile → Email notifications:
  *
- *   - RSVP digest (`email_notify_rsvp_reminders`): once a day at 18:00 Zurich,
- *     one email listing every activity with an answer deadline that the member
- *     is expected at and has not answered Yes or No to — a Maybe counts as not
- *     answered. An activity is listed once, when its deadline (`respond_by`,
- *     read like the frontend's getDeadlineDate) is less than 48 h away.
- *     Activities without a deadline are left out on purpose: on dev data
- *     (03.11.2026) the teams that set deadlines answer 96–100 % of their
- *     trainings, while most teams without one answer 0–12 % — they don't use
- *     RSVP, and a nightly email to every player (kids' teams included) about it
- *     would be spam. A team that wants the reminder sets a deadline.
+ *   - Answer reminder (`email_notify_rsvp_reminders`): 6 hours before the
+ *     answer deadline (`respond_by`, read like the frontend's getDeadlineDate)
+ *     of a GAME or EVENT, to everybody expected there who has given no answer
+ *     at all — Yes, No and Maybe all count as answered (owner, 03.11.2026).
+ *     Trainings and activities without a deadline get none. Checked every 5
+ *     minutes; each activity once per member (several due in the same run share
+ *     one email).
  *   - Activity reminder (`email_notify_activity_reminders`): one email per
  *     activity the member said Yes or Maybe to, `activity_reminder_lead_minutes`
  *     before it starts. Checked every 5 minutes; a reminder whose moment passed
@@ -40,8 +37,10 @@ import { teamPeopleSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 
 /** Lead times the profile offers, in minutes. The DB accepts 15 … 10080. */
 export const ACTIVITY_REMINDER_LEAD_OPTIONS = Object.freeze([60, 120, 180, 360, 720, 1440, 2880])
-export const RSVP_WINDOW_HOURS = 48
-export const RSVP_DIGEST_HOUR_ZURICH = 18
+/** The answer reminder goes out this long before the deadline. */
+export const RSVP_LEAD_HOURS = 6
+/** Activity types that get an answer reminder (owner: games and events, not trainings). */
+export const RSVP_ACTIVITY_TYPES = Object.freeze(['game', 'event'])
 export const ACTIVITY_REMINDER_GRACE_MINUTES = 120
 /** Look-ahead for loading activities: deadlines can sit weeks before a start. */
 const HORIZON_DAYS = 60
@@ -147,14 +146,16 @@ const SELECT_COLUMNS = `
   m.id AS member, m.email, m.first_name, m.language`
 
 /**
- * Members owed an RSVP reminder: expected, no Yes / No / waiting-list row
- * (a Maybe still counts as unanswered), deadline within the window.
+ * Members owed an answer reminder: a game or event whose deadline is less than
+ * RSVP_LEAD_HOURS away, expected there, and no answer of any kind (no row).
  * @returns {{ sql: string, bindings: any[] }}
  */
 export function rsvpCandidatesQuery(h, nowIso) {
-  const sql = `${baseCtes(h, `a.deadline > p.ts
-      AND a.deadline <= p.ts + interval '${RSVP_WINDOW_HOURS} hours'`)}${expectedCte(h)}
-    SELECT ${SELECT_COLUMNS}, COALESCE(an.maybe, false) AS maybe
+  const types = RSVP_ACTIVITY_TYPES.map((t) => `'${t}'`).join(', ')
+  const sql = `${baseCtes(h, `a.activity_type IN (${types})
+      AND a.deadline > p.ts
+      AND a.deadline <= p.ts + interval '${RSVP_LEAD_HOURS} hours'`)}${expectedCte(h)}
+    SELECT ${SELECT_COLUMNS}
     FROM expected x
     JOIN acts a ON a.activity_type = x.activity_type AND a.activity_id = x.activity_id
     JOIN members m ON m.id = x.member
@@ -162,7 +163,7 @@ export function rsvpCandidatesQuery(h, nowIso) {
       ON an.activity_type = x.activity_type AND an.activity_id = x.activity_id AND an.member = x.member
     WHERE m.wiedisync_active = true
       AND m.email_notify_rsvp_reminders = true
-      AND NOT COALESCE(an.yes, false) AND NOT COALESCE(an.no, false) AND NOT COALESCE(an.waiting, false)
+      AND an.member IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM email_reminders_sent s
         WHERE s.member = m.id AND s.activity_type = a.activity_type
@@ -213,13 +214,12 @@ const COPY = {
     activity: 'Aktivität', date: 'Datum', time: 'Zeit', place: 'Ort',
     allDay: 'Ganztägig',
     answerBy: (d) => `Antworten bis ${d}`,
-    saidMaybe: 'Du hast «Vielleicht» gesagt.',
     footer: (url) => `Du bekommst diese E-Mail, weil die Erinnerungen in deinem Profil eingeschaltet sind. Ausschalten: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Deine Antwort fehlt: ${label}`,
       subjectMany: (n) => `WiediSync — Deine Antwort fehlt bei ${n} Aktivitäten`,
       title: 'Deine Antwort fehlt',
-      intro: 'Hier hast du noch nicht Ja oder Nein gesagt:',
+      intro: 'Hier hast du noch nicht geantwortet:',
       outro: 'Ein Tipp in der App genügt. So weiss dein Team, mit wem es rechnen kann.',
       cta: 'Jetzt antworten',
     },
@@ -239,13 +239,12 @@ const COPY = {
     activity: 'Aktivität', date: 'Datum', time: 'Ziit', place: 'Ort',
     allDay: 'Ganztägig',
     answerBy: (d) => `Antwort bis ${d}`,
-    saidMaybe: 'Du häsch «Villicht» gseit.',
     footer: (url) => `Du überchunsch die E-Mail, will d Erinnerige i dim Profil iigschalte sind. Uusschalte: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Dini Antwort fehlt: ${label}`,
       subjectMany: (n) => `WiediSync — Dini Antwort fehlt bi ${n} Aktivitäte`,
       title: 'Dini Antwort fehlt',
-      intro: 'Da häsch nonig Ja oder Nei gseit:',
+      intro: 'Da häsch nonig gantwortet:',
       outro: 'En Tipp i de App längt. So weiss dis Team, mit wem es cha rächne.',
       cta: 'Jetzt antworte',
     },
@@ -265,13 +264,12 @@ const COPY = {
     activity: 'Activity', date: 'Date', time: 'Time', place: 'Place',
     allDay: 'All day',
     answerBy: (d) => `Answer by ${d}`,
-    saidMaybe: 'You said Maybe.',
     footer: (url) => `You get this email because reminders are switched on in your profile. Switch them off: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Your answer is missing: ${label}`,
       subjectMany: (n) => `WiediSync — Your answer is missing for ${n} activities`,
       title: 'Your answer is missing',
-      intro: "You haven't said Yes or No to these yet:",
+      intro: "You haven't answered yet:",
       outro: 'One tap in the app is enough. It tells your team who they can count on.',
       cta: 'Answer now',
     },
@@ -291,13 +289,12 @@ const COPY = {
     activity: 'Activité', date: 'Date', time: 'Heure', place: 'Lieu',
     allDay: 'Toute la journée',
     answerBy: (d) => `Répondre d'ici le ${d}`,
-    saidMaybe: 'Tu as répondu « Peut-être ».',
     footer: (url) => `Tu reçois cet e-mail parce que les rappels sont activés dans ton profil. Les désactiver : ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Ta réponse manque : ${label}`,
       subjectMany: (n) => `WiediSync — Ta réponse manque pour ${n} activités`,
       title: 'Ta réponse manque',
-      intro: "Tu n'as pas encore répondu Oui ou Non ici :",
+      intro: "Tu n'as pas encore répondu ici :",
       outro: "Un geste dans l'app suffit. Ton équipe sait ainsi sur qui compter.",
       cta: 'Répondre maintenant',
     },
@@ -317,13 +314,12 @@ const COPY = {
     activity: 'Attività', date: 'Data', time: 'Ora', place: 'Luogo',
     allDay: 'Tutto il giorno',
     answerBy: (d) => `Rispondi entro il ${d}`,
-    saidMaybe: 'Hai risposto «Forse».',
     footer: (url) => `Ricevi questa e-mail perché i promemoria sono attivi nel tuo profilo. Disattivarli: ${url}`,
     rsvp: {
       subjectOne: (label) => `WiediSync — Manca la tua risposta: ${label}`,
       subjectMany: (n) => `WiediSync — Manca la tua risposta per ${n} attività`,
       title: 'Manca la tua risposta',
-      intro: 'Qui non hai ancora risposto Sì o No:',
+      intro: 'Qui non hai ancora risposto:',
       outro: "Basta un tocco nell'app. Così la tua squadra sa su chi può contare.",
       cta: 'Rispondi ora',
     },
@@ -391,7 +387,7 @@ const joinLines = (lines) => lines.filter((l, i, a) => l !== '' || (a[i - 1] ?? 
 // ── Content ──────────────────────────────────────────────────────────────────
 
 /**
- * The daily "your answer is missing" email.
+ * The "your answer is missing" email (one or more activities).
  * @param {object} p
  * @param {string} p.locale de | gsw | en | fr | it
  * @param {string} [p.firstName]
@@ -405,7 +401,6 @@ export function rsvpDigestContent({ locale, firstName, items }) {
     when: formatWhen(item, locale),
     place: item.place || '',
     deadline: item.deadline ? tt.answerBy(`${zurichDate.format(new Date(item.deadline))}, ${formatTime(item.deadline)}`) : '',
-    maybe: !!item.maybe,
     url: activityUrl(item),
   }))
 
@@ -414,7 +409,6 @@ export function rsvpDigestContent({ locale, firstName, items }) {
     `<a href="${escHtml(e.url)}" style="font-size:15px;font-weight:600;color:#ffffff;text-decoration:underline">${escHtml(e.label)}</a>` +
     `<div style="font-size:13px;color:#cbd5e1;margin-top:2px">${escHtml([e.when, e.place].filter(Boolean).join(' · '))}</div>` +
     (e.deadline ? `<div style="font-size:13px;color:#fbbf24;margin-top:2px">${escHtml(e.deadline)}</div>` : '') +
-    (e.maybe ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px">${escHtml(tt.saidMaybe)}</div>` : '') +
     '</td></tr>',
   ).join('')
 
@@ -446,7 +440,6 @@ export function rsvpDigestContent({ locale, firstName, items }) {
       `- ${e.label}`,
       `  ${[e.when, e.place].filter(Boolean).join(' · ')}`,
       ...(e.deadline ? [`  ${e.deadline}`] : []),
-      ...(e.maybe ? [`  ${tt.saidMaybe}`] : []),
       `  ${e.url}`,
     ]),
     '',
@@ -516,12 +509,6 @@ export function activityReminderContent({ locale, firstName, item }) {
 }
 
 // ── Sending ──────────────────────────────────────────────────────────────────
-
-/** True when `ts` is in the RSVP digest hour in Zurich. */
-export function isRsvpDigestHour(ts = new Date()) {
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', hour: '2-digit', hour12: false }).format(ts))
-  return hour === RSVP_DIGEST_HOUR_ZURICH
-}
 
 function usableEmail(raw) {
   const email = normaliseEmail(raw)
@@ -615,8 +602,8 @@ export function createEmailReminders({ database, services, getSchema, log, sql }
     return (await database.raw(q.sql, q.bindings)).rows
   }
 
-  /** The daily digest: one email per member listing every open answer. */
-  async function runRsvpDigest(now = new Date()) {
+  /** Answer reminders due now: one email per member (usually one activity). */
+  async function runRsvpReminders(now = new Date()) {
     const jobs = [...groupByMember(await rsvpCandidates(now))].map(([memberId, items]) => ({ memberId, items }))
     return sendJobs('rsvp', jobs, ({ locale, firstName, items }) => rsvpDigestContent({ locale, firstName, items }))
   }
@@ -627,5 +614,5 @@ export function createEmailReminders({ database, services, getSchema, log, sql }
     return sendJobs('activity', jobs, ({ locale, firstName, items }) => activityReminderContent({ locale, firstName, item: items[0] }))
   }
 
-  return { runRsvpDigest, runActivityReminders, rsvpCandidates, activityCandidates }
+  return { runRsvpReminders, runActivityReminders, rsvpCandidates, activityCandidates }
 }
