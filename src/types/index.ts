@@ -208,6 +208,8 @@ export interface Member extends BaseRecord {
   email_notify_rsvp_reminders?: boolean
   email_notify_activity_reminders?: boolean
   activity_reminder_lead_minutes?: number
+  // Sunday overview of the coming week (migration 443). Default-on.
+  email_notify_weekly_digest?: boolean
   birthdate_visibility: 'full' | 'year_only' | 'hidden'
   website_visible: boolean
   // Website-scoped name privacy (migration 116). When true, the public website

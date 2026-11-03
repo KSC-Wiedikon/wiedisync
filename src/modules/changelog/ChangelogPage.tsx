@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.58.0'
+const APP_VERSION = '2.59.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.59.0',
+    date: '03.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Weekly overview: on Sunday at 18:00 an email with your trainings, games and events of the coming week, each with your answer and, if still open, the deadline. On by default; switch it off under Profile → Email notifications.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.58.0',
     date: '03.11.2026',

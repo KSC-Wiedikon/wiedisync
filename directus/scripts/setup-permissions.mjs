@@ -767,6 +767,8 @@ const MEMBER_EDITABLE_FIELDS = [
   // 2026-11-03 migration 442: email reminders (profile toggles + lead time).
   // Default-on; read only by the kscw-hooks reminder crons.
   'email_notify_rsvp_reminders', 'email_notify_activity_reminders', 'activity_reminder_lead_minutes',
+  // 2026-11-03 migration 443: the Sunday overview email (default on).
+  'email_notify_weekly_digest',
   // 2026-08-01 migration 270: the member's own "I checked, my data is correct"
   // stamp for the annual pre-licence data check. Self-asserted BY DESIGN — the
   // fact being recorded is "this person looked at their record and said yes",
