@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { pickOfficials as previewPick } from '../nomination-push.js'
-import { pickOfficials as workerPick } from '../../../../scripts/vm-push-nomination.mjs'
+import { officialsWhoSaidYes as previewYes, pickOfficials as previewPick } from '../nomination-push.js'
+import { officialsWhoSaidYes as workerYes, pickOfficials as workerPick } from '../../../../scripts/vm-push-nomination.mjs'
 
 // The preview (endpoint) MIRRORS the worker's official resolution — the coach must be
 // shown exactly who the push will send. A drift here is a preview that lies.
@@ -15,5 +15,10 @@ describe('nomination officials — preview mirrors the worker', () => {
   ]
   it.each(cases)('case %#', (rows, def) => {
     expect(previewPick(rows, def)).toEqual(workerPick(rows, def))
+  })
+
+  const yesSets = [[], [5], [7], [5, 7], [9], [4]]
+  it.each(cases.flatMap(([rows, def]) => yesSets.map((yes) => [rows, def, yes])))('who said Yes, case %#', (rows, def, yes) => {
+    expect(previewYes(previewPick(rows, def), new Set(yes))).toEqual(workerYes(workerPick(rows, def), new Set(yes)))
   })
 })

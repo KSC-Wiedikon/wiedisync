@@ -4828,6 +4828,39 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     `)
   }
 
+  /**
+   * Staff who never answered a game become a No at its deadline (owner, 04.11.2026). The
+   * no-response sweep leaves coaches and team responsibles out because it fines, so someone
+   * who never answered stayed open forever. No fine, no notification and no fine rule needed.
+   * Games only. Someone who also plays is a player here, not staff (teamPeopleSql), and
+   * stays with the sweep. `auto_declined_deadline` shows it as "No response" on the roster.
+   */
+  function declineStaffPastDeadline() {
+    const deadline = effectiveDeadlineSql('a.respond_by', 'a."time"')
+    return database.raw(`
+      INSERT INTO participations
+        (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_deadline)
+      SELECT mt.member, 'game', a.id::text, 'declined', '', 0, true, true
+      FROM games a
+      JOIN LATERAL ${teamPeopleSql('a.kscw_team')} mt ON true
+      WHERE a.kscw_team IS NOT NULL
+        AND COALESCE(a.status, '') NOT IN ('completed', 'postponed', 'cancelled')
+        AND a.respond_by IS NOT NULL
+        AND a.date IS NOT NULL
+        AND ${deadline} < now()
+        AND ${deadline} >= now() - (?::integer * interval '1 day')
+        AND a.date >= CURRENT_DATE
+        AND mt.is_staff = true
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'game'
+            AND p.activity_id = a.id::text
+            AND p.member = mt.member
+        )
+      ON CONFLICT DO NOTHING
+    `, [DEADLINE_SWEEP_LOOKBACK_DAYS])
+  }
+
   // ── Cron: Maybe → No at the deadline (every minute) ──
   // Same reason the capacity Maybe sweep (migration 438) runs every minute: the
   // deadline is an instant, and a daily run acts on it up to a day late. The
@@ -4840,6 +4873,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `Auto-decline tentative: ${err.message}`, event: 'cron.auto_decline_tentative', stack: err.stack })
       logCronError('auto_decline_tentative', err)
+    }
+    try {
+      const res = await declineStaffPastDeadline()
+      if (res?.rowCount > 0) log.info(`Staff past the deadline: ${res.rowCount} without an answer turned into No`)
+    } catch (err) {
+      log.error({ msg: `Staff past the deadline: ${err.message}`, event: 'cron.decline_staff_past_deadline', stack: err.stack })
+      logCronError('decline_staff_past_deadline', err)
     }
   })
 

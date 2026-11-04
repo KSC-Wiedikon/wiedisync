@@ -184,7 +184,7 @@ export default {
   featureAutoNominationList: 'Einsatzliste automatisch mälde',
   featureAutoNominationListHint: 'Träit d Einsatzliste öppe e Stund vor Spielbeginn us de bestätigte Zuesage im Volleymanager ii — nominiert werded nur Spieler mit ere Lizänz, und d Lischte bliibt zum Kontrolliere offe, wänn de Volleymanager es Problem mäldet',
   nominationOfficials: 'Offizielli uf de Einsatzliste',
-  nominationOfficialsHint: 'Wer bim Übermittle vo de Einsatzliste als Headcoach (C) und Assistänzcoaches (AC1, AC2) iiträit wird. C isch Pflicht — ohni C wird nöd übermittlet; AC1 und AC2 sind optional. S Matchblatt vomne Spiel cha das übersteuere.',
+  nominationOfficialsHint: 'Wer bim Übermittle vo de Einsatzliste als Headcoach (C) und Assistänzcoaches (AC1, AC2) iiträit wird. C isch Pflicht — ohni C wird nöd übermittlet; AC1 und AC2 sind optional. S Matchblatt vomne Spiel cha das übersteuere. Gnännt wird nur, wer zuegseit hät; fehlt de Head Coach, rutscht e Assistänz nah.',
   nominationOfficialCoach: 'Headcoach (C) — Pflicht',
   nominationOfficialAc1: 'Assistänzcoach 1 (AC1)',
   nominationOfficialAc2: 'Assistänzcoach 2 (AC2)',

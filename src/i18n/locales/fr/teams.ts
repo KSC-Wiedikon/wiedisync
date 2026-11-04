@@ -164,7 +164,7 @@ export default {
   featureAutoNominationList: 'Envoyer automatiquement l\'Einsatzliste',
   featureAutoNominationListHint: 'Envoie l\'Einsatzliste dans Volleymanager à partir des confirmations reçues environ une heure avant le coup d\'envoi — seuls les joueurs licenciés peuvent être nominés, et la liste reste ouverte pour vérification si Volleymanager signale un problème',
   nominationOfficials: 'Officiels de l\'Einsatzliste',
-  nominationOfficialsHint: 'Qui est inscrit comme entraîneur principal (C) et entraîneurs assistants (AC1, AC2) lors de l\'envoi de l\'Einsatzliste. C est obligatoire — sans lui, l\'envoi est refusé ; AC1 et AC2 sont facultatifs. La feuille de match d\'un match peut le modifier.',
+  nominationOfficialsHint: 'Qui est inscrit comme entraîneur principal (C) et entraîneurs assistants (AC1, AC2) lors de l\'envoi de l\'Einsatzliste. C est obligatoire — sans lui, l\'envoi est refusé ; AC1 et AC2 sont facultatifs. La feuille de match d\'un match peut le modifier. Seuls ceux qui ont répondu Oui sont inscrits ; si le head coach manque, un assistant le remplace.',
   nominationOfficialCoach: 'Entraîneur principal (C) — obligatoire',
   nominationOfficialAc1: 'Entraîneur assistant 1 (AC1)',
   nominationOfficialAc2: 'Entraîneur assistant 2 (AC2)',
