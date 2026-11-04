@@ -176,7 +176,7 @@ describe('vmCheckSummary — what the sheet flags', () => {
 describe('compareEinsatzliste — the list against the RSVPs', () => {
   const player = (nr, last) => ({ license_nr: nr, last_name: last, first_initial: 'A.' })
   const licences = new Map([['111', 12], ['222', 13]])
-  const squad = [
+  const regulars = [
     { id: 12, first_name: 'Anna', last_name: 'Muster' },
     { id: 13, first_name: 'Bea', last_name: 'Beispiel' },
     { id: 14, first_name: 'Cleo', last_name: 'Test' },
@@ -184,7 +184,7 @@ describe('compareEinsatzliste — the list against the RSVPs', () => {
 
   it('nothing filed, or filed without players: no list', () => {
     for (const players of [null, undefined, []]) {
-      expect(compareEinsatzliste(players, licences, new Map([[14, 'confirmed']]), squad)).toEqual({
+      expect(compareEinsatzliste(players, licences, new Map([[14, 'confirmed']]), regulars)).toEqual({
         verdict: 'no_list', nominated_without_yes: [], yes_not_nominated: [],
       })
     }
@@ -192,34 +192,48 @@ describe('compareEinsatzliste — the list against the RSVPs', () => {
 
   it('everyone on the list said Yes, nobody else did: matches', () => {
     const rsvps = new Map([[12, 'confirmed'], [13, 'confirmed']])
-    expect(compareEinsatzliste([player('111', 'Muster'), player('222', 'Beispiel')], licences, rsvps, squad).verdict).toBe('matches')
+    expect(compareEinsatzliste([player('111', 'Muster'), player('222', 'Beispiel')], licences, rsvps, regulars).verdict).toBe('matches')
   })
 
   it.each(['declined', 'tentative', 'waitlisted'])('on the list with %s: differs', (status) => {
-    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map([[12, status]]), squad)
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map([[12, status]]), regulars)
     expect(c.verdict).toBe('differs')
     expect(c.nominated_without_yes).toEqual([{ name: 'Muster A.', rsvp: status }])
   })
 
   it('on the list with no answer: differs', () => {
-    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map(), squad)
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map(), regulars)
     expect(c.nominated_without_yes).toEqual([{ name: 'Muster A.', rsvp: 'none' }])
   })
 
   it('said Yes, not on the list: differs', () => {
     const rsvps = new Map([[12, 'confirmed'], [14, 'confirmed']])
-    const c = compareEinsatzliste([player('111', 'Muster')], licences, rsvps, squad)
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, rsvps, regulars)
     expect(c.verdict).toBe('differs')
     expect(c.yes_not_nominated).toEqual([{ name: 'Test C.' }])
   })
 
-  it('a Yes from outside the squad does not count', () => {
+  it('a guest who said Yes need not be on the list', () => {
     const rsvps = new Map([[12, 'confirmed'], [99, 'confirmed']])
-    expect(compareEinsatzliste([player('111', 'Muster')], licences, rsvps, squad).verdict).toBe('matches')
+    expect(compareEinsatzliste([player('111', 'Muster')], licences, rsvps, regulars).verdict).toBe('matches')
+  })
+
+  it.each([undefined, 'declined', 'tentative'])('a guest on the list needs no Yes (%s)', (status) => {
+    const withGuest = new Map([...licences, ['333', 99]])
+    const rsvps = new Map([[12, 'confirmed'], ...(status ? [[99, status]] : [])])
+    expect(compareEinsatzliste([player('111', 'Muster'), player('333', 'Gast')], withGuest, rsvps, regulars).verdict).toBe('matches')
+  })
+
+  it('a list of guests only still leaves a regular Yes off it', () => {
+    const withGuest = new Map([...licences, ['333', 99]])
+    const c = compareEinsatzliste([player('333', 'Gast')], withGuest, new Map([[12, 'confirmed']]), regulars)
+    expect(c.verdict).toBe('differs')
+    expect(c.nominated_without_yes).toEqual([])
+    expect(c.yes_not_nominated).toEqual([{ name: 'Muster A.' }])
   })
 
   it('a licence we hold no member for is left out', () => {
     const rsvps = new Map([[12, 'confirmed']])
-    expect(compareEinsatzliste([player('111', 'Muster'), player('999', 'Fremd')], licences, rsvps, squad).verdict).toBe('matches')
+    expect(compareEinsatzliste([player('111', 'Muster'), player('999', 'Fremd')], licences, rsvps, regulars).verdict).toBe('matches')
   })
 })

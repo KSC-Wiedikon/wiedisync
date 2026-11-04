@@ -149,13 +149,13 @@ describe('einsatzlisteAlertContent', () => {
 })
 
 describe('createEinsatzlisteAlert', () => {
-  /** Only the calls run() makes: the stored list, members, RSVPs, the squad, recipients. */
+  /** Only the calls run() makes: the stored list, members, RSVPs, regular players, recipients. */
   function fakeDb({ check, members = [], rsvps = [], roster = [], staff = [] }) {
     const updates = []
-    const rowsFor = { members, participations: rsvps, member_teams: roster, game_guests: [] }
+    const rowsFor = { members, participations: rsvps, member_teams: roster }
     const db = (table) => {
       const b = {
-        where: () => b, whereIn: () => b, join: () => b,
+        where: () => b, whereIn: () => b, whereRaw: () => b, join: () => b,
         first: async () => (table === 'game_vm_sheets' ? check : undefined),
         select: async () => rowsFor[table] ?? [],
         update: async (row) => { updates.push({ table, row }) },

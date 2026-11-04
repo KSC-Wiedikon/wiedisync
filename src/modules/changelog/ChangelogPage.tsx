@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.61.0'
+const APP_VERSION = '2.61.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.61.1',
+    date: '04.11.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          'Einsatzliste check: guests no longer count. Only the team\'s regular players are compared with the list.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.61.0',
     date: '04.11.2026',
