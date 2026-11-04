@@ -437,6 +437,11 @@ export function localeFor(language) {
   return LANG_TO_CODE[language] || 'de'
 }
 
+/** Wording shared with the other club emails (greeting, date, time, answers). */
+export function reminderCopy(locale) {
+  return COPY[locale] || COPY.de
+}
+
 // ── Formatting ───────────────────────────────────────────────────────────────
 
 const zurichDate = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -817,5 +822,5 @@ export function createEmailReminders({ database, services, getSchema, log, sql }
     return sendJobs('weekly', jobs, ({ locale, firstName, items }) => weeklyDigestContent({ locale, firstName, items, now }))
   }
 
-  return { runRsvpReminders, runActivityReminders, runWeeklyDigest, rsvpCandidates, activityCandidates, weeklyCandidates }
+  return { sendJobs, runRsvpReminders, runActivityReminders, runWeeklyDigest, rsvpCandidates, activityCandidates, weeklyCandidates }
 }
