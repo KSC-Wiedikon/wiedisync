@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.60.0 — 2026-11-04
+
+### Added
+
+- The hall plan has its own address, `/calendar/hall`: it stays open when you reload, and you can bookmark or share the link.
+
+### Fixed
+
+- A training slot freed by an away game was listed twice under Available slots and stacked twice in the hall plan.
+- Available slots and the claim dialog showed times with seconds (18:00:00).
+
 ## v2.59.0 — 2026-11-03
 
 ### Added

@@ -236,6 +236,7 @@ export default function App() {
           <Route element={<NotificationsProvider><Layout /></NotificationsProvider>}>
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />
             <Route path="calendar" element={<AuthRoute><CalendarPage /></AuthRoute>} />
+            <Route path="calendar/hall" element={<AuthRoute><CalendarPage /></AuthRoute>} />
             <Route path="games" element={<GamesPage />} />
             {/* Share links. Behind AuthRoute even for games, whose list is public:
                 the detail modal carries the RSVP roster, so the link must not
