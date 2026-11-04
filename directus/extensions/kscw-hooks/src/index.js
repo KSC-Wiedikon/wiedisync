@@ -37,13 +37,14 @@ import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result
 import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
 import { externalWritesEnv, skipExternalJob } from '../../kscw-endpoints/src/external-accounts.js'
 import { financeSyncProblem, financeSyncAlertMail } from '../../kscw-endpoints/src/clubdesk-finance-watchdog.js'
-import { runVmCheck, VM_CHECK_LEAD_MS } from '../../kscw-endpoints/src/vm-sheet-check.js'
+import { runVmCheck } from '../../kscw-endpoints/src/vm-sheet-check.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { createActingMemberMiddleware } from './acting-member.js'
 import { createEmailReminders, isWeeklyDigestTime } from './email-reminders.js'
+import { createEinsatzlisteAlert, einsatzlisteAlertDue, vmReadDue } from './einsatzliste-alert.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -9400,12 +9401,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
-  // ── Cron: read the Einsatzliste from Volleymanager ONCE, at kickoff −45 min ──
+  // ── Cron: read the Einsatzliste from Volleymanager at kickoff −2 h and −45 min ──
   //
   // Every match-sheet surface (the scorer's and coach's sheet, Show IDs, live scoring,
   // the result participant check) reads the STORED list (game_vm_sheets, migration
-  // 396) — nothing logs the shared VM account in when a sheet opens any more. This is
-  // the one automatic read per game; after it, only a coach's "Recheck" reads again.
+  // 396) — nothing logs the shared VM account in when a sheet opens any more. These
+  // are the automatic reads per game; after them, only a coach's "Recheck" reads again.
   //
   // Timing: due from kickoff −45 min — after the auto-filing push's T-65…T-35 window
   // has had its go, and while a push is still in flight ('pending') the game waits a
@@ -9413,12 +9414,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // A `busy` result read nothing, so it is retried on the next tick; anything else is
   // final (flagged on the sheet, fixed by hand with Recheck).
   //
+  // Kickoff −2 h (migration 444, einsatzliste-alert.js): one earlier read for teams without
+  // the automatic push, whose list is compared with the RSVPs and mailed to the coaches
+  // and team responsibles when it is empty or differs.
+  //
   // Shared VM account (CLAUDE.md, INFRA.md → "The shared VolleyManager account"):
   // each read claims it via readOwnNominationList and never waits; the whole tick is
   // skipped inside svrz_rc's windows (the game is picked up at the next tick outside
   // them). PROD ONLY (external-accounts.js, fail-closed): dev holds a copy of prod's games
   // and the same credentials, and two containers' locks cannot see each other — dev would
   // log in at the same moment.
+  const einsatzlisteAlert = createEinsatzlisteAlert({ database, emailReminders })
   let vmSheetCheckRunning = false
   schedule('2-59/5 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
@@ -9427,25 +9433,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     vmSheetCheckRunning = true
     const startedAt = Date.now()
     try {
-      const rows = await database('games as g')
+      const loadGames = () => database('games as g')
         .leftJoin('game_vm_sheets as v', 'v.game', 'g.id')
+        .leftJoin('teams as t', 't.id', 'g.kscw_team')
         .whereRaw("g.game_id LIKE 'vb_%'")
         .where('g.status', 'scheduled')
         .whereNotNull('g.kscw_team')
         .whereNotNull('g.time')
-        .where((q) => q.whereNull('v.game').orWhere('v.status', 'busy'))
         .whereRaw("COALESCE(g.vm_nomination_status, '') <> 'pending'")
         .whereBetween('g.date', [
           new Date(Date.now() - 86400000).toISOString().slice(0, 10),
           new Date(Date.now() + 86400000).toISOString().slice(0, 10),
         ])
-        .select('g.id', 'g.game_id', 'g.type', 'g.date', 'g.time')
-      const now = Date.now()
-      const due = rows.filter((g) => {
-        const kickoff = gameStartMs(g)
-        return kickoff != null && now >= kickoff - VM_CHECK_LEAD_MS && now <= kickoff + 3 * 3600 * 1000
-      })
-      if (!due.length) return
+        .select(
+          'g.id', 'g.game_id', 'g.type', 'g.date', 'g.time', 'g.kscw_team', 'g.home_team', 'g.away_team',
+          't.name as team_name', 'v.status as vm_status', 'v.checked_at as vm_checked_at',
+          'v.list_at as vm_list_at', 'v.alert_checked_at as vm_alert_checked_at',
+          database.raw("COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) AS auto_list"),
+        )
+      let rows = await loadGames()
+      const due = rows.filter((g) => vmReadDue(g))
       const results = []
       for (const g of due) {
         // Stop at the first busy answer: the account is taken, the rest would be too.
@@ -9453,8 +9460,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         results.push(`${g.id}:${r.status}`)
         if (r.status === 'busy') break
       }
-      log.info({ msg: `[vm-sheet] checked ${results.join(', ')}`, event: 'vm_sheet_check_done', count: results.length })
-      await logCronRun(database, 'vm_sheet_check', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: results.length })
+      if (results.length) rows = await loadGames()
+      const alerts = []
+      for (const g of rows.filter((row) => einsatzlisteAlertDue(row))) {
+        try {
+          const r = await einsatzlisteAlert.run(g)
+          alerts.push(`${g.id}:${r.verdict}:${r.sent}/${r.emails}`)
+          if (r.failed) log.warn({ msg: `[vm-sheet] game ${g.id}: ${r.failed} Einsatzliste email(s) failed, next tick retries`, event: 'einsatzliste_alert_send_failed', gameId: g.id })
+        } catch (err) {
+          log.error({ msg: `[vm-sheet] game ${g.id}: Einsatzliste alert failed: ${err.message}`, event: 'einsatzliste_alert_failed', gameId: g.id, stack: err.stack })
+        }
+      }
+      if (!results.length && !alerts.length) return
+      log.info({ msg: `[vm-sheet] checked ${results.join(', ') || '-'}; alerts ${alerts.join(', ') || '-'}`, event: 'vm_sheet_check_done', count: results.length, alerts: alerts.length })
+      await logCronRun(database, 'vm_sheet_check', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: results.length + alerts.length })
     } catch (err) {
       log.error({ msg: `[vm-sheet] cron failed: ${err.message}`, event: 'vm_sheet_check_failed', stack: err.stack })
       logCronError('vm_sheet_check', err)
