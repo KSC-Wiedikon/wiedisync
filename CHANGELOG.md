@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.61.1 — 2026-11-04
+
+### Fixed
+
+- Einsatzliste check: guests no longer count. Only the team's regular players are compared with the list.
+
 ## v2.61.0 — 2026-11-04
 
 ### Added
