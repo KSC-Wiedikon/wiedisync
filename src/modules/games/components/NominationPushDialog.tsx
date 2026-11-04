@@ -15,6 +15,8 @@ interface Preview {
   players: { member: number; name: string; license_nr: string | null }[]
   officials: Record<OfficialRole, Official>
   officials_source: 'game' | 'team'
+  officials_not_named: string[]
+  officials_none_yes: boolean
   head_coach: 'ok' | 'missing' | 'no_licence'
   status: string | null
   exists: boolean
@@ -140,6 +142,17 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
             <p className="mt-1 text-xs text-muted-foreground">
               {t(preview.officials_source === 'game' ? 'nominationOfficialsFromSheet' : 'nominationOfficialsFromTeam')}
             </p>
+            {preview.officials_not_named.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('nominationOfficialsNotNamed', { names: preview.officials_not_named.join(', ') })}
+              </p>
+            )}
+            {preview.officials_none_yes && (
+              <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{t('nominationOfficialsNoYes')}</span>
+              </p>
+            )}
             {preview.head_coach !== 'ok' && (
               <p className="mt-2 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

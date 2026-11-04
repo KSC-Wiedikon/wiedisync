@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.62.0 — 2026-11-04
+
+### Changed
+
+- The automatic Einsatzliste only names officials who said Yes. If the head coach has not, an assistant who did moves up. If no default official said Yes, the default head coach stays, because Volleymanager requires one, and the coach sees a warning. Officials set by hand on a game's match sheet stay as they are.
+- Coaches and team responsibles who do not play and never answered a game become a No at its deadline, without a fine.
+- Show IDs also counts staff, for example 12 players + 1 staff.
+
 ## v2.61.1 — 2026-11-04
 
 ### Fixed
