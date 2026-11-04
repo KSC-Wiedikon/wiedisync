@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertNotClosing, fineableBlockers, pickOfficials, officialsPayload, buildListPairs } from '../vm-push-nomination.mjs';
+import { assertNotClosing, fineableBlockers, officialsWhoSaidYes, pickOfficials, officialsPayload, buildListPairs } from '../vm-push-nomination.mjs';
 
 // The whole point of these tests: in VolleyManager, saving a nomination list and
 // FILING it officially are the same PUT, one boolean apart. A list that is closed
@@ -143,6 +143,67 @@ describe('fineableBlockers — we only close on a clean validation', () => {
       }),
       ['nominationList_hasTooFewNominations', 'nominationList_isMissingCoachPerson'],
     );
+  });
+});
+
+describe('officialsWhoSaidYes — a team default only names those coming', () => {
+  const both = pickOfficials([], { coach: 5, assistant_coach_1: 7 });
+  const three = pickOfficials([], { coach: 5, assistant_coach_1: 7, assistant_coach_2: 8 });
+
+  test('everyone said Yes: nothing changes', () => {
+    const r = officialsWhoSaidYes(both, new Set([5, 7]));
+    assert.deepEqual(r.slots, { coach: 5, assistant_coach_1: 7, assistant_coach_2: undefined });
+    assert.deepEqual(r.notNamed, []);
+    assert.equal(r.noneAvailable, false);
+  });
+
+  test('the head coach is not coming: the assistant moves up, their slot empties', () => {
+    const r = officialsWhoSaidYes(both, new Set([7]));
+    assert.deepEqual(r.slots, { coach: 7, assistant_coach_1: null, assistant_coach_2: undefined });
+    assert.deepEqual(r.notNamed, [5]);
+    assert.equal(r.noneAvailable, false);
+  });
+
+  test('the assistant is not coming: the head coach stays, the slot empties', () => {
+    const r = officialsWhoSaidYes(both, new Set([5]));
+    assert.deepEqual(r.slots, { coach: 5, assistant_coach_1: null, assistant_coach_2: undefined });
+    assert.deepEqual(r.notNamed, [7]);
+  });
+
+  test('three defaults, only the last said Yes: they become the head coach', () => {
+    const r = officialsWhoSaidYes(three, new Set([8]));
+    assert.deepEqual(r.slots, { coach: 8, assistant_coach_1: null, assistant_coach_2: null });
+  });
+
+  test('nobody said Yes: the default head coach stays and it says so, assistants empty', () => {
+    const r = officialsWhoSaidYes(both, new Set());
+    assert.deepEqual(r.slots, { coach: 5, assistant_coach_1: null, assistant_coach_2: undefined });
+    assert.equal(r.noneAvailable, true);
+  });
+
+  test('a slot with no default keeps what VM has', () => {
+    const r = officialsWhoSaidYes(pickOfficials([], { coach: 5 }), new Set([5]));
+    assert.equal(r.slots.assistant_coach_1, undefined);
+  });
+
+  test('a match sheet set by hand is left exactly as it is', () => {
+    const sheet = pickOfficials([{ member: 9, role: 'coach' }], { coach: 5 });
+    const r = officialsWhoSaidYes(sheet, new Set());
+    assert.deepEqual(r.slots, sheet.slots);
+    assert.equal(r.source, 'game');
+    assert.equal(r.noneAvailable, false);
+  });
+
+  test('no default head coach: unchanged, so the push still refuses it', () => {
+    const noCoach = pickOfficials([], { assistant_coach_1: 7 });
+    const r = officialsWhoSaidYes(noCoach, new Set([7]));
+    assert.equal(r.slots.coach, undefined);
+    assert.equal(r.slots.assistant_coach_1, 7);
+  });
+
+  test('the same person in two slots is named once', () => {
+    const r = officialsWhoSaidYes(pickOfficials([], { coach: 5, assistant_coach_1: 5 }), new Set([5]));
+    assert.deepEqual(r.slots, { coach: 5, assistant_coach_1: null, assistant_coach_2: undefined });
   });
 });
 

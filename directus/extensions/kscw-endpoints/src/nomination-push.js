@@ -34,8 +34,9 @@ import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
 import { externalWritesEnv, refuseExternalOnDev } from './external-accounts.js'
 import { gameStartMs } from './scorer-roster.js'
 
-// ⚠ MIRROR of pickOfficials() in directus/scripts/vm-push-nomination.mjs — the
-// worker is the one that acts on it, this only previews it. Change both.
+// ⚠ MIRROR of pickOfficials() and officialsWhoSaidYes() in
+// directus/scripts/vm-push-nomination.mjs — the worker is the one that acts on them,
+// this only previews them. Change both.
 const SLOT_ROLES = ['coach', 'assistant_coach_1', 'assistant_coach_2']
 export function pickOfficials(savedRows, teamDefault) {
   const out = {}
@@ -55,22 +56,49 @@ export function pickOfficials(savedRows, teamDefault) {
   return { source: 'team', slots: out }
 }
 
+export function officialsWhoSaidYes(picked, canBeNamed) {
+  if (picked.source !== 'team' || typeof picked.slots.coach !== 'number') {
+    return { ...picked, notNamed: [], noneAvailable: false }
+  }
+  const defaults = [...new Set(SLOT_ROLES.map((r) => picked.slots[r]).filter((v) => typeof v === 'number'))]
+  const coming = defaults.filter((id) => canBeNamed.has(id))
+  const slots = {}
+  SLOT_ROLES.forEach((role, i) => {
+    if (coming[i] != null) slots[role] = coming[i]
+    else slots[role] = typeof picked.slots[role] === 'number' ? null : picked.slots[role]
+  })
+  if (!coming.length) slots.coach = picked.slots.coach
+  return {
+    source: 'team',
+    slots,
+    notNamed: defaults.filter((id) => !coming.includes(id)),
+    noneAvailable: coming.length === 0,
+  }
+}
+
 /**
  * Who goes up as C / AC1 / AC2 for this game, as display rows, plus the head-coach
  * gate. C is REQUIRED (VM fines a list without one); AC1/AC2 are optional. "Set"
  * means we name a member WITH a licence number — without one VM cannot find them.
  */
 async function resolveOfficials(database, gameId, teamId) {
-  const [savedOfficials, team] = await Promise.all([
+  const [savedOfficials, team, yes] = await Promise.all([
     database('game_roster_officials').where('game', gameId).select('member', 'role'),
     database('teams').where('id', teamId).first('features_enabled'),
+    database('participations')
+      .where({ activity_type: 'game', activity_id: String(gameId), status: 'confirmed' })
+      .pluck('member'),
   ])
   const fe = typeof team?.features_enabled === 'string' ? JSON.parse(team.features_enabled) : team?.features_enabled
-  const picked = pickOfficials(savedOfficials, fe?.nomination_officials)
-  const ids = Object.values(picked.slots).filter((v) => typeof v === 'number')
+  const defaults = pickOfficials(savedOfficials, fe?.nomination_officials)
+  const ids = Object.values(defaults.slots).filter((v) => typeof v === 'number')
   const people = ids.length
     ? await database('members').whereIn('id', ids).select('id', 'first_name', 'last_name', 'license_nr')
     : []
+  const yesIds = new Set(yes.map(Number))
+  const picked = officialsWhoSaidYes(defaults, new Set(
+    people.filter((m) => m.license_nr && yesIds.has(Number(m.id))).map((m) => Number(m.id)),
+  ))
   const officials = {}
   for (const role of SLOT_ROLES) {
     const v = picked.slots[role]
@@ -83,7 +111,17 @@ async function resolveOfficials(database, gameId, teamId) {
   }
   const c = officials.coach
   const headCoach = !c || 'keep' in c ? 'missing' : !c.license_nr ? 'no_licence' : 'ok'
-  return { source: picked.source, officials, headCoach }
+  const nameOf = (id) => {
+    const m = people.find((x) => Number(x.id) === id)
+    return m ? `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() : String(id)
+  }
+  return {
+    source: picked.source,
+    officials,
+    headCoach,
+    notNamed: picked.noneAvailable ? [] : picked.notNamed.map(nameOf),
+    noneYes: picked.noneAvailable,
+  }
 }
 
 /**
@@ -240,7 +278,7 @@ export function registerNominationPush(router, { database, logger }) {
         .distinct('m.id', 'm.first_name', 'm.last_name', 'm.license_nr')
         .orderBy([{ column: 'm.last_name' }, { column: 'm.first_name' }])
 
-      const { source, officials, headCoach } = await resolveOfficials(database, gameId, game.kscw_team)
+      const { source, officials, headCoach, notNamed, noneYes } = await resolveOfficials(database, gameId, game.kscw_team)
 
       const startMs = gameStartMs(game)
       res.json({
@@ -252,6 +290,8 @@ export function registerNominationPush(router, { database, logger }) {
           })),
           officials,
           officials_source: source,
+          officials_not_named: notNamed,
+          officials_none_yes: noneYes,
           // 'ok' | 'missing' | 'no_licence' — the push is refused unless 'ok'.
           head_coach: headCoach,
           status: game.vm_nomination_status ?? null,

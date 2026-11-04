@@ -182,7 +182,7 @@ export default {
   featureAutoNominationList: 'Einsatzliste automatisch melden',
   featureAutoNominationListHint: 'Trägt die Einsatzliste rund eine Stunde vor Spielbeginn aus den bestätigten Zusagen im Volleymanager ein — nominiert werden nur Spieler mit Lizenz, und die Liste bleibt zur Kontrolle offen, falls der Volleymanager ein Problem meldet',
   nominationOfficials: 'Offizielle auf der Einsatzliste',
-  nominationOfficialsHint: 'Wer beim Übermitteln der Einsatzliste als Haupttrainer (C) und Assistenztrainer (AC1, AC2) eingetragen wird. C ist Pflicht — ohne wird nicht übermittelt; AC1 und AC2 sind optional. Der Matchbogen eines Spiels kann das übersteuern.',
+  nominationOfficialsHint: 'Wer beim Übermitteln der Einsatzliste als Haupttrainer (C) und Assistenztrainer (AC1, AC2) eingetragen wird. C ist Pflicht — ohne wird nicht übermittelt; AC1 und AC2 sind optional. Der Matchbogen eines Spiels kann das übersteuern. Genannt wird nur, wer zugesagt hat; fehlt der Head Coach, rückt eine Assistenz nach.',
   nominationOfficialCoach: 'Haupttrainer (C) — Pflicht',
   nominationOfficialAc1: 'Assistenztrainer 1 (AC1)',
   nominationOfficialAc2: 'Assistenztrainer 2 (AC2)',

@@ -172,7 +172,8 @@ export function fineableBlockers(validation) {
 //      no member for (left exactly as VM has it);
 //   2. the team default, `teams.features_enabled.nomination_officials`
 //      ({ coach, assistant_coach_1, assistant_coach_2 } → member id), set in the
-//      roster editor; an unset slot there has no opinion;
+//      roster editor; an unset slot there has no opinion. Only those who said Yes
+//      are named (officialsWhoSaidYes);
 //   3. whatever VM already has. We never clear a slot we have no opinion on, so an
 //      official a human entered in Volleymanager survives our push.
 export const OFFICIAL_SLOTS = [
@@ -205,6 +206,36 @@ export function pickOfficials(savedRows, teamDefault) {
     out[role] = id == null || id === '' ? undefined : Number(id);
   }
   return { source: 'team', slots: out };
+}
+
+/**
+ * A team default only names officials who said Yes (owner, 04.11.2026: the default head
+ * coach was filed for a game he was not coming to). `canBeNamed` holds the ones who said
+ * Yes and have a licence. They fill the slots in order, so an assistant moves up when the
+ * head coach is not coming, and a slot nobody fills is emptied. If none can be named, the
+ * default head coach stays, because VM fines a list without one, and `noneAvailable` tells
+ * the coach. A per-game match sheet is a human's decision and stays as it is; a team with no
+ * default head coach is refused later, as before.
+ * Pure; mirrored by the preview in kscw-endpoints/src/nomination-push.js.
+ */
+export function officialsWhoSaidYes(picked, canBeNamed) {
+  if (picked.source !== 'team' || typeof picked.slots.coach !== 'number') {
+    return { ...picked, notNamed: [], noneAvailable: false };
+  }
+  const defaults = [...new Set(SLOT_ROLES.map((r) => picked.slots[r]).filter((v) => typeof v === 'number'))];
+  const coming = defaults.filter((id) => canBeNamed.has(id));
+  const slots = {};
+  SLOT_ROLES.forEach((role, i) => {
+    if (coming[i] != null) slots[role] = coming[i];
+    else slots[role] = typeof picked.slots[role] === 'number' ? null : picked.slots[role];
+  });
+  if (!coming.length) slots.coach = picked.slots.coach;
+  return {
+    source: 'team',
+    slots,
+    notNamed: defaults.filter((id) => !coming.includes(id)),
+    noneAvailable: coming.length === 0,
+  };
 }
 
 /**
@@ -354,11 +385,23 @@ async function main() {
     dGet(`/items/game_roster_officials?filter[game][_eq]=${GAME_ID}&fields=member,role&limit=-1`),
     dGet(`/items/teams/${game.kscw_team}?fields=features_enabled`),
   ]);
-  const picked = pickOfficials(savedOfficials ?? [], teamRow?.features_enabled?.nomination_officials);
-  const officialIds = [...new Set(Object.values(picked.slots).filter((v) => typeof v === 'number'))];
+  const defaults = pickOfficials(savedOfficials ?? [], teamRow?.features_enabled?.nomination_officials);
+  const officialIds = [...new Set(Object.values(defaults.slots).filter((v) => typeof v === 'number'))];
   const officialMembers = officialIds.length
     ? await dGet(`/items/members?filter[id][_in]=${officialIds.join(',')}&fields=id,first_name,last_name,license_nr&limit=-1`) ?? []
     : [];
+  const picked = officialsWhoSaidYes(defaults, new Set(
+    officialMembers.filter((m) => m.license_nr && confirmed.has(Number(m.id))).map((m) => Number(m.id)),
+  ));
+  const officialName = (id) => {
+    const m = officialMembers.find((x) => Number(x.id) === id);
+    return m ? `${m.first_name} ${m.last_name}` : `member ${id}`;
+  };
+  if (picked.noneAvailable) {
+    notes.push(`no default official said Yes: head coach ${officialName(picked.slots.coach)} stays on the list, please check it`);
+  } else if (picked.notNamed.length) {
+    notes.push(`not named, no Yes: ${picked.notNamed.map(officialName).join(', ')}`);
+  }
 
   // The head coach is REQUIRED (AC1/AC2 optional): VM fines a list without one and
   // can only find a person by licence. Checked before any VM login, so a team that

@@ -625,6 +625,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
     }
   }, [gameId, roster, privateKey, t, viewerFirstName, viewerLastName, isSuperAdmin])
 
+  const staffCount = roster.filter((r) => r.staff).length
   const withDocs = useMemo(() => (cards ?? []).filter((c) => !c.missing), [cards])
   const missing = useMemo(() => (cards ?? []).filter((c) => c.missing), [cards])
   const card = withDocs[idx]
@@ -652,6 +653,7 @@ export default function ShowIdsView({ gameId, kickoffMs: kickoffFromCaller }: Sh
           {sheetCount && (
             <p className="text-sm font-semibold tabular-nums">
               {t('sheetPlayers', { count: sheetCount.players })}, {t('sheetLiberos', { count: sheetCount.liberos })}
+              {staffCount > 0 && ` + ${t('sheetStaff', { count: staffCount })}`}
             </p>
           )}
           {/* No signal: say which sheet this is — or that there is none to go on. */}

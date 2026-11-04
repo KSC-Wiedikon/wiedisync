@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.61.1'
+const APP_VERSION = '2.62.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.62.0',
+    date: '04.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'The automatic Einsatzliste only names officials who said Yes. If the head coach has not, an assistant who did moves up. If no default official said Yes, the default head coach stays, because Volleymanager requires one, and the coach sees a warning. Officials set by hand on a game\'s match sheet stay as they are.',
+          'Coaches and team responsibles who do not play and never answered a game become a No at its deadline, without a fine.',
+          'Show IDs also counts staff, for example 12 players + 1 staff.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.61.1',
     date: '04.11.2026',
