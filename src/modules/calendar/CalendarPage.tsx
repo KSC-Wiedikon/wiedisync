@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useMatch, useNavigate } from 'react-router-dom'
 import ViewToggle from '../../components/ViewToggle'
 import CalendarFilters from './CalendarFilters'
 import { getActiveFilterCount } from './filterCount'
@@ -30,7 +31,11 @@ export default function CalendarPage() {
   const { user, memberTeamIds, coachTeamIds, teamsLoading } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const isMobile = useIsMobile()
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month')
+  const navigate = useNavigate()
+  // The hall view has its own URL, so it survives a reload and can be shared.
+  const onHallUrl = useMatch('/calendar/hall') !== null
+  const [calendarView, setCalendarView] = useState<CalendarViewMode>('month')
+  const viewMode: CalendarViewMode = onHallUrl ? 'hallenplan' : calendarView
   const allSources: SourceFilter[] = user
     ? ['game-home', 'game-away', 'training', 'event', 'closure', 'hall', 'absence', 'scorer-duty', 'birthday']
     : ['game-home', 'game-away', 'hall']
@@ -154,7 +159,12 @@ export default function CalendarPage() {
   useReportPageLoading(showSpinner)
 
   function handleViewChange(v: string) {
-    setViewMode(v as CalendarViewMode)
+    if (v === 'hallenplan') {
+      navigate('/calendar/hall')
+      return
+    }
+    setCalendarView(v as CalendarViewMode)
+    if (onHallUrl) navigate('/calendar')
   }
 
   return (

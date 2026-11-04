@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.59.0'
+const APP_VERSION = '2.60.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.60.0',
+    date: '04.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'The hall plan has its own address, /calendar/hall: it stays open when you reload, and you can bookmark or share the link.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'A training slot freed by an away game was listed twice under Available slots and stacked twice in the hall plan.',
+          'Available slots and the claim dialog showed times with seconds (18:00:00).',
+        ],
+      },
+    ],
+  },
   {
     version: '2.59.0',
     date: '03.11.2026',
