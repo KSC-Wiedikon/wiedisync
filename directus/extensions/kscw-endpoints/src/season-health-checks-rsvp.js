@@ -563,7 +563,7 @@ SELECT ${TEAM_COLS},
        fr.reset_window,
        (SELECT count(*) FROM participations p
           JOIN games g ON p.activity_type = 'game' AND p.activity_id = g.id::text
-         WHERE g.kscw_team = t.id AND p.auto_declined_deadline = true AND g.date >= {{rollover}}) AS game_auto_declines,
+         WHERE g.kscw_team = t.id AND p.auto_declined_deadline = true AND p.is_staff = false AND g.date >= {{rollover}}) AS game_auto_declines,
        (SELECT count(*) FROM participations p
           JOIN trainings tr ON p.activity_type = 'training' AND p.activity_id = tr.id::text
          WHERE tr.team = t.id AND p.auto_declined_deadline = true AND tr.date >= {{rollover}}) AS training_auto_declines,
