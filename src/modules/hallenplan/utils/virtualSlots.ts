@@ -643,11 +643,21 @@ function indexActiveClaims(claims: SlotClaim[]): Map<string, SlotClaim> {
 function buildFreedFromAwaySlots(
   games: Game[],
   realSlots: HallSlot[],
+  virtualSlots: HallSlot[],
   weekDays: Date[],
   closures: HallClosure[],
   claimsByKey: Map<string, SlotClaim>,
 ): HallSlot[] {
   const freedFromAway: HallSlot[] = []
+  // A slot with a concrete training that day is that training's to show: the
+  // nightly sweep cancels a team's training on its game day, annotateFreedSlots
+  // then frees it, and offering the template here as well listed the slot twice.
+  const covered = new Set<string>()
+  for (const vs of virtualSlots) {
+    if (vs._virtual?.source !== 'training') continue
+    const hallSlot = (vs._virtual.sourceRecord as Training).hall_slot
+    if (hallSlot) covered.add(`${hallSlot}-${vs.day_of_week}`)
+  }
   for (const game of games) {
     if (game.type !== 'away' || game.status === 'postponed') continue
     const gameDate = game.date.slice(0, 10)
@@ -662,6 +672,9 @@ function buildFreedFromAwaySlots(
         slot.day_of_week === dayIndex
       ) {
         if (isClosedOnDate(slot.hall, gameDate, closures)) continue
+        const slotDay = `${slot.id}-${dayIndex}`
+        if (covered.has(slotDay)) continue
+        covered.add(slotDay)
 
         const claim = claimsByKey.get(`${slot.id}-${gameDate}`)
 
@@ -830,7 +843,7 @@ function buildFreedRecurringSlots(
  * an explicit training record.
  */
 export function mergeVirtualSlots(
-  realSlots: HallSlot[],
+  hallSlots: HallSlot[],
   virtualSlots: HallSlot[],
   claims: SlotClaim[],
   closures: HallClosure[],
@@ -838,6 +851,13 @@ export function mergeVirtualSlots(
   weekDays: Date[],
   freedHorizonDate?: string,
 ): HallSlot[] {
+  // Postgres TIME arrives as HH:MM:SS; every virtual slot is already HH:MM.
+  const realSlots = hallSlots.map((slot) => ({
+    ...slot,
+    start_time: slot.start_time?.slice(0, 5),
+    end_time: slot.end_time?.slice(0, 5),
+  }))
+
   // Phase 1 — collect which recurring templates to suppress or shorten this week.
   const suppressedSlotDays = new Set<string>()
   const shortenedSlots = new Map<string, string>() // key: `${slot.id}-${dayIndex}`, value: new end_time
@@ -851,7 +871,7 @@ export function mergeVirtualSlots(
 
   // Phase 2 — build the derived virtual slot sets.
   const claimsByKey = indexActiveClaims(claims)
-  const freedFromAway = buildFreedFromAwaySlots(games, realSlots, weekDays, closures, claimsByKey)
+  const freedFromAway = buildFreedFromAwaySlots(games, realSlots, virtualSlots, weekDays, closures, claimsByKey)
 
   const annotated = annotateFreedSlots(virtualSlots, claims, closures)
   const homeGameRanges = buildHomeGameRanges(games, virtualSlots, weekDays)
