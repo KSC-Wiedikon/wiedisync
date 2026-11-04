@@ -308,22 +308,25 @@ async function rsvpByMember(database, gameId) {
  *   differs  someone on the list has not said Yes, or someone who said Yes is not on it
  *   matches  neither
  *
- * Maybe and no answer are not a Yes. A Yes only counts from the squad (roster + called-up
- * guests: any member may RSVP to any game, see gameSheetMemberIds). A licence we hold no
- * member for is left out: it has no RSVP to compare, and its own `unlinked` flag.
+ * Maybe and no answer are not a Yes. Guests do not count, either way (owner, 04.11.2026):
+ * only the team's regular players are compared, so someone called up, on the roster as a
+ * guest, or from another team neither needs a Yes nor needs to be on the list. A licence
+ * we hold no member for is left out too: it has no RSVP to compare, and its own `unlinked` flag.
  */
-export function compareEinsatzliste(players, memberByLicence, rsvps, squad) {
+export function compareEinsatzliste(players, memberByLicence, rsvps, regulars) {
   if (!players?.length) return { verdict: 'no_list', nominated_without_yes: [], yes_not_nominated: [] }
+  const regularIds = new Set(regulars.map((r) => Number(r.id)))
   const listed = new Set()
   const nominatedWithoutYes = []
   for (const p of players) {
     const member = p.license_nr ? memberByLicence.get(String(p.license_nr)) : null
     if (member == null) continue
     listed.add(member)
+    if (!regularIds.has(member)) continue
     const rsvp = rsvps.get(member) ?? 'none'
     if (rsvp !== 'confirmed') nominatedWithoutYes.push({ name: vmName(p), rsvp })
   }
-  const yesNotNominated = squad
+  const yesNotNominated = regulars
     .filter((r) => rsvps.get(Number(r.id)) === 'confirmed' && !listed.has(Number(r.id)))
     .map((r) => ({ name: vmName({ last_name: r.last_name, first_initial: firstInitial(r.first_name) }) }))
   return {
@@ -342,13 +345,17 @@ export async function einsatzlisteComparison(database, game, check) {
   if (!check?.list_at) return null
   const players = check.list?.players ?? []
   const licences = players.map((p) => p.license_nr).filter(Boolean)
-  const [members, rsvps, squad] = await Promise.all([
+  const [members, rsvps, regulars] = await Promise.all([
     licences.length ? database('members').whereIn('license_nr', licences).select('id', 'license_nr') : [],
     rsvpByMember(database, game.id),
-    squadRows(database, game.kscw_team, null, game.id),
+    database('member_teams')
+      .join('members', 'members.id', 'member_teams.member')
+      .where('member_teams.team', game.kscw_team)
+      .whereRaw('COALESCE(member_teams.guest_level, 0) = 0')
+      .select('members.id as id', 'members.first_name as first_name', 'members.last_name as last_name'),
   ])
   const memberByLicence = new Map(members.map((m) => [String(m.license_nr), Number(m.id)]))
-  return compareEinsatzliste(players, memberByLicence, rsvps, squad)
+  return compareEinsatzliste(players, memberByLicence, rsvps, regulars)
 }
 
 /** Fallback: members who RSVP'd "confirmed" (confirmed guests included). */
