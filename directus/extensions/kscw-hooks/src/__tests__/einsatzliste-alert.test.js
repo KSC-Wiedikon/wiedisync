@@ -192,7 +192,7 @@ describe('createEinsatzlisteAlert', () => {
     const r = await createEinsatzlisteAlert({ database: db, emailReminders: { sendJobs } }).run(GAME)
     expect(r).toMatchObject({ verdict: 'no_list', sent: 1, failed: 0 })
     const [kind, jobs, build] = sendJobs.mock.calls[0]
-    expect(kind).toBe('einsatzliste')
+    expect(kind).toBe('nomination_list')
     expect(jobs).toEqual([{ memberId: 8, items: [expect.objectContaining({ activity_type: 'game', activity_id: '509', email: 'coach@example.ch' })] }])
     expect(build({ locale: 'en', firstName: 'Cora' }).subject).toContain('No Einsatzliste')
     expect(updates).toHaveLength(1)

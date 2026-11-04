@@ -218,7 +218,7 @@ export function createEinsatzlisteAlert({ database, emailReminders }) {
         memberId: r.member,
         items: [{ ...r, activity_type: 'game', activity_id: String(game.id) }],
       }))
-      result = await emailReminders.sendJobs('einsatzliste', jobs, ({ locale, firstName }) =>
+      result = await emailReminders.sendJobs('nomination_list', jobs, ({ locale, firstName }) =>
         einsatzlisteAlertContent({ locale, firstName, game, comparison }))
     }
     if (result.failed === 0) {
