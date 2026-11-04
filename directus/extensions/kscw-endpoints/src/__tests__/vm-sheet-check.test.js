@@ -8,7 +8,7 @@ vi.mock('../vm-nomination-list.js', () => ({ readOwnNominationList: vi.fn() }))
 
 import { readOwnNominationList } from '../vm-nomination-list.js'
 import { runVmCheck, VM_CHECK_LEAD_MS } from '../vm-sheet-check.js'
-import { vmCheckSummary } from '../scorer-roster.js'
+import { compareEinsatzliste, vmCheckSummary } from '../scorer-roster.js'
 
 const noop = () => {}
 const log = { info: noop, warn: noop, error: noop }
@@ -130,19 +130,36 @@ describe('vmCheckSummary — what the sheet flags', () => {
     expect(codes(vmCheckSummary(null, GAME, vmSheet))).toEqual(['not_checked'])
   })
 
-  it('a closed, clean list: no flags', () => {
+  it('a clean list: no flags', () => {
     const check = { status: 'ok', list: LIST, list_at: '2026-10-02T17:15:00Z', checked_at: '2026-10-02T17:15:00Z' }
     expect(vmCheckSummary(check, GAME, vmSheet).issues).toEqual([])
   })
 
-  it('a failed recheck keeps the old list, and both are flagged', () => {
-    const check = { status: 'failed', error: 'HTTP 500', list: { ...LIST, closed_at: null }, list_at: '2026-10-02T17:15:00Z' }
-    expect(codes(vmCheckSummary(check, GAME, vmSheet))).toEqual(['failed', 'not_closed'])
+  it('a list that is not closed is not flagged: referees close it', () => {
+    const check = { status: 'ok', list: { ...LIST, closed_at: null }, list_at: '2026-10-02T17:15:00Z' }
+    expect(vmCheckSummary(check, GAME, vmSheet).issues).toEqual([])
   })
 
-  it('no Einsatzliste filed', () => {
-    const check = { status: 'no_list', list: null, list_at: '2026-10-02T17:15:00Z' }
-    expect(codes(vmCheckSummary(check, GAME, vmSheet))).toEqual(['no_list'])
+  it('a failed recheck keeps the old list and is flagged', () => {
+    const check = { status: 'failed', error: 'HTTP 500', list: LIST, list_at: '2026-10-02T17:15:00Z' }
+    expect(codes(vmCheckSummary(check, GAME, vmSheet))).toEqual(['failed'])
+  })
+
+  it('carries the verdict, and no separate flag for an empty or missing list', () => {
+    const noList = { verdict: 'no_list', nominated_without_yes: [], yes_not_nominated: [] }
+    for (const check of [
+      { status: 'no_list', list: null, list_at: '2026-10-02T17:15:00Z' },
+      { status: 'ok', list: { ...LIST, players: [] }, list_at: '2026-10-02T17:15:00Z' },
+    ]) {
+      const s = vmCheckSummary(check, GAME, vmSheet, noList)
+      expect(s.verdict).toBe('no_list')
+      expect(s.issues).toEqual([])
+    }
+  })
+
+  it('no verdict before a read', () => {
+    at(KICKOFF - 3 * 3600 * 1000)
+    expect(vmCheckSummary(null, GAME, vmSheet).verdict).toBeNull()
   })
 
   it('names ineligible and unlinked players', () => {
@@ -153,5 +170,56 @@ describe('vmCheckSummary — what the sheet flags', () => {
       { code: 'ineligible', names: ['Muster A.'] },
       { code: 'unlinked', names: ['Fremd F.'] },
     ])
+  })
+})
+
+describe('compareEinsatzliste — the list against the RSVPs', () => {
+  const player = (nr, last) => ({ license_nr: nr, last_name: last, first_initial: 'A.' })
+  const licences = new Map([['111', 12], ['222', 13]])
+  const squad = [
+    { id: 12, first_name: 'Anna', last_name: 'Muster' },
+    { id: 13, first_name: 'Bea', last_name: 'Beispiel' },
+    { id: 14, first_name: 'Cleo', last_name: 'Test' },
+  ]
+
+  it('nothing filed, or filed without players: no list', () => {
+    for (const players of [null, undefined, []]) {
+      expect(compareEinsatzliste(players, licences, new Map([[14, 'confirmed']]), squad)).toEqual({
+        verdict: 'no_list', nominated_without_yes: [], yes_not_nominated: [],
+      })
+    }
+  })
+
+  it('everyone on the list said Yes, nobody else did: matches', () => {
+    const rsvps = new Map([[12, 'confirmed'], [13, 'confirmed']])
+    expect(compareEinsatzliste([player('111', 'Muster'), player('222', 'Beispiel')], licences, rsvps, squad).verdict).toBe('matches')
+  })
+
+  it.each(['declined', 'tentative', 'waitlisted'])('on the list with %s: differs', (status) => {
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map([[12, status]]), squad)
+    expect(c.verdict).toBe('differs')
+    expect(c.nominated_without_yes).toEqual([{ name: 'Muster A.', rsvp: status }])
+  })
+
+  it('on the list with no answer: differs', () => {
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, new Map(), squad)
+    expect(c.nominated_without_yes).toEqual([{ name: 'Muster A.', rsvp: 'none' }])
+  })
+
+  it('said Yes, not on the list: differs', () => {
+    const rsvps = new Map([[12, 'confirmed'], [14, 'confirmed']])
+    const c = compareEinsatzliste([player('111', 'Muster')], licences, rsvps, squad)
+    expect(c.verdict).toBe('differs')
+    expect(c.yes_not_nominated).toEqual([{ name: 'Test C.' }])
+  })
+
+  it('a Yes from outside the squad does not count', () => {
+    const rsvps = new Map([[12, 'confirmed'], [99, 'confirmed']])
+    expect(compareEinsatzliste([player('111', 'Muster')], licences, rsvps, squad).verdict).toBe('matches')
+  })
+
+  it('a licence we hold no member for is left out', () => {
+    const rsvps = new Map([[12, 'confirmed']])
+    expect(compareEinsatzliste([player('111', 'Muster'), player('999', 'Fremd')], licences, rsvps, squad).verdict).toBe('matches')
   })
 })
