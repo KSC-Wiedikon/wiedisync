@@ -56,6 +56,7 @@ describe('guide — registry', () => {
     expect(sectionForPath('/forms')?.id).toBe('forms')
     expect(sectionForPath('/teams/h1/roster/edit')?.id).toBe('roster')
     expect(sectionForPath('/teams/h1')?.id).toBe('teams')
+    expect(sectionForPath('/calendar/hall')?.id).toBe('calendar')
     expect(sectionForPath('/admin/hallenplan')?.id).toBe('hallbooking')
     expect(sectionForPath('/admin/hallenplan/halls')?.id).toBe('hallenplanadmin')
     expect(sectionForPath('/admin/audit-log')?.id).toBe('admintools')

@@ -68,7 +68,7 @@ export const guideSections: GuideSectionDef[] = [
   { id: 'teamfinance', group: 'teams', icon: Landmark, audience: 'captain', canAccess: (a) => a.memberTeamIds.length > 0 || captain(a), routes: ['/finance/team'], open: '/finance/team' },
   { id: 'finerules', group: 'teams', icon: Scale, audience: 'coach', canAccess: leads, routes: [], open: '/fines' },
   { id: 'formsauthoring', group: 'teams', icon: ScrollText, audience: 'coach', canAccess: leads, routes: ['/forms/new', '/forms/*/edit'], open: '/forms' },
-  { id: 'hallbooking', group: 'teams', icon: CalendarClock, audience: 'coach', canAccess: leads, routes: ['/admin/hallenplan', '/admin/hallenfinder'], open: '/calendar' },
+  { id: 'hallbooking', group: 'teams', icon: CalendarClock, audience: 'coach', canAccess: leads, routes: ['/admin/hallenplan', '/admin/hallenfinder'], open: '/calendar/hall' },
   { id: 'teamabsences', group: 'teams', icon: Building2, audience: 'coach', canAccess: leads, routes: [], open: '/absences' },
   { id: 'jsexport', group: 'teams', icon: GraduationCap, audience: 'coach', canAccess: leads, routes: ['/js-export'], open: '/js-export' },
   { id: 'documents', group: 'teams', icon: ShieldCheck, audience: 'coach', canAccess: leads, routes: [], open: '/teams' },
