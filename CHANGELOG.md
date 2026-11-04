@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.61.0 — 2026-11-04
+
+### Added
+
+- Einsatzliste check 2 hours before a volleyball game: when the list in Volleymanager is empty or differs from the RSVPs, the team's coaches and team responsibles get an email saying who differs. Teams with the automatic Einsatzliste are left out, because their list is filed later from the RSVPs.
+- The match roster shows the result in colour, also after Recheck Volleymanager: No Einsatzliste (red), Einsatzliste differs from RSVPs (yellow), Einsatzliste matches RSVPs (green).
+
+### Removed
+
+- The warning that the Einsatzliste is not closed in Volleymanager. Referees close it, so before a game this is normal.
+
 ## v2.60.0 — 2026-11-04
 
 ### Added

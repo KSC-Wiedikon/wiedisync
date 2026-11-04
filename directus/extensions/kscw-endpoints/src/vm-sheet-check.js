@@ -1,17 +1,19 @@
 /**
- * The Einsatzliste, read from Volleymanager ONCE per game and stored (migration 396).
+ * The Einsatzliste, read from Volleymanager at set moments and stored (migration 396).
  *
  * Every match-sheet surface — the scorer's and coach's sheet, Show IDs, live scoring, the
  * result participant check — reads the stored row (`loadVmCheck`), never VM. VM is read
  * only here, on the SHARED account (CLAUDE.md → "The shared VolleyManager account"):
  *   - by the kscw-hooks cron at kickoff −45 min (after the auto-filing push's T-65…T-35
  *     window has had its go), deferred out of svrz_rc's windows;
+ *   - by the same cron at kickoff −2 h for the Einsatzliste alert (migration 444; teams with
+ *     the automatic push have no list yet, so not for them);
  *   - by a coach or admin pressing "Recheck" (POST /kscw/scorer/game/:gameId/vm-check).
  * Both go through readOwnNominationList, which claims the account and never waits.
  */
 import { readOwnNominationList } from './vm-nomination-list.js'
 
-/** The automatic read happens this long before kickoff. */
+/** The last automatic read happens this long before kickoff. */
 export const VM_CHECK_LEAD_MS = 45 * 60 * 1000
 
 /**
@@ -84,6 +86,6 @@ export async function runVmCheck(database, log, game, { by = null } = {}) {
 
   log.info(`[vm-sheet] game ${game.id}: ${res.status}${res.error ? ` (${res.error})` : ''}`
     + `${res.status === 'ok' ? ` — ${res.list.players.length} players, ${res.list.coaches.length} officials` : ''}`
-    + ` · ${by ? `recheck by member ${by.id}` : 'kickoff −45 min'}`)
+    + ` · ${by ? `recheck by member ${by.id}` : 'cron'}`)
   return { ...res, stored: true }
 }

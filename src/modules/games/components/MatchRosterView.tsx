@@ -74,7 +74,7 @@ interface SheetResponse {
     can_edit: boolean
     /** 'vm' = the Einsatzliste filed in Volleymanager; 'rsvp' = confirmed RSVPs. */
     source: 'vm' | 'rsvp'
-    /** The one Volleymanager read (kickoff −45 min / Recheck); null for basketball. */
+    /** The last Volleymanager read (kickoff −2 h, −45 min or Recheck); null for basketball. */
     vm_check?: VmCheck | null
     edited: boolean
     edited_by: string | null

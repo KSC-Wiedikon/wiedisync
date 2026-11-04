@@ -183,8 +183,8 @@ function seedLibero(position) {
 }
 
 /**
- * Source: the Einsatzliste filed in Volleymanager — as STORED by the one read at kickoff
- * −45 min (or the last Recheck), never a live read: opening a sheet must not log the
+ * Source: the Einsatzliste filed in Volleymanager — as STORED by the last read at kickoff
+ * −2 h / −45 min (or the last Recheck), never a live read: opening a sheet must not log the
  * shared VM account in (vm-sheet-check.js, migration 396). null → no list read yet / none.
  * `roster` may be EMPTY while `coaches` is not (officials filed, nominations not yet):
  * the caller falls back to RSVPs for the players but keeps VM's officials.
@@ -246,26 +246,25 @@ const vmName = (p) => `${p.last_name ?? ''}${p.first_initial ? ` ${p.first_initi
 /**
  * The Volleymanager check as the sheet shows it (migration 396): when it happens or
  * happened, who rechecked, and every problem with it as a code the UI turns into a flag.
- * Per-player RSVP mismatches are NOT here — the check column and the bench carry those.
+ * Per-player RSVP mismatches are NOT here — the check column and the bench carry those;
+ * `verdict` is their one-line result (`comparison`, see compareEinsatzliste). A list that
+ * is not closed is not flagged: referees close it, so before the game that is normal.
  * null for a game with no Volleymanager (basketball).
  */
-export function vmCheckSummary(check, game, sheet) {
+export function vmCheckSummary(check, game, sheet, comparison = null) {
   if (!String(game.game_id ?? '').startsWith('vb_')) return null
   const startMs = gameStartMs(game)
   const dueAt = startMs != null ? new Date(startMs - VM_CHECK_LEAD_MS).toISOString() : null
   const issues = []
   if (!check) {
     if (startMs != null && Date.now() >= startMs - VM_CHECK_LEAD_MS) issues.push({ code: 'not_checked' })
-    return { status: null, due_at: dueAt, checked_at: null, checked_by_name: null, list_at: null, closed_at: null, error: null, issues }
+    return { status: null, verdict: null, due_at: dueAt, checked_at: null, checked_by_name: null, list_at: null, closed_at: null, error: null, issues }
   }
   // The latest attempt read nothing (busy / failed / unavailable) — the last list, if
   // any, is still what the sheet shows.
   if (check.status !== 'ok' && check.status !== 'no_list') issues.push({ code: check.status })
   const list = check.list
-  if (check.list_at && !list) issues.push({ code: 'no_list' })
   if (list) {
-    if (!list.closed_at) issues.push({ code: 'not_closed' })
-    if (!list.players?.length) issues.push({ code: 'no_players' })
     const ineligible = (list.players ?? []).filter((p) => p.eligible === false)
     if (ineligible.length) issues.push({ code: 'ineligible', names: ineligible.map(vmName) })
     // Nominated under a licence we hold no member for: on the legal list, but no RSVP,
@@ -275,6 +274,7 @@ export function vmCheckSummary(check, game, sheet) {
   }
   return {
     status: check.status,
+    verdict: comparison?.verdict ?? null,
     due_at: dueAt,
     checked_at: check.checked_at,
     checked_by_name: check.checked_by_name ?? null,
@@ -299,6 +299,56 @@ async function rsvpByMember(database, gameId) {
     .where('activity_id', String(gameId))
     .select('member', 'status')
   return new Map(rows.map((r) => [Number(r.member), String(r.status)]))
+}
+
+/**
+ * The Einsatzliste against the RSVPs (owner, 04.11.2026): the verdict on the sheet and the
+ * reason for the email 2 h before kickoff (kscw-hooks einsatzliste-alert.js).
+ *   no_list  nothing filed, or filed without players
+ *   differs  someone on the list has not said Yes, or someone who said Yes is not on it
+ *   matches  neither
+ *
+ * Maybe and no answer are not a Yes. A Yes only counts from the squad (roster + called-up
+ * guests: any member may RSVP to any game, see gameSheetMemberIds). A licence we hold no
+ * member for is left out: it has no RSVP to compare, and its own `unlinked` flag.
+ */
+export function compareEinsatzliste(players, memberByLicence, rsvps, squad) {
+  if (!players?.length) return { verdict: 'no_list', nominated_without_yes: [], yes_not_nominated: [] }
+  const listed = new Set()
+  const nominatedWithoutYes = []
+  for (const p of players) {
+    const member = p.license_nr ? memberByLicence.get(String(p.license_nr)) : null
+    if (member == null) continue
+    listed.add(member)
+    const rsvp = rsvps.get(member) ?? 'none'
+    if (rsvp !== 'confirmed') nominatedWithoutYes.push({ name: vmName(p), rsvp })
+  }
+  const yesNotNominated = squad
+    .filter((r) => rsvps.get(Number(r.id)) === 'confirmed' && !listed.has(Number(r.id)))
+    .map((r) => ({ name: vmName({ last_name: r.last_name, first_initial: firstInitial(r.first_name) }) }))
+  return {
+    verdict: nominatedWithoutYes.length || yesNotNominated.length ? 'differs' : 'matches',
+    nominated_without_yes: nominatedWithoutYes,
+    yes_not_nominated: yesNotNominated,
+  }
+}
+
+/**
+ * compareEinsatzliste for a game's stored check, against the RSVPs as they are now.
+ * Always the list VM holds, also when a coach saved their own sheet. null until VM has
+ * answered once.
+ */
+export async function einsatzlisteComparison(database, game, check) {
+  if (!check?.list_at) return null
+  const players = check.list?.players ?? []
+  const licences = players.map((p) => p.license_nr).filter(Boolean)
+  const [members, rsvps, squad] = await Promise.all([
+    licences.length ? database('members').whereIn('license_nr', licences).select('id', 'license_nr') : [],
+    rsvpByMember(database, game.id),
+    squadRows(database, game.kscw_team, null, game.id),
+  ])
+  const memberByLicence = new Map(members.map((m) => [String(m.license_nr), Number(m.id)]))
+  return compareEinsatzliste(players, memberByLicence, rsvps, squad)
 }
 
 /** Fallback: members who RSVP'd "confirmed" (confirmed guests included). */
@@ -665,8 +715,8 @@ export function registerScorerRoster(router, { database, logger }) {
 
   // ── POST: re-read the Einsatzliste from Volleymanager now ("Recheck") ──────
   //
-  // The only on-demand VM read left (the automatic one is the kickoff −45 min cron,
-  // vm-sheet-check.js). Anyone who may open the sheet may press it — it only reads.
+  // The only on-demand VM read left (the automatic ones are the kickoff −2 h and −45 min
+  // cron, vm-sheet-check.js). Anyone who may open the sheet may press it — it only reads.
   // Refused inside svrz_rc's windows (our login would switch the SHARED account's role
   // under its jobs), at most once a minute per game, and never waits for the account.
   router.post('/scorer/game/:gameId/vm-check', async (req, res) => {
@@ -704,7 +754,11 @@ export function registerScorerRoster(router, { database, logger }) {
         recordId: gameId,
         data: { what: 'vm_sheet_recheck', as: access, status: result.status, error: result.error ?? null },
       })
-      res.json({ data: { status: result.status, error: result.error ?? null } })
+      const answered = result.status === 'ok' || result.status === 'no_list'
+      const comparison = answered
+        ? await einsatzlisteComparison(database, game, await loadVmCheck(database, gameId))
+        : null
+      res.json({ data: { status: result.status, error: result.error ?? null, verdict: comparison?.verdict ?? null } })
     } catch (err) {
       log.error({ msg: `POST scorer/game/:id/vm-check: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -723,11 +777,12 @@ export function registerScorerRoster(router, { database, logger }) {
       const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
 
       // No live Volleymanager read here — the Einsatzliste is the one stored at kickoff
-      // −45 min (or by a Recheck). See vm-sheet-check.js.
+      // −2 h / −45 min (or by a Recheck). See vm-sheet-check.js.
       const [sheet, vmCheck] = await Promise.all([
         buildSheet(game, gameId, season, captainId),
         loadVmCheck(database, gameId),
       ])
+      const comparison = await einsatzlisteComparison(database, game, vmCheck)
 
       // Officials: VM names them WITH their slot (coach / assistant 1 / assistant 2);
       // our junction cannot, so those come back unlabelled until the coach assigns one.
@@ -799,7 +854,7 @@ export function registerScorerRoster(router, { database, logger }) {
           },
           access,
           can_edit: access === 'coach' || access === 'admin',
-          vm_check: vmCheckSummary(vmCheck, game, sheet),
+          vm_check: vmCheckSummary(vmCheck, game, sheet, comparison),
           source: sheet.source,
           edited: sheet.edited,
           edited_by: sheet.edited_by ?? null,

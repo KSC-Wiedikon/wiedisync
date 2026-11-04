@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.60.0'
+const APP_VERSION = '2.61.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.61.0',
+    date: '04.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'Einsatzliste check 2 hours before a volleyball game: when the list in Volleymanager is empty or differs from the RSVPs, the team\'s coaches and team responsibles get an email saying who differs. Teams with the automatic Einsatzliste are left out, because their list is filed later from the RSVPs.',
+          'The match roster shows the result in colour, also after Recheck Volleymanager: No Einsatzliste (red), Einsatzliste differs from RSVPs (yellow), Einsatzliste matches RSVPs (green).',
+        ],
+      },
+      {
+        title: 'Removed',
+        items: [
+          'The warning that the Einsatzliste is not closed in Volleymanager. Referees close it, so before a game this is normal.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.60.0',
     date: '04.11.2026',
