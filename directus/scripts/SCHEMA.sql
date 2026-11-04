@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-03T14:38:57.577Z
+-- Generated:   2026-11-04T17:45:00.376Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict EpvcIe9iIm7dBqdbeZ2y3xBI6bdXbwvC1mKUU1AnIwtXCiZWbcfREqfizHXT6M4
+\restrict hzfILw5yzeoTPqdv7lw3aNpIdSkGDDnAa4IqJ5joW0gz8ROg46OieEy6s4A8Lyw
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -6923,7 +6923,7 @@ CREATE TABLE public.email_reminders_sent (
     kind text NOT NULL,
     sent_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT email_reminders_sent_activity_type_chk CHECK ((activity_type = ANY (ARRAY['training'::text, 'game'::text, 'event'::text]))),
-    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text, 'weekly'::text])))
+    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text, 'weekly'::text, 'nomination_list'::text])))
 );
 
 
@@ -10156,6 +10156,7 @@ CREATE TABLE public.game_vm_sheets (
     checked_at timestamp with time zone DEFAULT now() NOT NULL,
     checked_by integer,
     checked_by_name character varying(255),
+    alert_checked_at timestamp with time zone,
     CONSTRAINT game_vm_sheets_status_check CHECK (((status)::text = ANY ((ARRAY['ok'::character varying, 'no_list'::character varying, 'busy'::character varying, 'failed'::character varying, 'unavailable'::character varying])::text[])))
 );
 
@@ -21198,7 +21199,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict EpvcIe9iIm7dBqdbeZ2y3xBI6bdXbwvC1mKUU1AnIwtXCiZWbcfREqfizHXT6M4
+\unrestrict hzfILw5yzeoTPqdv7lw3aNpIdSkGDDnAa4IqJ5joW0gz8ROg46OieEy6s4A8Lyw
 
 
 
@@ -21216,7 +21217,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 447 migration(s) already in the schema above.
+-- Migration tracker seed — 449 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21676,6 +21677,8 @@ FROM (VALUES
   ('440-games-carpool-default-on.sql'),
   ('441-carpool-auto-away-week.sql'),
   ('442-email-reminders.sql'),
-  ('443-weekly-digest-email.sql')
+  ('443-weekly-digest-email.sql'),
+  ('444-einsatzliste-alert.sql'),
+  ('445-nomination-list-kind.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
