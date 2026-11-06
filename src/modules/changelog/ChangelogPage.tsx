@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.65.0'
+const APP_VERSION = '2.67.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.67.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'When a home game changes date, time or hall, everybody on its duty seats is asked whether they can still do it, whichever side asked for the change. The question sits at the top of the home page and comes as a push and an email.',
+          '“I can\'t” takes you off the duty, with no fine. Any member with the licence the seat needs can then take it, and the game team\'s coaches and team responsibles can ask someone directly.',
+          'No answer gets one reminder after 2 days. Coaches and team responsibles are told 5 days before the game, and there is no late fine while the question is open.',
+          'A move to another hall in the same building is a notice only, and a game that is cancelled, postponed or no longer at home tells the people on its seats.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.66.0',
     date: '06.11.2026',

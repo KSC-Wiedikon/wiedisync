@@ -27,6 +27,7 @@ import { hasAnyVbAssignment, hasAnyBbAssignment, isFullyAssigned } from './compo
 import RosterModal from './components/RosterModal'
 import TeamOverview from './components/TeamOverview'
 import DelegationRequestBanner from './components/DelegationRequestBanner'
+import DutyRecheckCards from './components/DutyRecheckCards'
 import { useScorerDelegations } from './hooks/useScorerDelegations'
 import { useOfficialContacts } from './hooks/useOfficialContacts'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -773,6 +774,10 @@ export default function ScorerPage() {
               active={dutyScope}
               onChange={setDutyScope}
             />
+          </div>
+
+          <div className="mt-4">
+            <DutyRecheckCards onChanged={() => refetch()} />
           </div>
 
           {/* Pending incoming delegation requests */}
