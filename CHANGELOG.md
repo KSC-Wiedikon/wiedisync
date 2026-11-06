@@ -6,8 +6,8 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ### Changed
 
-- HU20 home games now have a Schreiber as well as a referee, both from the same team. The upcoming games are filled in, and anyone on that team with a scorer licence can take the Schreiber spot under Scorer duty.
-- The auto-assignment picks a team with a licensed scorer for both roles, and the assignment page lets you set each one.
+- HU20 home games now have a Täfeler as well as a referee, both from the same team, with no licence needed. The upcoming games are filled in, and anyone on that team can take the Täfeler spot under Scorer duty.
+- The auto-assignment picks one team for both roles, and the assignment page lets you set each one.
 
 ## v2.65.0 — 2026-11-06
 

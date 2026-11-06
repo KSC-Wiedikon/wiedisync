@@ -154,6 +154,7 @@ export default {
   // Per-card arrival hints (/scorer)
   arrivalHintSingle: 'In the hall {{min}} min before the start.',
   arrivalHintReferee: 'Referee: in the hall {{min}} min before the start.',
+  arrivalHintRefereeBoard: 'Referee {{referee}} min · Scoreboard {{board}} min before the start.',
   arrivalHintSplit: 'Scorer {{scorer}} min · Scoreboard {{board}} min before the start.',
   infoWarningTitle: 'Warning!',
   infoWarningFine: 'Late arrival or failure to appear will result in a fine (CHF 50.–).',

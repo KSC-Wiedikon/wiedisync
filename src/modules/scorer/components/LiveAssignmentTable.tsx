@@ -308,10 +308,10 @@ export default function LiveAssignmentTable({
                       ) : mode === 'referee' ? (
                         <>
                           <TableCell className="min-w-[13rem] px-2 py-2 align-top">
-                            {vbEditor(g, locked, ts('scorer'), 'scorer_vb', 'scorer_duty_team', 'scorer_member')}
+                            {vbEditor(g, locked, ts('referee'), undefined, 'referee_duty_team', 'referee_member')}
                           </TableCell>
                           <TableCell className="min-w-[13rem] px-2 py-2 align-top">
-                            {vbEditor(g, locked, ts('referee'), undefined, 'referee_duty_team', 'referee_member')}
+                            {vbEditor(g, locked, ts('scoreboard'), undefined, 'scoreboard_duty_team', 'scoreboard_member')}
                           </TableCell>
                         </>
                       ) : (

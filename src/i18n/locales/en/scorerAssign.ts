@@ -147,7 +147,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Algorithm rules',
-  rulesModeVb: 'Duty depends on the home team\'s level: 4th/5th league (all genders) and DU23 → one team does scorer + Täfeler (combined, no licence). 3rd league and up, and HU23 → separate scorer (needs a licence) + Täfeler. HU20 → referee + scorer (needs a licence) from the same team.',
+  rulesModeVb: 'Duty depends on the home team\'s level: 4th/5th league (all genders) and DU23 → one team does scorer + Täfeler (combined, no licence). 3rd league and up, and HU23 → separate scorer (needs a licence) + Täfeler. HU20 → referee + Täfeler from the same team (no licence).',
   refereeCount: 'Referee',
   refereeTag: 'Ref',
   noRefereeAvailable: 'No referee available',
