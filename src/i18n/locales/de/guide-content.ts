@@ -382,7 +382,7 @@ export default {
           "t": "ul",
           "items": [
             "**Halle**: der wöchentliche Hallenbelegungsplan. Coaches und Teamverantwortliche beanspruchen hier freie Hallenzeiten (siehe Abschnitt Hallenplan und freie Hallenzeit).",
-            "**Kalender**: das Monatsraster; auf dem Handy eine Tagesliste, die du zum Aufklappen antippst. Blättere mit den Pfeilen oder **Heute**. **Filter**, **Abonnieren** und **iCal exportieren** gibt es nur in dieser Ansicht (auf dem Handy als Icons).",
+            "**Kalender**: das Monatsraster; auf dem Handy eine Tagesliste, die du zum Aufklappen antippst. Blättere mit den Pfeilen oder **Heute**. **Filter**, **Abonnieren** und **iCal exportieren** gibt es nur in dieser Ansicht (auf dem Handy als Icons). Die Schaltfläche **KSCW** fügt die Spiele aller anderen Teams in Grau sowie deren Vereins- und Turnierveranstaltungen hinzu. Es werden nur deine eigenen Trainings angezeigt.",
             "**Spielplan**: geplante und bestätigte Spiele pro Team, nur sichtbar, wenn eines deiner Teams einen Spielplan hat."
           ]
         },

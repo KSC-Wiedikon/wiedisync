@@ -18,6 +18,7 @@ export default {
   subtitleList: 'Tutti gli eventi in ordine cronologico',
 
   // Filter modal
+  clubWideHint: 'Mostra anche le partite di tutte le squadre del KSCW e gli eventi del club',
   filterTitle: 'Filtro',
   filterCategories: 'Categorie',
   showHiddenAbsences: 'Mostra indisponibilità e assenze non bloccanti',
