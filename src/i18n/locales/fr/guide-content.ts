@@ -2170,7 +2170,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Au volleyball, le service dépend du niveau de l'équipe qui joue (Marqueur/Tableau combiné, marqueur séparé avec licence plus tableau, ou arbitre uniquement pour HU20) ; au basketball, une seule équipe de service par match.",
+            "Au volleyball, le service dépend du niveau de l'équipe qui joue (Marqueur/Tableau combiné, marqueur séparé avec licence plus tableau, ou arbitre plus marqueur de la même équipe pour HU20) ; au basketball, une seule équipe de service par match.",
             "Les règles strictes excluent une équipe (propre match au même moment, un service le même jour, aucun membre avec la licence requise) ; les règles souples notent les autres à partir de 100 points. Dépliez **Règles de l'algorithme** pour voir les valeurs.",
             "Les matchs déjà attribués affichent **Attribution existante conservee** et restent inchangés, sauf si vous les modifiez."
           ]

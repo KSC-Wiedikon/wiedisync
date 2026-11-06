@@ -42,13 +42,38 @@ describe('classifyVbMode', () => {
 })
 
 describe('runAssignment', () => {
-  it('HU20 → referee only (no scorer/scoreboard/combined), no licence needed', () => {
-    const [a] = runAssignment(base([game('g1', '1', '2026-09-15')]))
+  it('HU20 → referee + scorer from the same licensed team, no Täfeler', () => {
+    const [a] = runAssignment(base([game('g1', '1', '2026-09-15')], LIC_MEMBERS, LIC_TEAMS))
     expect(a.mode).toBe('referee')
-    expect(a.refereeTeamId).toBeTruthy()
-    expect(a.scorerTeamId).toBeNull()
+    expect(a.refereeTeamId).toBe('3')
+    expect(a.scorerTeamId).toBe('3')
+    expect(a.scorerTeamName).toBe(a.refereeTeamName)
     expect(a.scoreboardTeamId).toBeNull()
     expect(a.combinedTeamId).toBeNull()
+  })
+
+  it('HU20 with no licensed team free → referee staffed, scorer flagged open', () => {
+    const [a] = runAssignment(base([game('g1', '1', '2026-09-15')]))
+    expect(a.refereeTeamId).toBeTruthy()
+    expect(a.scorerTeamId).toBeNull()
+    expect(a.conflicts.some((c) => c.key === 'noScorerAvailable')).toBe(true)
+    expect(a.conflicts.some((c) => c.key === 'noRefereeAvailable')).toBe(false)
+  })
+
+  it('HU20 duty counts as two for the team summary', () => {
+    const results = runAssignment(base([game('g1', '1', '2026-09-15')], LIC_MEMBERS, LIC_TEAMS))
+    const row = getTeamCounts(results, TEAMS, [game('g1', '1', '2026-09-15')]).get('H2')!
+    expect(row.scorer).toBe(1)
+    expect(row.referee).toBe(1)
+    expect(row.totalDuties).toBe(2)
+  })
+
+  it('HU20 game already staffed by hand keeps both of its teams', () => {
+    const [a] = runAssignment(base([game('g1', '1', '2026-09-15', { referee_duty_team: '7', scorer_duty_team: '4' })]))
+    expect(a.mode).toBe('referee')
+    expect(a.refereeTeamId).toBe('7')
+    expect(a.scorerTeamId).toBe('4')
+    expect(a.conflicts.some((c) => c.key === 'existingKept')).toBe(true)
   })
 
   it('4L → combined, assigned even with no licenced members', () => {

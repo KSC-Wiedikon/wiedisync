@@ -2170,7 +2170,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Volleyball duties depend on the playing team's level (combined Scorer/Scoreboard, separate scorer with licence plus scoreboard, or referee only for HU20); basketball uses one duty team per game.",
+            "Volleyball duties depend on the playing team's level (combined Scorer/Scoreboard, separate scorer with licence plus scoreboard, or referee plus scorer from the same team for HU20); basketball uses one duty team per game.",
             "Hard rules exclude a team (own game at the same time, a duty the same day, no member with the needed licence); soft rules score the rest from 100 points. Expand **Algorithm rules** for the values.",
             "Games already assigned show **Existing assignment kept** and stay untouched unless edited."
           ]
