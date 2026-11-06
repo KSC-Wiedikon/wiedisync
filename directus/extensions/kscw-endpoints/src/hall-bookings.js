@@ -20,7 +20,7 @@
  *
  * The window is taken literally — whoever entered it booked the hall for that
  * time, so no warm-up is added. Sport plays no part either: unlike a league game
- * (game-training-shorten.js matches same-sport only) a booking is of the room.
+ * (game-training-shorten.js cancels same-sport only) a booking is of the room.
  *
  * Per overlapping training the sweep keeps the LONGEST part of the planned time
  * that no booking covers, and cancels the training when under
