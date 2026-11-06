@@ -11,6 +11,7 @@
 import * as Sentry from '@sentry/react'
 import { toError } from '../utils/toError'
 import { isChunkLoadError } from './chunkReload'
+import { deliverErrorReport } from './errorLogQueue'
 
 const host = typeof window !== 'undefined' ? window.location.hostname : ''
 const isProd = host === 'wiedisync.kscw.ch'
@@ -693,10 +694,6 @@ function scrubResponseBody(body: string): string {
 
 // ── Forward client errors to backend JSONL log ──────────────────
 
-const API_BASE = (typeof window !== 'undefined' && window.location.hostname === 'wiedisync.kscw.ch')
-  ? 'https://directus.kscw.ch'
-  : (import.meta.env.VITE_DIRECTUS_URL || 'https://directus-dev.kscw.ch')
-
 /**
  * Fire-and-forget: send a client error to the backend JSONL log.
  * Never throws — logging should not break the app.
@@ -771,7 +768,8 @@ function redactBreadcrumbData(data: Record<string, unknown> | undefined) {
   }
 }
 
-function sendToErrorLog(entry: Record<string, unknown>) {
+/** Exported for the unit test. */
+export function sendToErrorLog(entry: Record<string, unknown>) {
   try {
     // Central redaction: every caller below funnels through here, so the token
     // rule cannot be forgotten at one of the ~15 emission sites.
@@ -784,15 +782,8 @@ function sendToErrorLog(entry: Record<string, unknown>) {
     // Skip empty entries — backend would log them as null-field noise
     if (!entry.error && !entry.stack && !entry.type && !entry.responseBody) return
 
-    // Session cookie (if any) identifies the user; anonymous errors on public
-    // pages send no cookie and are logged without a user — both accepted.
-    fetch(`${API_BASE}/kscw/client-error`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-      keepalive: true, // survives page unload
-    }).catch(() => {}) // truly fire-and-forget
+    // After the redaction above: a report that cannot be delivered is stored as it is.
+    void deliverErrorReport(entry)
   } catch { /* never block */ }
 }
 
