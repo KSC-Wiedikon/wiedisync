@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   alignSheetToList,
   birthdatesVisible,
+  followVmList,
   inRosterWindow,
   sheetMembershipChange,
   SHEET_DROP_NOTE,
@@ -165,5 +166,91 @@ describe('alignSheetToList', () => {
     const unlinked = { member: null, last_name: 'Muster', first_initial: 'M.', number: null, is_captain: false, is_libero: false, added: false, dropped: false }
     expect(alignSheetToList([unlinked], [{ ...unlinked }])).toBeNull()
     expect(alignSheetToList([unlinked], [{ ...unlinked, last_name: 'Other' }])[0].last_name).toBe('Other')
+  })
+})
+
+describe('followVmList', () => {
+  const FUTURE = new Date(Date.now() + 5 * H)
+  const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(d)
+  const hm = (d) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit' }).format(d)
+  const GAME_ROW = { date: ymd(FUTURE), time: hm(FUTURE), kscw_team: 92, vm_nomination_status: 'saved', vm_nomination_claimed_at: null, vm_nomination_sheet_changed_at: null }
+  const sheetRow = (member, extra = {}) => ({
+    member, last_name: `L${member}`, first_initial: 'A.', number: member, is_captain: false, is_libero: false, added: false, dropped: false,
+    licence: null, eligible: true, birthdate: null, source: 'vm', edited_by_name: 'Coach', edited_by_email: 'c@x', date_created: new Date(0), date_updated: new Date(0), ...extra,
+  })
+  const LIST = {
+    players: [1, 4].map((m) => ({ license_nr: String(1000 + m), last_name: `L${m}`, first_initial: 'A.', birthdate: null, licence: 'A', eligible: true })),
+    coaches: [],
+    closed_at: null,
+  }
+  const LOG = { info: () => {}, error: () => {} }
+
+  /** The tables followVmList touches, and a record of what it writes to the sheet. */
+  function fakeDb({ game = GAME_ROW, rows = [sheetRow(1), sheetRow(2)], list = LIST } = {}) {
+    const writes = { deleted: 0, inserted: null, updated: null }
+    const db = (table) => {
+      const q = {}
+      q.where = () => q
+      q.whereIn = () => q
+      q.first = async () => {
+        if (table === 'games') return game
+        if (table === 'teams') return { captain: null }
+        if (table === 'game_vm_sheets') return { list }
+        return null
+      }
+      q.select = async () => {
+        if (table === 'game_rosters') return rows
+        if (table === 'members') return [1, 4].map((m) => ({ id: m, number: m, position: null, license_nr: String(1000 + m) }))
+        return []
+      }
+      q.del = async () => { writes.deleted += 1 }
+      q.insert = async (data) => { writes.inserted = data }
+      q.update = async (data) => { writes.updated = data }
+      return q
+    }
+    db.transaction = (fn) => fn(db)
+    return { db, writes }
+  }
+
+  it('a list changed in Volleymanager arrives on the saved sheet', async () => {
+    const { db, writes } = fakeDb()
+    expect(await followVmList(db, LOG, { id: 424 })).toBe(true)
+    expect(writes.inserted.map((r) => r.member)).toEqual([1, 4])
+    expect(writes.inserted[0]).toMatchObject({ source: 'vm', edited_by_name: 'Coach', added: false, dropped: false })
+  })
+
+  it.each(['pending', 'failed', 'skipped'])('a coach\'s change stays while the push is %s', async (vm_nomination_status) => {
+    const { db, writes } = fakeDb({ game: { ...GAME_ROW, vm_nomination_status } })
+    expect(await followVmList(db, LOG, { id: 424 })).toBe(false)
+    expect(writes.deleted).toBe(0)
+  })
+
+  it('a coach\'s change no push has seen stays', async () => {
+    const at = new Date(Date.now() - H)
+    const { db, writes } = fakeDb({ game: { ...GAME_ROW, vm_nomination_claimed_at: new Date(at.getTime() - 60000), vm_nomination_sheet_changed_at: at } })
+    expect(await followVmList(db, LOG, { id: 424 })).toBe(false)
+    expect(writes.deleted).toBe(0)
+  })
+
+  it('from kickoff the sheet stays: a change there no longer reaches Volleymanager', async () => {
+    const past = new Date(Date.now() - H)
+    const { db, writes } = fakeDb({ game: { ...GAME_ROW, date: ymd(past), time: hm(past) } })
+    expect(await followVmList(db, LOG, { id: 424 })).toBe(false)
+    expect(writes.deleted).toBe(0)
+  })
+
+  it('nothing to follow without a saved sheet, or with an empty list', async () => {
+    const none = fakeDb({ rows: [] })
+    expect(await followVmList(none.db, LOG, { id: 424 })).toBe(false)
+    const empty = fakeDb({ list: { players: [], coaches: [], closed_at: null } })
+    expect(await followVmList(empty.db, LOG, { id: 424 })).toBe(false)
+    expect(empty.writes.deleted).toBe(0)
+  })
+
+  it('a sheet saved from the RSVPs that matches only changes its label', async () => {
+    const { db, writes } = fakeDb({ rows: [sheetRow(1, { source: 'rsvp' }), sheetRow(4, { source: 'rsvp' })] })
+    expect(await followVmList(db, LOG, { id: 424 })).toBe(false)
+    expect(writes.deleted).toBe(0)
+    expect(writes.updated).toEqual({ source: 'vm' })
   })
 })
