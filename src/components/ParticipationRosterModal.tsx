@@ -785,9 +785,12 @@ export default function ParticipationRosterModal({
   // modal counted the empty lists: "0 No response, No responses yet" for a team
   // of 21 with 18 answers, or that whole team as not having answered.
   const answersFailed = hasSessionMode && activeSessionTab === null ? allFailed : regularFailed
+  // A roster on screen wins over `membersError`: a request from before the modal
+  // was closed and reopened can fail after the newer one already delivered.
+  const membersFailed = !!membersError && members.length === 0
   const rosterLoadFailed = isClubWide
     ? clubWidePartsFailed || clubWideMembersFailed
-    : !!membersError || answersFailed
+    : membersFailed || answersFailed
   const [rosterRetrying, setRosterRetrying] = useState(false)
   const retryRosterLoad = async () => {
     setRosterRetrying(true)
@@ -795,7 +798,7 @@ export default function ParticipationRosterModal({
       if (isClubWide) {
         if (clubWideMembersFailed) setClubWideAttempt((n) => n + 1)
         if (clubWidePartsFailed) await refetchClubWideParts()
-      } else if (membersError) {
+      } else if (membersFailed) {
         // The answers are keyed on the roster and load by themselves once it is back.
         await refetchMembers()
       } else if (hasSessionMode && activeSessionTab === null) {
