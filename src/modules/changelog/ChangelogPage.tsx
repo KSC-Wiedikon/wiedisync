@@ -14,6 +14,19 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.66.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'HU20 home games now have a Schreiber as well as a referee, both from the same team. The upcoming games are filled in, and anyone on that team with a scorer licence can take the Schreiber spot under Scorer duty.',
+          'The auto-assignment picks a team with a licensed scorer for both roles, and the assignment page lets you set each one.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.65.0',
     date: '06.11.2026',
     sections: [

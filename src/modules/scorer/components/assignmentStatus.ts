@@ -31,8 +31,12 @@ export function hasAnyVbAssignment(game: Game): boolean {
 
 function isVbFullyAssigned(game: Game): boolean {
   if (isVbCombinedMode(game)) return !!game.scorer_scoreboard_member
-  // Referee mode (HU20): referee only, no scorer/Täfeler. Check before separate.
-  if (isVbRefereeMode(game)) return !!game.referee_member
+  // Referee mode (HU20): referee + scorer, no Täfeler. Check before separate. A
+  // game staffed before HU20 had a scorer has no such spot and owes only its referee.
+  if (isVbRefereeMode(game)) {
+    const hasScorerSpot = !!(game.scorer_duty_team || game.scorer_member)
+    return !!game.referee_member && (!hasScorerSpot || !!game.scorer_member)
+  }
   if (isVbSeparateMode(game)) return !!(game.scorer_member && game.scoreboard_member)
   return false
 }

@@ -147,7 +147,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regeln des Algorithmus',
-  rulesModeVb: 'Der Dienst richtet sich nach der Stufe des Heimteams: 4./5. Liga (alle) und DU23 → ein Team macht Schreiber + Täfeler (kombiniert, keine Lizenz). 3. Liga und höher sowie HU23 → separater Schreiber (mit Lizenz) + Täfeler. HU20 → nur Schiedsrichter (keine Lizenz).',
+  rulesModeVb: 'Der Dienst richtet sich nach der Stufe des Heimteams: 4./5. Liga (alle) und DU23 → ein Team macht Schreiber + Täfeler (kombiniert, keine Lizenz). 3. Liga und höher sowie HU23 → separater Schreiber (mit Lizenz) + Täfeler. HU20 → Schiedsrichter + Schreiber (mit Lizenz) vom selben Team.',
   refereeCount: 'Schiedsrichter',
   refereeTag: 'SR',
   noRefereeAvailable: 'Kein Schiedsrichter verfügbar',
