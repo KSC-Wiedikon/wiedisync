@@ -124,6 +124,13 @@ describe('ParticipationRosterModal when a request fails', () => {
     expect(host.textContent).toContain('noResponses')
   })
 
+  it('keeps a loaded roster when an older request fails late', async () => {
+    h.members = { ...h.members, members: [rosterRow], error: new Error('Service Unavailable') }
+    await renderModal(['92'])
+    expect(alert()).toBeNull()
+    expect(host.textContent).toContain('1 confirmed')
+  })
+
   it('says the roster failed instead of counting zeros, and retries it', async () => {
     h.members = { ...h.members, members: [], error: new Error('Service Unavailable') }
     h.answers = { ...h.answers, participations: [] }
