@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-04T17:45:00.376Z
+-- Generated:   2026-11-06T11:52:32.733Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hzfILw5yzeoTPqdv7lw3aNpIdSkGDDnAa4IqJ5joW0gz8ROg46OieEy6s4A8Lyw
+\restrict e6tRzKalgIZ9Qw22DbVmyuGismHZCJi6aIwdOFwAmJl7cWhjTTCe552VYfGGtRz
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -5378,6 +5378,7 @@ CREATE TABLE public.games (
     vm_result_report_id character varying(64),
     vm_opponent_report json,
     vm_result_checked_at timestamp with time zone,
+    vm_nomination_sheet_changed_at timestamp with time zone,
     CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
     CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
@@ -6923,7 +6924,7 @@ CREATE TABLE public.email_reminders_sent (
     kind text NOT NULL,
     sent_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT email_reminders_sent_activity_type_chk CHECK ((activity_type = ANY (ARRAY['training'::text, 'game'::text, 'event'::text]))),
-    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text, 'weekly'::text, 'nomination_list'::text])))
+    CONSTRAINT email_reminders_sent_kind_chk CHECK ((kind = ANY (ARRAY['rsvp'::text, 'activity'::text, 'weekly'::text, 'nomination_list'::text, 'nomination_flagged'::text])))
 );
 
 
@@ -21199,7 +21200,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hzfILw5yzeoTPqdv7lw3aNpIdSkGDDnAa4IqJ5joW0gz8ROg46OieEy6s4A8Lyw
+\unrestrict e6tRzKalgIZ9Qw22DbVmyuGismHZCJi6aIwdOFwAmJl7cWhjTTCe552VYfGGtRz
 
 
 
@@ -21217,7 +21218,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 449 migration(s) already in the schema above.
+-- Migration tracker seed — 450 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21679,6 +21680,7 @@ FROM (VALUES
   ('442-email-reminders.sql'),
   ('443-weekly-digest-email.sql'),
   ('444-einsatzliste-alert.sql'),
-  ('445-nomination-list-kind.sql')
+  ('445-nomination-list-kind.sql'),
+  ('446-match-sheet-one-place.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
