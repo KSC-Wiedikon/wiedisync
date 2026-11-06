@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
-// @vitest-environment-options {"url": "https://wiedisync.kscw.ch/"}
 //
 // Restoring a session on app start: only a definitive "your session is gone" signs a
 // member out. A network drop, a rate limit or a 5xx from a restarting Directus says
 // nothing about the session. Getting this wrong logs members out of a live tool, and
 // every reload re-fires a ~350-request boot.
+//
+// ⚠ The failures here get reported for real by captureAuthError, so `fetch` is stubbed
+// below. Without it each run posted its fake errors to the live error log.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -18,6 +20,7 @@ const h = vi.hoisted(() => {
     readMeAsOwner: vi.fn(),
     fetchItems: vi.fn(),
     reload: vi.fn(),
+    fetch: vi.fn(async () => new Response(null, { status: 204 })),
   }
 })
 
@@ -80,12 +83,14 @@ describe('restoring a session on app start', () => {
     h.refreshAuth.mockResolvedValue(undefined)
     h.readMeAsOwner.mockResolvedValue({ id: 'u-7' })
     h.fetchItems.mockResolvedValue([h.member])
+    vi.stubGlobal('fetch', h.fetch)
     reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(h.reload)
     root = createRoot(document.createElement('div'))
   })
   afterEach(async () => {
     await act(async () => { root.unmount() })
     reloadSpy.mockRestore()
+    vi.unstubAllGlobals()
   })
 
   it('signs the member in when everything answers', async () => {
