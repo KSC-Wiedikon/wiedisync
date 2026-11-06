@@ -416,14 +416,23 @@ export default function ParticipationRosterModal({
   const [selectedRoles, setSelectedRoles] = useState<Set<string> | null>(null)
 
   // Fetch team leadership roles (coach, captain, team_responsible)
-  const { data: teamsRaw } = useCollection<Team>('teams', {
+  const teamsEnabled = teamIds.length > 0 && open
+  const {
+    data: teamsQueryRows,
+    isLoading: teamsFetching,
+    isPlaceholderData: teamsArePrevious,
+  } = useCollection<Team>('teams', {
     filter: teamIds.length > 0 ? { id: { _in: teamIds } } : undefined,
     // M2M fields MUST be expanded via `<rel>.members_id`. Bare `coach`/
     // `team_responsible` return junction row IDs that look like member
     // IDs but aren't → ghost-staff bug.
     fields: ['id', 'name', 'captain', 'coach.members_id', 'team_responsible.members_id'],
-    enabled: teamIds.length > 0 && open,
+    enabled: teamsEnabled,
   })
+  // Same trap as the guests above: this can still be the previous activity's team,
+  // and its coaches would show up in this activity's Staff section.
+  const teamsRaw = teamsArePrevious ? undefined : teamsQueryRows
+  const teamsLoading = teamsEnabled && (teamsFetching || teamsArePrevious)
   const teams = useMemo(() => teamsRaw ?? [], [teamsRaw])
   // `leadershipRoles`: memberId → role (first-wins). `leadershipTeamsByMember`:
   // memberId → the set of invited teams they coach / are TR for, so the team
@@ -478,6 +487,8 @@ export default function ParticipationRosterModal({
       setGuestsOnly(false)
       setSelectedRoles(null)
       setEditingMemberId(null)
+      // A tab from the previous event names a session this one doesn't have.
+      setActiveSessionTab(null)
     }
   }
 
@@ -506,10 +517,12 @@ export default function ParticipationRosterModal({
   const hasSessionMode = participationMode && participationMode !== 'whole' && eventSessions && eventSessions.length > 0
 
   // Club-wide: fetch all participations for the event, then resolve member info
+  const clubWidePartsEnabled = isClubWide && !!activityId && open
   const {
-    data: clubWideParticipationsRaw,
-    isLoading: clubWidePartsLoading,
+    data: clubWidePartsQueryRows,
+    isLoading: clubWidePartsFetching,
     isError: clubWidePartsError,
+    isPlaceholderData: clubWidePartsArePrevious,
     refetch: refetchClubWideParts,
   } = useCollection<Participation>('participations', {
     filter: isClubWide && activityId ? {
@@ -519,8 +532,12 @@ export default function ParticipationRosterModal({
       ],
     } : undefined,
     all: true,
-    enabled: isClubWide && !!activityId && open,
+    enabled: clubWidePartsEnabled,
   })
+  // Same trap again: without this, the previous event's answers and the people
+  // resolved from them are shown under this event until its own rows land.
+  const clubWideParticipationsRaw = clubWidePartsArePrevious ? undefined : clubWidePartsQueryRows
+  const clubWidePartsLoading = clubWidePartsFetching || (clubWidePartsEnabled && clubWidePartsArePrevious)
   const clubWideParticipations = clubWideParticipationsRaw ?? []
   const clubWidePartsFailed = clubWidePartsError && clubWideParticipationsRaw === undefined
 
@@ -608,7 +625,7 @@ export default function ParticipationRosterModal({
   // `members.member_teams`, which is the deep-M2M-vs-policy silent-[] trap.
   // `member_teams` is club-wide readable (MEMBER_POLICY), so this works for an
   // ordinary member opening the roster, not just staff.
-  const { data: clubWideTeamRows } = useCollection<{
+  const { data: clubWideTeamRows, isPlaceholderData: clubWideTeamRowsArePrevious } = useCollection<{
     member: string | number
     team: { id: string | number; name?: string; active?: boolean } | string | number | null
   }>('member_teams', {
@@ -621,7 +638,7 @@ export default function ParticipationRosterModal({
   const { clubWideTeamsByMember, clubWideTeamNames } = useMemo(() => {
     const byMember = new Map<string, string[]>()
     const names = new Map<string, string>()
-    for (const row of clubWideTeamRows ?? []) {
+    for (const row of clubWideTeamRowsArePrevious ? [] : clubWideTeamRows ?? []) {
       const team = asObj<{ id: string | number; name?: string; active?: boolean }>(row.team)
       // Gate on `teams.active`, never on `member_teams.season`: rosters are
       // CLONED forward at rollover and the old junction rows are never deleted,
@@ -640,7 +657,7 @@ export default function ParticipationRosterModal({
       else byMember.set(mid, [tid])
     }
     return { clubWideTeamsByMember: byMember, clubWideTeamNames: names }
-  }, [clubWideTeamRows])
+  }, [clubWideTeamRows, clubWideTeamRowsArePrevious])
 
   const effectiveTeamsByMember = isClubWide ? clubWideTeamsByMember : teamsByMember
   const effectiveTeamNameById = isClubWide ? clubWideTeamNames : teamNameById
@@ -775,12 +792,6 @@ export default function ParticipationRosterModal({
     : hasSessionMode && activeSessionTab === null
       ? allLoading
       : regularLoading
-  // `gameGuestsLoading` belongs in here: without it the modal lifted its spinner
-  // as soon as members + participations were in (both are prefetched while the
-  // modal is still closed — see GameDetailModal's always-mounted instance), and
-  // painted the base squad as if it were the whole roster.
-  const isLoading = (isClubWide ? clubWideLoading || clubWidePartsLoading : membersLoading || gameGuestsLoading) || participationsLoading
-
   // A request that failed must not read as an empty roster. Without this the
   // modal counted the empty lists: "0 No response, No responses yet" for a team
   // of 21 with 18 answers, or that whole team as not having answered.
@@ -990,9 +1001,14 @@ export default function ParticipationRosterModal({
   // Use `useCollection` so the modal auto-refreshes when any staff member
   // RSVPs — the create/update mutations invalidate the 'participations'
   // collection key, which also matches this query.
-  const { data: staffPartsRaw } = useCollection<Participation>('participations', {
+  const staffPartsEnabled = !!user && open && !!activityId && !isClubWide
+  const {
+    data: staffPartsQueryRows,
+    isLoading: staffPartsFetching,
+    isPlaceholderData: staffPartsArePrevious,
+  } = useCollection<Participation>('participations', {
     all: true,
-    enabled: !!user && open && !!activityId && !isClubWide,
+    enabled: staffPartsEnabled,
     filter: {
       _and: [
         { activity_type: { _eq: activityType } },
@@ -1001,6 +1017,9 @@ export default function ParticipationRosterModal({
       ],
     },
   })
+  // The previous activity's staff answers must not count towards this one.
+  const staffPartsRaw = staffPartsArePrevious ? undefined : staffPartsQueryRows
+  const staffPartsLoading = staffPartsEnabled && (staffPartsFetching || staffPartsArePrevious)
 
   // Resolve staff member objects (for display) when the staff participation
   // set changes. Seeds from BOTH (a) existing is_staff participation rows,
@@ -1067,19 +1086,36 @@ export default function ParticipationRosterModal({
   // unstable and re-fires this effect on every render → mobile Vaul Drawer
   // setState → render → setState loop (WIEDISYNC-3Y). Hence `staffDeps` above
   // keys on `teamsRaw` / `staffPartsRaw`, and this effect only on the derived IDs.
+  //
+  // The skeleton waits for these people, keyed on WHO is being fetched rather than
+  // on the array: a coach's answer changes `staffPartsRaw` and re-fires the fetch
+  // with the same IDs, and that must not blank the whole modal. `stale` keeps a slow
+  // answer for the previous activity's staff from overwriting this one's.
+  const staffFetchKey = staffFetchIds ? [...staffFetchIds].sort().join(',') : null
+  const [staffSettledKey, setStaffSettledKey] = useState<string | null>(null)
+  const staffMembersLoading = staffFetchKey !== null && staffFetchKey !== staffSettledKey
   useEffect(() => {
     if (!staffFetchIds || staffFetchIds.length === 0) return
+    let stale = false
+    const key = [...staffFetchIds].sort().join(',')
     fetchAllItems<Member>('members', {
       filter: { id: { _in: staffFetchIds } },
       // `user` is required so getEditAttribution() can suppress the
       // "Edited by …" line when a coach/TR edits their own row.
       fields: ['id', 'nickname', 'first_name', 'last_name', 'photo', 'user'],
     })
-      .then((members) => setStaffMembers(members.sort(byFirstThenLastName)))
+      .then((members) => {
+        if (stale) return
+        setStaffMembers(members.sort(byFirstThenLastName))
+        setStaffSettledKey(key)
+      })
       .catch(() => {
+        if (stale) return
         setStaffMembers([])
         setStaffParticipationRows([])
+        setStaffSettledKey(key)
       })
+    return () => { stale = true }
   }, [staffFetchIds])
 
   // For the overall tab, compute per-member session counts. Staff are included
@@ -1102,12 +1138,21 @@ export default function ParticipationRosterModal({
   // Keyed on the full roster (not the team-filtered list) so switching teams
   // reuses the already-loaded absences instead of refetching.
   const memberIdsKey = rosterMemberIds.join(',')
+  // An absence counts as a No in the summary, so the skeleton waits for them too,
+  // or "Declined" would jump after the list has painted. Same date + same roster
+  // means same rows, so a reopen doesn't wait; `latestAbsencesKey` keeps a slow
+  // answer for another date from overwriting this one's.
+  const absencesKey = `${activityDate?.split(' ')[0] ?? ''}|${memberIdsKey}`
+  const [absencesSettledKey, setAbsencesSettledKey] = useState<string | null>(null)
+  const latestAbsencesKey = useRef<string | null>(null)
+  const absencesLoading = open && !!user && !!activityDate && rosterMemberIds.length > 0 && absencesSettledKey !== absencesKey
   // Promise-chain (not async/await) on purpose: this runs from an effect, and
   // `setAbsences` must land in a callback rather than in the effect's own
   // synchronous continuation. Same request, same result.
   const fetchAbsences = useCallback(() => {
     if (!user || !activityDate || rosterMemberIds.length === 0) return
     const dateStr = activityDate.split(' ')[0]
+    latestAbsencesKey.current = absencesKey
     fetchAllItems<Absence>('absences', {
       filter: {
         _and: [
@@ -1117,14 +1162,30 @@ export default function ParticipationRosterModal({
         ],
       },
     })
-      .then(setAbsences)
-      .catch(() => { /* ignore */ })
+      .then((rows) => {
+        if (latestAbsencesKey.current !== absencesKey) return
+        setAbsences(rows)
+        setAbsencesSettledKey(absencesKey)
+      })
+      .catch(() => {
+        if (latestAbsencesKey.current === absencesKey) setAbsencesSettledKey(absencesKey)
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activityDate, memberIdsKey])
 
   useEffect(() => {
     if (user && open && activityDate) fetchAbsences()
   }, [user, open, fetchAbsences, activityDate])
+
+  // `gameGuestsLoading` belongs in here: without it the modal lifted its spinner
+  // as soon as members + participations were in (both are prefetched while the
+  // modal is still closed — see GameDetailModal's always-mounted instance), and
+  // painted the base squad as if it were the whole roster. The rest is the same
+  // rule: nothing paints until every count and row belongs to THIS activity.
+  const isLoading = (isClubWide
+    ? clubWideLoading || clubWidePartsLoading
+    : membersLoading || gameGuestsLoading || teamsLoading || staffPartsLoading || staffMembersLoading)
+    || participationsLoading || absencesLoading
 
   // Members who are both players (in memberList) and staff (coach/TR) should be
   // treated as players — their is_staff participation counts as player participation.
