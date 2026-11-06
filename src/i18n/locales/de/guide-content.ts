@@ -1471,7 +1471,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Der Button erscheint für Coach oder Teamverantwortliche/r des spielenden Teams, heim wie auswärts, ab sechs Stunden vor Spielbeginn bis drei Stunden danach. Der zugeteilte Schreiber (nur Schreiberdienst, nicht Täfeler) sieht ab 40 Minuten vor einem Heimspiel eine schreibgeschützte Version. Ausserhalb dieses Fensters siehst du nur **Das Matchblatt öffnet kurz vor dem Spiel und schliesst 3 Stunden danach.**"
+          "text": "Der Button erscheint für Coach oder Teamverantwortliche/r des spielenden Teams, heim wie auswärts, ab 24 Stunden vor Spielbeginn bis drei Stunden danach, mit Geburtsdaten ab sechs Stunden davor. Der zugeteilte Schreiber (nur Schreiberdienst, nicht Täfeler) sieht ab 40 Minuten vor einem Heimspiel eine schreibgeschützte Version. Ausserhalb dieses Fensters siehst du nur **Das Matchblatt öffnet kurz vor dem Spiel und schliesst 3 Stunden danach.**"
         },
         {
           "t": "h",
@@ -1504,7 +1504,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Notfall-Änderungen: Im Bearbeitungsmodus listet **Aus dem Team hinzufügen · nur im Notfall** den Rest des Kaders auf. **+** fügt eine Person hinzu, **✕** streicht sie (durchgestrichen) und **↺** setzt sie wieder ein. Jedes Hinzufügen oder Entfernen löst das rote Banner **Aufgebot weicht von der Einsatzliste ab** aus: Die App überträgt die Änderung nicht, du musst sie also von Hand auch im Volleymanager eintragen. **Auf die Einsatzliste zurücksetzen** (sichtbar, sobald du gespeichert hast) entfernt alle Anpassungen für dieses Spiel, inklusive Nummern."
+          "text": "Aufgebot ändern: Im Bearbeitungsmodus listet **Aus dem Team hinzufügen** den Rest des Kaders auf. **+** fügt eine Person hinzu, **✕** streicht sie (durchgestrichen) und **↺** setzt sie wieder ein. **Speichern** zeigt, was sich ändert, setzt dann die Zusagen (gestrichen wird Nein, hinzugefügt wird Ja, ohne Busse und ohne E-Mail) und speichert die Einsatzliste sofort im Volleymanager; das Feld oben zeigt, wie es geklappt hat. Ändert jemand die Liste direkt im Volleymanager, folgt das Matchblatt beim nächsten Lesen und behält Nummern, Captain und Libero. Ab Spielbeginn gehört die Liste dem Schiedsrichter: Eine Änderung bleibt dann auf dem Matchblatt und löst das rote Banner **Aufgebot weicht von der Einsatzliste ab** aus. **Auf die Einsatzliste zurücksetzen** (sichtbar, sobald du gespeichert hast) entfernt alle Anpassungen für dieses Spiel, inklusive Nummern."
         },
         {
           "t": "h",

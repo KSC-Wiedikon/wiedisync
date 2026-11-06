@@ -11,6 +11,7 @@ import { teamNameToColorKey } from '../../../utils/teamColors'
 import RsvpAnswerButtons from '../../../components/RsvpAnswerButtons'
 import IconButton from '../../../components/IconButton'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
+import NominationStatusBox from './NominationStatusBox'
 import { useAuth } from '../../../hooks/useAuth'
 import { useRsvpLabels } from '../../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../../hooks/useAdminMode'
@@ -26,7 +27,7 @@ import { invalidateForCollection, queryClient, useCollection } from '../../../li
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs, meetingTimeFromOffset } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs, meetingTimeFromOffset } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import GameGuestSection from './GameGuestSection'
 import GameRecordingsSection from './GameRecordingsSection'
@@ -102,30 +103,6 @@ const dateFormatOptions: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
-}
-
-/** Einsatzliste push journal (`games.vm_nomination_status`) → copy + colour.
- *  `filled` is NOT a failure: the players were written to Volleymanager, but the
- *  list was deliberately left open because VM flagged something fineable (too few
- *  players / no coach), so the coach must review and close it. Hence amber, not red. */
-type NominationStatus = NonNullable<Game['vm_nomination_status']>
-
-const NOMINATION_STATUS_KEY: Record<NominationStatus, string> = {
-  pending: 'nominationStatusPending',
-  saved: 'nominationStatusSaved',
-  filled: 'nominationStatusFilled',
-  closed: 'nominationStatusClosed',
-  skipped: 'nominationStatusSkipped',
-  failed: 'nominationStatusFailed',
-}
-
-const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
-  pending: 'border-border bg-surface-sunken text-foreground/85',
-  saved: 'border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
-  filled: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200',
-  closed: 'border-border bg-surface-sunken text-foreground/85',
-  skipped: 'border-border bg-surface-sunken text-muted-foreground',
-  failed: 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
 }
 
 /**
@@ -1118,29 +1095,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
             {/* Push journal — read-only. `filled` is a warning, not an error. */}
             {nominationStatus && (
-              <div className={`space-y-1.5 rounded-lg border p-3 text-sm ${NOMINATION_STATUS_TONE[nominationStatus]}`}>
-                <p className="flex items-start gap-2">
-                  {nominationStatus === 'filled' && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
-                  <span>{t(NOMINATION_STATUS_KEY[nominationStatus])}</span>
-                </p>
-                {(typeof nominationCount === 'number' || nominationPushedAt) && (
-                  <p className="text-xs opacity-80">
-                    {[
-                      typeof nominationCount === 'number' ? t('nominationCount', { n: nominationCount }) : '',
-                      nominationPushedAt
-                        ? t('nominationPushedAt', { when: formatDateTimeCompactZurich(nominationPushedAt) })
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                )}
-                {nominationError && (
-                  <p className="text-xs break-words opacity-90">
-                    {t('nominationError', { error: nominationError })}
-                  </p>
-                )}
-              </div>
+              <NominationStatusBox
+                status={nominationStatus}
+                count={nominationCount}
+                pushedAt={nominationPushedAt}
+                error={nominationError}
+              />
             )}
 
             {/* Manual push, any time before kickoff — previews first, and warns before

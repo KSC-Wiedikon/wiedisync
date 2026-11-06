@@ -180,7 +180,7 @@ export default {
   featureAutoConfirmGame: 'Spiele automatisch bestätigen',
   featureAutoConfirmGameHint: 'Neue Spiele starten mit allen Vollmitgliedern als bestätigt (Gäste ausgeschlossen) — Mitglieder müssen sich abmelden, falls sie nicht kommen können',
   featureAutoNominationList: 'Einsatzliste automatisch melden',
-  featureAutoNominationListHint: 'Trägt die Einsatzliste 24 Stunden vor Spielbeginn aus den bestätigten Zusagen im Volleymanager ein — nominiert werden nur Spieler mit Lizenz, und die Liste bleibt zur Kontrolle offen, falls der Volleymanager ein Problem meldet. Ändern sich danach Zusagen, erhalten Coaches und Teamverantwortliche 2 Stunden vor Spielbeginn eine E-Mail',
+  featureAutoNominationListHint: 'Trägt die Einsatzliste 24 Stunden vor Spielbeginn aus den bestätigten Zusagen im Volleymanager ein — nominiert werden nur Spieler mit Lizenz. Coaches und Teamverantwortliche erhalten eine E-Mail, wenn der Volleymanager ein Problem meldet, und 2 Stunden vor Spielbeginn, wenn sich Zusagen geändert haben. Geändert wird im Matchblatt',
   nominationOfficials: 'Offizielle auf der Einsatzliste',
   nominationOfficialsHint: 'Wer beim Übermitteln der Einsatzliste als Haupttrainer (C) und Assistenztrainer (AC1, AC2) eingetragen wird. C ist Pflicht — ohne wird nicht übermittelt; AC1 und AC2 sind optional. Der Matchbogen eines Spiels kann das übersteuern. Genannt wird nur, wer zugesagt hat; fehlt der Head Coach, rückt eine Assistenz nach.',
   nominationOfficialCoach: 'Haupttrainer (C) — Pflicht',

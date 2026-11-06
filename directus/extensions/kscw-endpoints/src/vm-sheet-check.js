@@ -4,10 +4,10 @@
  * Every match-sheet surface — the scorer's and coach's sheet, Show IDs, live scoring, the
  * result participant check — reads the stored row (`loadVmCheck`), never VM. VM is read
  * only here, on the SHARED account (CLAUDE.md → "The shared VolleyManager account"):
- *   - by the kscw-hooks cron at kickoff −45 min (after the auto-filing push's T-65…T-35
- *     window has had its go), deferred out of svrz_rc's windows;
- *   - by the same cron at kickoff −2 h for the Einsatzliste alert (migration 444; teams with
- *     the automatic push have no list yet, so not for them);
+ *   - by the kscw-hooks cron at kickoff −45 min (after the auto-filing push's second chance
+ *     has mostly had its go), deferred out of svrz_rc's windows;
+ *   - by the same cron at kickoff −2 h for the Einsatzliste alert (migration 444);
+ *   - by the same cron after a push that reached VM (migration 446);
  *   - by a coach or admin pressing "Recheck" (POST /kscw/scorer/game/:gameId/vm-check).
  * Both go through readOwnNominationList, which claims the account and never waits.
  */
