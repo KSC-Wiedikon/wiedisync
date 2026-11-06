@@ -16,7 +16,7 @@ const KICKOFF = Date.UTC(2026, 10, 7, 13, 0)
 const MIN = 60 * 1000
 const GAME = {
   id: 509, game_id: 'vb_406300', type: 'away', date: '2026-11-07', time: '14:00:00', kscw_team: 3,
-  home_team: 'VBC Stäfa H1', away_team: 'KSC Wiedikon H3', team_name: 'H3', auto_list: false,
+  home_team: 'VBC Stäfa H1', away_team: 'KSC Wiedikon H3', team_name: 'H3',
 }
 const iso = (ms) => new Date(ms).toISOString()
 
@@ -62,12 +62,6 @@ describe('vmReadDue', () => {
     expect(vmReadDue(failed, KICKOFF - VM_CHECK_LEAD_MS)).toBe(true)
   })
 
-  it('a team with the automatic push: no −2 h read, the −45 min read stays', () => {
-    const auto = { ...GAME, auto_list: true }
-    expect(vmReadDue(auto, KICKOFF - EINSATZLISTE_ALERT_LEAD_MS)).toBe(false)
-    expect(vmReadDue(auto, KICKOFF - VM_CHECK_LEAD_MS)).toBe(true)
-  })
-
   it('stops 3 h after kickoff', () => {
     expect(vmReadDue(GAME, KICKOFF + 3 * 60 * MIN)).toBe(true)
     expect(vmReadDue(GAME, KICKOFF + 3 * 60 * MIN + 1)).toBe(false)
@@ -96,10 +90,6 @@ describe('einsatzlisteAlertDue', () => {
     for (const vm_status of ['busy', 'failed', 'unavailable']) {
       expect(einsatzlisteAlertDue({ ...fresh, vm_status }, read)).toBe(false)
     }
-  })
-
-  it('never for a team with the automatic push', () => {
-    expect(einsatzlisteAlertDue({ ...fresh, auto_list: true }, read)).toBe(false)
   })
 
   it('never at or after kickoff', () => {

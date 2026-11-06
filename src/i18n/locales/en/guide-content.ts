@@ -2205,7 +2205,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Shortly before the start the assigned scorer gets a **Roster** button: the coach's saved match sheet, otherwise the Einsatzliste filed in Volleymanager, otherwise the confirmed players. Volleyball teams can file it automatically about an hour before the start: **Auto-file Einsatzliste** under **Game Defaults** in the roster editor, overridable per game with **Auto Einsatzliste**. See the sections Match sheet and Roster editor."
+          "text": "Shortly before the start the assigned scorer gets a **Roster** button: the coach's saved match sheet, otherwise the Einsatzliste filed in Volleymanager, otherwise the confirmed players. Volleyball teams can file it automatically 24 hours before the start: **Auto-file Einsatzliste** under **Game Defaults** in the roster editor, overridable per game with **Auto Einsatzliste**. See the sections Match sheet and Roster editor."
         }
       ]
     },

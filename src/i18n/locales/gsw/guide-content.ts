@@ -2205,7 +2205,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Churz vor em Aafang überchunnt de zueteilt Schriiber en Chnopf **Ufstellig**: s gspeicherete Matchblatt vom Coach, susch d Einsatzliste, wo im Volleymanager gmäldet isch, susch di bestätigte Spieler. Volleyball-Teams chönd si öppe e Stund vor em Aafang automatisch mälde lah: **Einsatzliste automatisch mälde** under **Spiel-Standards** im Kader-Editor, pro Spiel übersteuerbar mit **Auto-Einsatzliste**. Lueg d Abschnitt Matchblatt und Kader bearbeite."
+          "text": "Churz vor em Aafang überchunnt de zueteilt Schriiber en Chnopf **Ufstellig**: s gspeicherete Matchblatt vom Coach, susch d Einsatzliste, wo im Volleymanager gmäldet isch, susch di bestätigte Spieler. Volleyball-Teams chönd si 24 Stund vor em Aafang automatisch mälde lah: **Einsatzliste automatisch mälde** under **Spiel-Standards** im Kader-Editor, pro Spiel übersteuerbar mit **Auto-Einsatzliste**. Lueg d Abschnitt Matchblatt und Kader bearbeite."
         }
       ]
     },

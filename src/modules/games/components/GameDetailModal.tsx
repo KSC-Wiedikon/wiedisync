@@ -1072,7 +1072,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         )}
 
         {/* Einsatzliste — volleyball only (no Volleymanager for basketball), coach only.
-            The override drives the T-60 auto-push; the box below is the push journal. */}
+            The override drives the T-24 h auto-push; the box below is the push journal. */}
         {showNomination && (
           <div className="space-y-3 border-t border-hairline px-6 py-4">
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">

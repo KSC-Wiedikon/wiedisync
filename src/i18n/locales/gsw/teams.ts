@@ -182,7 +182,7 @@ export default {
   featureAutoConfirmGame: 'Spiel automatisch bestätige',
   featureAutoConfirmGameHint: 'Neui Spiel started mit allne Vollmitglieder als bestätigt (Gäscht usgschlosse) — Mitglieder müend sich abmälde, wänn si nöd chönd cho',
   featureAutoNominationList: 'Einsatzliste automatisch mälde',
-  featureAutoNominationListHint: 'Träit d Einsatzliste öppe e Stund vor Spielbeginn us de bestätigte Zuesage im Volleymanager ii — nominiert werded nur Spieler mit ere Lizänz, und d Lischte bliibt zum Kontrolliere offe, wänn de Volleymanager es Problem mäldet',
+  featureAutoNominationListHint: 'Träit d Einsatzliste 24 Stund vor Spielbeginn us de bestätigte Zuesage im Volleymanager ii — nominiert werded nur Spieler mit ere Lizänz, und d Lischte bliibt zum Kontrolliere offe, wänn de Volleymanager es Problem mäldet. Ändered sich nachher Zuesäge, überchömed Coaches und Teamverantwortlichi 2 Stund vor Spielbeginn e E-Mail',
   nominationOfficials: 'Offizielli uf de Einsatzliste',
   nominationOfficialsHint: 'Wer bim Übermittle vo de Einsatzliste als Headcoach (C) und Assistänzcoaches (AC1, AC2) iiträit wird. C isch Pflicht — ohni C wird nöd übermittlet; AC1 und AC2 sind optional. S Matchblatt vomne Spiel cha das übersteuere. Gnännt wird nur, wer zuegseit hät; fehlt de Head Coach, rutscht e Assistänz nah.',
   nominationOfficialCoach: 'Headcoach (C) — Pflicht',
