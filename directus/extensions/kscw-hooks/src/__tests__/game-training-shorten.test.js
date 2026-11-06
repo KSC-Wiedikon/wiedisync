@@ -65,7 +65,9 @@ const TRAININGS = {
   tooLittleBeforeEnoughAfter: { start: '19:00', end: '22:30' },
   endsAsBlockStarts: { start: '17:00', end: '19:15' },
   startsAsBlockEnds: { start: '21:45', end: '23:00' },
-  otherSport: { start: '20:30', end: '22:00', team: OTHER_SPORT_TEAM },
+  otherSportEnoughBefore: { start: '18:00', end: '19:30', team: OTHER_SPORT_TEAM },
+  otherSportTooLittleBefore: { start: '19:00', end: '20:30', team: OTHER_SPORT_TEAM },
+  otherSportInsideBlock: { start: '19:30', end: '21:30', team: OTHER_SPORT_TEAM },
   reinstated: { start: '20:30', end: '22:00', marker: GAME },
   ownedByBooking: { start: '20:30', end: '22:00', booking: "'calendar:1'" },
   ownGameDay: { start: '19:00', end: '20:30', team: OWN_TEAM },
@@ -116,7 +118,9 @@ describe.skipIf(!PG)('sweep against Postgres, 20:00 home game', () => {
       tooLittleBeforeEnoughAfter: live('22:30'),
       endsAsBlockStarts: live('19:15'),
       startsAsBlockEnds: live('23:00'),
-      otherSport: live('22:00'),
+      otherSportEnoughBefore: shortened('19:15', '19:30'),
+      otherSportTooLittleBefore: live('20:30'),
+      otherSportInsideBlock: live('21:30'),
       reinstated: live('22:00', GAME),
       ownedByBooking: live('22:00'),
       ownGameDay: cancelledBy('20:30'),
@@ -143,6 +147,7 @@ describe.skipIf(!PG)('sweep against Postgres, 20:00 home game', () => {
     expect(after.tooLittleBefore).toEqual(live('20:30'))
     expect(after.insideBlock).toEqual(live('21:30'))
     expect(after.enoughBefore).toEqual(live('19:30'))
+    expect(after.otherSportEnoughBefore).toEqual(live('19:30'))
     // The reinstate's marker is released, so a later game can act on it again.
     expect(after.reinstated).toEqual(live('22:00'))
     // Still the team's own game day, wherever the game is.

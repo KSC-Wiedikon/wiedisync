@@ -15,6 +15,11 @@
  *   - LEFT ALONE if it keeps too little before the block but enough after it:
  *     this sweep only ever moves a training's end, never its start.
  *
+ * Shortening applies across sports, cancelling only within one (owner
+ * 2026-11-06): both sports stand on the same court, so a basketball training
+ * gives way to a volleyball warm-up and vice versa, but a game never cancels a
+ * training of the other sport — that one is left alone if it can't be shortened.
+ *
  * The Hallenplan hides every training overlapping a home game
  * (virtualSlots.ts filterAnnotatedSlots), so a clash left open here is invisible
  * to anyone planning the hall.
@@ -89,10 +94,10 @@ export const GAME_MINUTES = 105
 // CTE: expand each scheduled home game into one row per hall it blocks (primary
 // `hall` ∪ `additional_halls`). additional_halls is a json array of hall ids
 // (number- or string-typed across history) → read via jsonb_array_elements_text.
-// `sport` (from the playing team) is carried so matching stays SAME-SPORT — a
-// volleyball game must never shorten/cancel a basketball training and vice versa,
-// even when both share a hall (KWI C hosts both). Games with no team are dropped
-// (their sport is unknowable, so they can't be matched).
+// `sport` (from the playing team) is carried so CANCELLING stays SAME-SPORT — a
+// volleyball game must never cancel a basketball training and vice versa. Passes
+// 1a and 3 (shorten + its restore) ignore it. Games with no team are dropped
+// (their sport is unknowable).
 const GAME_BLOCK_CTE = `
   game_block AS (
     SELECT g.id AS game_id, g.date, g.time, g.kscw_team, tg.sport, hb.hall_id
@@ -159,7 +164,7 @@ export async function sweepGameTrainingShorten(database, log) {
         SELECT 1 FROM game_block gb
         WHERE gb.game_id = t.auto_shortened_by_game
           AND gb.hall_id = t.hall AND gb.date = t.date
-          AND gb.kscw_team IS DISTINCT FROM t.team AND gb.sport = (SELECT sport FROM teams WHERE id = t.team)
+          AND gb.kscw_team IS DISTINCT FROM t.team
           AND (gb.time - make_interval(mins => :warmup)) > t.start_time
           AND (gb.time - make_interval(mins => :warmup)) < t.original_end_time
       )
@@ -262,7 +267,7 @@ export async function sweepGameTrainingShorten(database, log) {
       FROM trainings t
       JOIN game_block gb
         ON gb.hall_id = t.hall AND gb.date = t.date
-       AND gb.kscw_team IS DISTINCT FROM t.team AND gb.sport = (SELECT sport FROM teams WHERE id = t.team)
+       AND gb.kscw_team IS DISTINCT FROM t.team
       WHERE t.date >= CURRENT_DATE
         AND t.cancelled = false
         AND t.auto_adjusted_by_booking IS NULL
