@@ -45,6 +45,7 @@ import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../ks
 import { createActingMemberMiddleware } from './acting-member.js'
 import { createEmailReminders, isWeeklyDigestTime } from './email-reminders.js'
 import { createEinsatzlisteAlert, einsatzlisteAlertDue, vmReadDue } from './einsatzliste-alert.js'
+import { nominationPushDue } from './nomination-schedule.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -9183,7 +9184,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // ── Cron: auto-file the Volleymanager Einsatzliste from confirmed RSVPs ──
   //
-  // Picks up games whose kickoff is ~60 min out and whose effective
+  // Picks up games whose kickoff is under 24 h out and whose effective
   // auto_nomination_list flag is on, and spawns scripts/vm-push-nomination.mjs to
   // file the nomination list in VM. Opt-in per game, defaulting to the team's
   // setting — the same override cascade as auto-confirm RSVP:
@@ -9197,17 +9198,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // games/season that sv-sync inserts via raw knex (bypassing every items hook) are
   // covered for free.
   //
-  // The window is deliberately wide (T-65 → T-35) and the job is idempotent, so a
-  // failed or slow tick simply retries on the next one. VM requires the list closed
-  // by ~T-40, so the last useful attempt is around then; after that the coach files
-  // it by hand. Anything already `closed` or `skipped` is never touched again.
+  // When exactly, and how often it tries again, is nominationPushDue()
+  // (nomination-schedule.js): from T-24 h, with a second chance from T-65 for a list
+  // that did not end `saved`. VM requires the list by ~T-40, so the last useful attempt
+  // is around then; after that the coach files it by hand. Anything `saved` or `closed`
+  // is never touched again.
   //
   // ⚠ This writes into the real Swiss Volley production system — there is no VM
   // staging — so it runs on prod only (external-accounts.js), and the worker writes
   // only when handed KSCW_EXTERNAL_WRITES=1. It refuses to close a list that VM flags
   // with an unresolved fineable issue (too few players, no coach); see vm-push-nomination.mjs.
-  const NOMINATION_LEAD_MS = 65 * 60 * 1000
-  const NOMINATION_FLOOR_MS = 35 * 60 * 1000
   let nominationRunning = false
 
   async function spawnNominationPush(gameId) {
@@ -9276,8 +9276,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const releaseVmAccount = claimVmAccount('vm_nomination')
     if (!releaseVmAccount) {
       // A deliberate skip, not a failure — do NOT log a cron error, which would
-      // paint the status card red for a healthy system. The window is 30 minutes
-      // wide and the tick is every 5, so the next one still files the list.
+      // paint the status card red for a healthy system. The tick is every 5 minutes,
+      // so the next one still files the list.
       log.warn({
         msg: `[vm-nomination] tick skipped: the shared Volleymanager account is busy (${vmAccountHeldBy()})`,
         event: 'vm_nomination_account_busy', holder: vmAccountHeldBy(),
@@ -9325,29 +9325,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         })
       }
 
+      // Below the reclaim on purpose, which only touches the database. With a day to
+      // file in, there is no reason to log in during svrz_rc's windows: the shared
+      // account would make its jobs read under our role (vm-windows.js). The second
+      // chance is 30 minutes and those windows 25, so it still gets a tick outside them;
+      // only a kickoff at exactly :10 past the hour would not, and it had the day before.
+      if (isSvrzRcBlackout()) return
+
       const rows = await database('games as g')
         .leftJoin('teams as t', 't.id', 'g.kscw_team')
         .whereRaw("g.game_id LIKE 'vb_%'")
         .where('g.status', 'scheduled')
         .whereNotNull('g.kscw_team')
         .whereNotNull('g.time')
-        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'skipped', 'saved')")
+        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'saved')")
         .whereRaw(
           "COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true",
         )
         .whereBetween('g.date', [
           new Date(Date.now() - 86400000).toISOString().slice(0, 10),
-          new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
         ])
-        .select('g.id', 'g.date', 'g.time')
+        .select('g.id', 'g.date', 'g.time', 'g.vm_nomination_status', 'g.vm_nomination_claimed_at')
 
-      const now = Date.now()
-      const due = rows.filter((g) => {
-        const kickoff = gameStartMs(g)
-        if (kickoff == null) return false
-        const lead = kickoff - now
-        return lead <= NOMINATION_LEAD_MS && lead >= NOMINATION_FLOOR_MS
-      })
+      const due = rows.filter((g) => nominationPushDue(g))
       if (!due.length) return
 
       // ── Claim each game before spawning (migration 354) ──
@@ -9376,8 +9377,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // The candidate SELECT above is deliberately left alone — it must keep
       // offering stale 'pending' rows for exactly that reason, and this
       // predicate is the single place that decides. The worker overwrites
-      // vm_nomination_status in finish(), so the documented retry behaviour
-      // ('filled' / 'failed' are re-attempted on the next tick) is unchanged.
+      // vm_nomination_status in finish(); nominationPushDue() says which of those
+      // outcomes are attempted again, and when.
       // ⚠ ONE AT A TIME. Several teams routinely play at the same hour, so a tick
       // often has 3–4 games due; spawning them side by side put that many logins on
       // the ONE shared VM account at once. Each worker now runs to completion before
@@ -9390,7 +9391,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // Re-check the terminal states: a worker may have finished between
           // the SELECT above and this UPDATE, and re-claiming a closed list
           // would file it a second time.
-          .whereRaw("COALESCE(vm_nomination_status, '') NOT IN ('closed', 'skipped', 'saved')")
+          .whereRaw("COALESCE(vm_nomination_status, '') NOT IN ('closed', 'saved')")
           .whereRaw(
             "(COALESCE(vm_nomination_status, '') <> 'pending'"
             + " OR COALESCE(vm_nomination_claimed_at, 'epoch'::timestamptz) < now() - interval '10 minutes')",
@@ -9448,15 +9449,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // 396) — nothing logs the shared VM account in when a sheet opens any more. These
   // are the automatic reads per game; after them, only a coach's "Recheck" reads again.
   //
-  // Timing: due from kickoff −45 min — after the auto-filing push's T-65…T-35 window
-  // has had its go, and while a push is still in flight ('pending') the game waits a
+  // Timing: due from kickoff −45 min — after the auto-filing push's second chance has
+  // mostly had its go, and while a push is still in flight ('pending') the game waits a
   // tick. Kept up to kickoff +3 h so a tick lost to a restart still catches up.
   // A `busy` result read nothing, so it is retried on the next tick; anything else is
   // final (flagged on the sheet, fixed by hand with Recheck).
   //
-  // Kickoff −2 h (migration 444, einsatzliste-alert.js): one earlier read for teams without
-  // the automatic push, whose list is compared with the RSVPs and mailed to the coaches
-  // and team responsibles when it is empty or differs.
+  // Kickoff −2 h (migration 444, einsatzliste-alert.js): one earlier read, whose list is
+  // compared with the RSVPs and mailed to the coaches and team responsibles when it is
+  // empty or differs.
   //
   // Shared VM account (CLAUDE.md, INFRA.md → "The shared VolleyManager account"):
   // each read claims it via readOwnNominationList and never waits; the whole tick is
@@ -9489,7 +9490,6 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           'g.id', 'g.game_id', 'g.type', 'g.date', 'g.time', 'g.kscw_team', 'g.home_team', 'g.away_team',
           't.name as team_name', 'v.status as vm_status', 'v.checked_at as vm_checked_at',
           'v.list_at as vm_list_at', 'v.alert_checked_at as vm_alert_checked_at',
-          database.raw("COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) AS auto_list"),
         )
       let rows = await loadGames()
       const due = rows.filter((g) => vmReadDue(g))

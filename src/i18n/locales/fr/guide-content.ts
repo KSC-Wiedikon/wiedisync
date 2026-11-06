@@ -2205,7 +2205,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Peu avant le début, le marqueur attribué reçoit un bouton **Composition** : la feuille de match enregistrée par le coach, sinon l'Einsatzliste déposée dans Volleymanager, sinon les joueurs confirmés. Les équipes de volleyball peuvent la déposer automatiquement environ une heure avant le début : **Envoyer automatiquement l'Einsatzliste** sous **Paramètres de match par défaut** dans l'éditeur de composition, modifiable par match avec **Einsatzliste automatique**. Voir les sections Feuille de match et Éditeur d'effectif."
+          "text": "Peu avant le début, le marqueur attribué reçoit un bouton **Composition** : la feuille de match enregistrée par le coach, sinon l'Einsatzliste déposée dans Volleymanager, sinon les joueurs confirmés. Les équipes de volleyball peuvent la déposer automatiquement 24 heures avant le début : **Envoyer automatiquement l'Einsatzliste** sous **Paramètres de match par défaut** dans l'éditeur de composition, modifiable par match avec **Einsatzliste automatique**. Voir les sections Feuille de match et Éditeur d'effectif."
         }
       ]
     },

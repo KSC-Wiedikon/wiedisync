@@ -2,7 +2,7 @@
  * vm-push-nomination.mjs — file ONE game's Einsatzliste (nomination list) into
  * VolleyManager from our confirmed RSVPs.
  *
- * Spawned fire-and-forget by the T-60 cron (kscw-hooks) and by the manual
+ * Spawned fire-and-forget by the Einsatzliste cron (kscw-hooks) and by the manual
  * "push now" endpoint. Self-contained: authenticates to Directus with the sync
  * service account and to VM with VM_USERNAME/VM_PASSWORD.
  *

@@ -126,7 +126,7 @@ export interface TeamSettings extends FeatureToggles {
   /** Auto-confirm RSVP on game create for full members only (guests blocked). Default false. */
   game_auto_confirm?: boolean
   /** Team default for auto-filing the Volleymanager Einsatzliste from confirmed RSVPs
-   *  ~60 min before kickoff. A game's own `auto_nomination_list` overrides this; null
+   *  24 h before kickoff. A game's own `auto_nomination_list` overrides this; null
    *  there means "inherit this". Volleyball only. Default false. */
   auto_nomination_list?: boolean
   /** Team default for the Einsatzliste officials (C / AC1 / AC2) → member id. The
@@ -526,7 +526,7 @@ export interface Game extends BaseRecord {
   auto_confirm_rsvp?: boolean | null
 
   /** Per-game override for auto-filing the Volleymanager Einsatzliste from confirmed
-   *  RSVPs ~60 min before kickoff (migration 206). null = inherit the team default
+   *  RSVPs 24 h before kickoff (migration 206). null = inherit the team default
    *  (`TeamSettings.auto_nomination_list`). Volleyball only — basketball has no VM. */
   auto_nomination_list?: boolean | null
   /** Einsatzliste push journal — written by the cron / push worker, read-only in the UI.

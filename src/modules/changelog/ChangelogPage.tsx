@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.62.0'
+const APP_VERSION = '2.63.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.63.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'The automatic Einsatzliste is filed the day before the game, 24 hours before kickoff, instead of about an hour before. If that does not end in a clean save, it tries again about an hour before kickoff.',
+          'Teams with the automatic Einsatzliste now also get the email 2 hours before kickoff when the list is missing or differs from the answers, so an answer that changed after the filing is not missed.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.62.0',
     date: '04.11.2026',

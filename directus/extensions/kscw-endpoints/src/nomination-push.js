@@ -1,7 +1,7 @@
 /**
  * Manual "push now" for the Volleymanager Einsatzliste.
  *
- * The T-60 cron (kscw-hooks) does this automatically for games whose
+ * The Einsatzliste cron (kscw-hooks) does this automatically for games whose
  * auto_nomination_list flag resolves to true. This endpoint is the escape hatch:
  * a coach whose push failed, or who wants the list filed early, can trigger the
  * same worker on demand — including for a game whose flag is off.
@@ -365,7 +365,7 @@ export function registerNominationPush(router, { database, logger }) {
 
     // ── Claim the game ────────────────────────────────────────────────────────
     // One conditional UPDATE: Postgres takes the row lock, so two callers on the
-    // SAME fixture (coach + TR on two phones, or coach vs the T-60 cron) serialize
+    // SAME fixture (coach + TR on two phones, or coach vs the cron) serialize
     // and the loser matches 0 rows → 409. The cron takes the same claim with the
     // same predicate and lease; keep them in step. The lease (migration 354) lets
     // the cron hand a row whose worker died back as 'failed' after 10 minutes.
@@ -396,7 +396,7 @@ export function registerNominationPush(router, { database, logger }) {
 
     // ── Queue it ─────────────────────────────────────────────────────────────
     // Two DIFFERENT teams pressing at once must not put two logins on the one
-    // shared VM account (nor overlap vm_sync, the SVRZ sync or the T-60 cron).
+    // shared VM account (nor overlap vm_sync, the SVRZ sync or the cron).
     // So the request never spawns directly: it joins a FIFO that runs one worker
     // at a time, each under claimVmAccount — the same process-wide claim every
     // VM job here takes — and waits for the account rather than refusing.

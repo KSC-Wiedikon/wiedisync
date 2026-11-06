@@ -178,7 +178,7 @@ export default {
   // Auto Einsatzliste — volleyball only, coach-gated.
   // "Einsatzliste" is the official Swiss Volley term and stays untranslated.
   autoNomination: 'Auto Einsatzliste',
-  autoNominationHint: 'Files the Einsatzliste in Volleymanager from the confirmed RSVPs, about 60 minutes before the start. Team default: {{def}}.',
+  autoNominationHint: 'Files the Einsatzliste in Volleymanager from the confirmed RSVPs, 24 hours before the start. Team default: {{def}}.',
   autoNominationUseTeamDefault: 'Use team default',
   autoNominationOn: 'On',
   autoNominationOff: 'Off',
