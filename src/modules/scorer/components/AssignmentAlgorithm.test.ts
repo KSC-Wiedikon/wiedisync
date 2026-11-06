@@ -42,13 +42,33 @@ describe('classifyVbMode', () => {
 })
 
 describe('runAssignment', () => {
-  it('HU20 → referee only (no scorer/scoreboard/combined), no licence needed', () => {
+  it('HU20 → referee + Täfeler from the same team, no scorer, no licence needed', () => {
     const [a] = runAssignment(base([game('g1', '1', '2026-09-15')]))
     expect(a.mode).toBe('referee')
     expect(a.refereeTeamId).toBeTruthy()
+    expect(a.scoreboardTeamId).toBe(a.refereeTeamId)
+    expect(a.scoreboardTeamName).toBe(a.refereeTeamName)
     expect(a.scorerTeamId).toBeNull()
-    expect(a.scoreboardTeamId).toBeNull()
     expect(a.combinedTeamId).toBeNull()
+    expect(a.conflicts.some((c) => c.key === 'noTaefelerAvailable')).toBe(false)
+  })
+
+  it('HU20 duty counts as two for the team summary', () => {
+    const results = runAssignment(base([game('g1', '1', '2026-09-15')]))
+    const name = results[0].refereeTeamName!
+    const row = getTeamCounts(results, TEAMS, [game('g1', '1', '2026-09-15')]).get(name)!
+    expect(row.scoreboard).toBe(1)
+    expect(row.referee).toBe(1)
+    expect(row.scorer).toBe(0)
+    expect(row.totalDuties).toBe(2)
+  })
+
+  it('HU20 game already staffed by hand keeps both of its teams', () => {
+    const [a] = runAssignment(base([game('g1', '1', '2026-09-15', { referee_duty_team: '7', scoreboard_duty_team: '4' })]))
+    expect(a.mode).toBe('referee')
+    expect(a.refereeTeamId).toBe('7')
+    expect(a.scoreboardTeamId).toBe('4')
+    expect(a.conflicts.some((c) => c.key === 'existingKept')).toBe(true)
   })
 
   it('4L → combined, assigned even with no licenced members', () => {

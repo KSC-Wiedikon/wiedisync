@@ -154,6 +154,7 @@ export default {
   // Ankunfts-Hinweise pro Karte (/scorer)
   arrivalHintSingle: '{{min}} Min. vor Spielbeginn in der Halle.',
   arrivalHintReferee: 'Schiedsrichter: {{min}} Min. vor Spielbeginn in der Halle.',
+  arrivalHintRefereeBoard: 'Schiedsrichter {{referee}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   arrivalHintSplit: 'Schreiber {{scorer}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   infoWarningTitle: 'Achtung!',
   infoWarningFine: 'Verspätung oder Nichterscheinen wird mit einer Busse (50.– CHF) bestraft.',

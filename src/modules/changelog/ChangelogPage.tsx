@@ -14,6 +14,19 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.66.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'HU20 home games now have a Täfeler as well as a referee, both from the same team, with no licence needed. The upcoming games are filled in, and anyone on that team can take the Täfeler spot under Scorer duty.',
+          'The auto-assignment picks one team for both roles, and the assignment page lets you set each one.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.65.0',
     date: '06.11.2026',
     sections: [

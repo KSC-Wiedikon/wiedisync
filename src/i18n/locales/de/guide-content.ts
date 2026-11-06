@@ -2170,7 +2170,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Volleyball-Dienste richten sich nach der Stufe des spielenden Teams (kombiniert Schreiber/Täfeler, separater Schreiber mit Lizenz plus Täfeler, oder nur Schiedsrichter für HU20); Basketball hat ein Einsatzteam pro Spiel.",
+            "Volleyball-Dienste richten sich nach der Stufe des spielenden Teams (kombiniert Schreiber/Täfeler, separater Schreiber mit Lizenz plus Täfeler, oder Schiedsrichter plus Täfeler vom selben Team für HU20); Basketball hat ein Einsatzteam pro Spiel.",
             "Harte Regeln schliessen ein Team aus (eigenes Spiel zur selben Zeit, ein Dienst am selben Tag, kein Mitglied mit der nötigen Lizenz); weiche Regeln bewerten den Rest ab 100 Punkten. Klappe **Regeln des Algorithmus** auf, um die Werte zu sehen.",
             "Bereits zugeteilte Spiele zeigen **Bestehende Zuteilung beibehalten** und bleiben unverändert, sofern du sie nicht bearbeitest."
           ]

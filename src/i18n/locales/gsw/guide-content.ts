@@ -2170,7 +2170,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Bim Volleyball hanged d Dienst vo de Stufe vom spielende Team ab (kombiniert Schriiber/Täfeler, separate Schriiber mit Lizänz plus Täfeler, oder nur Schiedsrichter bi HU20); bim Basketball git s ei Dienst-Team pro Spiel.",
+            "Bim Volleyball hanged d Dienst vo de Stufe vom spielende Team ab (kombiniert Schriiber/Täfeler, separate Schriiber mit Lizänz plus Täfeler, oder Schiedsrichter plus Täfeler vom gliiche Team bi HU20); bim Basketball git s ei Dienst-Team pro Spiel.",
             "Harti Regle schlüssed es Team us (eiges Spiel zur gliiche Ziit, en Dienst am gliiche Tag, keis Mitglied mit de nötige Lizänz); weichi Regle bewärted de Rescht ab 100 Pünkt. Klapp **Regle vom Algorithmus** uf, zum d Wärt z gseh.",
             "Spiel, wo scho zueteilt sind, zeiged **Bestehendi Zueteilig biibehalte** und bliibed unverändert, ussert du bearbeitisch si."
           ]

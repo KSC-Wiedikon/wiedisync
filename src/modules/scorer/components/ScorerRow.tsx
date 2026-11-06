@@ -222,9 +222,11 @@ export default function ScorerRow({
   }
 
   const vbCombined = isVbCombinedMode(game)
-  // HU20 games are scorer + referee (data-driven: referee_duty_team is written
+  // HU20 games are referee + Täfeler (data-driven: referee_duty_team is written
   // by the admin-assign page). kscw_team isn't expanded here, so no name check.
   const vbReferee = isVbRefereeMode(game)
+  // A game staffed before HU20 had a Täfeler has no such spot, so it shows none.
+  const vbRefereeHasBoard = vbReferee && !!(game.scoreboard_duty_team || game.scoreboard_member)
 
   // The user has an absence on this game's date — self-claim is still allowed,
   // but we warn them in the confirmation dialog.
@@ -505,7 +507,10 @@ export default function ScorerRow({
           vbCombined ? (
             renderVbEditor('scorer_scoreboard', 'scorerTaefeler', undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
           ) : vbReferee ? (
-            renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')
+            <>
+              {renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')}
+              {(vbRefereeHasBoard || effectiveCanEdit) && renderVbEditor('scoreboard', 'scoreboard', undefined, 'scoreboard_duty_team', 'scoreboard_member')}
+            </>
           ) : (
             <>
               {renderVbEditor('scorer', 'scorer', 'scorer_vb', 'scorer_duty_team', 'scorer_member')}
@@ -648,7 +653,9 @@ export default function ScorerRow({
               ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
               : vbCombined
                 ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
-                : vbReferee
+                : vbRefereeHasBoard
+                  ? t('arrivalHintRefereeBoard', { referee: DUTY_ARRIVAL_MIN.referee, board: DUTY_ARRIVAL_MIN.scoreboard })
+                  : vbReferee
                   ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
                   : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
           </span>

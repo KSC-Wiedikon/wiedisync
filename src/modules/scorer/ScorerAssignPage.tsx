@@ -300,9 +300,14 @@ export default function ScorerAssignPage() {
       const picked = a.scorerTeamId || a.scoreboardTeamId || a.combinedTeamId || a.refereeTeamId
       return picked ? [] : [{ text: tr('cupOnCall'), tone: 'muted' }]
     }
-    if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
+    const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
+    if (isExisting) s.push({ text: tr('existingKept'), tone: 'muted' })
     if (a.mode === 'combined') { if (!a.combinedTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' }) }
-    else if (a.mode === 'referee') { if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' }) }
+    else if (a.mode === 'referee') {
+      if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' })
+      // A saved game from before HU20 had a Täfeler owes none, so it gets no warning.
+      if (!a.scoreboardTeamId && !isExisting) s.push({ text: tr('noTaefelerAvailable'), tone: 'warn' })
+    }
     else {
       if (!a.scorerTeamId) s.push({ text: tr('noScorerAvailable'), tone: 'warn' })
       if (!a.scoreboardTeamId) s.push({ text: tr('noTaefelerAvailable'), tone: 'warn' })
@@ -579,7 +584,14 @@ export default function ScorerAssignPage() {
         const b = stripExisting(a)
         if (role === 'combined') return { ...b, combinedTeamId: teamId || null, combinedTeamName: teamName }
         if (role === 'scorer') return { ...b, scorerTeamId: teamId || null, scorerTeamName: teamName }
-        if (role === 'referee') return { ...b, refereeTeamId: teamId || null, refereeTeamName: teamName }
+        if (role === 'referee') {
+          // HU20's Täfeler comes from the referee's team, unless the planner split them.
+          const boardFollows = !a.scoreboardTeamId || a.scoreboardTeamId === a.refereeTeamId
+          return {
+            ...b, refereeTeamId: teamId || null, refereeTeamName: teamName,
+            ...(boardFollows ? { scoreboardTeamId: teamId || null, scoreboardTeamName: teamName } : {}),
+          }
+        }
         return { ...b, scoreboardTeamId: teamId || null, scoreboardTeamName: teamName }
       }),
     )
@@ -799,7 +811,10 @@ export default function ScorerAssignPage() {
           const layout = a.mode === 'cup' ? cupLayoutMode(a.gameId) : a.mode
           const b = { ...stripExisting(a), scorerTeamId: null, scorerTeamName: null, scoreboardTeamId: null, scoreboardTeamName: null, combinedTeamId: null, combinedTeamName: null, refereeTeamId: null, refereeTeamName: null }
           if (layout === 'combined') return { ...b, combinedTeamId: u.combined, combinedTeamName: nameOf(u.combined) }
-          if (layout === 'referee') return { ...b, refereeTeamId: u.referee, refereeTeamName: nameOf(u.referee) }
+          if (layout === 'referee') {
+            const board = u.scoreboard ?? u.referee // an empty Täfeler cell means the referee's team
+            return { ...b, refereeTeamId: u.referee, refereeTeamName: nameOf(u.referee), scoreboardTeamId: board, scoreboardTeamName: nameOf(board) }
+          }
           return { ...b, scorerTeamId: u.scorer, scorerTeamName: nameOf(u.scorer), scoreboardTeamId: u.scoreboard, scoreboardTeamName: nameOf(u.scoreboard) }
         }))
       } else {
@@ -1172,7 +1187,9 @@ export default function ScorerAssignPage() {
                         ) : layoutMode === 'referee' ? (
                           <>
                             <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
-                            <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
+                            <TableCell className="px-2 py-2 align-top">
+                              {renderVbDuty(a.gameId, 'scoreboard', a.scoreboardTeamId, a.scoreboardMemberId, game.scoreboard_member)}
+                            </TableCell>
                             <TableCell className="px-2 py-2 align-top">
                               {renderVbDuty(a.gameId, 'referee', a.refereeTeamId, a.refereeMemberId, game.referee_member)}
                             </TableCell>

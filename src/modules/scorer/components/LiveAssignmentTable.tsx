@@ -305,12 +305,19 @@ export default function LiveAssignmentTable({
                             {vbEditor(g, locked, '', undefined, 'scoreboard_duty_team', 'scoreboard_member')}
                           </TableCell>
                         </>
+                      ) : mode === 'referee' ? (
+                        <>
+                          <TableCell className="min-w-[13rem] px-2 py-2 align-top">
+                            {vbEditor(g, locked, ts('referee'), undefined, 'referee_duty_team', 'referee_member')}
+                          </TableCell>
+                          <TableCell className="min-w-[13rem] px-2 py-2 align-top">
+                            {vbEditor(g, locked, ts('scoreboard'), undefined, 'scoreboard_duty_team', 'scoreboard_member')}
+                          </TableCell>
+                        </>
                       ) : (
                         <TableCell colSpan={2} className="min-w-[13rem] px-2 py-2 align-top">
                           <div className="max-w-sm">
-                            {mode === 'combined'
-                              ? vbEditor(g, locked, ts('scorerTaefeler'), undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
-                              : vbEditor(g, locked, ts('referee'), undefined, 'referee_duty_team', 'referee_member')}
+                            {vbEditor(g, locked, ts('scorerTaefeler'), undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')}
                           </div>
                         </TableCell>
                       )

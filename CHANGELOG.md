@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.66.0 — 2026-11-06
+
+### Changed
+
+- HU20 home games now have a Täfeler as well as a referee, both from the same team, with no licence needed. The upcoming games are filled in, and anyone on that team can take the Täfeler spot under Scorer duty.
+- The auto-assignment picks one team for both roles, and the assignment page lets you set each one.
+
 ## v2.65.0 — 2026-11-06
 
 ### Added

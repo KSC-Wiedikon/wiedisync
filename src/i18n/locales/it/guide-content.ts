@@ -2170,7 +2170,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Nella pallavolo gli incarichi dipendono dal livello della squadra che gioca (Segnapunti/Tabellone combinato, segnapunti separato con licenza più tabellone, oppure solo arbitro per HU20); nella pallacanestro c'è una squadra di servizio per partita.",
+            "Nella pallavolo gli incarichi dipendono dal livello della squadra che gioca (Segnapunti/Tabellone combinato, segnapunti separato con licenza più tabellone, oppure arbitro più tabellone della stessa squadra per HU20); nella pallacanestro c'è una squadra di servizio per partita.",
             "Le regole rigide escludono una squadra (partita propria alla stessa ora, un servizio lo stesso giorno, nessun membro con la licenza); le regole flessibili danno punti alle altre partendo da 100. **Regole dell'algoritmo** mostra i valori.",
             "Le partite già assegnate mostrano **Assegnazione esistente mantenuta** e restano invariate finché non le modifichi."
           ]

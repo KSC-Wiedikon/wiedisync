@@ -154,6 +154,7 @@ export default {
   // Rappels d\'arrivee par carte (/scorer)
   arrivalHintSingle: 'Dans la salle {{min}} min avant le debut.',
   arrivalHintReferee: 'Arbitre : dans la salle {{min}} min avant le debut.',
+  arrivalHintRefereeBoard: 'Arbitre {{referee}} min · Tableau {{board}} min avant le debut.',
   arrivalHintSplit: 'Marqueur {{scorer}} min · Tableau {{board}} min avant le debut.',
   infoWarningTitle: 'Attention !',
   infoWarningFine: 'Un retard ou une absence entrainera une amende (CHF 50.–).',

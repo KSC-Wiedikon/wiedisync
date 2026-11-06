@@ -147,7 +147,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Règles de l\'algorithme',
-  rulesModeVb: 'Le service dépend du niveau de l\'équipe à domicile : 4e/5e ligue (tous) et DU23 → une équipe fait marqueur + tableau (combiné, sans licence). 3e ligue et plus, et HU23 → marqueur séparé (avec licence) + tableau. HU20 → arbitre uniquement (sans licence).',
+  rulesModeVb: 'Le service dépend du niveau de l\'équipe à domicile : 4e/5e ligue (tous) et DU23 → une équipe fait marqueur + tableau (combiné, sans licence). 3e ligue et plus, et HU23 → marqueur séparé (avec licence) + tableau. HU20 → arbitre + tableau de la même équipe (sans licence).',
   refereeCount: 'Arbitre',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Aucun arbitre disponible',
