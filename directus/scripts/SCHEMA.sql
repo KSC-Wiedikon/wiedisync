@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-06T14:28:33.922Z
+-- Generated:   2026-11-06T14:54:03.610Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 0GVSL8NpMaEnCEoEoUEpuz2p2rlrW9BGOU0dXPsqIpehZTNrevwoYddijJKGe6A
+\restrict HyoiJYkgferGVv9XMLPtfSmzRhiP3eGax53LhNEgsS7u8ywfxvaW4H8SKTTbKuU
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1024,6 +1024,305 @@ END;
 $$;
 
 
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: games; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.games (
+    id integer NOT NULL,
+    game_id character varying(255) DEFAULT NULL::character varying,
+    home_team character varying(255) DEFAULT NULL::character varying,
+    away_team character varying(255) DEFAULT NULL::character varying,
+    away_hall_json json,
+    date date,
+    "time" time without time zone,
+    league character varying(255) DEFAULT NULL::character varying,
+    round character varying(255) DEFAULT NULL::character varying,
+    season character varying(255) DEFAULT NULL::character varying,
+    type character varying(255) DEFAULT NULL::character varying,
+    status character varying(255) DEFAULT NULL::character varying,
+    home_score integer DEFAULT 0,
+    away_score integer DEFAULT 0,
+    sets_json json,
+    duty_confirmed boolean DEFAULT false NOT NULL,
+    referees_json json,
+    source character varying(255) DEFAULT NULL::character varying,
+    respond_by timestamp with time zone,
+    min_participants integer,
+    kscw_team integer,
+    hall integer,
+    scorer_member integer,
+    scoreboard_member integer,
+    scorer_scoreboard_member integer,
+    scorer_duty_team integer,
+    scoreboard_duty_team integer,
+    scorer_scoreboard_duty_team integer,
+    bb_scorer_member integer,
+    bb_timekeeper_member integer,
+    bb_24s_official integer,
+    bb_duty_team integer,
+    bb_scorer_duty_team integer,
+    bb_timekeeper_duty_team integer,
+    bb_24s_duty_team integer,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone,
+    send_email_invite boolean DEFAULT false,
+    svrz_push_status public.svrz_push_status_enum,
+    additional_halls json,
+    auto_confirm_rsvp boolean,
+    scorer_confirmed_by_name character varying(255),
+    scorer_confirmed_at timestamp with time zone,
+    scoreboard_confirmed_by_name character varying(255),
+    scoreboard_confirmed_at timestamp with time zone,
+    scorer_scoreboard_confirmed_by_name character varying(255),
+    scorer_scoreboard_confirmed_at timestamp with time zone,
+    bb_scorer_confirmed_by_name character varying(255),
+    bb_scorer_confirmed_at timestamp with time zone,
+    bb_timekeeper_confirmed_by_name character varying(255),
+    bb_timekeeper_confirmed_at timestamp with time zone,
+    bb_24s_confirmed_by_name character varying(255),
+    bb_24s_confirmed_at timestamp with time zone,
+    referee_duty_team integer,
+    referee_member integer,
+    referee_confirmed_by_name character varying(255),
+    referee_confirmed_at timestamp with time zone,
+    duty_late_json jsonb,
+    duty_leader_alert_json jsonb,
+    auto_nomination_list boolean,
+    vm_nomination_status character varying(16),
+    vm_nomination_list_id character varying(64),
+    vm_nomination_count integer,
+    vm_nomination_pushed_at timestamp with time zone,
+    vm_nomination_error text,
+    meeting_offset_minutes integer DEFAULT 60,
+    vm_nomination_claimed_at timestamp with time zone,
+    bb_extra_duty_teams json,
+    carpool_enabled boolean DEFAULT false NOT NULL,
+    carpool_teams jsonb,
+    provisional_sets_json json,
+    provisional_home_score integer,
+    provisional_away_score integer,
+    provisional_source character varying(16),
+    provisional_by_name character varying(255),
+    provisional_at timestamp with time zone,
+    vm_result_status character varying(16),
+    vm_result_error text,
+    vm_result_pushed_at timestamp with time zone,
+    vm_result_claimed_at timestamp with time zone,
+    vm_result_report_id character varying(64),
+    vm_opponent_report json,
+    vm_result_checked_at timestamp with time zone,
+    vm_nomination_sheet_changed_at timestamp with time zone,
+    CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
+    CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
+    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
+    CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[])))),
+    CONSTRAINT games_vm_result_status_check CHECK (((vm_result_status)::text = ANY ((ARRAY['pending'::character varying, 'reported'::character varying, 'confirmed'::character varying, 'conflict'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
+);
+
+
+--
+-- Name: COLUMN games.auto_confirm_rsvp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.auto_confirm_rsvp IS 'NULL = inherit teams.features_enabled.game_auto_confirm. true/false = per-activity override.';
+
+
+--
+-- Name: COLUMN games.duty_late_json; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.duty_late_json IS 'Per-role late-arrival reports { role: { at, by_name } } (migration 202). Written by the duty-late endpoint; no contact info stored.';
+
+
+--
+-- Name: COLUMN games.duty_leader_alert_json; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.duty_leader_alert_json IS 'Emergency "contact team leaders" reports { memberId: { at, by_name } } (migration 203). Written by the duty-leader-contact endpoint; no contact info stored.';
+
+
+--
+-- Name: COLUMN games.auto_nomination_list; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.auto_nomination_list IS 'Auto-file the Volleymanager Einsatzliste from confirmed RSVPs ~60 min before kickoff. NULL = inherit teams.features_enabled.auto_nomination_list; true/false = per-game override.';
+
+
+--
+-- Name: COLUMN games.vm_nomination_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_nomination_status IS 'filled = players written, list left OPEN (a fineable validation issue blocked the close, or the team asked us not to close). closed = filed AND closed, nothing left to do. skipped = nothing to file (no licensed confirmed players). failed = see vm_nomination_error. NULL = never attempted. The cron re-attempts anything not in (closed, skipped).';
+
+
+--
+-- Name: COLUMN games.vm_nomination_list_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_nomination_list_id IS 'Volleymanager nominationList __identity (uuid). Set once created; lets a retry update the existing list instead of creating a second one.';
+
+
+--
+-- Name: COLUMN games.vm_nomination_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_nomination_count IS 'Players actually filed on the last successful push.';
+
+
+--
+-- Name: COLUMN games.vm_nomination_error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_nomination_error IS 'Last push failure, surfaced to the coach in the game detail modal.';
+
+
+--
+-- Name: COLUMN games.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `time` that the team meets. NULL = no meeting time shown. Stored as an offset, not a clock, so it follows a Swiss Volley reschedule (sv-sync rewrites `time`) without going stale. DEFAULT 60 is what gives sync-created fixtures a meeting time with no code in sv-sync.';
+
+
+--
+-- Name: COLUMN games.vm_nomination_claimed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_nomination_claimed_at IS 'When the current nomination-push worker claimed this game. Lets a stale claim be reclaimed after a container restart or a lost worker; NULL when unclaimed.';
+
+
+--
+-- Name: COLUMN games.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer rides, Going / Return). Default off; away games are switched on automatically 7 days before (carpool_auto_enable_away_games(), migration 441); the coach/TR can switch any game on or off. Rides live in carpools (migration 378).';
+
+
+--
+-- Name: COLUMN games.carpool_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to — the playing team and/or its guest teams. NULL/[] = everyone who can see the game.';
+
+
+--
+-- Name: COLUMN games.provisional_sets_json; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_sets_json IS 'Provisional set scores [{"home":25,"away":21}, …] (same shape as sets_json). Shown until status = completed; kept afterwards as history.';
+
+
+--
+-- Name: COLUMN games.provisional_home_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_home_score IS 'Provisional sets won by the home team.';
+
+
+--
+-- Name: COLUMN games.provisional_away_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_away_score IS 'Provisional sets won by the away team.';
+
+
+--
+-- Name: COLUMN games.provisional_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_source IS 'own = our team entered it; opponent = read from the opponent''s VM report, unconfirmed; confirmed = our report equals the opponent''s; vm_official = VM already holds the official result the SV feed has not delivered yet.';
+
+
+--
+-- Name: COLUMN games.provisional_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_by_name IS 'Member who entered the provisional result (actor capture; NULL when it came from Volleymanager).';
+
+
+--
+-- Name: COLUMN games.provisional_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.provisional_at IS 'When the provisional result was stored.';
+
+
+--
+-- Name: COLUMN games.vm_result_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_status IS 'Volleymanager result-report push: pending / reported / confirmed / conflict / failed / skipped. Endpoint- and worker-owned.';
+
+
+--
+-- Name: COLUMN games.vm_result_error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_error IS 'Why the push failed or was skipped (e.g. derby, home_team_reports, not_reportable, no_vm_game, dry_run).';
+
+
+--
+-- Name: COLUMN games.vm_result_pushed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_pushed_at IS 'Last successful result-report write to Volleymanager.';
+
+
+--
+-- Name: COLUMN games.vm_result_claimed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_claimed_at IS 'Row lease for the result push (10 min): only one worker per game in flight.';
+
+
+--
+-- Name: COLUMN games.vm_result_report_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_report_id IS 'Our Volleymanager gameResultReport __identity.';
+
+
+--
+-- Name: COLUMN games.vm_opponent_report; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_opponent_report IS 'The opponent''s VM result report as last read: {"sets":[{home,away}],"home":3,"away":2,"reported_at":iso,"party":"hometeam"} or NULL.';
+
+
+--
+-- Name: COLUMN games.vm_result_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.vm_result_checked_at IS 'Last Volleymanager read of this game''s result reports (sweep or game modal).';
+
+
+--
+-- Name: kscw_duty_recheck_notify_seats(public.games, public.games, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_duty_recheck_notify_seats(p_old public.games, p_new public.games, p_reason text) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_old_hall text := kscw_hall_label(kscw_game_hall_ids(p_old.hall, p_old.additional_halls));
+  v_new_hall text := kscw_hall_label(kscw_game_hall_ids(p_new.hall, p_new.additional_halls));
+BEGIN
+  INSERT INTO duty_rechecks (game, role, member, duty_team, kind, reason, status, home_team, away_team,
+    old_date, old_time, old_hall, new_date, new_time, new_hall)
+  SELECT p_new.id, s.role, s.member, s.duty_team, 'notice', p_reason, 'info',
+    COALESCE(p_new.home_team, p_old.home_team), COALESCE(p_new.away_team, p_old.away_team),
+    p_old.date, p_old.time, v_old_hall, p_new.date, p_new.time, v_new_hall
+  FROM kscw_game_duty_seats(p_new) s
+  WHERE s.member IS NOT NULL;
+END;
+$$;
+
+
 --
 -- Name: kscw_event_sport_section(integer); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1078,6 +1377,71 @@ $$;
 --
 
 COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month anchors to the 1st of the month; season anchors to the Jun 1 season rollover (migration 268 — NOT Sep 1, which is in the future for a third of the season and would drop every summer offense); rolling windows subtract N days from now. All wall-clock anchors are Europe/Zurich.';
+
+
+--
+-- Name: kscw_game_duty_seats(public.games); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_game_duty_seats(g public.games) RETURNS TABLE(role text, member integer, duty_team integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT * FROM (VALUES
+    ('scorer', g.scorer_member, g.scorer_duty_team),
+    ('scoreboard', g.scoreboard_member, g.scoreboard_duty_team),
+    ('scorer_scoreboard', g.scorer_scoreboard_member, g.scorer_scoreboard_duty_team),
+    ('referee', g.referee_member, g.referee_duty_team),
+    ('bb_scorer', g.bb_scorer_member, COALESCE(g.bb_scorer_duty_team, g.bb_duty_team)),
+    ('bb_timekeeper', g.bb_timekeeper_member, COALESCE(g.bb_timekeeper_duty_team, g.bb_duty_team)),
+    ('bb_24s_official', g.bb_24s_official, g.bb_24s_duty_team)
+  ) AS s(role, member, duty_team)
+$$;
+
+
+--
+-- Name: kscw_game_hall_ids(integer, json); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_game_hall_ids(p_hall integer, p_additional json) RETURNS integer[]
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT COALESCE(array_agg(DISTINCT x ORDER BY x), '{}'::integer[])
+  FROM (
+    SELECT p_hall AS x WHERE p_hall IS NOT NULL
+    UNION
+    SELECT e::integer FROM json_array_elements_text(
+      CASE WHEN json_typeof(p_additional) = 'array' THEN p_additional ELSE '[]'::json END) e
+  ) s
+$$;
+
+
+--
+-- Name: kscw_hall_label(integer[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_hall_label(p_halls integer[]) RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT string_agg(h.name, ' + ' ORDER BY h.name) FROM halls h WHERE h.id = ANY(p_halls)
+$$;
+
+
+--
+-- Name: kscw_halls_same_site(integer[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_halls_same_site(p_halls integer[]) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT count(*) > 0
+     AND bool_and(COALESCE(trim(h.address), '') <> '')
+     AND count(DISTINCT lower(trim(h.address))) = 1
+  FROM halls h WHERE h.id = ANY(p_halls)
+$$;
 
 
 --
@@ -2437,6 +2801,155 @@ $$;
 
 
 --
+-- Name: trg_games_duty_recheck(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_games_duty_recheck() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_today date := (now() AT TIME ZONE 'Europe/Zurich')::date;
+  v_old_status text; v_new_status text;
+  v_old_halls integer[]; v_new_halls integer[];
+  v_moved boolean; v_hall_changed boolean; v_came_back boolean;
+  v_old_hall text; v_new_hall text;
+  v_seat record; v_unsent record; v_had_unsent boolean;
+  v_from_date date; v_from_time time; v_from_hall text;
+BEGIN
+  IF current_setting('kscw.skip_duty_recheck', true) = 'on' THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    v_old_halls := kscw_game_hall_ids(OLD.hall, OLD.additional_halls);
+    v_new_halls := kscw_game_hall_ids(NEW.hall, NEW.additional_halls);
+    -- A sync rewrites the whole row, so UPDATE OF fires on values that did not change.
+    IF NEW.date IS NOT DISTINCT FROM OLD.date
+       AND NEW.time IS NOT DISTINCT FROM OLD.time
+       AND v_new_halls IS NOT DISTINCT FROM v_old_halls
+       AND NEW.type IS NOT DISTINCT FROM OLD.type
+       AND NEW.status IS NOT DISTINCT FROM OLD.status THEN
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  -- Nothing here may ever stop a game from being written: a sync that fails on this
+  -- trigger would lose the game's real change for a notification.
+  BEGIN
+    IF TG_OP = 'DELETE' THEN
+      IF OLD.type = 'home' AND OLD.date >= v_today AND COALESCE(OLD.status, 'scheduled') <> 'completed' THEN
+        UPDATE duty_rechecks SET status = 'superseded' WHERE game = OLD.id AND status = 'pending';
+        PERFORM kscw_duty_recheck_notify_seats(OLD, OLD, 'deleted');
+      END IF;
+      RETURN OLD;
+    END IF;
+
+    IF OLD.type IS DISTINCT FROM 'home' THEN RETURN NEW; END IF;
+
+    v_old_status := COALESCE(OLD.status, 'scheduled');
+    v_new_status := COALESCE(NEW.status, 'scheduled');
+    IF v_new_status = 'completed' THEN RETURN NEW; END IF;
+    IF COALESCE(NEW.date, OLD.date) < v_today THEN RETURN NEW; END IF;
+
+    IF NEW.type IS DISTINCT FROM 'home' THEN
+      -- A row an intra-club fixture's other side adopts changes team as well: that is
+      -- bookkeeping, not a switch, and its seats are not ours to touch.
+      IF NEW.kscw_team IS NOT DISTINCT FROM OLD.kscw_team THEN
+        UPDATE duty_rechecks SET status = 'superseded' WHERE game = NEW.id AND status = 'pending';
+        PERFORM kscw_duty_recheck_notify_seats(OLD, NEW, 'became_away');
+      END IF;
+      RETURN NEW;
+    END IF;
+
+    IF v_new_status IN ('cancelled', 'postponed') THEN
+      IF v_new_status IS DISTINCT FROM v_old_status THEN
+        UPDATE duty_rechecks SET status = 'superseded' WHERE game = NEW.id AND status = 'pending';
+        PERFORM kscw_duty_recheck_notify_seats(OLD, NEW, v_new_status);
+      END IF;
+      RETURN NEW;
+    END IF;
+
+    -- No date or time yet: there is nothing anyone could answer.
+    IF NEW.date IS NULL OR NEW.time IS NULL THEN RETURN NEW; END IF;
+
+    v_moved := NEW.date IS DISTINCT FROM OLD.date OR NEW.time IS DISTINCT FROM OLD.time;
+    v_hall_changed := v_new_halls IS DISTINCT FROM v_old_halls;
+    v_came_back := v_old_status IN ('cancelled', 'postponed');
+
+    IF NOT v_moved AND NOT v_came_back
+       AND (NOT v_hall_changed OR kscw_halls_same_site(v_old_halls || v_new_halls)) THEN
+      IF v_hall_changed THEN
+        DELETE FROM duty_rechecks
+         WHERE game = NEW.id AND kind = 'notice' AND reason = 'hall_same_site' AND notified_at IS NULL;
+        PERFORM kscw_duty_recheck_notify_seats(OLD, NEW, 'hall_same_site');
+      END IF;
+      RETURN NEW;
+    END IF;
+
+    v_old_hall := kscw_hall_label(v_old_halls);
+    v_new_hall := kscw_hall_label(v_new_halls);
+
+    FOR v_seat IN SELECT * FROM kscw_game_duty_seats(NEW) s WHERE s.member IS NOT NULL LOOP
+      -- A question that has not gone out yet: the person last heard what that one
+      -- started from, so the next one starts there too.
+      SELECT old_date, old_time, old_hall INTO v_unsent FROM duty_rechecks
+       WHERE game = NEW.id AND role = v_seat.role AND member = v_seat.member
+         AND kind = 'ask' AND status = 'pending' AND notified_at IS NULL
+       ORDER BY id LIMIT 1;
+      v_had_unsent := FOUND;
+      IF v_had_unsent THEN
+        v_from_date := v_unsent.old_date; v_from_time := v_unsent.old_time; v_from_hall := v_unsent.old_hall;
+      ELSE
+        v_from_date := OLD.date; v_from_time := OLD.time; v_from_hall := v_old_hall;
+      END IF;
+
+      UPDATE duty_rechecks SET status = 'superseded'
+       WHERE game = NEW.id AND role = v_seat.role AND status = 'pending'
+         AND (kind = 'ask' OR member = v_seat.member);
+
+      -- There and back before anybody was told: nothing to ask.
+      IF v_had_unsent AND NOT v_came_back
+         AND v_from_date IS NOT DISTINCT FROM NEW.date
+         AND v_from_time IS NOT DISTINCT FROM NEW.time
+         AND v_from_hall IS NOT DISTINCT FROM v_new_hall THEN
+        CONTINUE;
+      END IF;
+
+      INSERT INTO duty_rechecks (game, role, member, duty_team, kind, reason, status, home_team, away_team,
+        old_date, old_time, old_hall, new_date, new_time, new_hall)
+      VALUES (NEW.id, v_seat.role, v_seat.member, v_seat.duty_team, 'ask', 'moved', 'pending',
+        NEW.home_team, NEW.away_team, v_from_date, v_from_time, v_from_hall, NEW.date, NEW.time, v_new_hall);
+    END LOOP;
+
+    -- A seat with a duty team and nobody on it: no person to ask, so the team's leaders
+    -- get a notice. Basketball shares a duty across teams (migration 371).
+    DELETE FROM duty_rechecks WHERE game = NEW.id AND kind = 'team_notice' AND notified_at IS NULL;
+    INSERT INTO duty_rechecks (game, duty_team, kind, reason, status, home_team, away_team,
+      old_date, old_time, old_hall, new_date, new_time, new_hall)
+    SELECT NEW.id, t.team, 'team_notice', 'moved', 'info', NEW.home_team, NEW.away_team,
+      OLD.date, OLD.time, v_old_hall, NEW.date, NEW.time, v_new_hall
+    FROM (
+      SELECT s.duty_team AS team FROM kscw_game_duty_seats(NEW) s
+       WHERE s.member IS NULL AND s.duty_team IS NOT NULL
+      UNION
+      SELECT e::integer FROM json_array_elements_text(
+        CASE WHEN json_typeof(NEW.bb_extra_duty_teams) = 'array' THEN NEW.bb_extra_duty_teams ELSE '[]'::json END) e
+       WHERE EXISTS (SELECT 1 FROM kscw_game_duty_seats(NEW) s
+                      WHERE s.member IS NULL AND s.duty_team IS NOT NULL AND s.role LIKE 'bb\_%')
+    ) t
+    WHERE t.team IS DISTINCT FROM NEW.kscw_team;
+
+    RETURN NEW;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'trg_games_duty_recheck: game %: %', COALESCE(NEW.id, OLD.id), SQLERRM;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END;
+END;
+$$;
+
+
+--
 -- Name: trg_games_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3439,10 +3952,6 @@ CREATE FUNCTION public.verify_participation_visibility() RETURNS TABLE(kind text
    WHERE e.participation IS NULL;
 $$;
 
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
 
 --
 -- Name: absence_visibility; Type: TABLE; Schema: public; Owner: -
@@ -5291,278 +5800,6 @@ COMMENT ON COLUMN public.basketplan_people.licence_category IS 'Licence category
 
 
 --
--- Name: games; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.games (
-    id integer NOT NULL,
-    game_id character varying(255) DEFAULT NULL::character varying,
-    home_team character varying(255) DEFAULT NULL::character varying,
-    away_team character varying(255) DEFAULT NULL::character varying,
-    away_hall_json json,
-    date date,
-    "time" time without time zone,
-    league character varying(255) DEFAULT NULL::character varying,
-    round character varying(255) DEFAULT NULL::character varying,
-    season character varying(255) DEFAULT NULL::character varying,
-    type character varying(255) DEFAULT NULL::character varying,
-    status character varying(255) DEFAULT NULL::character varying,
-    home_score integer DEFAULT 0,
-    away_score integer DEFAULT 0,
-    sets_json json,
-    duty_confirmed boolean DEFAULT false NOT NULL,
-    referees_json json,
-    source character varying(255) DEFAULT NULL::character varying,
-    respond_by timestamp with time zone,
-    min_participants integer,
-    kscw_team integer,
-    hall integer,
-    scorer_member integer,
-    scoreboard_member integer,
-    scorer_scoreboard_member integer,
-    scorer_duty_team integer,
-    scoreboard_duty_team integer,
-    scorer_scoreboard_duty_team integer,
-    bb_scorer_member integer,
-    bb_timekeeper_member integer,
-    bb_24s_official integer,
-    bb_duty_team integer,
-    bb_scorer_duty_team integer,
-    bb_timekeeper_duty_team integer,
-    bb_24s_duty_team integer,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    send_email_invite boolean DEFAULT false,
-    svrz_push_status public.svrz_push_status_enum,
-    additional_halls json,
-    auto_confirm_rsvp boolean,
-    scorer_confirmed_by_name character varying(255),
-    scorer_confirmed_at timestamp with time zone,
-    scoreboard_confirmed_by_name character varying(255),
-    scoreboard_confirmed_at timestamp with time zone,
-    scorer_scoreboard_confirmed_by_name character varying(255),
-    scorer_scoreboard_confirmed_at timestamp with time zone,
-    bb_scorer_confirmed_by_name character varying(255),
-    bb_scorer_confirmed_at timestamp with time zone,
-    bb_timekeeper_confirmed_by_name character varying(255),
-    bb_timekeeper_confirmed_at timestamp with time zone,
-    bb_24s_confirmed_by_name character varying(255),
-    bb_24s_confirmed_at timestamp with time zone,
-    referee_duty_team integer,
-    referee_member integer,
-    referee_confirmed_by_name character varying(255),
-    referee_confirmed_at timestamp with time zone,
-    duty_late_json jsonb,
-    duty_leader_alert_json jsonb,
-    auto_nomination_list boolean,
-    vm_nomination_status character varying(16),
-    vm_nomination_list_id character varying(64),
-    vm_nomination_count integer,
-    vm_nomination_pushed_at timestamp with time zone,
-    vm_nomination_error text,
-    meeting_offset_minutes integer DEFAULT 60,
-    vm_nomination_claimed_at timestamp with time zone,
-    bb_extra_duty_teams json,
-    carpool_enabled boolean DEFAULT false NOT NULL,
-    carpool_teams jsonb,
-    provisional_sets_json json,
-    provisional_home_score integer,
-    provisional_away_score integer,
-    provisional_source character varying(16),
-    provisional_by_name character varying(255),
-    provisional_at timestamp with time zone,
-    vm_result_status character varying(16),
-    vm_result_error text,
-    vm_result_pushed_at timestamp with time zone,
-    vm_result_claimed_at timestamp with time zone,
-    vm_result_report_id character varying(64),
-    vm_opponent_report json,
-    vm_result_checked_at timestamp with time zone,
-    vm_nomination_sheet_changed_at timestamp with time zone,
-    CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
-    CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
-    CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
-    CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[])))),
-    CONSTRAINT games_vm_result_status_check CHECK (((vm_result_status)::text = ANY ((ARRAY['pending'::character varying, 'reported'::character varying, 'confirmed'::character varying, 'conflict'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
-);
-
-
---
--- Name: COLUMN games.auto_confirm_rsvp; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.auto_confirm_rsvp IS 'NULL = inherit teams.features_enabled.game_auto_confirm. true/false = per-activity override.';
-
-
---
--- Name: COLUMN games.duty_late_json; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.duty_late_json IS 'Per-role late-arrival reports { role: { at, by_name } } (migration 202). Written by the duty-late endpoint; no contact info stored.';
-
-
---
--- Name: COLUMN games.duty_leader_alert_json; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.duty_leader_alert_json IS 'Emergency "contact team leaders" reports { memberId: { at, by_name } } (migration 203). Written by the duty-leader-contact endpoint; no contact info stored.';
-
-
---
--- Name: COLUMN games.auto_nomination_list; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.auto_nomination_list IS 'Auto-file the Volleymanager Einsatzliste from confirmed RSVPs ~60 min before kickoff. NULL = inherit teams.features_enabled.auto_nomination_list; true/false = per-game override.';
-
-
---
--- Name: COLUMN games.vm_nomination_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_nomination_status IS 'filled = players written, list left OPEN (a fineable validation issue blocked the close, or the team asked us not to close). closed = filed AND closed, nothing left to do. skipped = nothing to file (no licensed confirmed players). failed = see vm_nomination_error. NULL = never attempted. The cron re-attempts anything not in (closed, skipped).';
-
-
---
--- Name: COLUMN games.vm_nomination_list_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_nomination_list_id IS 'Volleymanager nominationList __identity (uuid). Set once created; lets a retry update the existing list instead of creating a second one.';
-
-
---
--- Name: COLUMN games.vm_nomination_count; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_nomination_count IS 'Players actually filed on the last successful push.';
-
-
---
--- Name: COLUMN games.vm_nomination_error; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_nomination_error IS 'Last push failure, surfaced to the coach in the game detail modal.';
-
-
---
--- Name: COLUMN games.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `time` that the team meets. NULL = no meeting time shown. Stored as an offset, not a clock, so it follows a Swiss Volley reschedule (sv-sync rewrites `time`) without going stale. DEFAULT 60 is what gives sync-created fixtures a meeting time with no code in sv-sync.';
-
-
---
--- Name: COLUMN games.vm_nomination_claimed_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_nomination_claimed_at IS 'When the current nomination-push worker claimed this game. Lets a stale claim be reclaimed after a container restart or a lost worker; NULL when unclaimed.';
-
-
---
--- Name: COLUMN games.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer rides, Going / Return). Default off; away games are switched on automatically 7 days before (carpool_auto_enable_away_games(), migration 441); the coach/TR can switch any game on or off. Rides live in carpools (migration 378).';
-
-
---
--- Name: COLUMN games.carpool_teams; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to — the playing team and/or its guest teams. NULL/[] = everyone who can see the game.';
-
-
---
--- Name: COLUMN games.provisional_sets_json; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_sets_json IS 'Provisional set scores [{"home":25,"away":21}, …] (same shape as sets_json). Shown until status = completed; kept afterwards as history.';
-
-
---
--- Name: COLUMN games.provisional_home_score; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_home_score IS 'Provisional sets won by the home team.';
-
-
---
--- Name: COLUMN games.provisional_away_score; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_away_score IS 'Provisional sets won by the away team.';
-
-
---
--- Name: COLUMN games.provisional_source; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_source IS 'own = our team entered it; opponent = read from the opponent''s VM report, unconfirmed; confirmed = our report equals the opponent''s; vm_official = VM already holds the official result the SV feed has not delivered yet.';
-
-
---
--- Name: COLUMN games.provisional_by_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_by_name IS 'Member who entered the provisional result (actor capture; NULL when it came from Volleymanager).';
-
-
---
--- Name: COLUMN games.provisional_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.provisional_at IS 'When the provisional result was stored.';
-
-
---
--- Name: COLUMN games.vm_result_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_status IS 'Volleymanager result-report push: pending / reported / confirmed / conflict / failed / skipped. Endpoint- and worker-owned.';
-
-
---
--- Name: COLUMN games.vm_result_error; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_error IS 'Why the push failed or was skipped (e.g. derby, home_team_reports, not_reportable, no_vm_game, dry_run).';
-
-
---
--- Name: COLUMN games.vm_result_pushed_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_pushed_at IS 'Last successful result-report write to Volleymanager.';
-
-
---
--- Name: COLUMN games.vm_result_claimed_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_claimed_at IS 'Row lease for the result push (10 min): only one worker per game in flight.';
-
-
---
--- Name: COLUMN games.vm_result_report_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_report_id IS 'Our Volleymanager gameResultReport __identity.';
-
-
---
--- Name: COLUMN games.vm_opponent_report; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_opponent_report IS 'The opponent''s VM result report as last read: {"sets":[{home,away}],"home":3,"away":2,"reported_at":iso,"party":"hometeam"} or NULL.';
-
-
---
--- Name: COLUMN games.vm_result_checked_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.games.vm_result_checked_at IS 'Last Volleymanager read of this game''s result reports (sweep or game modal).';
-
-
---
 -- Name: halls; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6811,6 +7048,66 @@ CREATE TABLE public.country_name_aliases (
 --
 
 COMMENT ON TABLE public.country_name_aliases IS 'Lowercased country-name spellings → ISO alpha-2. Parse direction only; never use for display or for the ClubDesk push (that is country_codes.name_de_clubdesk).';
+
+
+--
+-- Name: duty_rechecks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.duty_rechecks (
+    id bigint NOT NULL,
+    game integer,
+    role character varying(32),
+    member integer,
+    duty_team integer,
+    invited_by integer,
+    kind character varying(16) NOT NULL,
+    reason character varying(24) NOT NULL,
+    status character varying(16) NOT NULL,
+    home_team character varying(255),
+    away_team character varying(255),
+    old_date date,
+    old_time time without time zone,
+    old_hall text,
+    new_date date,
+    new_time time without time zone,
+    new_hall text,
+    send_after timestamp with time zone DEFAULT (now() + '00:10:00'::interval) NOT NULL,
+    held_at timestamp with time zone,
+    released_at timestamp with time zone,
+    notified_at timestamp with time zone,
+    reminded_at timestamp with time zone,
+    leaders_warned_at timestamp with time zone,
+    open_reminded_72h_at timestamp with time zone,
+    open_reminded_24h_at timestamp with time zone,
+    answered_at timestamp with time zone,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT duty_rechecks_kind_chk CHECK (((kind)::text = ANY ((ARRAY['ask'::character varying, 'invite'::character varying, 'notice'::character varying, 'team_notice'::character varying])::text[]))),
+    CONSTRAINT duty_rechecks_reason_chk CHECK (((reason)::text = ANY ((ARRAY['moved'::character varying, 'hall_same_site'::character varying, 'postponed'::character varying, 'cancelled'::character varying, 'became_away'::character varying, 'deleted'::character varying, 'invited'::character varying])::text[]))),
+    CONSTRAINT duty_rechecks_role_chk CHECK (((role IS NULL) OR ((role)::text = ANY ((ARRAY['scorer'::character varying, 'scoreboard'::character varying, 'scorer_scoreboard'::character varying, 'referee'::character varying, 'bb_scorer'::character varying, 'bb_timekeeper'::character varying, 'bb_24s_official'::character varying])::text[])))),
+    CONSTRAINT duty_rechecks_status_chk CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'refused'::character varying, 'superseded'::character varying, 'info'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE duty_rechecks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.duty_rechecks IS 'Questions to the people on a home game''s duty seats after the game moved (kind ask), requests to take an empty seat (invite) and notices (notice, team_notice). Written by trg_games_duty_recheck and kscw-endpoints/duty-recheck.js, sent by kscw-hooks/duty-recheck.js. A seat is open to every member while it is empty and has a refused ask. Not a Directus collection.';
+
+
+--
+-- Name: duty_rechecks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.duty_rechecks ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.duty_rechecks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -14821,6 +15118,14 @@ ALTER TABLE ONLY public.country_name_aliases
 
 
 --
+-- Name: duty_rechecks duty_rechecks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.duty_rechecks
+    ADD CONSTRAINT duty_rechecks_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: email_accounts email_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16389,6 +16694,34 @@ CREATE INDEX country_codes_name_de_lower_idx ON public.country_codes USING btree
 --
 
 CREATE INDEX country_codes_name_en_lower_idx ON public.country_codes USING btree (lower(name_en));
+
+
+--
+-- Name: duty_rechecks_game_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX duty_rechecks_game_idx ON public.duty_rechecks USING btree (game);
+
+
+--
+-- Name: duty_rechecks_one_open_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX duty_rechecks_one_open_uq ON public.duty_rechecks USING btree (game, role, member) WHERE ((status)::text = 'pending'::text);
+
+
+--
+-- Name: duty_rechecks_refused_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX duty_rechecks_refused_idx ON public.duty_rechecks USING btree (game, role) WHERE (((kind)::text = 'ask'::text) AND ((status)::text = 'refused'::text));
+
+
+--
+-- Name: duty_rechecks_unsent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX duty_rechecks_unsent_idx ON public.duty_rechecks USING btree (send_after) WHERE (notified_at IS NULL);
 
 
 --
@@ -18443,6 +18776,20 @@ CREATE TRIGGER trg_games_0_purge_polymorphic AFTER DELETE ON public.games FOR EA
 
 
 --
+-- Name: games trg_games_duty_recheck; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_games_duty_recheck AFTER UPDATE OF date, "time", hall, additional_halls, type, status ON public.games FOR EACH ROW EXECUTE FUNCTION public.trg_games_duty_recheck();
+
+
+--
+-- Name: games trg_games_duty_recheck_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_games_duty_recheck_delete BEFORE DELETE ON public.games FOR EACH ROW EXECUTE FUNCTION public.trg_games_duty_recheck();
+
+
+--
 -- Name: games trg_games_normalize_bb_extra_duty_teams; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -19364,6 +19711,38 @@ ALTER TABLE ONLY public.clubdesk_sync_proposals
 
 ALTER TABLE ONLY public.country_name_aliases
     ADD CONSTRAINT country_name_aliases_code_fkey FOREIGN KEY (code) REFERENCES public.country_codes(code) ON DELETE CASCADE;
+
+
+--
+-- Name: duty_rechecks duty_rechecks_duty_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.duty_rechecks
+    ADD CONSTRAINT duty_rechecks_duty_team_fkey FOREIGN KEY (duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: duty_rechecks duty_rechecks_game_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.duty_rechecks
+    ADD CONSTRAINT duty_rechecks_game_fkey FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE SET NULL;
+
+
+--
+-- Name: duty_rechecks duty_rechecks_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.duty_rechecks
+    ADD CONSTRAINT duty_rechecks_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: duty_rechecks duty_rechecks_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.duty_rechecks
+    ADD CONSTRAINT duty_rechecks_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -21208,7 +21587,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0GVSL8NpMaEnCEoEoUEpuz2p2rlrW9BGOU0dXPsqIpehZTNrevwoYddijJKGe6A
+\unrestrict HyoiJYkgferGVv9XMLPtfSmzRhiP3eGax53LhNEgsS7u8ywfxvaW4H8SKTTbKuU
 
 
 
@@ -21226,7 +21605,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 454 migration(s) already in the schema above.
+-- Migration tracker seed — 455 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21693,6 +22072,7 @@ FROM (VALUES
   ('447-stats-missing-scorer-hu20-referee-and-scorer.sql'),
   ('448-hu20-scorer-from-referee-team.sql'),
   ('449-stats-missing-scorer-hu20-referee-and-taefeler.sql'),
-  ('450-hu20-taefeler-not-scorer.sql')
+  ('450-hu20-taefeler-not-scorer.sql'),
+  ('451-duty-rechecks.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
