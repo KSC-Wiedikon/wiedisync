@@ -182,7 +182,7 @@ export default {
   featureAutoConfirmGame: 'Auto-confirm games',
   featureAutoConfirmGameHint: 'New games start with all full members confirmed (guests excluded) — members must opt out if they cannot attend',
   featureAutoNominationList: 'Auto-file Einsatzliste',
-  featureAutoNominationListHint: 'Files the Volleymanager Einsatzliste from the confirmed RSVPs 24 hours before kickoff — only players with a licence can be nominated, and the list is left open for review if Volleymanager flags a problem. If answers change after that, coaches and team responsibles get an email 2 hours before kickoff',
+  featureAutoNominationListHint: 'Files the Volleymanager Einsatzliste from the confirmed RSVPs 24 hours before kickoff — only players with a licence can be nominated. Coaches and team responsibles get an email if Volleymanager flags a problem, and 2 hours before kickoff if answers changed. They change it on the match sheet',
   nominationOfficials: 'Einsatzliste officials',
   nominationOfficialsHint: 'Who is entered as head coach (C) and assistant coaches (AC1, AC2) when the Einsatzliste is pushed. C is required — without it the push is refused; AC1 and AC2 are optional. A game\'s match sheet can override this. Only those who said Yes are named; if the head coach has not, an assistant moves up.',
   nominationOfficialCoach: 'Head coach (C) — required',

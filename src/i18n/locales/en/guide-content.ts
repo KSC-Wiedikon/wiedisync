@@ -1471,7 +1471,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "The button appears for the coach or team responsible of the playing team, home and away, from six hours before the start until three hours after. The assigned scorer (scorer duties only, not scoreboard) sees a read-only version from 40 minutes before a home game. Outside the window you only see **The match sheet opens shortly before the game and closes 3 hours after it.**"
+          "text": "The button appears for the coach or team responsible of the playing team, home and away, from 24 hours before the start until three hours after, with dates of birth from six hours before. The assigned scorer (scorer duties only, not scoreboard) sees a read-only version from 40 minutes before a home game. Outside the window you only see **The match sheet opens shortly before the game and closes 3 hours after it.**"
         },
         {
           "t": "h",
@@ -1504,7 +1504,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Emergency changes: while editing, **Add from team · emergency only** lists the rest of the squad. **+** adds a player, **✕** strikes one off (crossed out) and **↺** puts them back. Any add or removal raises the red banner **Player list differs from the Einsatzliste**: the app does not push it, so you must enter the same change manually in Volleymanager. **Reset to the Einsatzliste** (shown once you have saved) removes every adjustment for this game, numbers included."
+          "text": "Changing who plays: while editing, **Add from team** lists the rest of the squad. **+** adds a player, **✕** strikes one off (crossed out) and **↺** puts them back. **Save** shows what will change, then sets their RSVPs (off is a No, on is a Yes, with no fine and no email) and saves the Einsatzliste in Volleymanager right away; the box at the top shows how that went. If someone changes the list directly in Volleymanager, the sheet follows at the next read and keeps numbers, captain and libero. From kickoff the list is the referee's: a change then stays on this sheet and raises the red banner **Player list differs from the Einsatzliste**. **Reset to the Einsatzliste** (shown once you have saved) removes every adjustment for this game, numbers included."
         },
         {
           "t": "h",

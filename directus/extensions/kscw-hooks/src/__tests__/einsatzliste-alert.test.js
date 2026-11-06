@@ -7,6 +7,9 @@ import {
   EINSATZLISTE_ALERT_LEAD_MS,
   einsatzlisteAlertContent,
   einsatzlisteAlertDue,
+  flaggedReasons,
+  nominationFlagAlertContent,
+  nominationFlagAlertDue,
   vmReadDue,
 } from '../einsatzliste-alert.js'
 import { VM_CHECK_LEAD_MS } from '../../../kscw-endpoints/src/vm-sheet-check.js'
@@ -62,9 +65,68 @@ describe('vmReadDue', () => {
     expect(vmReadDue(failed, KICKOFF - VM_CHECK_LEAD_MS)).toBe(true)
   })
 
+  describe('after a push that reached Volleymanager', () => {
+    const pushed = KICKOFF - 20 * 60 * MIN
+    const saved = { ...GAME, vm_nomination_status: 'saved', vm_nomination_pushed_at: iso(pushed) }
+
+    it('reads the list once, at the next tick', () => {
+      expect(vmReadDue(saved, pushed + 5 * MIN)).toBe(true)
+      expect(vmReadDue({ ...saved, vm_nomination_status: 'filled' }, pushed + 5 * MIN)).toBe(true)
+      expect(vmReadDue({ ...saved, vm_status: 'ok', vm_checked_at: iso(pushed + 5 * MIN) }, pushed + 10 * MIN)).toBe(false)
+    })
+
+    it('reads again when the first read found the account busy', () => {
+      expect(vmReadDue({ ...saved, vm_status: 'busy', vm_checked_at: iso(pushed + 5 * MIN) }, pushed + 10 * MIN)).toBe(true)
+    })
+
+    it('reads again after the next push', () => {
+      const again = pushed + 60 * MIN
+      expect(vmReadDue({ ...saved, vm_nomination_pushed_at: iso(again), vm_status: 'ok', vm_checked_at: iso(pushed + 5 * MIN) }, again + 5 * MIN)).toBe(true)
+    })
+
+    it('nothing to read after a push that did not reach it', () => {
+      for (const vm_nomination_status of ['failed', 'skipped', 'pending', 'closed']) {
+        expect(vmReadDue({ ...saved, vm_nomination_status }, pushed + 5 * MIN)).toBe(false)
+      }
+    })
+
+    it('not from kickoff: the −45 min rule covers that', () => {
+      expect(vmReadDue({ ...saved, vm_status: 'ok', vm_checked_at: iso(KICKOFF - 30 * MIN), vm_nomination_pushed_at: iso(KICKOFF - 10 * MIN) }, KICKOFF + MIN)).toBe(false)
+    })
+  })
+
+  it('a team with the automatic push is read at −2 h like any other', () => {
+    expect(vmReadDue(GAME, KICKOFF - EINSATZLISTE_ALERT_LEAD_MS)).toBe(true)
+  })
+
   it('stops 3 h after kickoff', () => {
     expect(vmReadDue(GAME, KICKOFF + 3 * 60 * MIN)).toBe(true)
     expect(vmReadDue(GAME, KICKOFF + 3 * 60 * MIN + 1)).toBe(false)
+  })
+})
+
+describe('the email about a list Volleymanager flags', () => {
+  const filled = { ...GAME, vm_nomination_status: 'filled', vm_nomination_error: 'Volleymanager flags: nominationList_hasTooManyNominations' }
+
+  it('due while it is flagged, before kickoff', () => {
+    expect(nominationFlagAlertDue(filled, KICKOFF - 9 * 60 * MIN)).toBe(true)
+    expect(nominationFlagAlertDue(filled, KICKOFF)).toBe(false)
+    expect(nominationFlagAlertDue({ ...filled, vm_nomination_status: 'saved' }, KICKOFF - MIN)).toBe(false)
+  })
+
+  it('reads what Volleymanager flagged', () => {
+    expect(flaggedReasons(filled.vm_nomination_error)).toEqual(['tooMany'])
+    expect(flaggedReasons('Volleymanager flags: nominationList_hasTooFewNominations, nominationList_isMissingCoachPerson; no licence number: A B'))
+      .toEqual(['tooFew', 'noCoach'])
+    expect(flaggedReasons('Volleymanager flags: issue#99')).toEqual(['other'])
+    expect(flaggedReasons(null)).toEqual(['other'])
+  })
+
+  it.each(['de', 'gsw', 'en', 'fr', 'it'])('%s: says it in words, and where to fix it', (locale) => {
+    const { html, text, subject } = nominationFlagAlertContent({ locale, firstName: 'Anna', game: filled })
+    for (const out of [html, text, subject]) expect(out).not.toContain('nominationList_')
+    expect(text).toContain(`/games/${GAME.id}/roster`)
+    expect(text).not.toMatch(/\bclose\b|abschliess|clôtur|chiud/i)
   })
 })
 
