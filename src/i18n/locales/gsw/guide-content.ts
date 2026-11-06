@@ -1471,7 +1471,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "De Chnopf gseht de Coach oder d Teamverantwortlichi vom spielende Team, dihei und uswärts, ab sächs Stund vor em Aafang bis drü Stund nachher. De iiteilt Schriiber (nur Schriiberdienst, nöd Täfeler) gseht ab 40 Minute vor eme Heimspiel e Version nur zum Läse. Usserhalb vo dem Ziitfänschter gsehsch nur **S Matchblatt gaht churz vor em Spiel uf und 3 Stund nachher wieder zue.**"
+          "text": "De Chnopf gseht de Coach oder d Teamverantwortlichi vom spielende Team, dihei und uswärts, ab 24 Stund vor em Aafang bis drü Stund nachher, mit Geburtsdate ab sächs Stund vorher. De iiteilt Schriiber (nur Schriiberdienst, nöd Täfeler) gseht ab 40 Minute vor eme Heimspiel e Version nur zum Läse. Usserhalb vo dem Ziitfänschter gsehsch nur **S Matchblatt gaht churz vor em Spiel uf und 3 Stund nachher wieder zue.**"
         },
         {
           "t": "h",
@@ -1504,7 +1504,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Notfall-Änderige: Bim Bearbeite zeigt **Us em Team hinzuefüege · nur im Notfall** de Rescht vom Kader. **+** nimmt en Spieler dezue, **✕** striicht eine (duregstriche) und **↺** nimmt en wieder uf. Jedes Dezuenäh oder Striiche löst s rote Banner **S Ufgebot wiicht vo de Einsatzliste ab** us: D App schickt d Änderig nöd wiiter, drum muesch die gliich Änderig vo Hand im Volleymanager erfasse. **Uf d Einsatzliste zruggsetze** (erschiint, sobald du gspeicheret häsch) löscht alli Aapassige für das Spiel, Nummere inbegriffe."
+          "text": "Ufgebot ändere: Bim Bearbeite zeigt **Us em Team hinzuefüege** de Rescht vom Kader. **+** nimmt en Spieler dezue, **✕** striicht eine (duregstriche) und **↺** nimmt en wieder uf. **Speichere** zeigt, was sich ändert, setzt dänn d Zuesäge (gstriche wird Nei, dezuegno wird Ja, ohni Buess und ohni E-Mail) und speicheret d Einsatzliste sofort im Volleymanager; s Fäld obe zeigt, wies gange isch. Änderet öpper d Liste diräkt im Volleymanager, folgt s Matchblatt bim nächste Läse und bhaltet Nummere, Captain und Libero. Ab em Aafang ghört d Liste em Schiri: E Änderig bliibt dänn uf em Matchblatt und löst s rote Banner **S Ufgebot wiicht vo de Einsatzliste ab** us. **Uf d Einsatzliste zruggsetze** (erschiint, sobald du gspeicheret häsch) löscht alli Aapassige für das Spiel, Nummere inbegriffe."
         },
         {
           "t": "h",

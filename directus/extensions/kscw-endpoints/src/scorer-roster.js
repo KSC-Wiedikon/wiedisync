@@ -1,7 +1,9 @@
 /**
  * The match sheet for one game.
  *   GET  /kscw/scorer/game/:gameId/roster   — read it
- *   POST /kscw/scorer/game/:gameId/roster   — the coach adjusts it (coach/TR only)
+ *   POST /kscw/scorer/game/:gameId/roster   — the coach adjusts it (coach/TR only); a change
+ *                                             of players also writes the RSVPs and saves the
+ *                                             Einsatzliste in Volleymanager (migration 446)
  *   POST /kscw/scorer/game/:gameId/officials — the coach sets C/AC1/AC2/P/M (migration 372)
  *   GET  /kscw/scorer/game/:gameId/official-candidates?q= — club members to add as officials
  *   DELETE /kscw/scorer/game/:gameId/roster — revert players AND officials to the sources
@@ -20,15 +22,16 @@
  *            match). Home games only — the sheet we hold is the home team's.
  *            READ ONLY: a scorer never edits the sheet.
  *
- *   coach  — a coach or team responsible of the playing team. Window: kickoff −3h … +3h,
- *            wider than the scorer's because they prepare before they travel and because
- *            a hall has no signal (the app pre-loads while they still have bars). Home
+ *   coach  — a coach or team responsible of the playing team. Window: kickoff −24h … +3h,
+ *            from when the automatic Einsatzliste is filed, because this sheet is where it
+ *            is changed. Full dates of birth only from −6h: they prepare before they travel
+ *            and a hall has no signal (the app pre-loads while they still have bars). Home
  *            AND away: a team files an Einsatzliste for every fixture, and VM's call is
  *            scoped to the active party, so it hands us OUR list on either side.
  *            MAY EDIT (see POST below).
  *
- *   guest_coach — a coach or TR of a team this game was opened to (migration 271). Same
- *            window as `coach` — they travel too, and need to verify the SAME sheet at the
+ *   guest_coach — a coach or TR of a team this game was opened to (migration 271). Window:
+ *            kickoff −6h … +3h — they travel too, and need to verify the SAME sheet at the
  *            SAME table. READ ONLY: `bench` (the add-from-squad pool) and `can_edit` stay
  *            keyed to `coach`/`admin` only, so being lent players for one fixture never
  *            becomes a standing power to edit the host team's sheet.
@@ -36,7 +39,7 @@
  *   board  — the hall's LedBox scoreboard (the `ledbox-board@kscw.ch` service user, which
  *            holds the `KSCW LedBox Publisher` policy). Its tablet console shows the sheet to
  *            the scorer, behind the board's scorer PIN, so they can copy it into the
- *            eScoresheet. Window: the coach's (kickoff −6h … +3h) — most halls give the board
+ *            eScoresheet. Window: kickoff −6h … +3h — most halls give the board
  *            no uplink, so it must be able to fetch while one is briefly there and keep the
  *            copy. Home games only, like the scorer. READ ONLY, and no Recheck: a scoreboard
  *            must never log the shared VM account in.
@@ -48,8 +51,10 @@
  * THREE SOURCES, in order:
  *   - `saved` — a snapshot in `game_rosters`, written the first time a coach edits this
  *               game. If rows exist they ARE the sheet: the coach has already looked at
- *               it and corrected it, and their correction must not be silently reverted
- *               by a later VM re-read.
+ *               it and corrected it. It is also what the next push files (migration 446).
+ *               Before kickoff it follows what a read finds in VM once VM holds the
+ *               coach's last change, so a change made in VM by hand arrives here too
+ *               (followVmList); numbers, captain and libero stay.
  *   - `vm`    — the Einsatzliste the team filed in Volleymanager. The legal document the
  *               scorer copies, so it wins over RSVPs: a nominated player who never RSVP'd
  *               still belongs on the sheet. Available for HOME and AWAY fixtures alike —
@@ -59,26 +64,22 @@
  *   - `rsvp`  — fallback: confirmed RSVPs (confirmed guests included). Basketball (no VM),
  *               unfiled lists, and whenever VM is slow/down/unauthenticated.
  *
- * WHAT THE COACH MAY CHANGE, AND WHY IT IS SAFE
+ * WHAT THE COACH MAY CHANGE, AND WHERE IT GOES
  * --------------------------------------------
  * number / is_captain / is_libero do not exist on the Einsatzliste at all — they are ours
- * — so editing them cannot contradict Volleymanager. Adding or dropping a PLAYER does
- * diverge from it; that is the emergency door (someone turns up who was not nominated, or
- * a nominated player does not). We do NOT push it: the UI shows a red banner telling the
- * coach to make the same change by hand in Volleymanager. See migration 211.
+ * — so editing them cannot contradict Volleymanager. Adding or dropping a PLAYER is the one
+ * way to change who plays (owner, 06.11.2026): it writes the RSVP (a No or a Yes, no fine, no
+ * email, raw knex so no hooks run) and saves the list in Volleymanager at once, up to
+ * kickoff. From kickoff the list is the referee's, who closes it after the game, so a change
+ * then stays on this sheet and the UI's red banner says to tell them.
  *
- * NOTE on migration 206 (auto_nomination_list), which files the Einsatzliste from RSVPs 24 h
- * before kickoff and "closes" it: closing in Volleymanager SAVES the list, it does not
- * lock it — the team can still edit it until game start. So there is no conflict with the
- * coach's window here, and the red "enter it manually in Volleymanager" banner is
- * actionable rather than a dead letter: the coach really can still go and fix it.
- * (An earlier version of this comment claimed the two collide. They do not.)
+ * The club only ever SAVES the list and can overwrite it until kickoff. It cannot close it.
  */
 
 import { writeUserLog } from './activity-log.js'
 import { loadVmCheck, runVmCheck, VM_CHECK_LEAD_MS } from './vm-sheet-check.js'
 import { isSvrzRcBlackout } from './vm-windows.js'
-import { refuseExternalOnDev } from './external-accounts.js'
+import { externalAccountsEnabled, refuseExternalOnDev } from './external-accounts.js'
 import { seasonForYmd } from './season.js'
 
 // SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
@@ -96,8 +97,12 @@ const SCORER_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
 // endpoint to learn who is on the sheet before it fetches their documents, so a narrower
 // window here silently breaks the ID pre-load: the coach taps "download for offline", the
 // roster 403s, and nothing downloads — with no error that points at the cause.
-const COACH_WINDOW_BEFORE_MS = 6 * 60 * 60 * 1000
+const PREPARE_WINDOW_BEFORE_MS = 6 * 60 * 60 * 1000
 const COACH_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
+
+// The coach's own window opens when the automatic Einsatzliste is filed (NOMINATION_LEAD_MS in
+// kscw-hooks), since this sheet is where it is changed.
+const COACH_WINDOW_BEFORE_MS = 24 * 60 * 60 * 1000
 
 // The policy the board's service user holds (setup-permissions.mjs §5b). A user holding it
 // is the board, whatever else it is — there is exactly one such user, and it has no member row.
@@ -119,9 +124,19 @@ export function inRosterWindow(access, startMs, nowMs) {
   if (access === 'admin') return true
   if (startMs == null) return false
   const wide = access === 'coach' || access === 'guest_coach' || access === 'board'
-  const before = wide ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
+  const before = access === 'coach'
+    ? COACH_WINDOW_BEFORE_MS
+    : (wide ? PREPARE_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS)
   const after = wide ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
   return nowMs >= startMs - before && nowMs <= startMs + after
+}
+
+/**
+ * A coach's wider window is for changing who plays. It hands out nothing new: full dates of
+ * birth, minors' included, keep the −6h they always had. Admins always.
+ */
+export function birthdatesVisible(access, startMs, nowMs) {
+  return access !== 'coach' || startMs == null || nowMs >= startMs - PREPARE_WINDOW_BEFORE_MS
 }
 
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
@@ -519,6 +534,178 @@ async function loadSavedOfficials(database, gameId) {
   }))
 }
 
+/** Written on the RSVP of a player the coach takes off the sheet, unless they left a note. */
+export const SHEET_DROP_NOTE = 'Taken off the match sheet by the coach'
+
+/** Who left the sheet and who joined it. Both sides are member ids. */
+export function sheetMembershipChange(before, after) {
+  const was = new Set(before)
+  const now = new Set(after)
+  return {
+    leaving: [...was].filter((id) => !now.has(id)),
+    joining: [...now].filter((id) => !was.has(id)),
+  }
+}
+
+/**
+ * The RSVP follows the sheet: off it is a No, on it is a Yes (owner, 06.11.2026). Raw knex on
+ * purpose: no fine, no email and no bell for the player, the coach only made a call about the
+ * list. The database triggers still run. A guest on this team's roster cannot be a Yes
+ * (trg_participations_guest_block); they are on the list through the sheet anyway, and guests
+ * do not count in the comparison.
+ */
+export async function writeSheetRsvps(trx, { gameId, teamId, leaving, joining, userId }) {
+  const members = [...leaving, ...joining]
+  if (!members.length) return { declined: 0, confirmed: 0 }
+  const activity = { activity_type: 'game', activity_id: String(gameId) }
+  const [rows, guests] = await Promise.all([
+    trx('participations').where(activity).whereNull('session_id').whereIn('member', members)
+      .select('id', 'member', 'status', 'note'),
+    trx('member_teams').where('team', teamId).where('guest_level', '>', 0).whereIn('member', members).pluck('member'),
+  ])
+  const byMember = new Map(rows.map((r) => [Number(r.member), r]))
+  const guestIds = new Set(guests.map(Number))
+  const now = new Date()
+  const edited = { last_status_edited_by: userId ?? null, last_status_edited_at: now, date_updated: now }
+
+  async function write(member, status, note) {
+    const row = byMember.get(member)
+    const noted = { note, last_note_edited_by: userId ?? null, last_note_edited_at: now }
+    if (!row) {
+      await trx('participations').insert({ ...activity, member, status, ...edited, ...(note ? noted : {}), date_created: now })
+    } else if (note !== undefined && note !== row.note) {
+      await trx('participations').where('id', row.id).update({ status, ...edited, ...noted })
+    } else {
+      await trx('participations').where('id', row.id).update({ status, ...edited })
+    }
+  }
+
+  let declined = 0
+  for (const member of leaving) {
+    const row = byMember.get(member)
+    if (row?.status === 'declined') continue
+    await write(member, 'declined', row?.note?.trim() ? row.note : SHEET_DROP_NOTE)
+    declined += 1
+  }
+  let confirmed = 0
+  for (const member of joining) {
+    const row = byMember.get(member)
+    if (guestIds.has(member) || row?.status === 'confirmed') continue
+    await write(member, 'confirmed', row?.note === SHEET_DROP_NOTE ? null : undefined)
+    confirmed += 1
+  }
+  return { declined, confirmed }
+}
+
+/**
+ * The saved sheet lined up with the list VM holds: VM's players, with the numbers, captain and
+ * libero the coach set. null when it already matches. `vmRoster` is loadVmRoster()'s `roster`.
+ */
+export function alignSheetToList(saved, vmRoster) {
+  const key = (r) => (r.member != null ? `m:${r.member}` : `n:${r.last_name}|${r.first_initial}`)
+  const onList = new Set(vmRoster.map(key))
+  const active = saved.filter((r) => !r.dropped)
+  const same = !saved.some((r) => r.added || r.dropped)
+    && active.length === vmRoster.length
+    && active.every((r) => onList.has(key(r)))
+  if (same) return null
+  const savedByKey = new Map(saved.map((r) => [key(r), r]))
+  const captainStays = active.some((r) => r.is_captain && onList.has(key(r)))
+  return vmRoster.map((v) => {
+    const s = savedByKey.get(key(v))
+    return {
+      ...v,
+      number: s ? s.number : v.number,
+      is_captain: s ? s.is_captain : (!captainStays && v.is_captain),
+      is_libero: s ? s.is_libero : v.is_libero,
+      added: false,
+      dropped: false,
+    }
+  })
+}
+
+/** The saved sheet is replaced whole: rows exist → they are the sheet. */
+async function writeSheetRows(trx, gameId, rows, { source, actorName, actorEmail, createdAt, now }) {
+  await trx('game_rosters').where('game', gameId).del()
+  if (!rows.length) return
+  await trx('game_rosters').insert(rows.map((r) => ({
+    game: Number(gameId),
+    member: r.member,
+    last_name: r.last_name,
+    first_initial: r.first_initial,
+    birthdate: r.birthdate,
+    licence: r.licence,
+    eligible: r.eligible !== false,
+    number: r.number,
+    is_captain: r.is_captain === true,
+    is_libero: r.is_libero === true,
+    added: r.added === true,
+    dropped: r.dropped === true,
+    source,
+    edited_by_name: actorName,
+    edited_by_email: actorEmail,
+    date_created: createdAt,
+    date_updated: now,
+  })))
+}
+
+/** A change on the sheet no push has seen yet. The cron sends it (nominationPushDue). */
+function sheetChangeUnsent(game) {
+  const changed = game.vm_nomination_sheet_changed_at ? new Date(game.vm_nomination_sheet_changed_at).getTime() : null
+  const attempted = game.vm_nomination_claimed_at ? new Date(game.vm_nomination_claimed_at).getTime() : null
+  return changed != null && (attempted == null || changed > attempted)
+}
+
+/**
+ * A read found a list in VM: let a saved sheet follow it (owner, 06.11.2026). That only
+ * happens when VM should already hold the coach's last change, so anything different was
+ * changed there by hand (or is someone VM would not take, whose note is on the game). While a
+ * push is running, failed or still owed, the coach's change stays on the sheet. From kickoff
+ * the list is the referee's and a change on the sheet does not reach VM, so it stays too.
+ */
+export async function followVmList(database, log, game) {
+  const row = await database('games').where('id', game.id)
+    .first('date', 'time', 'kscw_team', 'vm_nomination_status', 'vm_nomination_claimed_at', 'vm_nomination_sheet_changed_at')
+  if (!row) return false
+  const startMs = gameStartMs(row)
+  if (startMs == null || Date.now() >= startMs) return false
+  if (['pending', 'failed', 'skipped'].includes(row.vm_nomination_status)) return false
+  if (sheetChangeUnsent(row)) return false
+
+  const stored = await database('game_rosters').where('game', game.id).select('*')
+  if (!stored.length) return false
+  const saved = await loadSavedSheet(database, game.id)
+  const team = await database('teams').where('id', row.kscw_team).first('captain')
+  const vm = await loadVmRoster(database, log, game, team?.captain != null ? Number(team.captain) : null)
+  if (!vm?.roster.length) return false
+
+  const aligned = alignSheetToList(saved.roster, vm.roster)
+  if (!aligned) {
+    if (saved.source !== 'vm') await database('game_rosters').where('game', game.id).update({ source: 'vm' })
+    return false
+  }
+  await database.transaction((trx) => writeSheetRows(trx, game.id, aligned, {
+    source: 'vm',
+    actorName: stored[0].edited_by_name,
+    actorEmail: stored[0].edited_by_email,
+    createdAt: stored[0].date_created,
+    now: new Date(),
+  }))
+  log.info?.(`[vm-sheet] game ${game.id}: the saved sheet follows Volleymanager (${aligned.length} players)`)
+  return true
+}
+
+/** Read VM now (runVmCheck), then let a saved sheet follow what it holds. */
+export async function runVmCheckAndFollow(database, log, game, options) {
+  const result = await runVmCheck(database, log, game, options)
+  if (result.status === 'ok' && result.stored) {
+    await followVmList(database, log, game).catch((err) => {
+      log.error?.({ msg: `[vm-sheet] game ${game.id}: following the list failed: ${err.message}`, stack: err.stack })
+    })
+  }
+  return result
+}
+
 /** Is this member a coach or team responsible of the playing team? */
 /**
  * Member ids a coach may add as a match-sheet official: the playing team's staff
@@ -604,7 +791,7 @@ export async function gameSheetMemberIds(database, log, game, { vm: useVm = true
   return new Set(rows.filter((x) => x != null).map(Number).filter((id) => squad.has(id)))
 }
 
-export function registerScorerRoster(router, { database, logger }) {
+export function registerScorerRoster(router, { database, logger, requestNominationPush }) {
   const log = logger.child({ endpoint: 'scorer-roster' })
 
   /**
@@ -712,6 +899,22 @@ export function registerScorerRoster(router, { database, logger }) {
     return { ...sheet, coaches: sortOfficials(officials), officials_edited: savedOfficials != null }
   }
 
+  /**
+   * Start the push for a saved change, while the list is still the club's. Never throws: the
+   * sheet is saved, and the cron sends the change when this does not (nominationPushDue).
+   */
+  async function pushSavedSheet(game) {
+    const startMs = gameStartMs(game)
+    if (game.status !== 'scheduled') return { started: false, reason: 'not_scheduled' }
+    if (startMs != null && Date.now() >= startMs) return { started: false, reason: 'game_started' }
+    try {
+      return await requestNominationPush(game.id)
+    } catch (err) {
+      log.error({ msg: `[scorer-roster] game ${game.id}: could not start the push: ${err.message}`, stack: err.stack })
+      return { started: false, reason: 'error' }
+    }
+  }
+
   /** The officials a coach's edit is resolved against: VM's, else the team's coaches. */
   async function baseOfficials(game, captainId) {
     const v = await loadVmRoster(database, log, game, captainId)
@@ -749,7 +952,7 @@ export function registerScorerRoster(router, { database, logger }) {
 
       const who = member ? await database('members').where('id', member.id).first('id', 'first_name', 'last_name') : null
       const by = { id: who ? Number(who.id) : null, name: who ? `${who.first_name ?? ''} ${who.last_name ?? ''}`.trim() : 'Admin' }
-      const result = await runVmCheck(database, log, game, { by })
+      const result = await runVmCheckAndFollow(database, log, game, { by })
       if (!result.stored) {
         return res.status(409).json({ error: 'Volleymanager is busy — try again in a minute', code: 'vm_busy' })
       }
@@ -824,8 +1027,11 @@ export function registerScorerRoster(router, { database, logger }) {
       // "no answer" — there is no RSVP to look up, and rendering it as a warning would
       // flag every unlinked player as a problem.
       const rsvps = sheet.source === 'vm' ? await rsvpByMember(database, gameId) : null
+      const startMs = gameStartMs(game)
+      const withBirthdate = birthdatesVisible(access, startMs, Date.now())
+      const dob = (r) => (withBirthdate ? r : { ...r, birthdate: null })
       const withRsvp = (r) => ({
-        ...r,
+        ...dob(r),
         rsvp: rsvps && r.member != null ? (rsvps.get(Number(r.member)) ?? 'none') : null,
       })
       sheet.roster = sheet.roster.map(withRsvp)
@@ -862,13 +1068,28 @@ export function registerScorerRoster(router, { database, logger }) {
           access,
           can_edit: access === 'coach' || access === 'admin',
           vm_check: vmCheckSummary(vmCheck, game, sheet, comparison),
+          birthdates_hidden: !withBirthdate,
+          // The list in Volleymanager, for whoever may change it: the same journal as the
+          // game modal, and whether it is still the club's to save.
+          nomination: (access === 'coach' || access === 'admin') && String(game.game_id ?? '').startsWith('vb_')
+            ? {
+              status: game.vm_nomination_status ?? null,
+              error: game.vm_nomination_error ?? null,
+              count: game.vm_nomination_count ?? null,
+              pushed_at: game.vm_nomination_pushed_at ?? null,
+              started: startMs != null && Date.now() >= startMs,
+              // On its way: the cron sends it. Never on dev, where no cron logs in.
+              waiting: externalAccountsEnabled() && sheetChangeUnsent(game)
+                && (startMs == null || Date.now() < startMs),
+            }
+            : null,
           source: sheet.source,
           edited: sheet.edited,
           edited_by: sheet.edited_by ?? null,
           officials_edited: sheet.officials_edited,
           closed_at: sheet.closed_at,
           roster: sheet.roster,
-          coaches,
+          coaches: coaches.map(dob),
           bench,
         },
       })
@@ -891,6 +1112,9 @@ export function registerScorerRoster(router, { database, logger }) {
   // Identity (name / DoB / licence) is NEVER taken from the request — it is re-derived
   // server-side from the base sheet and from `members`. The client may only move the
   // three flags the coach owns, strike a player off, or add one from the team's own squad.
+  //
+  // `officials_changed`: the same save also changed the officials, whose POST left the push
+  // to this one, so that one save starts one push.
   router.post('/scorer/game/:gameId/roster', async (req, res) => {
     try {
       const auth = await authorize(req, res)
@@ -924,7 +1148,11 @@ export function registerScorerRoster(router, { database, logger }) {
       const squad = await squadRows(database, game.kscw_team, season, gameId)
       const squadById = new Map(squad.map((r) => [Number(r.id), r]))
       const onBase = new Set(base.roster.map((r) => r.member).filter((m) => m != null))
-      const validAdded = addedIds.filter((id) => squadById.has(id) && !onBase.has(id))
+      // Also whoever the sheet keeps on it although the base no longer names them: the base
+      // follows the RSVPs and the stored list, so someone struck off earlier has left it, and
+      // putting them back is an add.
+      const keptOn = edits.filter((e) => e && e.dropped === false).map((e) => Number(e.member))
+      const validAdded = [...new Set([...addedIds, ...keptOn])].filter((id) => squadById.has(id) && !onBase.has(id))
 
       const editByMember = new Map(
         edits
@@ -986,31 +1214,27 @@ export function registerScorerRoster(router, { database, logger }) {
         : null
       const actorEmail = userRow?.email ?? null
 
+      // Who actually moved in this save, against the sheet as it stood. Only a volleyball game
+      // has a list to save; a basketball sheet stays what it was.
+      const isVm = String(game.game_id ?? '').startsWith('vb_')
+      const previous = await loadSavedSheet(database, gameId)
+      const onSheet = (list) => list.filter((r) => !r.dropped && r.member != null).map((r) => r.member)
+      const { leaving, joining } = isVm
+        ? sheetMembershipChange(onSheet(previous?.roster ?? base.roster), onSheet(rows))
+        : { leaving: [], joining: [] }
+      const officialsChanged = isVm && body.officials_changed === true
+      const sendToVm = leaving.length > 0 || joining.length > 0 || officialsChanged
+
       const now = new Date()
-      await database.transaction(async (trx) => {
-        await trx('game_rosters').where('game', gameId).del()
-        if (rows.length) {
-          await trx('game_rosters').insert(rows.map((r) => ({
-            game: Number(gameId),
-            member: r.member,
-            last_name: r.last_name,
-            first_initial: r.first_initial,
-            birthdate: r.birthdate,
-            licence: r.licence,
-            eligible: r.eligible !== false,
-            number: r.number,
-            is_captain: r.is_captain === true,
-            is_libero: r.is_libero === true,
-            added: r.added === true,
-            dropped: r.dropped === true,
-            source: base.source,
-            edited_by_name: actorName,
-            edited_by_email: actorEmail,
-            date_created: now,
-            date_updated: now,
-          })))
-        }
+      const rsvps = await database.transaction(async (trx) => {
+        await writeSheetRows(trx, gameId, rows, { source: base.source, actorName, actorEmail, createdAt: now, now })
+        const written = await writeSheetRsvps(trx, {
+          gameId, teamId: game.kscw_team, leaving, joining, userId: req.accountability?.user,
+        })
+        if (sendToVm) await trx('games').where('id', gameId).update({ vm_nomination_sheet_changed_at: trx.fn.now() })
+        return written
       })
+      const push = sendToVm ? await pushSavedSheet(game) : null
 
       const dropped = rows.filter((r) => r.dropped).length
       const added = rows.filter((r) => r.added).length
@@ -1028,6 +1252,10 @@ export function registerScorerRoster(router, { database, logger }) {
           count: rows.length,
           added,
           dropped,
+          left_sheet: leaving,
+          joined_sheet: joining,
+          rsvps,
+          push,
           // Diverging from the Einsatzliste is the thing worth being able to find later.
           diverges_from_einsatzliste: added > 0 || dropped > 0,
           by_member: member ? Number(member.id) : null,
@@ -1040,6 +1268,8 @@ export function registerScorerRoster(router, { database, logger }) {
           count: rows.length,
           added,
           dropped,
+          rsvps,
+          push,
           diverges_from_einsatzliste: added > 0 || dropped > 0,
         },
       })
@@ -1057,7 +1287,8 @@ export function registerScorerRoster(router, { database, logger }) {
 
   // ── POST: the coach sets the officials ────────────────────────────────────
   //
-  // Body: { officials: [{ ref, role }] }
+  // Body: { officials: [{ ref, role }], push?: boolean }
+  //   push — false when the players POST of the same save follows and starts the push.
   //   ref  — `m:<memberId>` (a club member), `vm:<i>` (the i-th official VM named, with
   //          no member link), `s:<rowId>` (an unlinked official already in this game's
   //          saved snapshot). Opaque to the client; the GET hands each official its ref.
@@ -1148,8 +1379,16 @@ export function registerScorerRoster(router, { database, logger }) {
       const actorName = userRow ? [userRow.first_name, userRow.last_name].filter(Boolean).join(' ') || null : null
       const actorEmail = userRow?.email ?? null
 
+      // C / AC1 / AC2 are on the Einsatzliste; a physio or a doctor is not.
+      const slotsOf = (list) => ['coach', 'assistant_coach_1', 'assistant_coach_2']
+        .map((role) => list.find((o) => o.role === role)?.member ?? null)
+      const listChanged = String(game.game_id ?? '').startsWith('vb_')
+        && JSON.stringify(slotsOf(saved ?? base.list)) !== JSON.stringify(slotsOf(rows))
+      const sendToVm = listChanged && req.body?.push !== false
+
       const now = new Date()
       await database.transaction(async (trx) => {
+        if (listChanged) await trx('games').where('id', gameId).update({ vm_nomination_sheet_changed_at: trx.fn.now() })
         await trx('game_roster_officials').where('game', gameId).del()
         if (rows.length) {
           await trx('game_roster_officials').insert(rows.map((r) => ({
@@ -1182,7 +1421,7 @@ export function registerScorerRoster(router, { database, logger }) {
         },
       })
 
-      res.json({ data: { saved: true, count: rows.length } })
+      res.json({ data: { saved: true, count: rows.length, list_changed: listChanged, push: sendToVm ? await pushSavedSheet(game) : null } })
     } catch (err) {
       log.error({
         msg: `POST scorer/game/:id/officials: ${err.message}`,
@@ -1256,10 +1495,14 @@ export function registerScorerRoster(router, { database, logger }) {
       }
 
       // "Reset to the Einsatzliste" reverts the whole sheet — players AND officials.
-      const [removed, removedOfficials] = await database.transaction(async (trx) => [
-        await trx('game_rosters').where('game', gameId).del(),
-        await trx('game_roster_officials').where('game', gameId).del(),
-      ])
+      // Nothing is owed to VM any more; the RSVPs stay as they are.
+      const [removed, removedOfficials] = await database.transaction(async (trx) => {
+        await trx('games').where('id', gameId).update({ vm_nomination_sheet_changed_at: null })
+        return [
+          await trx('game_rosters').where('game', gameId).del(),
+          await trx('game_roster_officials').where('game', gameId).del(),
+        ]
+      })
 
       await writeUserLog(database, log, {
         accountability: req.accountability,

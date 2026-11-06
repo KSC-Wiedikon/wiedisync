@@ -1471,7 +1471,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Il pulsante compare per l'allenatore o il responsabile della squadra che gioca, in casa e in trasferta, da sei ore prima dell'inizio a tre ore dopo. Il segnapunti designato (non il tabellone) vede una versione di sola lettura da 40 minuti prima di una partita in casa. Fuori da questa finestra vedi solo **Il referto di gara si apre poco prima della partita e si chiude 3 ore dopo.**"
+          "text": "Il pulsante compare per l'allenatore o il responsabile della squadra che gioca, in casa e in trasferta, da 24 ore prima dell'inizio a tre ore dopo, con le date di nascita da sei ore prima. Il segnapunti designato (non il tabellone) vede una versione di sola lettura da 40 minuti prima di una partita in casa. Fuori da questa finestra vedi solo **Il referto di gara si apre poco prima della partita e si chiude 3 ore dopo.**"
         },
         {
           "t": "h",
@@ -1504,7 +1504,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Modifiche d'emergenza: durante la modifica, **Aggiungi dalla squadra · solo in caso di emergenza** elenca il resto della rosa. **+** aggiunge un giocatore, **✕** ne cancella uno (barrato) e **↺** lo rimette. Ogni aggiunta o rimozione fa comparire il banner rosso **La lista dei giocatori differisce dall'Einsatzliste**: l'app non la trasmette, quindi devi inserire la stessa modifica a mano in Volleymanager. **Ripristina l'Einsatzliste** (visibile dopo aver salvato) rimuove ogni adattamento per questa partita, numeri compresi."
+          "text": "Cambiare chi gioca: durante la modifica, **Aggiungi dalla squadra** elenca il resto della rosa. **+** aggiunge un giocatore, **✕** ne cancella uno (barrato) e **↺** lo rimette. **Salva** mostra cosa cambia, poi imposta le risposte (rimosso diventa No, aggiunto diventa Sì, senza multa né e-mail) e salva subito l'Einsatzliste in Volleymanager; il riquadro in alto mostra com'è andata. Se qualcuno modifica la lista direttamente in Volleymanager, il referto segue alla lettura successiva e mantiene numeri, capitano e libero. Dall'inizio della partita la lista è dell'arbitro: una modifica resta su questo referto e fa comparire il banner rosso **La lista dei giocatori differisce dall'Einsatzliste**. **Ripristina l'Einsatzliste** (visibile dopo aver salvato) rimuove ogni adattamento per questa partita, numeri compresi."
         },
         {
           "t": "h",

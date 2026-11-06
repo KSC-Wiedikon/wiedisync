@@ -6,8 +6,12 @@ import IconButton from '@/components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RsvpCheck, { type RsvpState } from '../../../components/RsvpCheck'
 import LoadingSpinner from '../../../components/LoadingSpinner'
-import { kscwApi } from '../../../lib/api'
+import { useConfirm } from '../../../components/ConfirmProvider'
+import { fetchItem, kscwApi } from '../../../lib/api'
+import type { Game } from '../../../types'
 import { formatDateZurich } from '../../../utils/dateHelpers'
+import NominationPushDialog from './NominationPushDialog'
+import NominationStatusBox, { type NominationStatus } from './NominationStatusBox'
 import VmCheckBanner, { type VmCheck } from './VmCheckBanner'
 
 interface SheetRow {
@@ -76,6 +80,19 @@ interface SheetResponse {
     source: 'vm' | 'rsvp'
     /** The last Volleymanager read (kickoff −2 h, −45 min or Recheck); null for basketball. */
     vm_check?: VmCheck | null
+    /** The list in Volleymanager, for whoever may change it; null for basketball. */
+    nomination?: {
+      status: NominationStatus | null
+      error: string | null
+      count: number | null
+      pushed_at: string | null
+      /** From kickoff the list is the referee's: a change here no longer reaches it. */
+      started: boolean
+      /** A change here is waiting for its turn on the shared account; the cron sends it. */
+      waiting: boolean
+    } | null
+    /** A coach's window opens before they get full dates of birth. */
+    birthdates_hidden?: boolean
     edited: boolean
     edited_by: string | null
     officials_edited: boolean
@@ -104,12 +121,14 @@ const nameOf = (r: { last_name: string; first_initial: string }) =>
  * (never back onto members.number / members.position / teams.captain, which are
  * club-wide and would be rewritten for every other team by one Saturday's tweak).
  *
- * Adding or dropping a PLAYER does diverge from the Einsatzliste. That is the emergency
- * door, and it is the only edit that raises the red banner: we do not push it to
- * Volleymanager, so the coach must make the same change there by hand.
+ * Adding or dropping a PLAYER is how the coach changes who plays: saving it sets their RSVP
+ * and saves the Einsatzliste in Volleymanager, so there is one place to do it. Only from
+ * kickoff, when the list is the referee's, does a change stay here and raise the red banner.
  */
 export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
   const { t } = useTranslation('games')
+  const confirm = useConfirm()
+  const [pushDialogOpen, setPushDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [errorCode, setErrorCode] = useState<string | null>(null)
@@ -154,6 +173,22 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
       setErrorCode((err as Error & { code?: string }).code || 'error')
     }
   }, [gameId, apply])
+
+  // While the list is being saved, watch the game so the status box settles on its own: a
+  // push takes ~10 s, a queued one waits its turn. Capped at 10 min (the row lease). Only the
+  // journal is polled: every read of the sheet itself is audit-logged.
+  const nominationPending = data?.nomination?.status === 'pending'
+  useEffect(() => {
+    if (!nominationPending) return
+    let polls = 0
+    const timer = setInterval(() => {
+      if (++polls > 120) { clearInterval(timer); return }
+      fetchItem<Game>('games', gameId, { fields: ['vm_nomination_status'] })
+        .then((r) => { if (r.vm_nomination_status !== 'pending') void fetchSheet() })
+        .catch(() => {})
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [nominationPending, gameId, fetchSheet])
 
   // The read view is always in jersey order (unnumbered last), whatever the coach
   // did to the numbers while editing — the server sorts too, but a bench add or a
@@ -275,6 +310,26 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
     }])
   }
 
+  /**
+   * Into edit mode. Saving replaces the list in Volleymanager, so the coach should be looking
+   * at it: when it was never read for this game (they may have filed it there by hand), read
+   * it first. Refused or busy is fine, the save asks before it replaces anything.
+   */
+  const startEdit = async () => {
+    if (data?.nomination && !data.nomination.started && !data.vm_check?.list_at) {
+      setSaving(true)
+      try {
+        await kscwApi(`/scorer/game/${gameId}/vm-check`, { method: 'POST' })
+        await fetchSheet()
+      } catch {
+        // The sheet stays as it is.
+      } finally {
+        setSaving(false)
+      }
+    }
+    setEditing(true)
+  }
+
   /** Leave edit mode WITHOUT saving: back to the sheet as the server holds it. */
   const cancelEdit = () => {
     if (data) apply(data)
@@ -283,19 +338,48 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
     setEditing(false)
   }
 
+  /** What this save changes on the list, in names, for the question before it goes out. */
+  const confirmSave = async (): Promise<boolean> => {
+    const nomination = data?.nomination
+    if (!data || !nomination) return true
+    const onSheet = (list: SheetRow[]) => new Set(list.filter((r) => !r.dropped && r.member != null).map((r) => r.member))
+    const was = onSheet(data.roster)
+    const now = onSheet(rows)
+    const off = rows.filter((r) => was.has(r.member) && !now.has(r.member)).map(nameOf)
+    const on = rows.filter((r) => now.has(r.member) && !was.has(r.member)).map(nameOf)
+    const slots = (list: OfficialRow[]) => JSON.stringify(
+      OFFICIAL_ROLES.slice(0, 3).map((role) => list.find((o) => o.role === role)?.ref ?? null),
+    )
+    if (!off.length && !on.length && slots(officials) === slots(data.coaches)) return true
+    return confirm({
+      title: t('pregameConfirmTitle'),
+      message: [
+        ...(off.length ? [t('pregameConfirmOff', { names: off.join('; ') })] : []),
+        ...(on.length ? [t('pregameConfirmOn', { names: on.join('; ') })] : []),
+        t(nomination.started ? 'pregameConfirmNoVm' : 'pregameConfirmVm'),
+      ].join('\n\n'),
+      confirmLabel: t('pregameSave'),
+    })
+  }
+
   const save = async () => {
+    if (!(await confirmSave())) return
     setSaving(true)
     try {
+      let officialsChanged = false
       if (officialsDirty) {
-        await kscwApi(`/scorer/game/${gameId}/officials`, {
+        // One save, one push: with the players about to be saved too, theirs starts it.
+        const res = await kscwApi<{ data: { list_changed?: boolean } }>(`/scorer/game/${gameId}/officials`, {
           method: 'POST',
-          body: { officials: officials.map((o) => ({ ref: o.ref, role: o.role })) },
+          body: { officials: officials.map((o) => ({ ref: o.ref, role: o.role })), push: !playersDirty },
         })
+        officialsChanged = res.data?.list_changed === true
       }
       if (playersDirty) {
         await kscwApi(`/scorer/game/${gameId}/roster`, {
           method: 'POST',
           body: {
+            officials_changed: officialsChanged,
             players: rows
               .filter((r) => r.member != null)
               .map((r) => ({
@@ -551,7 +635,34 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
             {data.source === 'vm' ? t('pregameSourceVm') : t('pregameSourceRsvp')}
             {data.edited && data.edited_by ? ` · ${t('pregameEditedBy', { name: data.edited_by })}` : ''}
           </p>
+          {data.nomination?.waiting ? (
+            <NominationStatusBox status="pending" className="mb-3" />
+          ) : data.nomination?.status && (
+            <NominationStatusBox
+              status={data.nomination.status}
+              count={data.nomination.count}
+              pushedAt={data.nomination.pushed_at}
+              error={data.nomination.error}
+              className="mb-3"
+            />
+          )}
+          {data.nomination?.status === 'failed' && !data.nomination.started && !data.nomination.waiting && (
+            <Button variant="outline" size="sm" className="mb-3" onClick={() => setPushDialogOpen(true)}>
+              {t('nominationRetry')}
+            </Button>
+          )}
+          {pushDialogOpen && (
+            <NominationPushDialog
+              gameId={gameId}
+              open={pushDialogOpen}
+              onClose={() => setPushDialogOpen(false)}
+              onStarted={fetchSheet}
+            />
+          )}
           <VmCheckBanner gameId={gameId} check={data.vm_check} onRechecked={fetchSheet} className="mb-3" />
+          {data.birthdates_hidden && (
+            <p className="mb-3 text-xs text-muted-foreground">{t('pregameBirthdatesLater')}</p>
+          )}
         </>
       )}
 
@@ -563,10 +674,12 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
 
       {!loading && data && (
         <div className="space-y-5">
-          {/* The ONLY edit that can contradict Volleymanager. Loud, and it stays up
-              outside edit mode too — a coach who edited on the tram must still see it
-              when they reopen the sheet in the hall. */}
-          {diverges && (
+          {/* A change Volleymanager does not have and will not get: from kickoff the list is
+              the referee's. Before that the status box above says how the save went. Loud, and
+              it stays up outside edit mode too — a coach who edited on the tram must still see
+              it when they reopen the sheet in the hall. */}
+          {diverges && (data.nomination == null || data.nomination.started
+            || (data.nomination.status == null && !data.nomination.waiting)) && (
             <div className="flex items-start gap-3 rounded-lg border-l-4 border-destructive bg-destructive/10 p-3 text-destructive">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <div className="text-xs leading-relaxed">
@@ -592,7 +705,7 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
                   )}
                 </>
               ) : (
-                <Button variant="outline" onClick={() => setEditing(true)}>{t('pregameEdit')}</Button>
+                <Button variant="outline" onClick={() => void startEdit()} loading={saving}>{t('pregameEdit')}</Button>
               )}
             </div>
           )}
@@ -604,7 +717,7 @@ export default function MatchRosterView({ gameId }: MatchRosterViewProps) {
               : <p className="text-center text-sm text-muted-foreground">{t('pregameNoPlayers')}</p>}
           </div>
 
-          {/* The emergency door — only open while editing. */}
+          {/* The rest of the squad — only while editing. */}
           {editing && bench.length > 0 && (
             <div>
               {sectionTitle(t('pregameBench'))}

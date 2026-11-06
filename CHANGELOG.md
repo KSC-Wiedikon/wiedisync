@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.64.0 — 2026-11-06
+
+### Changed
+
+- The match sheet is the one place to change who plays. Taking a player off makes their RSVP a No, adding one makes it a Yes, with no fine and no email, and the Einsatzliste in Volleymanager is saved again right away, up to kickoff.
+- If someone changes the list directly in Volleymanager, the match sheet follows at the next read and keeps numbers, captain and libero.
+- Coaches and team responsibles can open the match sheet 24 hours before the game. Dates of birth still appear 6 hours before.
+- A list Volleymanager flags, such as too many players, is no longer saved again on its own. Coaches and team responsibles get one email about it, and the message says what is wrong in plain words.
+- The Einsatzliste texts no longer ask you to close the list. The club saves it; the referee closes it after the game.
+
 ## v2.63.0 — 2026-11-06
 
 ### Changed

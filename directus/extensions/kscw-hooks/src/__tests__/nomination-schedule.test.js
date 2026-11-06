@@ -39,14 +39,43 @@ describe('nominationPushDue', () => {
     }
   })
 
-  it('filled and skipped wait for the second chance, then every tick', () => {
-    for (const vm_nomination_status of ['filled', 'skipped']) {
-      const game = { ...GAME, vm_nomination_status, vm_nomination_claimed_at: iso(DAY_BEFORE) }
-      expect(nominationPushDue(game, DAY_BEFORE + 5 * MIN)).toBe(false)
-      expect(nominationPushDue(game, SECOND_CHANCE - 1)).toBe(false)
-      expect(nominationPushDue(game, SECOND_CHANCE)).toBe(true)
-      expect(nominationPushDue({ ...game, vm_nomination_claimed_at: iso(SECOND_CHANCE) }, SECOND_CHANCE + 5 * MIN)).toBe(true)
+  it('a flagged list is final too: a re-save would undo a fix made by hand', () => {
+    const filled = { ...GAME, vm_nomination_status: 'filled', vm_nomination_claimed_at: iso(DAY_BEFORE) }
+    expect(nominationPushDue(filled, DAY_BEFORE + 5 * MIN)).toBe(false)
+    expect(nominationPushDue(filled, SECOND_CHANCE)).toBe(false)
+  })
+
+  it('skipped waits for the second chance, then every tick', () => {
+    const skipped = { ...GAME, vm_nomination_status: 'skipped', vm_nomination_claimed_at: iso(DAY_BEFORE) }
+    expect(nominationPushDue(skipped, DAY_BEFORE + 5 * MIN)).toBe(false)
+    expect(nominationPushDue(skipped, SECOND_CHANCE - 1)).toBe(false)
+    expect(nominationPushDue(skipped, SECOND_CHANCE)).toBe(true)
+    expect(nominationPushDue({ ...skipped, vm_nomination_claimed_at: iso(SECOND_CHANCE) }, SECOND_CHANCE + 5 * MIN)).toBe(true)
+  })
+
+  it('a change on the sheet no push has seen is sent, whatever the list says', () => {
+    const at = DAY_BEFORE + 60 * MIN
+    for (const vm_nomination_status of ['saved', 'filled', 'skipped', 'failed']) {
+      const game = {
+        ...GAME,
+        vm_nomination_status,
+        vm_nomination_claimed_at: iso(at - MIN),
+        vm_nomination_sheet_changed_at: iso(at),
+      }
+      expect(nominationPushDue(game, at + 5 * MIN)).toBe(true)
     }
+    expect(nominationPushDue({ ...GAME, vm_nomination_sheet_changed_at: iso(at) }, at + 5 * MIN)).toBe(true)
+  })
+
+  it('a change on the sheet a push has seen is not sent again', () => {
+    const at = DAY_BEFORE + 60 * MIN
+    const seen = { ...GAME, vm_nomination_status: 'saved', vm_nomination_sheet_changed_at: iso(at), vm_nomination_claimed_at: iso(at + 1) }
+    expect(nominationPushDue(seen, at + 5 * MIN)).toBe(false)
+  })
+
+  it('a list the referee closed stays closed, also with a change on the sheet', () => {
+    const closed = { ...GAME, vm_nomination_status: 'closed', vm_nomination_sheet_changed_at: iso(DAY_BEFORE) }
+    expect(nominationPushDue(closed, DAY_BEFORE + 5 * MIN)).toBe(false)
   })
 
   it('failed is tried again hourly, not every tick', () => {
