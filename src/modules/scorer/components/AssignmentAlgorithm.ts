@@ -16,7 +16,7 @@ export function isCupGame(league: string | null | undefined): boolean {
 }
 
 // Duty type per PLAYING team:
-//   referee  → HU20            (one team does referee + scorer; the scorer NEEDS a licence)
+//   referee  → HU20            (one team does referee + Täfeler, no licence)
 //   combined → 4L / 5L (any gender) and DU23  (one team does scorer + Täfeler, no licence)
 //   separate → 3L and up (2L, 1L, …) and HU23 (scorer NEEDS a licence + Täfeler)
 export function classifyVbMode(teamName: string, league: string): 'referee' | 'combined' | 'separate' {
@@ -45,7 +45,7 @@ export interface ConflictEntry {
 export interface GameAssignment {
   gameId: string
   // 'separate' = scorer(licence) + Täfeler; 'combined' = one team does both;
-  // 'referee' = referee + scorer from one team (HU20); 'cup' = on-call/Pikett
+  // 'referee' = referee + Täfeler from one team (HU20); 'cup' = on-call/Pikett
   // slot (free slot, no team assigned).
   mode: 'separate' | 'combined' | 'referee' | 'cup'
   scorerTeamId: string | null
@@ -441,22 +441,17 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     const mode = classifyVbMode(playingTeam?.name ?? '', playingTeam?.league ?? '')
 
     if (mode === 'referee') {
-      // === REFEREE + SCORER (HU20): one team supplies both ===
-      // Picked as a scorer first, because only that role needs a licence. With no
-      // licensed team free, the referee is still staffed and the scorer flagged.
+      // === REFEREE + TÄFELER (HU20): one team supplies both, no licence ===
       const a = blank(game.id, 'referee')
-      const licensed = pickBest(game, 'scorer', adjacentTeams, [playingTeamId])
-      const team = licensed ?? pickBest(game, 'referee', adjacentTeams, [playingTeamId])
+      const team = pickBest(game, 'referee', adjacentTeams, [playingTeamId])
       if (team) {
-        a.refereeTeamId = team.teamId; a.refereeTeamName = team.teamName; a.scoreboardScore = team.score
+        a.refereeTeamId = team.teamId; a.refereeTeamName = team.teamName
+        a.scoreboardTeamId = team.teamId; a.scoreboardTeamName = team.teamName; a.scoreboardScore = team.score
         for (const r of team.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: team.teamName, role: 'referee' } })
         trackAssignment(team.teamId, game.date, assignmentCounts, dayAssignments)
-        if (licensed) {
-          a.scorerTeamId = team.teamId; a.scorerTeamName = team.teamName; a.scorerScore = team.score
-          trackAssignment(team.teamId, game.date, assignmentCounts, dayAssignments) // two people, two duties
-        } else a.conflicts.push({ key: 'noScorerAvailable' })
+        trackAssignment(team.teamId, game.date, assignmentCounts, dayAssignments) // two people, two duties
       } else {
-        a.conflicts.push({ key: 'noRefereeAvailable' }, { key: 'noScorerAvailable' })
+        a.conflicts.push({ key: 'noRefereeAvailable' }, { key: 'noTaefelerAvailable' })
       }
       results.push(a)
     } else if (mode === 'combined') {
