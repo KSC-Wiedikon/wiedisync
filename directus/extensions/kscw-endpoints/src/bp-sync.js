@@ -507,6 +507,7 @@ export async function sweepSupersededManualGames(db, log, { dryRun = false } = {
   let deleted = 0
   await db.transaction(async (trx) => {
     await trx.raw("SELECT set_config('kscw.skip_games_notify', 'on', true)")
+    await trx.raw("SELECT set_config('kscw.skip_duty_recheck', 'on', true)")
     deleted = await trx('games').whereIn('id', deleteIds).del()
   })
 
