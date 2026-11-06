@@ -18,6 +18,7 @@ export default {
   subtitleList: 'Alli Termin i chronologischer Reihefolg',
 
   // Filter modal
+  clubWideHint: 'Zeig au d Spiel vo allne KSCW-Teams und ihri Vereinsaaläss',
   filterTitle: 'Filter',
   filterCategories: 'Kategorie',
   showHiddenAbsences: 'Verhinderige & nöd-blockierendi Absänze aazeige',

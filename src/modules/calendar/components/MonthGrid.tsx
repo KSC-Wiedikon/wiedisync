@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
 import { relId } from '../../../utils/relations'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { dotColors, monthTints, colorKey, paintKey, cancelledClasses } from '../entryStyle'
+import { dotColors, monthTints, colorKey, paintKey, cancelledClasses, OTHER_TEAM_PAINT } from '../entryStyle'
 import CalendarTypeIcon from './CalendarTypeIcon'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
@@ -343,6 +343,10 @@ export default function MonthGrid({
                               const isChip = entry.type === 'event' || entry.type === 'game'
                               const tint = monthTints[paintKey(entry)] ?? monthTints.event
                               const iconColor = (dotColors[paintKey(entry)] ?? '').replace('bg-', 'text-')
+                              // trimBBTeamName turns basketball's "Herren 2" into "H2", the
+                              // same as volleyball's H2. Among one's own teams that never
+                              // meets; among all of them only the ball tells them apart.
+                              const showIcon = !isChip || (entry.type === 'game' && entry.colorOverride === OTHER_TEAM_PAINT)
                               return (
                                 <button
                                   key={entry.id}
@@ -360,8 +364,8 @@ export default function MonthGrid({
                                       : 'text-foreground/85 hover:bg-muted'
                                   } ${cancelledClasses(entry)}`}
                                 >
-                                  {!isChip && (
-                                    <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} size="sm" className={iconColor} />
+                                  {showIcon && (
+                                    <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} size="sm" className={iconColor} filled={isChip} />
                                   )}
                                   {entry.startTime && (
                                     <span className={`shrink-0 tabular-nums ${isChip ? 'font-semibold' : 'text-muted-foreground'}`}>

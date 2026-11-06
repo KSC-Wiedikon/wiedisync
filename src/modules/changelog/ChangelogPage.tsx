@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.64.0'
+const APP_VERSION = '2.65.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.65.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          'A KSCW button on the calendar adds the games of all other teams, in grey with a ball that shows the sport. Your own games and trainings keep their colours and come first each day, and a derby shows once.',
+          'Club and tournament events of other teams appear too, without answer buttons. Other teams\' trainings stay hidden.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.64.0',
     date: '06.11.2026',

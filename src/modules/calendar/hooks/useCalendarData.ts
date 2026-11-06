@@ -18,6 +18,12 @@ import { trimBBTeamName } from '../../../utils/teamColors'
 import { isAuthenticated } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
 import type { StaffJunctionRow } from '../../../hooks/useTeamPeopleIds'
+import { invitedMemberId, teamId } from '../../events/eventHelpers'
+import { OTHER_TEAM_PAINT } from '../entryStyle'
+import { onePerFixture } from '../onePerFixture'
+
+/** Stable reference: `useUserVisibleEventIds` takes the array as a hook argument. */
+const NO_TEAMS: string[] = []
 
 interface UseCalendarDataOptions {
   filters: CalendarFilterState
@@ -358,8 +364,15 @@ function entryOverlapsRange(entry: CalendarEntry, rangeStart: Date, rangeEnd: Da
 
 export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true, includeViewerGuestGames = true, extraGameIds }: UseCalendarDataOptions) {
   const fetchRange = useFetchRange(rangeStart)
-  const { user } = useAuth()
+  const { user, memberTeamIds, coachTeamIds } = useAuth()
   const { t } = useTranslation('common')
+
+  // The "KSCW" toggle lifts the team scope of games and events only. Other teams'
+  // trainings and absences are closed to members on the server (setup-permissions:
+  // MY_TEAMS_FILTER, SAME_TEAM_AS_ME) and birthdays are never club-wide, so those
+  // keep the selection. Events stay limited by the server to what the viewer may read.
+  const clubWide = filters.clubWide === true
+  const scopeTeamIds = clubWide ? NO_TEAMS : filters.selectedTeamIds
 
   const authed = isAuthenticated()
   const wantHome = filters.sources.includes('game-home')
@@ -385,7 +398,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     enabled: fetchGames,
     filter: addGameTeamFilter(
       [...buildDateFilter('date', fetchRange.start, fetchRange.end), { away_team: { _nnull: true } }, { time: { _nnull: true } }],
-      filters.selectedTeamIds,
+      scopeTeamIds,
       extraGameIds && extraGameIds.length > 0
         ? [...(includeViewerGuestGames ? guestGameIds : []), ...extraGameIds]
         : includeViewerGuestGames ? guestGameIds : [],
@@ -429,15 +442,15 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
   const hallCount = hallsRaw?.length ?? 0
 
   const { teamEventIds, isLoading: eventIdsLoading } = useUserVisibleEventIds(
-    filters.selectedTeamIds,
+    scopeTeamIds,
     undefined,
-    fetchEvents && filters.selectedTeamIds.length > 0,
+    fetchEvents && scopeTeamIds.length > 0,
   )
   const { data: eventsRaw, isLoading: eventsLoading } = useCollection<Event>('events', {
     enabled: fetchEvents && !eventIdsLoading,
     filter: addEventTeamFilter(
       buildDateFilter('start_date', fetchRange.start, fetchRange.end),
-      filters.selectedTeamIds,
+      scopeTeamIds,
       teamEventIds,
     ),
     // `invite_guests` + the two audience junctions are what the modal's RSVP
@@ -586,21 +599,33 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
   const entries = useMemo(() => {
     const all: CalendarEntry[] = []
 
+    // Club-wide only: what counts as the viewer's own stays coloured and leads its
+    // day; everything else is greyed. Their own teams always count, also when the
+    // filter is narrowed to just one of them.
+    const ownTeamIds = new Set([...filters.selectedTeamIds, ...memberTeamIds, ...coachTeamIds])
+    const isOwnGame = (g: Game) => ownTeamIds.has(relId(g.kscw_team)) || guestGameIds.includes(String(g.id))
+    const isOtherTeamsEvent = (e: Event) => {
+      const teamIds = (e.teams ?? []).map(teamId)
+      return teamIds.length > 0
+        && !teamIds.some((id) => ownTeamIds.has(id))
+        && !(e.invited_members ?? []).some((m) => invitedMemberId(m) === String(user?.id))
+    }
+
     if (fetchGames) {
-      for (const g of games) {
+      const wanted = games.filter((g) => (wantHome && wantAway) || (g.type === 'home' ? wantHome : wantAway))
+      for (const g of clubWide ? onePerFixture(wanted, isOwnGame) : wanted) {
         const entry = gameToEntry(g)
-        if (wantHome && wantAway) {
-          all.push(entry)
-        } else if (wantHome && entry.gameType === 'home') {
-          all.push(entry)
-        } else if (wantAway && entry.gameType === 'away') {
-          all.push(entry)
-        }
+        all.push(clubWide && !isOwnGame(g) ? { ...entry, colorOverride: OTHER_TEAM_PAINT } : entry)
       }
     }
     if (fetchTrainings) all.push(...trainings.map(trainingToEntry))
     if (fetchScorerDuties) all.push(...dutyGames.map((g) => gameToEntry(g, true)))
-    if (fetchEvents) all.push(...events.map(eventToEntry))
+    if (fetchEvents) {
+      for (const e of events) {
+        const entry = eventToEntry(e)
+        all.push(clubWide && isOtherTeamsEvent(e) ? { ...entry, colorOverride: OTHER_TEAM_PAINT } : entry)
+      }
+    }
     // Always compute closure-covered dates from hall_closures (even if not displayed)
     // so GCal "Halle geschlossen" entries can be suppressed when a named closure exists.
     // hall_closures stores one row per hall — same reason + dates across halls
@@ -732,11 +757,16 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
       if (dateCmp !== 0) return dateCmp
       if (a.allDay && !b.allDay) return -1
       if (!a.allDay && b.allDay) return 1
+      // A busy Saturday holds a dozen games and a day cell shows four, so another
+      // team's entry must not push the viewer's own into the "+N".
+      const aOther = a.colorOverride === OTHER_TEAM_PAINT
+      const bOther = b.colorOverride === OTHER_TEAM_PAINT
+      if (aOther !== bOther) return aOther ? 1 : -1
       return (a.startTime ?? '').localeCompare(b.startTime ?? '')
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallCount, hallEvents, absences, dutyGames, teamMemberLinks, teamStaffIds, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences, t])
+  }, [games, trainings, events, closuresRaw, hallCount, hallEvents, absences, dutyGames, teamMemberLinks, teamStaffIds, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences, clubWide, memberTeamIds, coachTeamIds, guestGameIds, user?.id, t])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()
