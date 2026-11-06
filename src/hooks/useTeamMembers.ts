@@ -239,6 +239,9 @@ export function useMultiTeamMembers(teamIds: string[]) {
   }, [key])
 
   // Manual refetch keeps fetch()'s original eager resets — see useTeamMembers.
+  // Dropping `loadedKey` keeps `isLoading` true until the retry lands: with the
+  // error cleared and `members` still empty, a settled state in between would
+  // read as a team with nobody on it.
   const refetch = useCallback(async () => {
     if (requestedKey === null) {
       setMembers([])
@@ -246,6 +249,7 @@ export function useMultiTeamMembers(teamIds: string[]) {
       setLoadedKey(null)
     } else {
       setError(null)
+      setLoadedKey(undefined)
     }
     await load()
   }, [requestedKey, load])
