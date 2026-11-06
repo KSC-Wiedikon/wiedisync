@@ -382,7 +382,7 @@ export default {
           "t": "ul",
           "items": [
             "**Salle** : le plan d'occupation hebdomadaire de la salle. Les coachs et responsables d'équipe y réservent les créneaux libres (voir la section Plan de salle et temps de salle libre).",
-            "**Calendrier** : la grille mensuelle ; sur téléphone, une liste par jour que vous touchez pour la déplier. Naviguez avec les flèches ou **Aujourd'hui**. **Filtrer**, **S'abonner** et **Exporter iCal** n'apparaissent que dans cette vue (sous forme d'icônes sur téléphone).",
+            "**Calendrier** : la grille mensuelle ; sur téléphone, une liste par jour que vous touchez pour la déplier. Naviguez avec les flèches ou **Aujourd'hui**. **Filtrer**, **S'abonner** et **Exporter iCal** n'apparaissent que dans cette vue (sous forme d'icônes sur téléphone). Le bouton **KSCW** affiche en gris les matchs de toutes les autres équipes, ainsi que leurs événements de club et de tournoi. Seuls vos propres entraînements sont affichés.",
             "**Matchs** : les matchs proposés et confirmés par équipe, affichés seulement si l'une de vos équipes dispose d'un calendrier de matchs."
           ]
         },

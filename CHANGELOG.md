@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.65.0 — 2026-11-06
+
+### Added
+
+- A KSCW button on the calendar adds the games of all other teams, in grey with a ball that shows the sport. Your own games and trainings keep their colours and come first each day, and a derby shows once.
+- Club and tournament events of other teams appear too, without answer buttons. Other teams' trainings stay hidden.
+
 ## v2.64.0 — 2026-11-06
 
 ### Changed

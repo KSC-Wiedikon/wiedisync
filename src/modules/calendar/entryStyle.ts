@@ -9,6 +9,12 @@ import type { CalendarEntry } from '../../types/calendar'
  * all share. Keep the palette here so the views never drift apart.
  */
 
+/**
+ * Palette key of another team's entry in the club-wide ("KSCW") calendar: grey, so
+ * the viewer's own schedule keeps its colours and stays easy to find.
+ */
+export const OTHER_TEAM_PAINT = 'other-team'
+
 /* ── Tailwind chip colours (light + dark) per colour-key ───── */
 
 export const barColors: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
@@ -41,6 +47,7 @@ export const monthTints: Record<string, string> = {
   'scorer-duty': 'bg-indigo-500/12 text-indigo-900 border-indigo-500 dark:bg-indigo-400/15 dark:text-indigo-100 dark:border-indigo-400',
   birthday:    'bg-pink-500/12 text-pink-900 border-pink-500 dark:bg-pink-400/15 dark:text-pink-100 dark:border-pink-400',
   blue:        'bg-blue-500/12 text-blue-900 border-blue-500 dark:bg-blue-400/15 dark:text-blue-100 dark:border-blue-400',
+  [OTHER_TEAM_PAINT]: 'bg-muted text-muted-foreground border-muted-foreground/40',
 }
 
 /* ── solid dot / icon colours per colour-key ───────────────── */
@@ -57,6 +64,7 @@ export const dotColors: Record<string, string> = {
   'scorer-duty': 'bg-indigo-500',
   birthday: 'bg-pink-500',
   blue: 'bg-blue-500',
+  [OTHER_TEAM_PAINT]: 'bg-muted-foreground',
 }
 
 /* ── `text-*` icon colours (overflow modal) ────────────────── */
@@ -72,6 +80,7 @@ export const iconColors: Record<string, string> = {
   absence: 'text-foreground',
   'scorer-duty': 'text-indigo-500',
   birthday: 'text-pink-500',
+  [OTHER_TEAM_PAINT]: 'text-muted-foreground',
 }
 
 /* ── filter-chip palette (hex) for the source multi-select ──── */
@@ -104,6 +113,7 @@ export function paintKey(e: CalendarEntry): string {
 
 /** `text-*` icon colour for the overflow modal. */
 export function entryIconColor(entry: CalendarEntry): string {
+  if (entry.colorOverride === OTHER_TEAM_PAINT) return iconColors[OTHER_TEAM_PAINT]
   if (entry.type === 'game' && entry.gameType) return iconColors[`game-${entry.gameType}`] || 'text-brand-500'
   return iconColors[entry.type] || 'text-muted-foreground'
 }

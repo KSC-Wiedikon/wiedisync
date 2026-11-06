@@ -23,6 +23,7 @@ import { formatTime, meetingTimeFromOffset, getDeadlineDate } from '../../utils/
 import { asObj, memberName } from '../../utils/relations'
 import { isGuestExcludedFromEvent } from '../events/eventHelpers'
 import { eventTypeLabelKey } from './eventTypeLabel'
+import { OTHER_TEAM_PAINT } from './entryStyle'
 
 interface CalendarEntryModalProps {
   entry: CalendarEntry | null
@@ -201,8 +202,10 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             )
           })()}
 
-          {/* Participation section for events */}
-          {entry.type === 'event' && user && (() => {
+          {/* Participation section for events. Not for another team's event reached
+              through the club-wide calendar: isGuestExcludedFromEvent only speaks to
+              guests of the viewer's own teams, so it would offer the answer buttons. */}
+          {entry.type === 'event' && user && entry.colorOverride !== OTHER_TEAM_PAINT && (() => {
             const ev = entry.source as KscwEvent
             // Migration 324 — same gate as the event card / detail modal.
             const guestExcluded = isGuestExcludedFromEvent(ev, { memberId: user.id, memberTeamIds, getGuestLevel, staffTeamIds: coachTeamIds })

@@ -382,7 +382,7 @@ export default {
           "t": "ul",
           "items": [
             "**Halle**: de wüchentlich Hallebelegigsplan. Coaches und Teamverantwortlichi reserviered da freii Halleziit (lueg de Abschnitt Halleplan und freii Halleziit).",
-            "**Kaländer**: s Monetsraster; ufem Handy e Taglischte, wo du zum Ufklappe aatippsch. Blättere tuesch mit de Pfiil oder **Hüt**. **Filter**, **Abonniere** und **iCal exportiere** gits nur i dere Aasicht (ufem Handy als Symbol).",
+            "**Kaländer**: s Monetsraster; ufem Handy e Taglischte, wo du zum Ufklappe aatippsch. Blättere tuesch mit de Pfiil oder **Hüt**. **Filter**, **Abonniere** und **iCal exportiere** gits nur i dere Aasicht (ufem Handy als Symbol). De Chnopf **KSCW** tuet d Spiel vo allne andere Teams in Grau dezue, plus ihri Vereins- und Turnieraaläss. Trainings gsehsch nur dini eigete.",
             "**Spielplan**: planti und bestätigti Spiel pro Team; wird nur aazeigt, wänn eis vo dine Teams en Spielplan hät."
           ]
         },

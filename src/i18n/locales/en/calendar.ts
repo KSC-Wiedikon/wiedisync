@@ -18,6 +18,7 @@ export default {
   subtitleList: 'All events in chronological order',
 
   // Filter modal
+  clubWideHint: 'Also show the games of all KSCW teams, and their club events',
   filterTitle: 'Filter',
   filterCategories: 'Categories',
   showHiddenAbsences: 'Show unavailabilities & non-blocking absences',
