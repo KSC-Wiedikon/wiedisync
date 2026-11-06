@@ -7,8 +7,8 @@
  * the reads never collide on the shared VM account (CLAUDE.md → "The shared VolleyManager
  * account"; each read claims it via readOwnNominationList and never waits).
  *
- * Teams with the automatic push (auto_nomination_list) are left out: their list is filed
- * from the RSVPs at about kickoff −60 min, so at −2 h it is empty on purpose.
+ * Teams with the automatic push (auto_nomination_list) are compared too: their list is
+ * filed 24 h before kickoff, so this is what tells them about the answers that changed since.
  *
  * One comparison per game, `game_vm_sheets.alert_checked_at`: a list that matched at −2 h
  * does not mail later because someone changed their answer. When the −2 h read gets no
@@ -28,8 +28,8 @@ const VM_READ_UNTIL_MS = 3 * 60 * 60 * 1000
 const ms = (value) => (value ? new Date(value).getTime() : null)
 
 /**
- * Should this tick read the list from VM? Rows carry the game plus `vm_status`,
- * `vm_checked_at` and `auto_list`.
+ * Should this tick read the list from VM? Rows carry the game plus `vm_status` and
+ * `vm_checked_at`.
  *
  * Every game gets a read at −45 min, unless one already happened since: the −2 h read and
  * a coach's earlier Recheck do not replace it. `busy` read nothing, so it is retried.
@@ -40,13 +40,13 @@ export function vmReadDue(game, now = Date.now()) {
   const checkedAt = ms(game.vm_checked_at)
   const stale = (lead) => checkedAt == null || game.vm_status === 'busy' || checkedAt < kickoff - lead
   if (now >= kickoff - VM_CHECK_LEAD_MS) return stale(VM_CHECK_LEAD_MS)
-  return now >= kickoff - EINSATZLISTE_ALERT_LEAD_MS && !game.auto_list && stale(EINSATZLISTE_ALERT_LEAD_MS)
+  return now >= kickoff - EINSATZLISTE_ALERT_LEAD_MS && stale(EINSATZLISTE_ALERT_LEAD_MS)
 }
 
 /** Is there a list from the last 2 h before kickoff still waiting to be compared? */
 export function einsatzlisteAlertDue(game, now = Date.now()) {
   const kickoff = gameStartMs(game)
-  if (kickoff == null || game.auto_list || game.vm_alert_checked_at) return false
+  if (kickoff == null || game.vm_alert_checked_at) return false
   if (now < kickoff - EINSATZLISTE_ALERT_LEAD_MS || now >= kickoff) return false
   if (game.vm_status !== 'ok' && game.vm_status !== 'no_list') return false
   const listAt = ms(game.vm_list_at)

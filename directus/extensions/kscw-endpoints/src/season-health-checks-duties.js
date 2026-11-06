@@ -667,7 +667,7 @@ export const CHECKS = [
     key: 'nomination_push_not_closed',
     section: 'duties', sport: 'vb', severity: 'warn', grain: 'game',
     title: 'Einsatzliste push did not end saved for an auto-enabled VB game',
-    description: 'For games whose effective auto_nomination_list flag is on (game override, else team default) the T-60 cron should leave vm_nomination_status saved (the referee closes the list after the game → closed). failed or NULL after kick-off means the coach had to file by hand or the list is missing in Volleymanager (fineable); filled means Volleymanager flagged a fineable issue on the saved list; skipped means no licensed confirmed players (an RSVP problem). stranded_claim is a worker killed mid-push. Check vm_nomination_error and the Volleymanager list.',
+    description: 'For games whose effective auto_nomination_list flag is on (game override, else team default) the push cron should leave vm_nomination_status saved (the referee closes the list after the game → closed). failed or NULL after kick-off means the coach had to file by hand or the list is missing in Volleymanager (fineable); filled means Volleymanager flagged a fineable issue on the saved list; skipped means no licensed confirmed players (an RSVP problem). stranded_claim is a worker killed mid-push. Check vm_nomination_error and the Volleymanager list.',
     sql: `SELECT ${GAME_COLS}, t.name AS team,
          CASE WHEN g.vm_nomination_status = 'pending' AND g.vm_nomination_claimed_at < now() - INTERVAL '10 minutes'
               THEN 'stranded_claim' ELSE COALESCE(g.vm_nomination_status, 'never_attempted') END AS issue,

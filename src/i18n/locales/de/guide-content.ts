@@ -2205,7 +2205,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Kurz vor dem Start erhält der zugeteilte Schreiber einen Button **Aufstellung**: das gespeicherte Matchblatt des Coachs, sonst die im Volleymanager gemeldete Einsatzliste, sonst die bestätigten Spieler. Volleyball-Teams können sie etwa eine Stunde vor dem Start automatisch melden lassen: **Einsatzliste automatisch melden** unter **Spiel-Standards** im Kader-Editor, pro Spiel übersteuerbar mit **Auto-Einsatzliste**. Siehe die Abschnitte Matchblatt und Kader-Editor."
+          "text": "Kurz vor dem Start erhält der zugeteilte Schreiber einen Button **Aufstellung**: das gespeicherte Matchblatt des Coachs, sonst die im Volleymanager gemeldete Einsatzliste, sonst die bestätigten Spieler. Volleyball-Teams können sie 24 Stunden vor dem Start automatisch melden lassen: **Einsatzliste automatisch melden** unter **Spiel-Standards** im Kader-Editor, pro Spiel übersteuerbar mit **Auto-Einsatzliste**. Siehe die Abschnitte Matchblatt und Kader-Editor."
         }
       ]
     },

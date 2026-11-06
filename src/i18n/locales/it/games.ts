@@ -174,7 +174,7 @@ export default {
 
   // Auto Einsatzliste — solo pallavolo, riservato agli allenatori
   autoNomination: 'Einsatzliste automatica',
-  autoNominationHint: 'Registra l\'Einsatzliste in Volleymanager dalle presenze confermate, circa 60 minuti prima dell\'inizio. Valore predefinito della squadra: {{def}}.',
+  autoNominationHint: 'Registra l\'Einsatzliste in Volleymanager dalle presenze confermate, 24 ore prima dell\'inizio. Valore predefinito della squadra: {{def}}.',
   autoNominationUseTeamDefault: 'Valore predefinito della squadra',
   autoNominationOn: 'On',
   autoNominationOff: 'Off',

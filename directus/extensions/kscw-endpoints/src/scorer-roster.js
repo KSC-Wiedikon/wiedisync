@@ -67,8 +67,8 @@
  * a nominated player does not). We do NOT push it: the UI shows a red banner telling the
  * coach to make the same change by hand in Volleymanager. See migration 211.
  *
- * NOTE on migration 206 (auto_nomination_list), which files the Einsatzliste from RSVPs ~60
- * min before kickoff and "closes" it: closing in Volleymanager SAVES the list, it does not
+ * NOTE on migration 206 (auto_nomination_list), which files the Einsatzliste from RSVPs 24 h
+ * before kickoff and "closes" it: closing in Volleymanager SAVES the list, it does not
  * lock it — the team can still edit it until game start. So there is no conflict with the
  * coach's window here, and the red "enter it manually in Volleymanager" banner is
  * actionable rather than a dead letter: the coach really can still go and fix it.

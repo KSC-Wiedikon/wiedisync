@@ -68,7 +68,7 @@ const GATED = [
   ['vm_sync (weekly)', "runVmSync('weekly')"],
   ['vm_sync watchdog', gate('vm_sync')],
   ['svrz_sync', gate('svrz_sync')],
-  ['vm_nomination (T-60 Einsatzliste push)', gate('vm_nomination')],
+  ['vm_nomination (T-24 h Einsatzliste push)', gate('vm_nomination')],
   ['vm_sheet_check (kickoff −45 min read)', gate('vm_sheet_check')],
   ['vm_result_sweep (:35 reads + queued pushes)', gate('vm_result_sweep')],
   ['bb_register (Basketplan registration tick)', gate('bb_register')],
