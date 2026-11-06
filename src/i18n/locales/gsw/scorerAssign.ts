@@ -147,7 +147,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regle vom Algorithmus',
-  rulesModeVb: 'De Dienst richtet sich nach de Stufe vom Heimteam: 4./5. Liga (alli) und DU23 → ei Team macht Schriiber + Täfeler (kombiniert, kei Lizänz). 3. Liga und höcher sowie HU23 → separate Schriiber (mit Lizänz) + Täfeler. HU20 → Schiedsrichter + Schriiber (mit Lizänz) vom gliiche Team.',
+  rulesModeVb: 'De Dienst richtet sich nach de Stufe vom Heimteam: 4./5. Liga (alli) und DU23 → ei Team macht Schriiber + Täfeler (kombiniert, kei Lizänz). 3. Liga und höcher sowie HU23 → separate Schriiber (mit Lizänz) + Täfeler. HU20 → Schiedsrichter + Täfeler vom gliiche Team (kei Lizänz).',
   refereeCount: 'Schiedsrichter',
   refereeTag: 'SR',
   noRefereeAvailable: 'Kei Schiedsrichter verfüegbar',

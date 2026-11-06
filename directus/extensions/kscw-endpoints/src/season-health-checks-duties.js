@@ -19,7 +19,7 @@
  *       bb_24s_official → otr2_bb | otn1_bb | otn2_bb; every other role → none.
  *   - Duty pool ................. teamPeopleSql (players guest_level 0 ∪ staff)
  *   - VB layout ................. AssignmentAlgorithm.ts classifyVbMode
- *       HU20* → referee + scorer; DU23* + teams.league 4L/5L → combined;
+ *       HU20* → referee + scoreboard; DU23* + teams.league 4L/5L → combined;
  *       HU23* + ≤3L → separate. MiniVB / DU20 never provide duty.
  *   - Overlap ................... engine hard rule: VB < 120 min, BB same day;
  *       the playing team (and, for a derby, the sibling away row's team) is
@@ -432,7 +432,7 @@ export const CHECKS = [
     key: 'duty_vb_mode_mismatch',
     section: 'duties', sport: 'vb', severity: 'warn', grain: 'game',
     title: 'VB duty layout does not match the playing team\'s mode',
-    description: 'classifyVbMode: HU20 gets a referee plus a licensed scorer, normally from the same team; DU23 and 4L/5L get one combined scorer+scoreboard team (no licence); HU23 and 3L and up get a licensed scorer plus a separate scoreboard team. A mismatch means e.g. an HU20 game got a scorer but no referee (referee_no_scorer: a referee but no scorer), or a 2L game an unlicensed combined crew; mixed means columns of two layouts are set. Cup ties are skipped (the engine assigns them nothing, so a hand-set layout is a choice). Fix on /admin/scorer-assign.',
+    description: 'classifyVbMode: HU20 gets a referee plus a scoreboard operator, normally from the same team (no licence); DU23 and 4L/5L get one combined scorer+scoreboard team (no licence); HU23 and 3L and up get a licensed scorer plus a separate scoreboard team. A mismatch means e.g. an HU20 game got a scoreboard team but no referee (referee_no_scoreboard: a referee but no scoreboard team), or a 2L game an unlicensed combined crew; mixed means columns of two layouts are set. Cup ties are skipped (the engine assigns them nothing, so a hand-set layout is a choice). Fix on /admin/scorer-assign.',
     sql: `WITH x AS (
     SELECT ${GAME_COLS}, t.name AS playing_team, t.league AS team_league,
            ${VB_EXPECTED_MODE} AS expected_mode,
@@ -444,8 +444,8 @@ export const CHECKS = [
     WHERE ${UPCOMING_HOME} AND NOT ${CUP_GAME}
   ), y AS (
     SELECT x.*, CASE
-      WHEN has_referee AND NOT has_combined AND NOT has_scoreboard
-        THEN CASE WHEN has_scorer THEN 'referee' ELSE 'referee_no_scorer' END
+      WHEN has_referee AND NOT has_combined AND NOT has_scorer
+        THEN CASE WHEN has_scoreboard THEN 'referee' ELSE 'referee_no_scoreboard' END
       WHEN (has_combined::int + has_referee::int + (has_scorer OR has_scoreboard)::int) > 1 THEN 'mixed'
       WHEN has_combined THEN 'combined'
       WHEN has_scorer OR has_scoreboard THEN 'separate' END AS actual_mode

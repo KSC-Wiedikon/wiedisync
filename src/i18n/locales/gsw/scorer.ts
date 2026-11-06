@@ -154,6 +154,7 @@ export default {
   // Per-card arrival hints (/scorer)
   arrivalHintSingle: '{{min}} Min. vor Spielbeginn i de Halle.',
   arrivalHintReferee: 'Schiedsrichter: {{min}} Min. vor Spielbeginn i de Halle.',
+  arrivalHintRefereeBoard: 'Schiedsrichter {{referee}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   arrivalHintSplit: 'Schriiber {{scorer}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   infoWarningTitle: 'Achtung!',
   infoWarningFine: 'Verspötig oder Nöd-Erschiine wird mit ere Buess (50.– CHF) bestraft.',

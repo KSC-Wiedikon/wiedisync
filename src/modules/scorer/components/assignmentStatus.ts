@@ -19,8 +19,8 @@ export function isVbCombinedMode(game: Game): boolean {
   return !!(game.scorer_scoreboard_duty_team || game.scorer_scoreboard_member)
 }
 
-// HU20 home games: scorer + referee (instead of Täfeler). Detected from the
-// referee columns; the admin-assign page writes referee_duty_team for HU20.
+// HU20 home games: referee + Täfeler (no scorer). Detected from the referee
+// columns; the admin-assign page writes referee_duty_team for HU20.
 export function isVbRefereeMode(game: Game): boolean {
   return !!(game.referee_duty_team || game.referee_member)
 }
@@ -31,11 +31,11 @@ export function hasAnyVbAssignment(game: Game): boolean {
 
 function isVbFullyAssigned(game: Game): boolean {
   if (isVbCombinedMode(game)) return !!game.scorer_scoreboard_member
-  // Referee mode (HU20): referee + scorer, no Täfeler. Check before separate. A
-  // game staffed before HU20 had a scorer has no such spot and owes only its referee.
+  // Referee mode (HU20): referee + Täfeler, no scorer. Check before separate. A
+  // game staffed before HU20 had a Täfeler has no such spot and owes only its referee.
   if (isVbRefereeMode(game)) {
-    const hasScorerSpot = !!(game.scorer_duty_team || game.scorer_member)
-    return !!game.referee_member && (!hasScorerSpot || !!game.scorer_member)
+    const hasBoardSpot = !!(game.scoreboard_duty_team || game.scoreboard_member)
+    return !!game.referee_member && (!hasBoardSpot || !!game.scoreboard_member)
   }
   if (isVbSeparateMode(game)) return !!(game.scorer_member && game.scoreboard_member)
   return false

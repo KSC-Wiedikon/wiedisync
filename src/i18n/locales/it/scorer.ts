@@ -154,6 +154,7 @@ export default {
   // Promemoria di arrivo per scheda (/scorer)
   arrivalHintSingle: 'In palestra {{min}} min prima dell\'inizio.',
   arrivalHintReferee: 'Arbitro: in palestra {{min}} min prima dell\'inizio.',
+  arrivalHintRefereeBoard: 'Arbitro {{referee}} min · Tabellone {{board}} min prima dell\'inizio.',
   arrivalHintSplit: 'Segnapunti {{scorer}} min · Tabellone {{board}} min prima dell\'inizio.',
   infoWarningTitle: 'Attenzione!',
   infoWarningFine: 'L\'arrivo in ritardo o la mancata comparsa comporteranno una multa (CHF 50.–).',
