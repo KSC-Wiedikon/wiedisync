@@ -57,6 +57,7 @@ import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefin
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 import { sweepHallBookings } from './hall-bookings.js'
 import { drainCapacityMoves, cleanupCapacityMoves } from './capacity-moves.js'
+import { drainDutyRechecks, sweepDutyRecheckFollowUps } from './duty-recheck.js'
 import { sendWaitlistEmail } from './waitlist-email.js'
 import { createCorsCredentialsMiddleware, createWebSocketCookieGuard } from './cors-credentials.js'
 import { verifyTurnstileToken } from './turnstile.js'
@@ -7823,6 +7824,31 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     await drainCapacity('cron')
     if (new Date().getUTCMinutes() === 17) {
       await cleanupCapacityMoves(database).catch((err) => logCronError('capacity_moves_cleanup', err))
+    }
+  })
+
+  // ── Moved home games (migration 451) ────────────────────────────
+  // trg_games_duty_recheck queues a question per filled seat, whoever moved the game.
+  // Follow-ups only between 08:00 and 21:00 Zurich: a reminder can wait for the morning.
+  const dutyRecheckCtx = { database, logger: log, services, getSchema }
+  schedule('* * * * *', async () => {
+    try {
+      const res = await drainDutyRechecks(dutyRecheckCtx)
+      if (res.claimed > 0) log.info(`[duty-recheck] ${res.claimed} queued message(s) handled`)
+    } catch (err) {
+      log.error({ msg: `[duty-recheck] drain: ${err.message}`, event: 'duty_recheck_drain', stack: err.stack })
+      logCronError('duty_recheck_drain', err)
+    }
+  })
+  schedule('*/15 * * * *', async () => {
+    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
+    if (hour < 8 || hour >= 21) return
+    try {
+      const c = await sweepDutyRecheckFollowUps(dutyRecheckCtx)
+      if (c.reminded || c.warned || c.open72 || c.open24) log.info(`[duty-recheck] follow-ups: ${JSON.stringify(c)}`)
+    } catch (err) {
+      log.error({ msg: `[duty-recheck] follow-ups: ${err.message}`, event: 'duty_recheck_followups', stack: err.stack })
+      logCronError('duty_recheck_followups', err)
     }
   })
 

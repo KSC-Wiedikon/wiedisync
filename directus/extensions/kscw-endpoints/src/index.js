@@ -30,6 +30,7 @@ import { registerScorerContacts } from './scorer-contacts.js'
 import { registerScorerClaim } from './scorer-claim.js'
 import { registerDutyLate } from './duty-late.js'
 import { registerDutyLeaderContact } from './duty-leader-contact.js'
+import { registerDutyRecheck } from './duty-recheck.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerGameRecordings } from './game-recordings.js'
 import { registerWieplayBridge } from './wieplay-bridge.js'
@@ -2812,6 +2813,7 @@ export default {
     registerScorerClaim(router, ctx)
     registerDutyLate(router, ctx)
     registerDutyLeaderContact(router, ctx)
+    registerDutyRecheck(router, ctx)
     const nominationPush = registerNominationPush(router, ctx)
     registerScorerRoster(router, { ...ctx, requestNominationPush: nominationPush.requestPush })
     registerGameRecordings(router, ctx)

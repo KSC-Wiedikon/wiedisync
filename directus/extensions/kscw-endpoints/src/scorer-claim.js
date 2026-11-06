@@ -22,63 +22,13 @@
 import { writeUserLog } from './activity-log.js'
 import { teamPeopleSql } from './activity-roster-sql.js'
 import { gameStartMs } from './scorer-roster.js'
+import { CLAIM_DEFS, seatDutyTeams, findDutyClash, seatOpenToAll, playsThisGame, closeSeatInvites, moveSeatTeam } from './duty-seats.js'
+import { notifySeatFilled } from './duty-recheck-core.js'
 import { sendLocalizedPush } from './push-i18n.js'
 import { sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 
-// role → assignee column, duty-team column, confirmed-by pair, required licence
-// (any-of), and whether BB roles fall back to the shared bb_duty_team.
-// A higher licence always covers a lower seat (OTN > OTR2 > OTR1): Basketplan
-// records only the highest one, so an OTR2 holder often has no otr1_bb flag.
-// `lic` is evaluated any-of (`.some()`), so the 24s row lists both OTN levels
-// from migration 228: Basketplan distinguishes OTN 1 from OTN 2 and either one
-// opens the desk. (The coarse `otn_bb` flag that used to sit beside them was
-// dropped by migration 303 — every one of its holders was confirmed OTN 2, so
-// nobody lost the claim button.)
-const CLAIM_DEFS = {
-  scorer:            { member: 'scorer_member',            duty: 'scorer_duty_team',            name: 'scorer_confirmed_by_name',            at: 'scorer_confirmed_at',            lic: ['scorer_vb'],          bbFallback: false },
-  scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        name: 'scoreboard_confirmed_by_name',        at: 'scoreboard_confirmed_at',        lic: [],                     bbFallback: false },
-  scorer_scoreboard: { member: 'scorer_scoreboard_member', duty: 'scorer_scoreboard_duty_team', name: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at', lic: [],                     bbFallback: false },
-  referee:           { member: 'referee_member',           duty: 'referee_duty_team',           name: 'referee_confirmed_by_name',           at: 'referee_confirmed_at',           lic: [],                     bbFallback: false },
-  bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         name: 'bb_scorer_confirmed_by_name',         at: 'bb_scorer_confirmed_at',         lic: ['otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
-  bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     name: 'bb_timekeeper_confirmed_by_name',     at: 'bb_timekeeper_confirmed_at',     lic: ['otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
-  bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            name: 'bb_24s_confirmed_by_name',            at: 'bb_24s_confirmed_at',            lic: ['otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
-}
-
-/**
- * Teams on duty for one seat. Basketball: the seat's own (legacy) team ∪ every
- * game duty team — bb_duty_team plus bb_extra_duty_teams (migration 371). Twin
- * of bbSeatDutyTeamIds() in src/modules/scorer/lib/bbDutyTeams.ts.
- */
-function seatDutyTeams(game, def) {
-  if (!def.bbFallback) return game[def.duty] != null ? [Number(game[def.duty])] : []
-  let extra = game.bb_extra_duty_teams
-  if (typeof extra === 'string') { try { extra = JSON.parse(extra) } catch { extra = [] } }
-  return [...new Set([game[def.duty], game.bb_duty_team, ...(Array.isArray(extra) ? extra : [])]
-    .filter((x) => x != null).map(Number))]
-}
-
-/** Two duties whose games start less than this apart cannot both be served. */
-export const DUTY_CLASH_MS = 2 * 60 * 60 * 1000
-
-/**
- * Does `memberId` already hold a seat that clashes with `game`? Any other seat
- * on the SAME game always clashes (one person, one seat); a seat on another
- * game clashes when both kick-off times are known and lie < DUTY_CLASH_MS
- * apart — back-to-back games two hours apart stay claimable, which basketball
- * duty teams do routinely. `sameDayGames` = games on the same date (any seat).
- */
-export function findDutyClash(game, memberId, sameDayGames) {
-  const mine = (g) => Object.values(CLAIM_DEFS).some((d) => g[d.member] != null && Number(g[d.member]) === Number(memberId))
-  const start = gameStartMs(game)
-  for (const g of sameDayGames) {
-    if (!mine(g)) continue
-    if (String(g.id) === String(game.id)) return g
-    const other = gameStartMs(g)
-    if (start != null && other != null && Math.abs(start - other) < DUTY_CLASH_MS) return g
-  }
-  return null
-}
+export { findDutyClash, DUTY_CLASH_MS } from './duty-seats.js'
 
 export function registerScorerClaim(router, ctx) {
   const { database, logger } = ctx
@@ -117,23 +67,34 @@ export function registerScorerClaim(router, ctx) {
         return res.status(403).json({ error: 'Missing licence for this role' })
       }
 
-      const dutyTeams = seatDutyTeams(game, def)
-      if (!dutyTeams.length) return res.status(409).json({ error: 'No duty team assigned for this role' })
-      // `teamPeopleSql`, not a bare `member_teams` join — coaches and team
-      // responsibles have no roster row, so the bare join denied a staff-only
-      // coach their OWN team's duty (the frontend claim button was equally
-      // blind; both now union the staff junctions).
-      // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
-      // staff branch) — hence the duplicated binding.
-      let inTeam = false
-      for (const dutyTeam of dutyTeams) {
-        const { rows } = await database.raw(
-          `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
-          [dutyTeam, dutyTeam, member.id],
-        )
-        if (rows.length) { inTeam = true; break }
+      // The holder of this seat refused it after the game moved (migration 451): from
+      // then on any member may take it, not just the duty team. The licence above and
+      // the clash below still apply, and nobody officiates a game they play in.
+      const openToAll = await seatOpenToAll(database, game.id, role)
+      if (openToAll) {
+        if (await playsThisGame(database, game, member.id)) {
+          return res.status(409).json({ error: 'You play in this game', code: 'plays_this_game' })
+        }
+      } else {
+        const dutyTeams = seatDutyTeams(game, def)
+        if (!dutyTeams.length) return res.status(409).json({ error: 'No duty team assigned for this role' })
+        // `teamPeopleSql`, not a bare `member_teams` join — coaches and team
+        // responsibles have no roster row, so the bare join denied a staff-only
+        // coach their OWN team's duty (the frontend claim button was equally
+        // blind; both now union the staff junctions).
+        // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
+        // staff branch) — hence the duplicated binding.
+        let inTeam = false
+        for (const dutyTeam of dutyTeams) {
+          const { rows } = await database.raw(
+            `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
+            [dutyTeam, dutyTeam, member.id],
+          )
+          if (rows.length) { inTeam = true; break }
+        }
+        if (!inTeam) return res.status(403).json({ error: 'You are not in the duty team for this role' })
+
       }
-      if (!inTeam) return res.status(403).json({ error: 'You are not in the duty team for this role' })
 
       // One person cannot sit two tables at once (Anja, 01.10.2026: two
       // timekeeper seats on overlapping games, both accepted).
@@ -155,8 +116,13 @@ export function registerScorerClaim(router, ctx) {
 
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'duty-claim',
-        collection: 'games', recordId: game.id, data: { role, member: member.id },
+        collection: 'games', recordId: game.id, data: { role, member: member.id, open_to_all: openToAll },
       })
+      if (openToAll) {
+        await moveSeatTeam(database, game, role, member.id)
+        await closeSeatInvites(database, game.id, role)
+        await notifySeatFilled(ctx, game.id, role, member.id)
+      }
       res.json({ ok: true, member: member.id, confirmed_by_name: fullName, confirmed_at: now })
     } catch (err) {
       log.error({ msg: `duty-claim: ${err?.message}`, stack: err?.stack, userId: req.accountability?.user || null })
