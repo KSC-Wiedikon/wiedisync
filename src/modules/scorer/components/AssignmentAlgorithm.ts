@@ -16,7 +16,7 @@ export function isCupGame(league: string | null | undefined): boolean {
 }
 
 // Duty type per PLAYING team:
-//   referee  → HU20            (referee only, no licence)
+//   referee  → HU20            (one team does referee + scorer; the scorer NEEDS a licence)
 //   combined → 4L / 5L (any gender) and DU23  (one team does scorer + Täfeler, no licence)
 //   separate → 3L and up (2L, 1L, …) and HU23 (scorer NEEDS a licence + Täfeler)
 export function classifyVbMode(teamName: string, league: string): 'referee' | 'combined' | 'separate' {
@@ -45,8 +45,8 @@ export interface ConflictEntry {
 export interface GameAssignment {
   gameId: string
   // 'separate' = scorer(licence) + Täfeler; 'combined' = one team does both;
-  // 'referee' = referee only (HU20); 'cup' = on-call/Pikett slot (free slot,
-  // no team assigned).
+  // 'referee' = referee + scorer from one team (HU20); 'cup' = on-call/Pikett
+  // slot (free slot, no team assigned).
   mode: 'separate' | 'combined' | 'referee' | 'cup'
   scorerTeamId: string | null
   scorerTeamName: string | null
@@ -441,14 +441,23 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     const mode = classifyVbMode(playingTeam?.name ?? '', playingTeam?.league ?? '')
 
     if (mode === 'referee') {
-      // === REFEREE ONLY (HU20) ===
+      // === REFEREE + SCORER (HU20): one team supplies both ===
+      // Picked as a scorer first, because only that role needs a licence. With no
+      // licensed team free, the referee is still staffed and the scorer flagged.
       const a = blank(game.id, 'referee')
-      const referee = pickBest(game, 'referee', adjacentTeams, [playingTeamId])
-      if (referee) {
-        a.refereeTeamId = referee.teamId; a.refereeTeamName = referee.teamName; a.scoreboardScore = referee.score
-        for (const r of referee.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: referee.teamName, role: 'referee' } })
-        trackAssignment(referee.teamId, game.date, assignmentCounts, dayAssignments)
-      } else a.conflicts.push({ key: 'noRefereeAvailable' })
+      const licensed = pickBest(game, 'scorer', adjacentTeams, [playingTeamId])
+      const team = licensed ?? pickBest(game, 'referee', adjacentTeams, [playingTeamId])
+      if (team) {
+        a.refereeTeamId = team.teamId; a.refereeTeamName = team.teamName; a.scoreboardScore = team.score
+        for (const r of team.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: team.teamName, role: 'referee' } })
+        trackAssignment(team.teamId, game.date, assignmentCounts, dayAssignments)
+        if (licensed) {
+          a.scorerTeamId = team.teamId; a.scorerTeamName = team.teamName; a.scorerScore = team.score
+          trackAssignment(team.teamId, game.date, assignmentCounts, dayAssignments) // two people, two duties
+        } else a.conflicts.push({ key: 'noScorerAvailable' })
+      } else {
+        a.conflicts.push({ key: 'noRefereeAvailable' }, { key: 'noScorerAvailable' })
+      }
       results.push(a)
     } else if (mode === 'combined') {
       // === COMBINED (4L/5L/DU23): one team, no licence ===

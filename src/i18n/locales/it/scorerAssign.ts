@@ -147,7 +147,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regole dell\'algoritmo',
-  rulesModeVb: 'Il servizio dipende dal livello della squadra di casa: 4ª/5ª lega (tutti) e DU23 → una squadra fa refertista + tabellone (combinato, senza licenza). 3ª lega e superiori, e HU23 → refertista separato (con licenza) + tabellone. HU20 → solo arbitro (senza licenza).',
+  rulesModeVb: 'Il servizio dipende dal livello della squadra di casa: 4ª/5ª lega (tutti) e DU23 → una squadra fa refertista + tabellone (combinato, senza licenza). 3ª lega e superiori, e HU23 → refertista separato (con licenza) + tabellone. HU20 → arbitro + refertista (con licenza) della stessa squadra.',
   refereeCount: 'Arbitro',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Nessun arbitro disponibile',
