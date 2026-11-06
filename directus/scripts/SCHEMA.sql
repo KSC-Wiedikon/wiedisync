@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-06T11:52:32.733Z
+-- Generated:   2026-11-06T14:28:33.922Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict e6tRzKalgIZ9Qw22DbVmyuGismHZCJi6aIwdOFwAmJl7cWhjTTCe552VYfGGtRz
+\restrict 0GVSL8NpMaEnCEoEoUEpuz2p2rlrW9BGOU0dXPsqIpehZTNrevwoYddijJKGe6A
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -12658,7 +12658,15 @@ CREATE VIEW public.stats_games_missing_scorer WITH (security_invoker='true') AS
     t.name AS team_name,
     t.sport,
         CASE
-            WHEN (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text)) THEN 'Schiedsrichter'::text
+            WHEN (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text)) THEN concat_ws(', '::text,
+            CASE
+                WHEN (g.scoreboard_member IS NULL) THEN 'Anzeiger'::text
+                ELSE NULL::text
+            END,
+            CASE
+                WHEN (g.referee_member IS NULL) THEN 'Schiedsrichter'::text
+                ELSE NULL::text
+            END)
             WHEN ((t.sport)::text = 'volleyball'::text) THEN concat_ws(', '::text,
             CASE
                 WHEN ((g.scorer_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) THEN 'Schreiber'::text
@@ -12686,7 +12694,7 @@ CREATE VIEW public.stats_games_missing_scorer WITH (security_invoker='true') AS
     COALESCE(g.scorer_duty_team, g.referee_duty_team, g.bb_duty_team) AS duty_team_id
    FROM (public.games g
      JOIN public.teams t ON ((t.id = g.kscw_team)))
-  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text])) AND ((((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text) AND (g.referee_member IS NULL)) OR (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text <> 'HU20'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
+  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text) AND ((g.referee_member IS NULL) OR (g.scoreboard_member IS NULL))) OR (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text <> 'HU20'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
   ORDER BY g.date, g."time";
 
 
@@ -21200,7 +21208,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict e6tRzKalgIZ9Qw22DbVmyuGismHZCJi6aIwdOFwAmJl7cWhjTTCe552VYfGGtRz
+\unrestrict 0GVSL8NpMaEnCEoEoUEpuz2p2rlrW9BGOU0dXPsqIpehZTNrevwoYddijJKGe6A
 
 
 
@@ -21218,7 +21226,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 450 migration(s) already in the schema above.
+-- Migration tracker seed — 454 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -21681,6 +21689,10 @@ FROM (VALUES
   ('443-weekly-digest-email.sql'),
   ('444-einsatzliste-alert.sql'),
   ('445-nomination-list-kind.sql'),
-  ('446-match-sheet-one-place.sql')
+  ('446-match-sheet-one-place.sql'),
+  ('447-stats-missing-scorer-hu20-referee-and-scorer.sql'),
+  ('448-hu20-scorer-from-referee-team.sql'),
+  ('449-stats-missing-scorer-hu20-referee-and-taefeler.sql'),
+  ('450-hu20-taefeler-not-scorer.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
