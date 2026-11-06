@@ -10,6 +10,9 @@ import { useMyCoveringAbsence } from './useMyCoveringAbsence'
 import type { Participation, VolleyPosition } from '../types'
 import { optimisticPick, optimisticSaved, shownStatus, type OptimisticRsvp } from '../utils/optimisticRsvp'
 
+/** Stable, so a consumer's memo or effect doesn't re-run on every "no rows" render. */
+const NO_PARTICIPATIONS: Participation[] = []
+
 export function useParticipation(
   activityType: Participation['activity_type'],
   activityId: string,
@@ -36,7 +39,13 @@ export function useParticipation(
   const { t: tParticipation } = useTranslation('participation')
 
   const skipFetch = !!prefetched
-  const { data: participationsRaw, refetch, isLoading: fetchLoading } = useCollection<Participation>('participations', {
+  const fetchEnabled = !!user && !!activityId && !skipFetch
+  const {
+    data: participationsRaw,
+    refetch,
+    isLoading: fetchLoading,
+    isPlaceholderData: rowIsPrevious,
+  } = useCollection<Participation>('participations', {
     filter: user && activityId
       ? { _and: [
           { member: { _eq: user.id } },
@@ -46,9 +55,9 @@ export function useParticipation(
         ] }
       : { id: { _eq: -1 } },
     limit: 1,
-    enabled: !!user && !!activityId && !skipFetch,
+    enabled: fetchEnabled,
   })
-  const isLoading = skipFetch ? false : fetchLoading
+  const isLoading = skipFetch ? false : fetchLoading || (fetchEnabled && rowIsPrevious)
 
   // Covering-absence lookup lives in one place (useMyCoveringAbsence) — reused by
   // the game/training/event cards + detail modals so the rule can't drift.
@@ -78,8 +87,14 @@ export function useParticipation(
   // be picked out of it. Session leg included: a whole-activity RSVP is the row
   // with no `session_id`, and adopting a per-day row here would show the wrong
   // answer AND make `setStatus` update the wrong record.
+  //
+  // ⚠ `rowIsPrevious` is load-bearing: `keepPreviousData` is a global query default
+  // (lib/query.tsx), so right after the activity changes `participationsRaw` can
+  // still be the PREVIOUS activity's row. Adopting it would show that answer here,
+  // and `setStatus` would then update that row: a Yes on the new game overwrites
+  // the old one.
   const participation = useMemo(() => {
-    if (!prefetched) return participationsRaw?.[0] ?? null
+    if (!prefetched) return rowIsPrevious ? null : participationsRaw?.[0] ?? null
     if (!user) return null
     return prefetched.find((p) => (
       String(p.member) === String(user.id)
@@ -87,7 +102,7 @@ export function useParticipation(
       && String(p.activity_id) === String(activityId)
       && (sessionId ? String(p.session_id) === String(sessionId) : !p.session_id)
     )) ?? null
-  }, [prefetched, participationsRaw, user, activityType, activityId, sessionId])
+  }, [prefetched, participationsRaw, rowIsPrevious, user, activityType, activityId, sessionId])
 
   // The row this hook last wrote for the current activity. `participations` is a
   // cached read that only catches up on the next refetch/realtime tick, so a second
@@ -236,7 +251,8 @@ export function useTeamParticipations(
   memberIds: string[],
   sessionId?: string,
 ) {
-  const { data, refetch, isLoading, isError } = useCollection<Participation>('participations', {
+  const enabled = !!activityId && memberIds.length > 0
+  const { data, refetch, isLoading, isError, isPlaceholderData } = useCollection<Participation>('participations', {
     filter: activityId && memberIds.length > 0
       ? { _and: [
           { member: { _in: memberIds } },
@@ -246,12 +262,23 @@ export function useTeamParticipations(
         ] }
       : { id: { _eq: -1 } },
     all: true,
-    enabled: !!activityId && memberIds.length > 0,
+    enabled,
   })
 
+  // `keepPreviousData` is a global query default (lib/query.tsx) and the roster
+  // modal is not remounted between activities, so `data` can be the PREVIOUS
+  // activity's answers with `isLoading` false. Those are "not known yet", never
+  // this activity's rows. `enabled` matters: a disabled query stays a placeholder
+  // for good, and a team with nobody on it would then never stop loading.
+  //
   // `data` survives a failed background refetch, so only a load that never
   // delivered counts as failed. Without it `[]` reads as "nobody answered".
-  return { participations: data ?? [], refetch, isLoading, loadFailed: isError && data === undefined }
+  return {
+    participations: isPlaceholderData ? NO_PARTICIPATIONS : data ?? NO_PARTICIPATIONS,
+    refetch,
+    isLoading: isLoading || (enabled && isPlaceholderData),
+    loadFailed: isError && data === undefined,
+  }
 }
 
 /** Fetch all participations for an event across all sessions (for roster aggregation) */
@@ -259,7 +286,8 @@ export function useAllEventParticipations(
   activityId: string,
   memberIds: string[],
 ) {
-  const { data, refetch, isLoading, isError } = useCollection<Participation>('participations', {
+  const enabled = !!activityId && memberIds.length > 0
+  const { data, refetch, isLoading, isError, isPlaceholderData } = useCollection<Participation>('participations', {
     filter: activityId && memberIds.length > 0
       ? { _and: [
           { member: { _in: memberIds } },
@@ -268,8 +296,14 @@ export function useAllEventParticipations(
         ] }
       : { id: { _eq: -1 } },
     all: true,
-    enabled: !!activityId && memberIds.length > 0,
+    enabled,
   })
 
-  return { participations: data ?? [], refetch, isLoading, loadFailed: isError && data === undefined }
+  // Same placeholder trap as useTeamParticipations above.
+  return {
+    participations: isPlaceholderData ? NO_PARTICIPATIONS : data ?? NO_PARTICIPATIONS,
+    refetch,
+    isLoading: isLoading || (enabled && isPlaceholderData),
+    loadFailed: isError && data === undefined,
+  }
 }

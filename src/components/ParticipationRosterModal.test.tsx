@@ -4,6 +4,9 @@
 // used to count the empty lists instead, so a team of 21 with 18 answers read
 // "0 No response, No responses yet" (roster failed) or as nobody having answered
 // (answers failed). A team that really has nobody on it keeps the empty state.
+//
+// And while it loads: nothing paints until every count and row belongs to THIS
+// activity. The hooks' own side of that is in useParticipation.placeholder.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -15,6 +18,9 @@ const h = vi.hoisted(() => {
     members: {} as Record<string, unknown>,
     answers: {} as Record<string, unknown>,
     clubWide: {} as Record<string, unknown>,
+    teams: null as Record<string, unknown> | null,
+    staff: null as Record<string, unknown> | null,
+    sessionIdAsked: [] as (string | undefined)[],
     // Everything below is stable, like the real hooks' results: the modal keys
     // render-phase state and effects on these identities.
     emptyQuery: { data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() },
@@ -42,7 +48,10 @@ vi.mock('@/components/Modal', () => ({
 vi.mock('../modules/fines/IssueFineModal', () => ({ default: () => null }))
 vi.mock('../hooks/useTeamMembers', () => ({ useMultiTeamMembers: () => h.members }))
 vi.mock('../hooks/useParticipation', () => ({
-  useTeamParticipations: () => h.answers,
+  useTeamParticipations: (_type: string, _id: string, _members: string[], sessionId?: string) => {
+    h.sessionIdAsked.push(sessionId)
+    return h.answers
+  },
   useAllEventParticipations: () => h.noAnswers,
 }))
 vi.mock('../hooks/useFines', () => ({ pickFineRule: () => null, useFineRules: () => h.fineRules }))
@@ -50,13 +59,15 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: () => h.auth }))
 vi.mock('../hooks/useTeamPermissions', () => ({ useTeamPermissions: () => h.permissions }))
 vi.mock('../hooks/useAdminMode', () => ({ useAdminMode: () => h.adminMode }))
 vi.mock('../hooks/useMutation', () => ({ useMutation: () => h.mutation }))
-// Only the club-wide participations query is enabled-and-answering in these cases;
-// every other collection the modal reads comes back empty.
+// The club-wide answers, the staff answers and the team's leaders can each be set by
+// a test; every other collection the modal reads comes back empty.
 vi.mock('../lib/query', () => ({
   useCollection: (collection: string, options?: { enabled?: boolean; filter?: unknown }) => {
+    const filter = JSON.stringify(options?.filter ?? {})
+    if (collection === 'teams' && options?.enabled && filter.includes('_in') && h.teams) return h.teams
+    if (collection === 'participations' && options?.enabled && filter.includes('is_staff') && h.staff) return h.staff
     const isClubWideParts = collection === 'participations' && options?.enabled === true
-      && JSON.stringify(options?.filter ?? {}).includes('activity_type')
-      && !JSON.stringify(options?.filter ?? {}).includes('member')
+      && filter.includes('activity_type') && !filter.includes('member') && !filter.includes('is_staff')
     return isClubWideParts ? h.clubWide : h.emptyQuery
   },
 }))
@@ -97,6 +108,9 @@ describe('ParticipationRosterModal when a request fails', () => {
     h.members = { members: [rosterRow], teamsByMember: new Map(), isLoading: false, error: null, refetch: h.refetch() }
     h.answers = { participations: [answer], isLoading: false, loadFailed: false, refetch: h.refetch() }
     h.clubWide = { data: [answer], isLoading: false, isError: false, refetch: h.refetch() }
+    h.teams = null
+    h.staff = null
+    h.sessionIdAsked = []
     h.fetchAllItems.mockReset()
     // The people of a club-wide event; absences and the rest stay empty.
     h.fetchAllItems.mockImplementation(async (collection: string) => (collection === 'members' ? [person] : []))
@@ -180,6 +194,110 @@ describe('ParticipationRosterModal when a request fails', () => {
     expect(alert()).toBeNull()
     expect(failures).toBeLessThan(0)
     expect(host.textContent).toContain('1 confirmed')
+  })
+
+  describe('while it loads', () => {
+    const busy = () => host.querySelector('[aria-busy="true"]') !== null
+    const previous = { isLoading: false, isError: false, isPlaceholderData: true, refetch: vi.fn() }
+
+    it('holds the skeleton while the answers are still loading', async () => {
+      h.answers = { ...h.answers, participations: [], isLoading: true }
+      await renderModal(['92'])
+      expect(busy()).toBe(true)
+      expect(host.textContent).not.toContain('confirmed')
+    })
+
+    it('does not show the previous event\'s club-wide answers', async () => {
+      h.clubWide = { ...previous, data: [answer] }
+      await renderModal([])
+      expect(busy()).toBe(true)
+      expect(host.textContent).not.toContain('1 confirmed')
+    })
+
+    it('does not count the previous activity\'s staff answers', async () => {
+      const coachAnswer = { ...answer, id: 's1', member: 'coach', is_staff: true }
+      h.staff = { ...previous, data: [coachAnswer] }
+      await renderModal(['92'])
+      expect(busy()).toBe(true)
+      expect(host.textContent).not.toContain('staffPresent')
+    })
+
+    it('does not list the previous team\'s coaches', async () => {
+      h.teams = { ...previous, data: [{ id: '3', name: 'Old', coach: [{ members_id: 'coach' }], team_responsible: [] }] }
+      await renderModal(['92'])
+      expect(busy()).toBe(true)
+      expect(h.fetchAllItems.mock.calls.filter(([collection]) => collection === 'members')).toEqual([])
+    })
+
+    it('holds the skeleton for the absences, which count as a No in the summary', async () => {
+      let land!: (rows: unknown[]) => void
+      h.fetchAllItems.mockImplementation((collection: string) => (
+        collection === 'absences' ? new Promise((resolve) => { land = resolve }) : Promise.resolve([])
+      ))
+      await renderModal(['92'])
+      expect(busy()).toBe(true)
+
+      await act(async () => { land([]) })
+      expect(busy()).toBe(false)
+      expect(host.textContent).toContain('1 confirmed')
+    })
+
+    it('still paints when the absences fail', async () => {
+      h.fetchAllItems.mockImplementation((collection: string) => (
+        collection === 'absences' ? Promise.reject(new Error('Service Unavailable')) : Promise.resolve([])
+      ))
+      await renderModal(['92'])
+      expect(busy()).toBe(false)
+      expect(host.textContent).toContain('1 confirmed')
+    })
+
+    it('holds the skeleton until the staff are resolved, but not when a coach\'s answer changes', async () => {
+      const coach = { id: 'coach', first_name: 'Fake', last_name: 'Coach' }
+      const coachAnswer = { ...answer, id: 's1', member: 'coach', is_staff: true }
+      let land!: (rows: unknown[]) => void
+      h.fetchAllItems.mockImplementation((collection: string) => (
+        collection === 'members' ? new Promise((resolve) => { land = resolve }) : Promise.resolve([])
+      ))
+      h.staff = { data: [coachAnswer], isLoading: false, isError: false, refetch: vi.fn() }
+      await renderModal(['92'])
+      expect(busy()).toBe(true)
+      await act(async () => { land([coach]) })
+      expect(busy()).toBe(false)
+
+      // Same coach, new answer: the refetch must not blank the whole modal.
+      h.staff = { ...h.staff, data: [{ ...coachAnswer, status: 'declined' }] }
+      await renderModal(['92'])
+      expect(busy()).toBe(false)
+      await act(async () => { land([coach]) })
+    })
+
+    it('opens on the Overall tab, not on a day tab of the previous event', async () => {
+      const session = { id: 'day-2', event: '3971', date: '2026-11-08', start_time: '', end_time: '', label: 'Day 2', sort_order: 2 }
+      const eventModal = (open: boolean) => act(async () => {
+        root.render(
+          <ParticipationRosterModal
+            open={open}
+            onClose={() => {}}
+            activityType="event"
+            activityId="3971"
+            activityDate="2026-11-07"
+            teamIds={['92']}
+            title="Tournament"
+            participationMode="per_session"
+            eventSessions={[session] as never}
+          />,
+        )
+      })
+      await eventModal(true)
+      await act(async () => {
+        [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('Day 2'))!.click()
+      })
+      expect(h.sessionIdAsked.at(-1)).toBe('day-2')
+
+      await eventModal(false)
+      await eventModal(true)
+      expect(h.sessionIdAsked.at(-1)).toBeUndefined()
+    })
   })
 
   it('keeps a good list on screen when only a background refresh fails', async () => {
