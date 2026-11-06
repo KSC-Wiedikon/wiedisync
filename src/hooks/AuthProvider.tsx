@@ -11,7 +11,8 @@ import { toast } from 'sonner'
 import { login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setAuthHint, setCurrentMemberId, setImpersonating, setActingMemberId, getActingMemberId, setActingDeniedHandler, isActingDeniedError, readMeAsOwner, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { clearAllCachedDocuments, clearDeviceKey, sweepCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
-import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs, isTransientNetworkMessage } from '../lib/sentry'
+import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs } from '../lib/sentry'
+import { isRefreshRejected } from '../lib/sessionError'
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { LICENCE_TYPES } from '../types'
@@ -116,23 +117,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Fetch current member from Directus user ─────────────────────
 
+  // Throws when a read fails. `null` means only "this login has no linked member",
+  // so the session restore below can tell the two apart: signing out on a failed
+  // read logged members out over a network drop.
+  const readMember = useCallback(async (): Promise<MemberUser | null> => {
+    // ⚠ Both reads go out as the SESSION OWNER, even while acting. Without
+    // that, `readMe` resolves to the child's shadow user and this returns the
+    // child — which `refreshUser()` used to write into `realUser`.
+    const me = await readMeAsOwner()
+    if (!me?.id) return null
+    const members = await fetchItems<MemberUser>('members', {
+      filter: { user: { _eq: me.id } },
+      limit: 1,
+      asOwner: true,
+    })
+    return members[0] ?? null
+  }, [])
+
   const fetchMember = useCallback(async (): Promise<MemberUser | null> => {
     try {
-      // ⚠ Both reads go out as the SESSION OWNER, even while acting. Without
-      // that, `readMe` resolves to the child's shadow user and this returns the
-      // child — which `refreshUser()` used to write into `realUser`.
-      const me = await readMeAsOwner()
-      if (!me?.id) return null
-      const members = await fetchItems<MemberUser>('members', {
-        filter: { user: { _eq: me.id } },
-        limit: 1,
-        asOwner: true,
-      })
-      return members[0] ?? null
+      return await readMember()
     } catch {
       return null
     }
-  }, [])
+  }, [readMember])
 
   // ── Load team context (single parallel fetch) ───────────────────
 
@@ -310,7 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ;(async () => {
       try {
         await refreshAuth()
-        const member = await fetchMember()
+        const member = await readMember()
         if (member) {
           setRealUser(member)
           setSessionRestored(true)
@@ -350,15 +358,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         captureAuthError(err, { action: 'session_restore' })
-        // A statusless fetch reject means the request never reached the server
-        // — a dropped signal, a backgrounded tab, or an edge block (Cloudflare
-        // renders a 403 statusless via CORS). The session is NOT known to be
-        // bad, so tearing it down here logs out a member over a blip and the
-        // reload re-fires this whole boot (~350 requests), which is what turns
-        // a transient block into a sustained one. Keep the session and let the
-        // normal retry paths recover.
-        if (isTransientNetworkMessage(err instanceof Error ? err.message : String(err))) return
-        // Refresh genuinely rejected — token is stale/invalid, clear everything
+        // Only a definitive "your session is gone" signs a member out. A dropped
+        // signal, a backgrounded tab, an edge block, a rate limit or a 5xx from a
+        // restarting Directus says nothing about the session, so tearing it down
+        // logs out a member over a blip and the reload re-fires this whole boot
+        // (~350 requests), which is what turns a transient block into a sustained
+        // one. Keep the session: a reload brings the member straight back.
+        if (!isRefreshRejected(err)) return
+        // Session genuinely rejected — token is stale/invalid, clear everything
         await apiLogout()
         // Force reload to clear SDK internal state
         window.location.reload()
@@ -367,7 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false)
       }
     })()
-  }, [fetchMember, loadTeamContext, loadHousehold])
+  }, [readMember, loadTeamContext, loadHousehold])
 
   // Sync i18n to the REAL operator's language — a superadmin viewing "as" a
   // member keeps their own UI language rather than being flipped to the
