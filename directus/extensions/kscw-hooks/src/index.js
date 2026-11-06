@@ -31,20 +31,19 @@ import { normalizeSalutation, salutationForSex, normalizeCantonalSchool, normali
 import { normalizeSchedulingPayload } from '../../kscw-endpoints/src/scheduling-values.js'
 import { normalizeInvoiceStatus, normalizePaymentMethod, normalizeEntryType } from '../../kscw-endpoints/src/finance-values.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
-import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
+import { gameStartMs, runVmCheckAndFollow } from '../../kscw-endpoints/src/scorer-roster.js'
 import { readVmGameResult } from '../../kscw-endpoints/src/vm-game-result.js'
 import { dispatchQueuedResultPushes } from '../../kscw-endpoints/src/game-result.js'
 import { isSvrzRcBlackout } from '../../kscw-endpoints/src/vm-windows.js'
 import { externalWritesEnv, skipExternalJob } from '../../kscw-endpoints/src/external-accounts.js'
 import { financeSyncProblem, financeSyncAlertMail } from '../../kscw-endpoints/src/clubdesk-finance-watchdog.js'
-import { runVmCheck } from '../../kscw-endpoints/src/vm-sheet-check.js'
 import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { createActingMemberMiddleware } from './acting-member.js'
 import { createEmailReminders, isWeeklyDigestTime } from './email-reminders.js'
-import { createEinsatzlisteAlert, einsatzlisteAlertDue, vmReadDue } from './einsatzliste-alert.js'
+import { createEinsatzlisteAlert, einsatzlisteAlertDue, nominationFlagAlertDue, vmReadDue } from './einsatzliste-alert.js'
 import { nominationPushDue } from './nomination-schedule.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
@@ -9200,9 +9199,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //
   // When exactly, and how often it tries again, is nominationPushDue()
   // (nomination-schedule.js): from T-24 h, with a second chance from T-65 for a list
-  // that did not end `saved`. VM requires the list by ~T-40, so the last useful attempt
-  // is around then; after that the coach files it by hand. Anything `saved` or `closed`
-  // is never touched again.
+  // that never reached VM. VM requires the list by ~T-40, so the last useful attempt is
+  // around then; after that the coach files it by hand. A list that reached VM is left
+  // alone, unless a change on the match sheet has not been sent yet (migration 446): a
+  // team without the automatic list gets that retry too, so the coach's save still lands.
   //
   // ⚠ This writes into the real Swiss Volley production system — there is no VM
   // staging — so it runs on prod only (external-accounts.js), and the worker writes
@@ -9338,15 +9338,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .where('g.status', 'scheduled')
         .whereNotNull('g.kscw_team')
         .whereNotNull('g.time')
-        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'saved')")
+        .whereRaw("COALESCE(g.vm_nomination_status, '') <> 'closed'")
         .whereRaw(
-          "COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true",
+          "(COALESCE(g.vm_nomination_status, '') NOT IN ('saved', 'filled')"
+          + " OR g.vm_nomination_sheet_changed_at > COALESCE(g.vm_nomination_claimed_at, 'epoch'::timestamptz))",
+        )
+        .whereRaw(
+          "(COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true"
+          + ' OR g.vm_nomination_sheet_changed_at IS NOT NULL)',
         )
         .whereBetween('g.date', [
           new Date(Date.now() - 86400000).toISOString().slice(0, 10),
           new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
         ])
-        .select('g.id', 'g.date', 'g.time', 'g.vm_nomination_status', 'g.vm_nomination_claimed_at')
+        .select('g.id', 'g.date', 'g.time', 'g.vm_nomination_status', 'g.vm_nomination_claimed_at', 'g.vm_nomination_sheet_changed_at')
 
       const due = rows.filter((g) => nominationPushDue(g))
       if (!due.length) return
@@ -9391,7 +9396,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // Re-check the terminal states: a worker may have finished between
           // the SELECT above and this UPDATE, and re-claiming a closed list
           // would file it a second time.
-          .whereRaw("COALESCE(vm_nomination_status, '') NOT IN ('closed', 'saved')")
+          .whereRaw("COALESCE(vm_nomination_status, '') <> 'closed'")
+          .whereRaw(
+            "(COALESCE(vm_nomination_status, '') NOT IN ('saved', 'filled')"
+            + " OR vm_nomination_sheet_changed_at > COALESCE(vm_nomination_claimed_at, 'epoch'::timestamptz))",
+          )
           .whereRaw(
             "(COALESCE(vm_nomination_status, '') <> 'pending'"
             + " OR COALESCE(vm_nomination_claimed_at, 'epoch'::timestamptz) < now() - interval '10 minutes')",
@@ -9459,6 +9468,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // compared with the RSVPs and mailed to the coaches and team responsibles when it is
   // empty or differs.
   //
+  // After a push that reached VM: one read at the next tick, so the sheet shows the real
+  // list from then on, and follows VM when someone changed it there (scorer-roster.js).
+  // A list VM flags is mailed once, from this tick too (migration 446).
+  //
   // Shared VM account (CLAUDE.md, INFRA.md → "The shared VolleyManager account"):
   // each read claims it via readOwnNominationList and never waits; the whole tick is
   // skipped inside svrz_rc's windows (the game is picked up at the next tick outside
@@ -9484,10 +9497,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .whereRaw("COALESCE(g.vm_nomination_status, '') <> 'pending'")
         .whereBetween('g.date', [
           new Date(Date.now() - 86400000).toISOString().slice(0, 10),
-          new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
         ])
         .select(
           'g.id', 'g.game_id', 'g.type', 'g.date', 'g.time', 'g.kscw_team', 'g.home_team', 'g.away_team',
+          'g.vm_nomination_status', 'g.vm_nomination_pushed_at', 'g.vm_nomination_error',
           't.name as team_name', 'v.status as vm_status', 'v.checked_at as vm_checked_at',
           'v.list_at as vm_list_at', 'v.alert_checked_at as vm_alert_checked_at',
         )
@@ -9496,7 +9510,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const results = []
       for (const g of due) {
         // Stop at the first busy answer: the account is taken, the rest would be too.
-        const r = await runVmCheck(database, log, g)
+        const r = await runVmCheckAndFollow(database, log, g)
         results.push(`${g.id}:${r.status}`)
         if (r.status === 'busy') break
       }
@@ -9509,6 +9523,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           if (r.failed) log.warn({ msg: `[vm-sheet] game ${g.id}: ${r.failed} Einsatzliste email(s) failed, next tick retries`, event: 'einsatzliste_alert_send_failed', gameId: g.id })
         } catch (err) {
           log.error({ msg: `[vm-sheet] game ${g.id}: Einsatzliste alert failed: ${err.message}`, event: 'einsatzliste_alert_failed', gameId: g.id, stack: err.stack })
+        }
+      }
+      for (const g of rows.filter((row) => nominationFlagAlertDue(row))) {
+        try {
+          const r = await einsatzlisteAlert.runFlagged(g)
+          // Sent once per person, so after the first tick this logs nothing.
+          if (r.sent || r.failed) alerts.push(`${g.id}:flagged:${r.sent}/${r.emails}`)
+          if (r.failed) log.warn({ msg: `[vm-sheet] game ${g.id}: ${r.failed} flagged-list email(s) failed, next tick retries`, event: 'nomination_flag_alert_send_failed', gameId: g.id })
+        } catch (err) {
+          log.error({ msg: `[vm-sheet] game ${g.id}: flagged-list alert failed: ${err.message}`, event: 'nomination_flag_alert_failed', gameId: g.id, stack: err.stack })
         }
       }
       if (!results.length && !alerts.length) return

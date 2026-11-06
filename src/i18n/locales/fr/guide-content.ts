@@ -1471,7 +1471,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Le bouton apparaît pour le coach ou le responsable de l'équipe qui joue, à domicile comme à l'extérieur, de six heures avant le début jusqu'à trois heures après. Le marqueur désigné (service de marqueur uniquement, pas le tableau d'affichage) voit une version en lecture seule à partir de 40 minutes avant un match à domicile. En dehors de cette fenêtre, vous ne voyez que **La feuille de match s'ouvre peu avant le match et se ferme 3 heures après.**"
+          "text": "Le bouton apparaît pour le coach ou le responsable de l'équipe qui joue, à domicile comme à l'extérieur, de 24 heures avant le début jusqu'à trois heures après, avec les dates de naissance dès six heures avant. Le marqueur désigné (service de marqueur uniquement, pas le tableau d'affichage) voit une version en lecture seule à partir de 40 minutes avant un match à domicile. En dehors de cette fenêtre, vous ne voyez que **La feuille de match s'ouvre peu avant le match et se ferme 3 heures après.**"
         },
         {
           "t": "h",
@@ -1504,7 +1504,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Modifications d'urgence : en mode d'édition, **Ajouter depuis l'équipe · uniquement en cas d'urgence** liste le reste de l'effectif. **+** ajoute un joueur, **✕** le raye (barré) et **↺** le remet. Tout ajout ou retrait fait apparaître le bannière rouge **La liste des joueurs diffère de l'Einsatzliste** : l'application ne transmet rien, vous devez donc saisir la même modification à la main dans Volleymanager. **Rétablir l'Einsatzliste** (affiché une fois que vous avez enregistré) supprime toutes les adaptations pour ce match, numéros compris."
+          "text": "Changer qui joue : en mode d'édition, **Ajouter depuis l'équipe** liste le reste de l'effectif. **+** ajoute un joueur, **✕** le raye (barré) et **↺** le remet. **Enregistrer** montre ce qui change, puis définit les réponses (retiré devient Non, ajouté devient Oui, sans amende ni e-mail) et enregistre aussitôt l'Einsatzliste dans Volleymanager ; le cadre en haut indique le résultat. Si quelqu'un modifie la liste directement dans Volleymanager, la feuille suit à la prochaine lecture et garde les numéros, le capitaine et le libéro. Dès le début du match, la liste appartient à l'arbitre : une modification reste alors sur cette feuille et fait apparaître la bannière rouge **La liste des joueurs diffère de l'Einsatzliste**. **Rétablir l'Einsatzliste** (affiché une fois que vous avez enregistré) supprime toutes les adaptations pour ce match, numéros compris."
         },
         {
           "t": "h",

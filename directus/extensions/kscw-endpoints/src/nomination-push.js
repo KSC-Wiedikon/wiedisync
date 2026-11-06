@@ -4,7 +4,8 @@
  * The Einsatzliste cron (kscw-hooks) does this automatically for games whose
  * auto_nomination_list flag resolves to true. This endpoint is the escape hatch:
  * a coach whose push failed, or who wants the list filed early, can trigger the
- * same worker on demand — including for a game whose flag is off.
+ * same worker on demand — including for a game whose flag is off. Saving a changed
+ * match sheet starts the same push (requestPush, scorer-roster.js).
  *
  * POST /kscw/games/:id/nomination-push   → { spawned: true, queued, position }
  * GET  /kscw/games/:id/nomination-preview → what a push would send (DB only, no VM)
@@ -31,12 +32,24 @@
  */
 import { writeUserLog } from './activity-log.js'
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
-import { externalWritesEnv, refuseExternalOnDev } from './external-accounts.js'
+import { externalAccountsEnabled, externalWritesEnv, refuseExternalOnDev } from './external-accounts.js'
 import { gameStartMs } from './scorer-roster.js'
+import { isSvrzRcBlackout } from './vm-windows.js'
 
-// ⚠ MIRROR of pickOfficials() and officialsWhoSaidYes() in
+// ⚠ MIRROR of pickPlayerIds(), pickOfficials() and officialsWhoSaidYes() in
 // directus/scripts/vm-push-nomination.mjs — the worker is the one that acts on them,
 // this only previews them. Change both.
+export function pickPlayerIds(sheetRows, regularIds, confirmed) {
+  const rows = (sheetRows ?? []).filter(Boolean)
+  if (rows.length) {
+    const ids = rows
+      .filter((r) => r.dropped !== true && r.member != null)
+      .map((r) => Number(typeof r.member === 'object' ? r.member.id : r.member))
+    return [...new Set(ids)]
+  }
+  return (regularIds ?? []).map(Number).filter((id) => confirmed.has(id))
+}
+
 const SLOT_ROLES = ['coach', 'assistant_coach_1', 'assistant_coach_2']
 export function pickOfficials(savedRows, teamDefault) {
   const out = {}
@@ -268,15 +281,21 @@ export function registerNominationPush(router, { database, logger }) {
         return res.status(403).json({ error: 'Not a coach of this team', code: 'forbidden' })
       }
 
-      // Same selection as the worker: confirmed RSVPs ∩ the team's roster, guests excluded.
-      const players = await database('participations as p')
-        .join('member_teams as mt', function () {
-          this.on('mt.member', '=', 'p.member').andOn('mt.team', '=', database.raw('?', [game.kscw_team]))
-        })
-        .join('members as m', 'm.id', 'p.member')
-        .where({ 'p.activity_type': 'game', 'p.activity_id': String(gameId), 'p.status': 'confirmed', 'mt.guest_level': 0 })
-        .distinct('m.id', 'm.first_name', 'm.last_name', 'm.license_nr')
-        .orderBy([{ column: 'm.last_name' }, { column: 'm.first_name' }])
+      // Same selection as the worker: the saved match sheet, else confirmed RSVPs ∩ the
+      // team's roster, guests excluded.
+      const [sheetRows, regulars, yes] = await Promise.all([
+        database('game_rosters').where('game', gameId).select('member', 'dropped'),
+        database('member_teams').where({ team: game.kscw_team, guest_level: 0 }).pluck('member'),
+        database('participations')
+          .where({ activity_type: 'game', activity_id: String(gameId), status: 'confirmed' })
+          .pluck('member'),
+      ])
+      const playerIds = pickPlayerIds(sheetRows, regulars, new Set(yes.map(Number)))
+      const players = playerIds.length
+        ? await database('members').whereIn('id', playerIds)
+          .select('id', 'first_name', 'last_name', 'license_nr')
+          .orderBy([{ column: 'last_name' }, { column: 'first_name' }])
+        : []
 
       const { source, officials, headCoach, notNamed, noneYes } = await resolveOfficials(database, gameId, game.kscw_team)
 
@@ -306,6 +325,52 @@ export function registerNominationPush(router, { database, logger }) {
       res.status(500).json({ error: 'Internal error' })
     }
   })
+
+  /**
+   * Claim the game and queue the worker. One conditional UPDATE: Postgres takes the row
+   * lock, so two callers on the SAME fixture (coach + TR on two phones, or coach vs the
+   * cron) serialize and the loser matches 0 rows. The cron takes the same claim with the
+   * same predicate and lease; keep them in step. The lease (migration 354) lets the cron
+   * hand a row whose worker died back as 'failed' after 10 minutes.
+   *
+   * Two DIFFERENT teams pressing at once must not put two logins on the one shared VM
+   * account (nor overlap vm_sync, the SVRZ sync or the cron). So this never spawns directly:
+   * it joins a FIFO that runs one worker at a time, each under claimVmAccount — the same
+   * process-wide claim every VM job here takes — and waits for the account rather than
+   * refusing.
+   *
+   * → { started: true, queued, position } or { started: false, reason: 'in_flight' }
+   */
+  async function queuePush(gameId) {
+    const claimed = await database('games').where('id', gameId)
+      .whereRaw(
+        "(COALESCE(vm_nomination_status, '') <> 'pending'"
+        + ' OR vm_nomination_claimed_at IS NULL'
+        + " OR vm_nomination_claimed_at < now() - interval '10 minutes')",
+      )
+      .update({
+        vm_nomination_status: 'pending',
+        vm_nomination_error: null,
+        vm_nomination_claimed_at: database.fn.now(),
+      })
+    if (!claimed) return { started: false, reason: 'in_flight' }
+    const position = enqueue({ gameId })
+    return { started: true, queued: position > 1, position }
+  }
+
+  /**
+   * The push for a coach's saved match sheet. Unlike the button, a missing head coach is
+   * not refused here: the sheet is already saved, and the worker reports that on the game.
+   * Inside svrz_rc's windows, or with a push already running, it ends here and the cron sends
+   * the change afterwards (vm_nomination_sheet_changed_at, nominationPushDue): a press of the
+   * button is a rare, deliberate thing, but saving a sheet late in the evening is not.
+   */
+  async function requestPush(gameId) {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return { started: false, reason: 'not_configured' }
+    if (!externalAccountsEnabled()) return { started: false, reason: 'external_off' }
+    if (isSvrzRcBlackout()) return { started: false, reason: 'vm_window' }
+    return queuePush(gameId)
+  }
 
   router.post('/games/:id/nomination-push', async (req, res) => {
     const gameId = Number(req.params.id)
@@ -363,44 +428,21 @@ export function registerNominationPush(router, { database, logger }) {
       return res.status(500).json({ error: 'Internal error' })
     }
 
-    // ── Claim the game ────────────────────────────────────────────────────────
-    // One conditional UPDATE: Postgres takes the row lock, so two callers on the
-    // SAME fixture (coach + TR on two phones, or coach vs the cron) serialize
-    // and the loser matches 0 rows → 409. The cron takes the same claim with the
-    // same predicate and lease; keep them in step. The lease (migration 354) lets
-    // the cron hand a row whose worker died back as 'failed' after 10 minutes.
-    let claimed
+    let pushed
     try {
-      claimed = await database('games').where('id', gameId)
-        .whereRaw(
-          "(COALESCE(vm_nomination_status, '') <> 'pending'"
-          + ' OR vm_nomination_claimed_at IS NULL'
-          + " OR vm_nomination_claimed_at < now() - interval '10 minutes')",
-        )
-        .update({
-          vm_nomination_status: 'pending',
-          vm_nomination_error: null,
-          vm_nomination_claimed_at: database.fn.now(),
-        })
+      pushed = await queuePush(gameId)
     } catch (err) {
       log.error?.({ msg: `[nomination-push] row claim failed: ${err.message}`, game: gameId })
       return res.status(500).json({ error: 'Internal error' })
     }
-    if (!claimed) {
+    if (!pushed.started) {
       log.info?.({ msg: '[nomination-push] rejected: a push is already in flight', game: gameId })
       return res.status(409).json({
         error: 'A push for this game is already running — give it a minute',
         code: 'push_in_flight',
       })
     }
-
-    // ── Queue it ─────────────────────────────────────────────────────────────
-    // Two DIFFERENT teams pressing at once must not put two logins on the one
-    // shared VM account (nor overlap vm_sync, the SVRZ sync or the cron).
-    // So the request never spawns directly: it joins a FIFO that runs one worker
-    // at a time, each under claimVmAccount — the same process-wide claim every
-    // VM job here takes — and waits for the account rather than refusing.
-    const position = enqueue({ gameId })
+    const { position } = pushed
 
     // Raw spawn → no Directus revision trail. Saving an official document on the
     // club's behalf is exactly the kind of state change the audit log exists for.
@@ -414,4 +456,6 @@ export function registerNominationPush(router, { database, logger }) {
 
     return res.json({ spawned: true, queued: position > 1, position })
   })
+
+  return { requestPush }
 }

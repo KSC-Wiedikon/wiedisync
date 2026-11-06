@@ -1,5 +1,5 @@
 // The LedBox board as a read-only audience of the match sheet: who counts as the board, and
-// the window it gets (the coach's, wider than the scorer's — halls rarely give it an uplink).
+// the window it gets (wider than the scorer's — halls rarely give it an uplink).
 import { describe, expect, it } from 'vitest'
 import { inRosterWindow, isLedboxBoard, LEDBOX_POLICY_NAME } from '../scorer-roster.js'
 
@@ -7,7 +7,7 @@ const H = 60 * 60 * 1000
 const KICKOFF = Date.UTC(2026, 9, 2, 18, 0)
 
 describe('inRosterWindow', () => {
-  it('gives the board the coach window (−6h … +3h)', () => {
+  it('gives the board its window (−6h … +3h)', () => {
     expect(inRosterWindow('board', KICKOFF, KICKOFF - 6 * H)).toBe(true)
     expect(inRosterWindow('board', KICKOFF, KICKOFF - 6 * H - 1)).toBe(false)
     expect(inRosterWindow('board', KICKOFF, KICKOFF + 3 * H)).toBe(true)

@@ -33,14 +33,41 @@ const ms = (value) => (value ? new Date(value).getTime() : null)
  *
  * Every game gets a read at −45 min, unless one already happened since: the −2 h read and
  * a coach's earlier Recheck do not replace it. `busy` read nothing, so it is retried.
+ *
+ * A push that reached VM gets one read as well, up to kickoff, so the sheet shows that list
+ * from then on (`vm_nomination_status`, `vm_nomination_pushed_at`; migration 446).
  */
 export function vmReadDue(game, now = Date.now()) {
   const kickoff = gameStartMs(game)
   if (kickoff == null || now > kickoff + VM_READ_UNTIL_MS) return false
   const checkedAt = ms(game.vm_checked_at)
+  const pushedAt = ms(game.vm_nomination_pushed_at)
+  if ((game.vm_nomination_status === 'saved' || game.vm_nomination_status === 'filled')
+    && pushedAt != null && now < kickoff
+    && (checkedAt == null || checkedAt < pushedAt || game.vm_status === 'busy')) return true
   const stale = (lead) => checkedAt == null || game.vm_status === 'busy' || checkedAt < kickoff - lead
   if (now >= kickoff - VM_CHECK_LEAD_MS) return stale(VM_CHECK_LEAD_MS)
   return now >= kickoff - EINSATZLISTE_ALERT_LEAD_MS && stale(EINSATZLISTE_ALERT_LEAD_MS)
+}
+
+/**
+ * A list VM flags, before the game (owner, 06.11.2026). A list can match the RSVPs and still be
+ * flagged, as 15 Yes against a limit below that does, so the comparison never reports it.
+ * Rows carry `vm_nomination_status`; the send log keeps it to one email per person and game.
+ */
+export function nominationFlagAlertDue(game, now = Date.now()) {
+  const kickoff = gameStartMs(game)
+  return kickoff != null && now < kickoff && game.vm_nomination_status === 'filled'
+}
+
+/** What VM flagged, from the worker's note on the game ('Volleymanager flags: a, b; …'). */
+export function flaggedReasons(error) {
+  const text = String(error ?? '')
+  const reasons = []
+  if (text.includes('hasTooManyNominations')) reasons.push('tooMany')
+  if (text.includes('hasTooFewNominations')) reasons.push('tooFew')
+  if (text.includes('isMissingCoachPerson')) reasons.push('noCoach')
+  return reasons.length ? reasons : ['other']
 }
 
 /** Is there a list from the last 2 h before kickoff still waiting to be compared? */
@@ -63,7 +90,13 @@ const COPY = {
     game: 'Spiel',
     withoutYes: 'Auf der Liste, ohne Zusage',
     yesOnly: 'Zugesagt, nicht auf der Liste',
-    outro: 'Bitte vor dem Spiel in Volleymanager prüfen.',
+    outro: 'Bitte vor dem Spiel im Matchblatt korrigieren. Beim Speichern wird die Liste im Volleymanager aktualisiert.',
+    flagged: {
+      title: 'Der Volleymanager meldet ein Problem mit der Einsatzliste',
+      intro: (team) => `Der Volleymanager meldet ein Problem mit der Einsatzliste von ${team}.`,
+      problem: 'Problem',
+      reasons: { tooMany: 'Zu viele Spieler auf der Liste', tooFew: 'Zu wenige Spieler auf der Liste', noCoach: 'Kein Coach auf der Liste', other: 'Der Volleymanager beanstandet die Liste' },
+    },
     cta: 'Matchblatt öffnen',
     footer: (team) => `Du bekommst diese E-Mail als Coach oder Teamverantwortliche/r von ${team}.`,
   },
@@ -76,7 +109,13 @@ const COPY = {
     game: 'Spiel',
     withoutYes: 'Uf de Liste, ohni Zuesag',
     yesOnly: 'Zuegseit, nöd uf de Liste',
-    outro: 'Bitte vor em Spiel im Volleymanager prüefe.',
+    outro: 'Bitte vor em Spiel im Matchblatt korrigiere. Bim Speichere wird d Liste im Volleymanager aktualisiert.',
+    flagged: {
+      title: 'De Volleymanager mäldet es Problem mit de Einsatzliste',
+      intro: (team) => `De Volleymanager mäldet es Problem mit de Einsatzliste vo ${team}.`,
+      problem: 'Problem',
+      reasons: { tooMany: 'Z vill Spieler uf de Liste', tooFew: 'Z wenig Spieler uf de Liste', noCoach: 'Kein Coach uf de Liste', other: 'De Volleymanager beaastandet d Liste' },
+    },
     cta: 'Matchblatt uftue',
     footer: (team) => `Du überchunsch die E-Mail als Coach oder Teamverantwortlichi Person vo ${team}.`,
   },
@@ -89,7 +128,13 @@ const COPY = {
     game: 'Game',
     withoutYes: 'On the list, no Yes',
     yesOnly: 'Said Yes, not on the list',
-    outro: 'Please check it in Volleymanager before the game.',
+    outro: 'Please fix it on the match sheet before the game. Saving it updates the list in Volleymanager.',
+    flagged: {
+      title: 'Volleymanager flags the Einsatzliste',
+      intro: (team) => `Volleymanager reports a problem with the Einsatzliste of ${team}.`,
+      problem: 'Problem',
+      reasons: { tooMany: 'Too many players on the list', tooFew: 'Too few players on the list', noCoach: 'No head coach on the list', other: 'Volleymanager reports a problem with the list' },
+    },
     cta: 'Open match roster',
     footer: (team) => `You get this email as coach or team responsible of ${team}.`,
   },
@@ -102,7 +147,13 @@ const COPY = {
     game: 'Match',
     withoutYes: 'Sur la liste, sans Oui',
     yesOnly: 'A répondu Oui, pas sur la liste',
-    outro: 'Merci de vérifier dans Volleymanager avant le match.',
+    outro: "Merci de corriger la feuille de match avant le match. L'enregistrement met à jour la liste dans Volleymanager.",
+    flagged: {
+      title: "Volleymanager signale un problème avec l'Einsatzliste",
+      intro: (team) => `Volleymanager signale un problème avec l'Einsatzliste de ${team}.`,
+      problem: 'Problème',
+      reasons: { tooMany: 'Trop de joueurs sur la liste', tooFew: 'Pas assez de joueurs sur la liste', noCoach: 'Pas de coach sur la liste', other: 'Volleymanager signale un problème avec la liste' },
+    },
     cta: 'Ouvrir la feuille de match',
     footer: (team) => `Tu reçois cet e-mail en tant que coach ou responsable d'équipe de ${team}.`,
   },
@@ -115,7 +166,13 @@ const COPY = {
     game: 'Partita',
     withoutYes: 'Sulla lista, senza Sì',
     yesOnly: 'Ha detto Sì, non sulla lista',
-    outro: 'Controlla in Volleymanager prima della partita.',
+    outro: 'Correggi il referto di gara prima della partita. Salvando, la lista in Volleymanager viene aggiornata.',
+    flagged: {
+      title: "Volleymanager segnala un problema con l'Einsatzliste",
+      intro: (team) => `Volleymanager segnala un problema con l'Einsatzliste di ${team}.`,
+      problem: 'Problema',
+      reasons: { tooMany: 'Troppi giocatori sulla lista', tooFew: 'Troppo pochi giocatori sulla lista', noCoach: 'Nessun coach sulla lista', other: 'Volleymanager segnala un problema con la lista' },
+    },
     cta: 'Apri il referto di gara',
     footer: (team) => `Ricevi questa e-mail come coach o responsabile di ${team}.`,
   },
@@ -188,6 +245,60 @@ export function einsatzlisteAlertContent({ locale, firstName, game, comparison }
 }
 
 /**
+ * @param {object} p
+ * @param {string} p.locale de | gsw | en | fr | it
+ * @param {string} [p.firstName]
+ * @param {object} p.game games row + `team_name` and `vm_nomination_error`
+ */
+export function nominationFlagAlertContent({ locale, firstName, game }) {
+  const shared = reminderCopy(locale)
+  const t = COPY[locale] || COPY.de
+  const team = game.team_name || ''
+  const label = activityLabel({ activity_type: 'game', home_team: game.home_team, away_team: game.away_team }, locale)
+  const startsAt = new Date(gameStartMs(game))
+  const day = formatDay(startsAt, locale)
+  const time = formatTime(startsAt)
+  const url = `${FRONTEND_URL}/games/${game.id}/roster`
+  const problem = flaggedReasons(game.vm_nomination_error).map((r) => t.flagged.reasons[r]).join(', ')
+  const intro = t.flagged.intro(team)
+
+  const bodyHtml =
+    `<div style="font-size:14px;color:#e2e8f0;margin-bottom:16px">${escHtml(intro)}</div>` +
+    buildInfoCard([
+      { label: t.game, value: label },
+      { label: shared.date, value: day, halfWidth: true },
+      { label: shared.time, value: time, halfWidth: true },
+      { label: t.flagged.problem, value: problem },
+    ]) +
+    `<div style="font-size:13px;color:#94a3b8;margin-top:16px">${escHtml(t.outro)}</div>`
+
+  const html = buildEmailLayout(bodyHtml, {
+    title: t.flagged.title,
+    subtitle: label,
+    sport: 'vb',
+    greeting: firstName ? shared.greeting(firstName) : undefined,
+    ctaUrl: url,
+    ctaLabel: t.cta,
+    footerExtra: t.footer(team),
+  })
+
+  const text = [
+    ...(firstName ? [`${shared.greeting(firstName)},`, ''] : []),
+    intro,
+    `${t.game}: ${label}`,
+    `${shared.date}: ${day}, ${time}`,
+    `${t.flagged.problem}: ${problem}`,
+    '',
+    t.outro,
+    url,
+    '',
+    t.footer(team),
+  ].join('\n')
+
+  return { subject: `WiediSync — ${t.flagged.title}: ${label}, ${day}, ${time}`, html, text }
+}
+
+/**
  * @param {object} deps
  * @param {import('knex').Knex} deps.database
  * @param {object} deps.emailReminders createEmailReminders() — its send log and mail sending
@@ -206,6 +317,16 @@ export function createEinsatzlisteAlert({ database, emailReminders }) {
       [teamId, teamId],
     )
     return rows
+  }
+
+  /** One email per person about a list VM flags. The send log makes every later tick a no-op. */
+  async function runFlagged(game) {
+    const jobs = (await recipients(game.kscw_team)).map((r) => ({
+      memberId: r.member,
+      items: [{ ...r, activity_type: 'game', activity_id: String(game.id) }],
+    }))
+    return emailReminders.sendJobs('nomination_flagged', jobs, ({ locale, firstName }) =>
+      nominationFlagAlertContent({ locale, firstName, game }))
   }
 
   /** Compare the stored list with the RSVPs, mail when it does not match, mark it done. */
@@ -227,5 +348,5 @@ export function createEinsatzlisteAlert({ database, emailReminders }) {
     return { verdict: comparison.verdict, ...result }
   }
 
-  return { run }
+  return { run, runFlagged }
 }

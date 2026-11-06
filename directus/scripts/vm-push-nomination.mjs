@@ -1,6 +1,6 @@
 /**
  * vm-push-nomination.mjs — file ONE game's Einsatzliste (nomination list) into
- * VolleyManager from our confirmed RSVPs.
+ * VolleyManager, from the coach's match sheet if one is saved, else our confirmed RSVPs.
  *
  * Spawned fire-and-forget by the Einsatzliste cron (kscw-hooks) and by the manual
  * "push now" endpoint. Self-contained: authenticates to Directus with the sync
@@ -158,6 +158,32 @@ export function fineableBlockers(validation) {
       return fineable && !i.isResolved;
     })
     .map((i) => i.validationIssueConfiguration?.identifier || `issue#${i.number}`);
+}
+
+// ─── Players ─────────────────────────────────────────────────────────
+
+/**
+ * Member ids for the list: the coach's saved match sheet when there is one, minus whoever
+ * they struck off; else the regular players who said Yes. Pure; mirrored by the preview in
+ * kscw-endpoints/src/nomination-push.js.
+ */
+export function pickPlayerIds(sheetRows, regularIds, confirmed) {
+  const rows = (sheetRows ?? []).filter(Boolean);
+  if (rows.length) {
+    const ids = rows
+      .filter((r) => r.dropped !== true && r.member != null)
+      .map((r) => Number(typeof r.member === 'object' ? r.member.id : r.member));
+    return [...new Set(ids)];
+  }
+  return (regularIds ?? []).map(Number).filter((id) => confirmed.has(id));
+}
+
+/** The licence numbers on a list VM returned. person.associationId IS members.license_nr. */
+export function nominatedLicences(list) {
+  return (list?.indoorPlayerNominations ?? [])
+    .map((n) => n?.indoorPlayer?.person?.associationId)
+    .filter((l) => l != null && l !== '')
+    .map(String);
 }
 
 // ─── Officials (C / AC1 / AC2) ───────────────────────────────────────
@@ -338,9 +364,11 @@ async function main() {
   if (!isHome && !isAway) return finish('failed', { error: `game ${number} is not a KSCW fixture` });
   const side = isHome ? 'Home' : 'Away';
 
-  // ── Who is playing: confirmed RSVPs ∩ this season's roster, guests excluded.
-  // The intersect is what keeps stale/cross-team participation rows off the list;
-  // guest_level = 0 is what keeps the known guest count-drift out of it.
+  // ── Who is playing: the coach's saved match sheet (migration 446), else confirmed
+  // RSVPs ∩ this season's roster, guests excluded. The intersect is what keeps
+  // stale/cross-team participation rows off the list; guest_level = 0 is what keeps the
+  // known guest count-drift out of it. On the sheet a coach has chosen the guests.
+  const sheetRows = await dGet(`/items/game_rosters?filter[game][_eq]=${GAME_ID}&fields=member,dropped&limit=-1`) ?? [];
   const parts = await dGet(
     `/items/participations?filter[activity_type][_eq]=game&filter[activity_id][_eq]=${GAME_ID}`
     + `&filter[status][_eq]=confirmed&fields=member&limit=-1`,
@@ -359,9 +387,15 @@ async function main() {
     + `&filter[guest_level][_eq]=0&fields=member.id,member.license_nr,member.first_name,member.last_name&limit=-1`,
   ) ?? [];
 
-  const playing = roster
-    .map((r) => r.member)
-    .filter((m) => m && confirmed.has(Number(m.id)));
+  const playingIds = pickPlayerIds(sheetRows, roster.map((r) => r.member?.id).filter((id) => id != null), confirmed);
+  const known = new Map(roster.filter((r) => r.member).map((r) => [Number(r.member.id), r.member]));
+  // A guest on the sheet is not on the roster we just read.
+  const others = playingIds.filter((id) => !known.has(id));
+  if (others.length) {
+    const rows = await dGet(`/items/members?filter[id][_in]=${others.join(',')}&fields=id,license_nr,first_name,last_name&limit=-1`) ?? [];
+    for (const m of rows) known.set(Number(m.id), m);
+  }
+  const playing = playingIds.map((id) => known.get(id)).filter(Boolean);
 
   const licensed = playing.filter((m) => m.license_nr);
   const unlicensed = playing.filter((m) => !m.license_nr);
@@ -378,7 +412,7 @@ async function main() {
     return finish('skipped', { error: `no licensed confirmed players (${playing.length} confirmed, ${unlicensed.length} unlicensed)` });
   }
   const wantLicences = new Set(licensed.map((m) => String(m.license_nr)));
-  log(`game ${GAME_ID} (${side.toLowerCase()} #${number}): ${licensed.length} licensed / ${playing.length} confirmed`);
+  log(`game ${GAME_ID} (${side.toLowerCase()} #${number}): ${licensed.length} licensed / ${playing.length} ${sheetRows.length ? 'on the match sheet' : 'confirmed'}`);
 
   // ── Officials (C / AC1 / AC2): per-game match sheet, else the team default.
   const [savedOfficials, teamRow] = await Promise.all([
@@ -432,6 +466,17 @@ async function main() {
   if (list?.closed || list?.isClosedForTeam) {
     return finish('closed', { listId: idOf(list), count: (list.indoorPlayerNominations ?? []).length,
       error: 'closed by the referee in Volleymanager — nothing was changed' });
+  }
+
+  // The sheet shows a nominated licence we hold no member for, but cannot edit or name it,
+  // so a push from the sheet must not take that player off the list.
+  if (sheetRows.length && list) {
+    const onList = nominatedLicences(list);
+    const linked = onList.length
+      ? await dGet(`/items/members?filter[license_nr][_in]=${onList.join(',')}&fields=license_nr&limit=-1`) ?? []
+      : [];
+    const ours = new Set(linked.map((m) => String(m.license_nr)));
+    for (const licence of onList) if (!ours.has(licence)) wantLicences.add(licence);
   }
 
   // ── Officials → VM persons. Read-only lookups, so done before registerWindow.

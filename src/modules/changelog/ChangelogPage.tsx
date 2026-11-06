@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.63.0'
+const APP_VERSION = '2.64.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.64.0',
+    date: '06.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          'The match sheet is the one place to change who plays. Taking a player off makes their RSVP a No, adding one makes it a Yes, with no fine and no email, and the Einsatzliste in Volleymanager is saved again right away, up to kickoff.',
+          'If someone changes the list directly in Volleymanager, the match sheet follows at the next read and keeps numbers, captain and libero.',
+          'Coaches and team responsibles can open the match sheet 24 hours before the game. Dates of birth still appear 6 hours before.',
+          'A list Volleymanager flags, such as too many players, is no longer saved again on its own. Coaches and team responsibles get one email about it, and the message says what is wrong in plain words.',
+          'The Einsatzliste texts no longer ask you to close the list. The club saves it; the referee closes it after the game.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.63.0',
     date: '06.11.2026',
