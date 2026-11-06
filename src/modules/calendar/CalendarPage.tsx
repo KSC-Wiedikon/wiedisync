@@ -19,6 +19,7 @@ import { useIsMobile } from '../../hooks/useMediaQuery'
 import { startOfMonth, startOfWeek, endOfWeek } from '../../utils/dateUtils'
 import { Download, Link2, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Toggle } from '@/components/ui/toggle'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
 import type { Team } from '../../types'
 import { useCollection } from '../../lib/query'
@@ -96,6 +97,9 @@ export default function CalendarPage() {
   // Allowed sources for the filter chips (all visible options)
   const allowedSources = allSources
 
+  // An admin with no team picked already sees the whole club, so the toggle would do nothing.
+  const canToggleClubWide = !!user && (!(effectiveIsAdmin || effectiveIsVorstand) || filters.selectedTeamIds.length > 0)
+
   // Active chips = what's selected. Pass directly to data hook.
   // Non-admins: fall back to own teams when filter is empty (never show all teams).
   const effectiveFilters: CalendarFilterState = useMemo(() => {
@@ -172,9 +176,22 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {needsData && (
             <>
+              {canToggleClubWide && (
+                <Toggle
+                  variant="outline"
+                  size="lg"
+                  pressed={filters.clubWide === true}
+                  onPressedChange={(clubWide) => setFilters((f) => ({ ...f, clubWide }))}
+                  aria-label={t('clubWideHint')}
+                  title={t('clubWideHint')}
+                  className="rounded-lg text-sm"
+                >
+                  KSCW
+                </Toggle>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setFilterOpen(true)}

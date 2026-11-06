@@ -19,7 +19,7 @@ import {
   formatDate,
   dayHeaders,
 } from '../../../utils/dateUtils'
-import { dotColors, colorKey, cancelledClasses } from '../entryStyle'
+import { dotColors, paintKey, cancelledClasses } from '../entryStyle'
 
 /** Synthetic-entry id prefix for a collapsed multi-absence row (non-clickable). */
 const ABSENCE_GROUP_PREFIX = 'absence-group:'
@@ -105,7 +105,7 @@ export default function MobileMonthView({
     const dayEntries = entriesByDate.get(dateKey) ?? []
     const uniqueColors = new Set<string>()
     for (const e of dayEntries) {
-      uniqueColors.add(dotColors[colorKey(e)] ?? 'bg-muted-foreground')
+      uniqueColors.add(dotColors[paintKey(e)] ?? 'bg-muted-foreground')
       if (uniqueColors.size >= 3) break
     }
     return [...uniqueColors]
@@ -227,7 +227,7 @@ export default function MobileMonthView({
                   onClick={grouped ? undefined : () => onEntryClick?.(entry)}
                   title={
                     <div className={`flex min-w-0 items-start gap-2 ${cancelledClasses(entry)}`}>
-                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[paintKey(entry)]}`} />
                       <p className="min-w-0 break-words text-sm font-medium leading-snug text-foreground">
                         {entry.title}
                       </p>

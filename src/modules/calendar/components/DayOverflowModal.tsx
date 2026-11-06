@@ -1,7 +1,7 @@
 import Modal from '@/components/Modal'
 import type { CalendarEntry } from '../../../types/calendar'
 import { formatDate } from '../../../utils/dateUtils'
-import { entryIconColor, cancelledClasses } from '../entryStyle'
+import { entryIconColor, cancelledClasses, OTHER_TEAM_PAINT } from '../entryStyle'
 import CalendarTypeIcon from './CalendarTypeIcon'
 import { ActivityRow, DateRail, RowList } from '@/components/ActivityRow'
 import TruncatedText from '@/components/TruncatedText'
@@ -57,7 +57,7 @@ export default function DayOverflowModal({
                   <span className="mt-0.5 shrink-0">
                     <CalendarTypeIcon type={entry.type} sport={entry.sport} size="sm" filled className={entryIconColor(entry)} />
                   </span>
-                  <p className="min-w-0 break-words text-sm font-medium leading-snug text-foreground">
+                  <p className={`min-w-0 break-words text-sm font-medium leading-snug ${entry.colorOverride === OTHER_TEAM_PAINT ? 'text-muted-foreground' : 'text-foreground'}`}>
                     {entry.title}
                   </p>
                 </div>

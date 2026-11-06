@@ -382,7 +382,7 @@ export default {
           "t": "ul",
           "items": [
             "**Hall**: the weekly hall occupancy plan. Coaches and team responsibles claim free hall time here (see the section Hall plan and free hall time).",
-            "**Calendar**: the month grid; on a phone a day list you tap to expand. Move with the arrows or **Today**. **Filter**, **Subscribe** and **Export iCal** appear in this view only (icons on a phone).",
+            "**Calendar**: the month grid; on a phone a day list you tap to expand. Move with the arrows or **Today**. **Filter**, **Subscribe** and **Export iCal** appear in this view only (icons on a phone). The **KSCW** button adds the games of all other teams in grey, plus their club and tournament events. Only your own trainings are shown.",
             "**Schedule**: proposed and confirmed fixtures per team, shown only when one of your teams has a fixture schedule."
           ]
         },

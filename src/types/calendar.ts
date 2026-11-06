@@ -56,7 +56,8 @@ export interface CalendarEntry {
   /**
    * Optional MonthGrid palette-key override (e.g. 'blue'). Recolours the entry
    * without changing its `type` — the icon shape still follows `type`. Used to
-   * tint events blue on the team absence calendar.
+   * tint events blue on the team absence calendar, and to grey another team's
+   * entry in the club-wide calendar (`OTHER_TEAM_PAINT`).
    */
   colorOverride?: string
 }
@@ -86,4 +87,9 @@ export interface CalendarFilterState {
    * hides them — they clutter the calendar without affecting the rest of the team.
    */
   showHiddenAbsences?: boolean
+  /**
+   * The "KSCW" toggle: every team's games and every event the viewer may read, on
+   * top of the selected teams. Trainings, absences and birthdays keep the selection.
+   */
+  clubWide?: boolean
 }

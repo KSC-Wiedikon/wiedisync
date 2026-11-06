@@ -382,7 +382,7 @@ export default {
           "t": "ul",
           "items": [
             "**Palestra**: il piano settimanale di occupazione della palestra. Allenatori e responsabili di squadra prenotano qui le fasce libere (vedi la sezione Piano palestra e ore libere).",
-            "**Calendario**: la griglia mensile; sul telefono una lista di giorni da espandere. Spostati con le frecce o **Oggi**. **Filtro**, **Abbonati** ed **Esporta iCal** compaiono solo in questa vista (icone sul telefono).",
+            "**Calendario**: la griglia mensile; sul telefono una lista di giorni da espandere. Spostati con le frecce o **Oggi**. **Filtro**, **Abbonati** ed **Esporta iCal** compaiono solo in questa vista (icone sul telefono). Il pulsante **KSCW** aggiunge le partite di tutte le altre squadre in grigio, oltre agli eventi di club e ai tornei. Vengono visualizzati solo i tuoi allenamenti.",
             "**Partite**: le partite proposte e confermate per squadra, mostrate solo se una delle tue squadre ha un calendario partite."
           ]
         },
