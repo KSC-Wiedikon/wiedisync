@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initSentry } from './lib/sentry'
+import { startErrorLogQueue } from './lib/errorLogQueue'
 import { startNativeSystemBars } from './lib/nativeSystemBars'
 import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow, stripCacheBustParam } from './lib/chunkReload'
 // Pre-boot watchdog handshake — see public/boot-watchdog.js.
@@ -28,6 +29,8 @@ window.addEventListener('vite:preloadError', (e) => {
 })
 
 initSentry()
+// Error reports an earlier page load could not deliver.
+startErrorLogQueue()
 // Android app: status + navigation bars in the page's colours (no-op elsewhere).
 void startNativeSystemBars()
 

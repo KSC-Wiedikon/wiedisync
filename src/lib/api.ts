@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner'
 import i18n from '../i18n'
 import { captureApiError, captureAuthError } from './sentry'
+import { clearErrorLogQueue } from './errorLogQueue'
 import {
   ACTING_HEADER, ACTING_DENIED_CODE, actingRefusalScope, sentActingId, isActingDeniedError, isActingEchoMismatch, resolveActingHeaders,
 } from './acting'
@@ -306,6 +307,10 @@ export async function logout(opts: { unbindPush?: boolean } = {}) {
   // Captured now: the caller tears the acting state down synchronously right
   // after this function yields at its first await.
   const actingAtLogout = _actingMemberId
+  // Undelivered error reports go out under whatever session is there at delivery, so
+  // on a shared device they would be logged as the next person's. At once, because the
+  // awaits below can hang on a dead network and the tab may be closed meanwhile.
+  clearErrorLogQueue()
   // Pre-loaded identity documents + match sheets (Show IDs), FIRST. Only the
   // logout button wiped them; the other ways a session ends all land here — a
   // member-less or rejected session restore, SetPasswordPage — and left a squad's
@@ -327,6 +332,8 @@ export async function logout(opts: { unbindPush?: boolean } = {}) {
   }
   try { await client.logout() } catch { /* ignore */ }
   setAuthHint(false)
+  // And whatever failed while the session was ending (in-flight queries).
+  clearErrorLogQueue()
   // Clean up legacy token storage from the pre-cookie era + local caches.
   localStorage.removeItem('directus_auth')
   sessionStorage.removeItem('directus_auth')
@@ -378,7 +385,11 @@ export async function refreshAuth() {
       // (prod 2026-09-28: 135 refresh + ~140 "no permission" entries from 7
       // browsers). With the hint gone those queries fall into the logged-out
       // carve-outs and AuthProvider/AuthRoute send the user to /login.
-      if (isRefreshRejected(err)) setAuthHint(false)
+      // The session ended without logout(), so the error-report queue goes here too.
+      if (isRefreshRejected(err)) {
+        setAuthHint(false)
+        clearErrorLogQueue()
+      }
       captureAuthError(err, { action: 'token_refresh' })
       throw err
     })
