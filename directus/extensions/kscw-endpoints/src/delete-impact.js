@@ -81,6 +81,8 @@ const FK_MAP = {
     { table: 'poll_votes', column: 'member', rule: 'CASCADE' },
     { table: 'push_subscriptions', column: 'member', rule: 'CASCADE' },
     { table: 'scheduling_email_reads', column: 'member', rule: 'CASCADE' },
+    { table: 'duty_rechecks', column: 'member', rule: 'CASCADE' },
+    { table: 'duty_rechecks', column: 'invited_by', rule: 'SET NULL' },
     { table: 'scorer_delegations', column: 'from_member', rule: 'CASCADE' },
     { table: 'scorer_delegations', column: 'to_member', rule: 'CASCADE' },
     { table: 'signup_tokens', column: 'member', rule: 'CASCADE' },

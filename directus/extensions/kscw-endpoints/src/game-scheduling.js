@@ -2243,6 +2243,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // bulk backfill doesn't push "new game" to every roster at once.
       await database.transaction(async (trx) => {
         await trx.raw("SELECT set_config('kscw.skip_games_notify', 'on', true)")
+        await trx.raw("SELECT set_config('kscw.skip_duty_recheck', 'on', true)")
         await apply(trx)
       })
     } else {

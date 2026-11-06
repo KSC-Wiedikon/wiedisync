@@ -236,6 +236,15 @@ export function registerDutyLate(router, ctx) {
   // auto_issued=false and scopes to the caller's own team), so this replicates
   // its engine snapshot + notification + push directly and sets auto_issued=true.
   async function issueNoShowFine({ game, role, def, official, reporterMemberId, accountability }) {
+    // We moved the game on them and they have not answered yet: no fine (owner,
+    // 06.11.2026). Their coach was warned, and "I can" turns the fine back on.
+    const unanswered = await database('duty_rechecks')
+      .where({ game: game.id, role, member: official.id, kind: 'ask', status: 'pending' }).first('id')
+    if (unanswered) {
+      log.info({ msg: 'duty-late: no auto-fine, the moved-game question is still open', gameId: game.id, member: official.id, role })
+      return
+    }
+
     // Team context — the offense counter is per team. Prefer the official's duty
     // team for this role; fall back to their first current team.
     let teamId = game[def.duty] != null ? Number(game[def.duty]) : null

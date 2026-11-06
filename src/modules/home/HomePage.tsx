@@ -60,6 +60,7 @@ import FamilyHomeCard from '../family/FamilyHomeCard'
 import UpcomingTicker from './components/UpcomingTicker'
 import { eventTypeLabelKey } from '../calendar/eventTypeLabel'
 import HomeDelegationCard from './components/HomeDelegationCard'
+import DutyRecheckCards from '../scorer/components/DutyRecheckCards'
 import MyDutyBanner from './components/MyDutyBanner'
 import RefereeExpenseNudge from './components/RefereeExpenseNudge'
 import { useMyDuties, DUTY_ROLE_LABEL_KEYS, type MyDuty } from '../../hooks/useMyDuties'
@@ -581,6 +582,10 @@ export default function HomePage() {
       {user && isApproved && (tickerTeamIds.length > 0 || memberTeamsLoading) && (
         <UpcomingTicker teamIds={tickerTeamIds} scopeLoading={memberTeamsLoading} />
       )}
+
+      {/* A home game moved: the question to the people on its seats, the seats open to
+          every member, and what the game team's leaders still have to find. */}
+      {user && isApproved && <DutyRecheckCards />}
 
       {/* Pending duty-delegation requests — accept/decline without leaving home.
           Renders null when the user has no incoming requests. */}
