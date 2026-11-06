@@ -29,6 +29,8 @@ export default {
   viewRoster: 'Vedi lista',
   rosterTitle: 'Partecipazione',
   noResponses: 'Nessuna risposta finora',
+  rosterLoadFailed: 'Impossibile caricare la lista di partecipazione.',
+  retry: 'Riprova',
   maxPlayers: 'Max giocatori',
   spotsLeft: '{{count}} posti rimasti',
   full: 'Completo',
