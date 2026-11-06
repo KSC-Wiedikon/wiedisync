@@ -5,12 +5,19 @@
  * A home game claims ALL of its halls (primary `hall` + every `additional_halls`
  * entry — e.g. a KWI A+B combo derby occupies both halves) from WARMUP_MINUTES
  * before start. Another team's training that overlaps is:
- *   - SHORTENED to the warm-up start if it begins BEFORE the block cuts in
- *     (club ruling 2026-07-08: keep it, trimmed — e.g. training 18:00–19:30 vs a
- *     20:00 game → 18:00–19:15); or
- *   - CANCELLED if the block starts at/before the training start and the game's
- *     occupation covers the whole training (a training sitting entirely inside
- *     the block — e.g. D1's 19:45–21:30 KWI B training under a 20:00 A+B derby).
+ *   - SHORTENED to the warm-up start if at least MIN_REMAINING_MINUTES of it come
+ *     before the block (club ruling 2026-07-08: keep it, trimmed — e.g. training
+ *     18:00–19:30 vs a 20:00 game → 18:00–19:15);
+ *   - CANCELLED if neither side of the block keeps MIN_REMAINING_MINUTES (owner
+ *     2026-11-06, the floor hall bookings already use) — a training inside the
+ *     block like D1's 19:45–21:30 under a 20:00 A+B derby, but also 20:30–22:00
+ *     or 19:00–20:30 next to a 20:00 game, which each keep 15 minutes;
+ *   - LEFT ALONE if it keeps too little before the block but enough after it:
+ *     this sweep only ever moves a training's end, never its start.
+ *
+ * The Hallenplan hides every training overlapping a home game
+ * (virtualSlots.ts filterAnnotatedSlots), so a clash left open here is invisible
+ * to anyone planning the hall.
  *
  * Four idempotent passes, safe to run nightly and on games.items.* actions:
  *   0. NORMALIZE — repair rotted KWI A/B combos. `additional_halls` should hold
@@ -22,12 +29,11 @@
  *   1. RESTORE — a shortened or auto-cancelled training whose marker game
  *      vanished, moved hall(s)/date, was cancelled/completed, or no longer
  *      cuts in gets its original end / active state back. Future dates only.
- *   2. CANCEL — a future non-cancelled training fully inside another team's game
- *      block (any of the game's halls) is cancelled, marked restorable.
+ *   2. CANCEL — a future non-cancelled training that keeps under
+ *      MIN_REMAINING_MINUTES on both sides of another team's game block (any of
+ *      the game's halls) is cancelled, marked restorable.
  *   3. SHORTEN — a future non-cancelled training that starts before the block
- *      cuts in is trimmed to the block start, unless the remainder would be
- *      under MIN_REMAINING_MINUTES (those stay full-length as Hallenplan
- *      conflicts for a human).
+ *      cuts in is trimmed to the block start, if MIN_REMAINING_MINUTES remain.
  *
  * OWN-TEAM game-day cancel (migration 261, 2026-07-28): a team's own training
  * on a day that team has ANY scheduled game — home or away, hall irrelevant —
@@ -39,8 +45,8 @@
  *     silenced via the kscw.skip_trainings_notify GUC — members see the
  *     cancelled training on the calendar next to the game, no push storm.
  *   - a manual reinstate is sticky: un-cancelling in the app leaves the
- *     marker in place (no trigger clears auto_shortened_by_game), and pass 4
- *     skips marker-carrying non-shortened rows — that state can only mean "a
+ *     marker in place (no trigger clears auto_shortened_by_game), and passes 2
+ *     and 4 skip marker-carrying non-shortened rows — that state can only mean "a
  *     human un-cancelled an auto-cancel", so the sweep stops fighting it.
  *     Pass 1c clears the marker again once the marker game stops covering,
  *     re-arming the training for future games.
@@ -63,8 +69,9 @@
  * carrying ours, and pass 4 (own game day) outranks it — it puts the booking's
  * times back and clears its marker as it cancels.
  *
- * UPDATEs fire trg_trainings_notify ('training_updated' / cancellation push);
- * the value-change guards keep re-runs silent.
+ * UPDATEs fire trg_trainings_notify ('training_updated' / 'training_cancelled'
+ * bell rows); the value-change guards keep re-runs silent. No phone push: that
+ * lives in the trainings.items.update action, which raw SQL never reaches.
  */
 
 export const WARMUP_MINUTES = 45
@@ -75,9 +82,8 @@ export const OWN_TEAM_NOTIFY_DAYS = 14
 // Sentinel stamped on rows the clash-decline INSERT created (vs pre-existing
 // rows the UPDATE overrode) — same convention as the absence auto-decline.
 const CLASH_CREATED_SENTINEL = '1970-01-01 00:00:00+00'
-// Nominal court occupation after a game's start time, for the full-cover cancel
-// (warm-up before start is WARMUP_MINUTES). Deliberately modest so a training
-// ending well after the game is left as a conflict rather than wrongly cancelled.
+// Nominal court occupation after a game's start time (warm-up before start is
+// WARMUP_MINUTES). A training keeping MIN_REMAINING_MINUTES after this is not cancelled.
 export const GAME_MINUTES = 105
 
 // CTE: expand each scheduled home game into one row per hall it blocks (primary
@@ -104,6 +110,19 @@ const GAME_BLOCK_CTE = `
     WHERE g.type = 'home' AND g.status = 'scheduled' AND g.time IS NOT NULL
       AND hb.hall_id IS NOT NULL
   )`
+
+// The block overlaps the training and neither side of it keeps :minRemaining
+// minutes of the planned time. Pass 2 cancels on this and pass 1b keeps the row
+// cancelled on it: if the two ever differ, each run undoes the other's work and
+// bells the whole team again.
+const BLOCK_START = '(gb.time - make_interval(mins => :warmup))'
+const BLOCK_END = '(gb.time + make_interval(mins => :gameMinutes))'
+const PLANNED_END = 'COALESCE(t.original_end_time, t.end_time)'
+export const BLOCK_LEAVES_TOO_LITTLE = `
+  ${BLOCK_START} < ${PLANNED_END}
+  AND ${BLOCK_END} > t.start_time
+  AND (${BLOCK_START} - t.start_time) < make_interval(mins => :minRemaining)
+  AND (${PLANNED_END} - ${BLOCK_END}) < make_interval(mins => :minRemaining)`
 
 export async function sweepGameTrainingShorten(database, log) {
   // ── Pass 0: normalize rotted KWI A/B combos ──────────────────────────────
@@ -165,8 +184,7 @@ export async function sweepGameTrainingShorten(database, log) {
         WHERE gb.game_id = t.auto_shortened_by_game
           AND gb.hall_id = t.hall AND gb.date = t.date
           AND gb.kscw_team IS DISTINCT FROM t.team AND gb.sport = (SELECT sport FROM teams WHERE id = t.team)
-          AND (gb.time - make_interval(mins => :warmup)) <= t.start_time
-          AND (gb.time + make_interval(mins => :gameMinutes)) >= t.end_time
+          AND ${BLOCK_LEAVES_TOO_LITTLE}
       )
       AND NOT EXISTS (
         SELECT 1 FROM games g
@@ -175,7 +193,7 @@ export async function sweepGameTrainingShorten(database, log) {
           AND g.kscw_team = t.team
           AND g.date = t.date
       )
-  `, { warmup: WARMUP_MINUTES, gameMinutes: GAME_MINUTES })
+  `, { warmup: WARMUP_MINUTES, gameMinutes: GAME_MINUTES, minRemaining: MIN_REMAINING_MINUTES })
 
   // ── Pass 1c: clear dangling markers on manually reinstated trainings ──────
   // Un-cancelling in the app leaves the auto_shortened_by_game marker in
@@ -206,7 +224,9 @@ export async function sweepGameTrainingShorten(database, log) {
       )
   `)
 
-  // ── Pass 2: cancel trainings fully inside a game block (any of its halls) ─
+  // ── Pass 2: cancel trainings a game block leaves too little of (any of its halls) ─
+  // Skips the manual-reinstate signature, like pass 4: a coach who un-cancels
+  // keeps the training (see pass 1c).
   const cancelled = await database.raw(`
     WITH ${GAME_BLOCK_CTE},
     cover AS (
@@ -219,8 +239,8 @@ export async function sweepGameTrainingShorten(database, log) {
       WHERE t.date >= CURRENT_DATE
         AND t.cancelled = false
         AND t.auto_adjusted_by_booking IS NULL
-        AND (gb.time - make_interval(mins => :warmup)) <= t.start_time
-        AND (gb.time + make_interval(mins => :gameMinutes)) >= COALESCE(t.original_end_time, t.end_time)
+        AND (t.auto_shortened_by_game IS NULL OR t.original_end_time IS NOT NULL)
+        AND ${BLOCK_LEAVES_TOO_LITTLE}
       GROUP BY t.id
     )
     UPDATE trainings t
@@ -230,7 +250,7 @@ export async function sweepGameTrainingShorten(database, log) {
         end_time = COALESCE(t.original_end_time, t.end_time)
     FROM cover c
     WHERE t.id = c.training_id
-  `, { warmup: WARMUP_MINUTES, gameMinutes: GAME_MINUTES })
+  `, { warmup: WARMUP_MINUTES, gameMinutes: GAME_MINUTES, minRemaining: MIN_REMAINING_MINUTES })
 
   // ── Pass 3: shorten trainings whose start is before the block cuts in ─────
   const shortened = await database.raw(`
