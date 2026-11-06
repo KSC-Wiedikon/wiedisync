@@ -236,7 +236,7 @@ export function useTeamParticipations(
   memberIds: string[],
   sessionId?: string,
 ) {
-  const { data, refetch, isLoading } = useCollection<Participation>('participations', {
+  const { data, refetch, isLoading, isError } = useCollection<Participation>('participations', {
     filter: activityId && memberIds.length > 0
       ? { _and: [
           { member: { _in: memberIds } },
@@ -249,7 +249,9 @@ export function useTeamParticipations(
     enabled: !!activityId && memberIds.length > 0,
   })
 
-  return { participations: data ?? [], refetch, isLoading }
+  // `data` survives a failed background refetch, so only a load that never
+  // delivered counts as failed. Without it `[]` reads as "nobody answered".
+  return { participations: data ?? [], refetch, isLoading, loadFailed: isError && data === undefined }
 }
 
 /** Fetch all participations for an event across all sessions (for roster aggregation) */
@@ -257,7 +259,7 @@ export function useAllEventParticipations(
   activityId: string,
   memberIds: string[],
 ) {
-  const { data, refetch, isLoading } = useCollection<Participation>('participations', {
+  const { data, refetch, isLoading, isError } = useCollection<Participation>('participations', {
     filter: activityId && memberIds.length > 0
       ? { _and: [
           { member: { _in: memberIds } },
@@ -269,5 +271,5 @@ export function useAllEventParticipations(
     enabled: !!activityId && memberIds.length > 0,
   })
 
-  return { participations: data ?? [], refetch, isLoading }
+  return { participations: data ?? [], refetch, isLoading, loadFailed: isError && data === undefined }
 }

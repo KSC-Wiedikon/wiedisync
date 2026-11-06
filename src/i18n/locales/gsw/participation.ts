@@ -29,6 +29,8 @@ export default {
   viewRoster: 'Ufgebot aazeige',
   rosterTitle: 'Teilnahm',
   noResponses: 'No kei Antworte',
+  rosterLoadFailed: 'D Teilnahmslischte hät nöd chöne glade werde.',
+  retry: 'Nomal probiere',
   maxPlayers: 'Max. Spieler',
   spotsLeft: '{{count}} Plätz frei',
   full: 'Voll',

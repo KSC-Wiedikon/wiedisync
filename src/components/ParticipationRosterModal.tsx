@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'rea
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog, ArrowUpDown } from 'lucide-react'
+import { AlertTriangle, Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog, ArrowUpDown } from 'lucide-react'
 import Modal from '@/components/Modal'
 import IconButton from '@/components/IconButton'
 import { Button } from '@/components/ui/button'
@@ -313,7 +313,7 @@ export default function ParticipationRosterModal({
   // labels EventForm offers when picking the audience and EventDetailModal
   // shows as the event's targeting chips.
   const { t: tv } = useTranslation('invitations')
-  const { members, teamsByMember, isLoading: membersLoading } = useMultiTeamMembers(teamIds)
+  const { members, teamsByMember, isLoading: membersLoading, error: membersError, refetch: refetchMembers } = useMultiTeamMembers(teamIds)
 
   // Players this game was opened to from outside its own roster (migration 271).
   // They have no `member_teams` row on this team, so `useMultiTeamMembers` above
@@ -498,12 +498,20 @@ export default function ParticipationRosterModal({
   // For club-wide events (no team), fetch all participations and resolve members from them
   const [clubWideMembers, setClubWideMembers] = useState<Member[]>([])
   const [clubWideLoading, setClubWideLoading] = useState(false)
+  const [clubWideMembersFailed, setClubWideMembersFailed] = useState(false)
+  // Bumped by Retry: re-runs the member fetch below when only that half failed.
+  const [clubWideAttempt, setClubWideAttempt] = useState(0)
   const isClubWide = teamIds.length === 0
 
   const hasSessionMode = participationMode && participationMode !== 'whole' && eventSessions && eventSessions.length > 0
 
   // Club-wide: fetch all participations for the event, then resolve member info
-  const { data: clubWideParticipationsRaw, isLoading: clubWidePartsLoading } = useCollection<Participation>('participations', {
+  const {
+    data: clubWideParticipationsRaw,
+    isLoading: clubWidePartsLoading,
+    isError: clubWidePartsError,
+    refetch: refetchClubWideParts,
+  } = useCollection<Participation>('participations', {
     filter: isClubWide && activityId ? {
       _and: [
         { activity_type: { _eq: activityType } },
@@ -514,6 +522,7 @@ export default function ParticipationRosterModal({
     enabled: isClubWide && !!activityId && open,
   })
   const clubWideParticipations = clubWideParticipationsRaw ?? []
+  const clubWidePartsFailed = clubWidePartsError && clubWideParticipationsRaw === undefined
 
   // The synchronous prologue of the club-wide member fetch (clear the resolved
   // members when there's nothing to resolve, spinner on otherwise) runs during
@@ -522,10 +531,11 @@ export default function ParticipationRosterModal({
   // previous event's club-wide roster is never shown while the new fetch is in
   // flight. `prevClubWideKey` starts null so it also runs on the first render,
   // matching the mount run of the effect it replaces.
-  const clubWideKey = `${isClubWide}|${open}|${clubWideParticipations.length}`
+  const clubWideKey = `${isClubWide}|${open}|${clubWideParticipations.length}|${clubWideAttempt}`
   const [prevClubWideKey, setPrevClubWideKey] = useState<string | null>(null)
   if (prevClubWideKey !== clubWideKey) {
     setPrevClubWideKey(clubWideKey)
+    setClubWideMembersFailed(false)
     if (!isClubWide || !open || clubWideParticipations.length === 0) setClubWideMembers([])
     else setClubWideLoading(true)
   }
@@ -548,10 +558,13 @@ export default function ParticipationRosterModal({
       ],
     })
       .then(m => setClubWideMembers(m.sort(byFirstThenLastName)))
-      .catch(() => setClubWideMembers([]))
+      .catch(() => {
+        setClubWideMembers([])
+        setClubWideMembersFailed(true)
+      })
       .finally(() => setClubWideLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isClubWide, open, clubWideParticipations.length])
+  }, [isClubWide, open, clubWideParticipations.length, clubWideAttempt])
 
   // Excluded guests can't reply (UI hides buttons + server rejects participations.create),
   // so dropping them from the roster keeps "not responded" counts honest.
@@ -729,7 +742,12 @@ export default function ParticipationRosterModal({
     : teamFilteredMembers
 
   // For regular (non-session) mode, filter by session tab if active
-  const { participations: regularParticipations, isLoading: regularLoading } = useTeamParticipations(
+  const {
+    participations: regularParticipations,
+    isLoading: regularLoading,
+    loadFailed: regularFailed,
+    refetch: refetchRegular,
+  } = useTeamParticipations(
     activityType,
     activityId ?? '',
     isClubWide ? [] : rosterMemberIds, // skip for club-wide (we use clubWideParticipations)
@@ -737,7 +755,12 @@ export default function ParticipationRosterModal({
   )
 
   // For session mode overall tab: fetch ALL participations across sessions
-  const { participations: allParticipations, isLoading: allLoading } = useAllEventParticipations(
+  const {
+    participations: allParticipations,
+    isLoading: allLoading,
+    loadFailed: allFailed,
+    refetch: refetchAll,
+  } = useAllEventParticipations(
     hasSessionMode && activeSessionTab === null && !isClubWide ? (activityId ?? '') : '',
     isClubWide ? [] : rosterMemberIds,
   )
@@ -757,6 +780,33 @@ export default function ParticipationRosterModal({
   // modal is still closed — see GameDetailModal's always-mounted instance), and
   // painted the base squad as if it were the whole roster.
   const isLoading = (isClubWide ? clubWideLoading || clubWidePartsLoading : membersLoading || gameGuestsLoading) || participationsLoading
+
+  // A request that failed must not read as an empty roster. Without this the
+  // modal counted the empty lists: "0 No response, No responses yet" for a team
+  // of 21 with 18 answers, or that whole team as not having answered.
+  const answersFailed = hasSessionMode && activeSessionTab === null ? allFailed : regularFailed
+  const rosterLoadFailed = isClubWide
+    ? clubWidePartsFailed || clubWideMembersFailed
+    : !!membersError || answersFailed
+  const [rosterRetrying, setRosterRetrying] = useState(false)
+  const retryRosterLoad = async () => {
+    setRosterRetrying(true)
+    try {
+      if (isClubWide) {
+        if (clubWideMembersFailed) setClubWideAttempt((n) => n + 1)
+        if (clubWidePartsFailed) await refetchClubWideParts()
+      } else if (membersError) {
+        // The answers are keyed on the roster and load by themselves once it is back.
+        await refetchMembers()
+      } else if (hasSessionMode && activeSessionTab === null) {
+        await refetchAll()
+      } else {
+        await refetchRegular()
+      }
+    } finally {
+      setRosterRetrying(false)
+    }
+  }
 
   // O(1) participation lookups per member — avoids the O(members × participations)
   // linear scans in getMemberStatus / statusLabelText / the per-row render.
@@ -1880,6 +1930,14 @@ export default function ParticipationRosterModal({
               </div>
             ))}
           </div>
+        </div>
+      ) : rosterLoadFailed ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1">{t('rosterLoadFailed')}</span>
+          <Button variant="outline" loading={rosterRetrying} onClick={() => void retryRosterLoad()}>
+            {t('retry')}
+          </Button>
         </div>
       ) : (<>
       {/* Summary header */}

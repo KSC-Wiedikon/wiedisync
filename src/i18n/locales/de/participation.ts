@@ -29,6 +29,8 @@ export default {
   viewRoster: 'Aufgebot anzeigen',
   rosterTitle: 'Teilnahme',
   noResponses: 'Noch keine Antworten',
+  rosterLoadFailed: 'Die Teilnahmeliste konnte nicht geladen werden.',
+  retry: 'Erneut versuchen',
   maxPlayers: 'Max. Spieler',
   spotsLeft: '{{count}} Plätze frei',
   full: 'Voll',
