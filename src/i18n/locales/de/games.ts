@@ -177,7 +177,7 @@ export default {
 
   // Auto Einsatzliste — nur Volleyball, nur Trainer:innen
   autoNomination: 'Auto-Einsatzliste',
-  autoNominationHint: 'Erfasst die Einsatzliste im Volleymanager rund 60 Minuten vor Spielbeginn aus den bestätigten Zusagen. Team-Standard: {{def}}.',
+  autoNominationHint: 'Erfasst die Einsatzliste im Volleymanager 24 Stunden vor Spielbeginn aus den bestätigten Zusagen. Team-Standard: {{def}}.',
   autoNominationUseTeamDefault: 'Team-Standard',
   autoNominationOn: 'An',
   autoNominationOff: 'Aus',

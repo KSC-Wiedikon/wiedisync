@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.63.0 — 2026-11-06
+
+### Changed
+
+- The automatic Einsatzliste is filed the day before the game, 24 hours before kickoff, instead of about an hour before. If that does not end in a clean save, it tries again about an hour before kickoff.
+- Teams with the automatic Einsatzliste now also get the email 2 hours before kickoff when the list is missing or differs from the answers, so an answer that changed after the filing is not missed.
+
 ## v2.62.0 — 2026-11-04
 
 ### Changed

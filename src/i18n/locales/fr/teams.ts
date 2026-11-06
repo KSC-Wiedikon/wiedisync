@@ -162,7 +162,7 @@ export default {
   featureAutoConfirmGame: 'Confirmer automatiquement les matchs',
   featureAutoConfirmGameHint: 'Les nouveaux matchs démarrent avec tous les membres titulaires confirmés (invités exclus) — les membres doivent se désinscrire s\'ils ne peuvent pas venir',
   featureAutoNominationList: 'Envoyer automatiquement l\'Einsatzliste',
-  featureAutoNominationListHint: 'Envoie l\'Einsatzliste dans Volleymanager à partir des confirmations reçues environ une heure avant le coup d\'envoi — seuls les joueurs licenciés peuvent être nominés, et la liste reste ouverte pour vérification si Volleymanager signale un problème',
+  featureAutoNominationListHint: 'Envoie l\'Einsatzliste dans Volleymanager à partir des confirmations reçues 24 heures avant le coup d\'envoi — seuls les joueurs licenciés peuvent être nominés, et la liste reste ouverte pour vérification si Volleymanager signale un problème. Si des réponses changent ensuite, les coachs et responsables d\'équipe reçoivent un e-mail 2 heures avant le coup d\'envoi',
   nominationOfficials: 'Officiels de l\'Einsatzliste',
   nominationOfficialsHint: 'Qui est inscrit comme entraîneur principal (C) et entraîneurs assistants (AC1, AC2) lors de l\'envoi de l\'Einsatzliste. C est obligatoire — sans lui, l\'envoi est refusé ; AC1 et AC2 sont facultatifs. La feuille de match d\'un match peut le modifier. Seuls ceux qui ont répondu Oui sont inscrits ; si le head coach manque, un assistant le remplace.',
   nominationOfficialCoach: 'Entraîneur principal (C) — obligatoire',

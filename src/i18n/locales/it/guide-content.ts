@@ -2205,7 +2205,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Poco prima dell'inizio, il segnapunti assegnato vede un pulsante **Formazione**: il referto di gara salvato dall'allenatore, altrimenti l'Einsatzliste depositata in Volleymanager, altrimenti i giocatori confermati. Le squadre di pallavolo possono depositarla automaticamente circa un'ora prima dell'inizio: **Invia automaticamente l'Einsatzliste** sotto **Impostazioni partita predefinite** nell'editor della formazione, modificabile per singola partita con **Einsatzliste automatica**. Vedi le sezioni Referto di gara ed Editor del roster."
+          "text": "Poco prima dell'inizio, il segnapunti assegnato vede un pulsante **Formazione**: il referto di gara salvato dall'allenatore, altrimenti l'Einsatzliste depositata in Volleymanager, altrimenti i giocatori confermati. Le squadre di pallavolo possono depositarla automaticamente 24 ore prima dell'inizio: **Invia automaticamente l'Einsatzliste** sotto **Impostazioni partita predefinite** nell'editor della formazione, modificabile per singola partita con **Einsatzliste automatica**. Vedi le sezioni Referto di gara ed Editor del roster."
         }
       ]
     },
