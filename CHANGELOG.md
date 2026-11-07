@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.70.1 — 2026-11-07
+
+### Fixed
+
+- A match that is over stays over: the live page and the “Watching live” banner no longer call the scoreboard live until a new match has really started, and the banner waits for the first point.
+
 ## v2.70.0 — 2026-11-07
 
 ### Added
