@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.69.4'
+const APP_VERSION = '2.70.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.70.0',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Tap a finished game under “Recent on the scoreboard” to see each set's score and time, the total points and the match time.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.69.4',
     date: '07.11.2026',
