@@ -3761,8 +3761,6 @@ const CHANGELOG: ChangelogEntry[] = [
   },
 ]
 
-export { APP_VERSION }
-
 export default function ChangelogPage() {
   const { t } = useTranslation('nav')
   const { t: tSupport } = useTranslation('support')

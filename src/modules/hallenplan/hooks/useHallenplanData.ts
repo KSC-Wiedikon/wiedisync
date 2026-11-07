@@ -13,6 +13,7 @@ import { expandExtraHalls } from '../../../utils/extraHalls'
 import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim, Event } from '../../../types'
 import {
   gameToVirtualSlots,
+  trimConsecutiveGames,
   trainingToVirtualSlot,
   hallEventToVirtualSlots,
   clubEventToVirtualSlots,
@@ -220,7 +221,7 @@ export function useHallenplanData(
   // in cache — during a week transition this may be inconsistent (see below),
   // so the exposed `slots` routes around it via `stableSlots`.
   const computedSlots = useMemo(() => {
-    const virtualSlots: HallSlot[] = []
+    let virtualSlots: HallSlot[] = []
 
     for (const game of games) {
       virtualSlots.push(...gameToVirtualSlots(game, weekDays))
@@ -255,6 +256,9 @@ export function useHallenplanData(
     for (const ev of clubEvents) {
       virtualSlots.push(...clubEventToVirtualSlots(ev, weekDays, halls))
     }
+
+    // Before the hall filter: a game spanning two halls follows the next game in either.
+    virtualSlots = trimConsecutiveGames(virtualSlots)
 
     // Apply hall filter to virtual slots
     const hallSet = new Set(selectedHallIds)

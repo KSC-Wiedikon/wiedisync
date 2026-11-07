@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Hall, HallSlot } from '../../../types'
 import { FreedSlotsBar, SportFilterToggle } from './HallenplanNavControls'
@@ -21,6 +22,8 @@ interface WeekNavigationProps {
   onSetSportFilter?: (filter: SportFilter) => void
   freedSlots?: FreedSlotInfo[]
   onFreedSlotClick?: (slot: HallSlot) => void
+  /** Optional row under the controls, for narrowing the week to one day. */
+  dayFilter?: ReactNode
 }
 
 export default function WeekNavigation({
@@ -38,6 +41,7 @@ export default function WeekNavigation({
   onSetSportFilter,
   freedSlots = [],
   onFreedSlotClick,
+  dayFilter,
 }: WeekNavigationProps) {
   // Hall filter chips are rendered separately below content by HallenplanView
   void _halls; void _selectedHallIds; void _onSelectHalls
@@ -79,6 +83,8 @@ export default function WeekNavigation({
           )}
         </div>
       </div>
+
+      {dayFilter}
 
       {/* Available slots button + modal */}
       <FreedSlotsBar freedSlots={freedSlots} onFreedSlotClick={onFreedSlotClick} />

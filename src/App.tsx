@@ -35,17 +35,6 @@ import TeamsPage from './modules/teams/TeamsPage'
 import TeamDetail from './modules/teams/TeamDetail'
 import PlayerProfile from './modules/teams/PlayerProfile'
 import RosterEditor from './modules/teams/RosterEditor'
-import InfraHealthPage from './modules/admin/InfraHealthPage'
-import DataHealthPage from './modules/admin/DataHealthPage'
-import TransfersPage from './modules/admin/TransfersPage'
-import AuditLogPage from './modules/admin/AuditLogPage'
-import HouseholdsPage from './modules/admin/HouseholdsPage'
-import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
-import ClubStatsPage from './modules/admin/ClubStatsPage'
-import AdminHubPage from './modules/admin/AdminHubPage'
-import VolleyFeedbackPage from './modules/admin/VolleyFeedbackPage'
-import AnmeldungenPage from './modules/admin/AnmeldungenPage'
-import EmailTemplatesPage from './modules/admin/EmailTemplatesPage'
 import HallenplanPage from './modules/hallenplan/HallenplanPage'
 import ClosuresPage from './modules/hallenplan/ClosuresPage'
 import HallsPage from './modules/hallenplan/HallsPage'
@@ -67,23 +56,37 @@ import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
 import TkRoute from './components/TkRoute'
+// On demand, not in the first load: most members never open these, and together with
+// the code and rich-text editors they pull in they were about 1.5 MB of it. Only pages a
+// member needs at the hall must stay eager: see the note above ShowIdsPage.
+const InfraHealthPage = lazy(() => import('./modules/admin/InfraHealthPage'))
+const DataHealthPage = lazy(() => import('./modules/admin/DataHealthPage'))
+const TransfersPage = lazy(() => import('./modules/admin/TransfersPage'))
+const AuditLogPage = lazy(() => import('./modules/admin/AuditLogPage'))
+const HouseholdsPage = lazy(() => import('./modules/admin/HouseholdsPage'))
+const RefereeExpensesPage = lazy(() => import('./modules/admin/RefereeExpensesPage'))
+const ClubStatsPage = lazy(() => import('./modules/admin/ClubStatsPage'))
+const AdminHubPage = lazy(() => import('./modules/admin/AdminHubPage'))
+const VolleyFeedbackPage = lazy(() => import('./modules/admin/VolleyFeedbackPage'))
+const AnmeldungenPage = lazy(() => import('./modules/admin/AnmeldungenPage'))
+const EmailTemplatesPage = lazy(() => import('./modules/admin/EmailTemplatesPage'))
+const VolleyRefereesPage = lazy(() => import('./modules/admin/VolleyRefereesPage'))
+const VmTeamRostersPage = lazy(() => import('./modules/admin/VmTeamRostersPage'))
+const BugfixDashboardPage = lazy(() => import('./modules/admin/BugfixDashboardPage'))
+const StatusPage = lazy(() => import('./modules/admin/StatusPage'))
+const ExplorePage = lazy(() => import('./modules/admin/ExplorePage'))
+const SqlWorkspacePage = lazy(() => import('./modules/admin/SqlWorkspacePage'))
+const ErrorLogsPage = lazy(() => import('./modules/admin/ErrorLogsPage'))
+const AnnouncementsPage = lazy(() => import('./modules/admin/AnnouncementsPage'))
+const ChangelogPage = lazy(() => import('./modules/changelog/ChangelogPage'))
 const TkExpensesPage = lazy(() => import('./modules/finance/TkExpensesPage'))
 const TeamFinancePage = lazy(() => import('./modules/finance/TeamFinancePage'))
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
-import VolleyRefereesPage from './modules/admin/VolleyRefereesPage'
-import VmTeamRostersPage from './modules/admin/VmTeamRostersPage'
-import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
-import StatusPage from './modules/admin/StatusPage'
-import ExplorePage from './modules/admin/ExplorePage'
-import SqlWorkspacePage from './modules/admin/SqlWorkspacePage'
-import ErrorLogsPage from './modules/admin/ErrorLogsPage'
 const AnimatedUIPage = lazy(() => import('./modules/admin/AnimatedUIPage'))
-import AnnouncementsPage from './modules/admin/AnnouncementsPage'
 import NewsArchivePage from './modules/news/NewsArchivePage'
 
 import SetPasswordPage from './modules/auth/SetPasswordPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
-import ChangelogPage from './modules/changelog/ChangelogPage'
 import SupportPage from './modules/support/SupportPage'
 import { SentryErrorBoundary } from './lib/sentry'
 import { consumeChunkReloadNotice, maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
