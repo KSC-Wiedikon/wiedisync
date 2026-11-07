@@ -24,6 +24,8 @@ export default defineConfig({
     // (directus/extensions/kscw-endpoints/src/external-accounts.js); the tests of
     // that gate set PUBLIC_URL themselves.
     env: { PUBLIC_URL: 'https://directus.kscw.ch' },
+    // No test reaches the outside world: see the file for why.
+    setupFiles: ['./src/test/blockRealNetwork.ts'],
     include: [
       // .tsx: component and hook tests, each opting into a DOM with
       // `// @vitest-environment happy-dom` (the default stays node).
