@@ -132,6 +132,9 @@ export function useCarpoolBoard(type: CarpoolActivityType, id: string | number |
     // never touch this cache, so a reopened modal must not show a stale board.
     staleTime: 5_000,
     refetchOnWindowFocus: true,
+    // Off the global keepPreviousData: another activity's rides, with live Join and
+    // Leave buttons acting on their entry ids, are never a useful stand-in for this one.
+    placeholderData: undefined,
   })
 }
 

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { PartyPopper } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { useEventSessions } from '../../hooks/useEventSessions'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useDeepLinkedActivity, DEEP_LINK_FIELDS } from '../../hooks/useDeepLinkedActivity'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -26,7 +27,7 @@ import EventForm from './EventForm'
 import { Button } from '@/components/ui/button'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { asTeams, teamId, ALL_GUEST_LEVELS } from './eventHelpers'
-import type { Event, EventSession, Participation } from '../../types'
+import type { Event, Participation } from '../../types'
 import { GuideHelpButton } from '../guide/GuideHelpButton'
 import SearchField from '../../components/SearchField'
 import { matchesSearch, dateSearchText, timeSearchText, htmlToSearchText } from '../../utils/searchText'
@@ -84,13 +85,7 @@ export default function EventsPage() {
   // event whose roster is currently open; without it `hasSessionMode` is false
   // inside the modal and the per-day view never appears.
   const rosterHasSessionMode = !!rosterEvent?.participation_mode && rosterEvent.participation_mode !== 'whole'
-  const { data: rosterSessionsRaw } = useCollection<EventSession>('event_sessions', {
-    filter: rosterEvent ? { event: { _eq: rosterEvent.id } } : undefined,
-    sort: ['sort_order', 'date', 'start_time'],
-    limit: 100,
-    enabled: !!rosterEvent && rosterHasSessionMode,
-  })
-  const rosterSessions = rosterSessionsRaw ?? []
+  const { sessions: rosterSessions } = useEventSessions(rosterEvent?.id, rosterHasSessionMode)
 
   // Resolve event IDs via junctions (single-level filter) rather than walking
   // `events.teams.teams_id` / `events.invited_members.members_id` — those paths

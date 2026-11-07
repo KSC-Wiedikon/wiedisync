@@ -23,7 +23,7 @@ export function useDeepLinkedActivity<T extends { id: string }>(
   id: string | undefined,
   fields: string[],
 ): { item: T | null; isLoading: boolean; notFound: boolean } {
-  const { data, isLoading } = useCollection<T>(collection, {
+  const { data, isLoading, isPlaceholderData } = useCollection<T>(collection, {
     filter: { id: { _eq: id } },
     fields,
     limit: 1,
@@ -31,12 +31,17 @@ export function useDeepLinkedActivity<T extends { id: string }>(
   })
 
   if (!id) return { item: null, isLoading: false, notFound: false }
-  const item = data?.[0] ?? null
+  // ⚠ `keepPreviousData` is a global query default and the page stays mounted between
+  // `/events` and `/events/:id`, so right after the id changes `data` is the PREVIOUS
+  // link's row. The modal then opened on that activity, and an answer tapped there went
+  // to it. After a dead link, the empty placeholder also reported a good link as gone.
+  const rows = isPlaceholderData ? undefined : data
+  const item = rows?.[0] ?? null
   return {
     item,
-    isLoading,
+    isLoading: isLoading || isPlaceholderData,
     // Only after the fetch settles — mid-flight there is nothing to report yet.
-    notFound: !isLoading && !!data && !item,
+    notFound: !isLoading && !!rows && !item,
   }
 }
 
