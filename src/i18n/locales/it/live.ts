@@ -51,6 +51,7 @@ export default {
   eventSwitch: 'Cambio campo',
 
   updatedAt: 'Aggiornato {{time}}',
+  noUpdatesSince: 'Nessun aggiornamento dalle {{time}}',
 
   referees: 'Arbitri',
   upNext: 'A seguire',

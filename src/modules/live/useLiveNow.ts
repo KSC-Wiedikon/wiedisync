@@ -43,7 +43,7 @@ export function useLiveNow(): LiveNow {
           readItems('live_scores', {
             filter: { status: { _eq: 'live' } },
             // Only what the banner shows — not the whole board.
-            fields: ['channel', 'status', 'sport', 'team_a_short', 'team_b_short', 'points_a', 'points_b', 'date_updated', 'source'],
+            fields: ['channel', 'status', 'sport', 'team_a_short', 'team_b_short', 'points_a', 'points_b', 'date_updated', 'ts', 'source'],
             sort: ['-date_updated'],
             limit: 20,
           } as never),

@@ -25,6 +25,19 @@ describe('pickLiveNow', () => {
     expect(pickLiveNow([row({ date_updated: null })], NOW)?.channel).toBe('kscw')
   })
 
+  it('a row created once and never updated goes stale by its ts', () => {
+    expect(pickLiveNow([row({ date_updated: null, ts: NOW - LIVE_STALE_MS - 1 })], NOW)).toBeNull()
+    expect(pickLiveNow([row({ date_updated: null, ts: String(NOW - 1000) })], NOW)?.channel).toBe('kscw')
+  })
+
+  it("a game row stuck on a stray point does not hide the board's real match", () => {
+    const picked = pickLiveNow([
+      row({ channel: 'game-437', source: 'board:kscw', date_updated: null, ts: NOW - LIVE_STALE_MS - 1 }),
+      row({ channel: 'kscw', date_updated: ago(1000) }),
+    ], NOW)
+    expect(picked?.channel).toBe('kscw')
+  })
+
   it('the board mirrored into a game row: the game row wins, the board row is dropped', () => {
     const picked = pickLiveNow([
       row({ channel: 'kscw', date_updated: ago(1000) }),

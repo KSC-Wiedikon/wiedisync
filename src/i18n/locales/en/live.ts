@@ -51,6 +51,7 @@ export default {
   eventSwitch: 'Teams change sides',
 
   updatedAt: 'Updated {{time}}',
+  noUpdatesSince: 'No updates since {{time}}',
 
   referees: 'Referees',
   upNext: 'Up next',
