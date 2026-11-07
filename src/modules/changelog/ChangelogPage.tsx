@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.68.0'
+const APP_VERSION = '2.69.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.69.0',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "When a game is set up on the hall scoreboard but has not started, the live page now says “Up next” with both teams and the scheduled time, instead of 0:0 and “Live”.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "The live page could show the previous game's referees for a few minutes after the next game went up on the scoreboard.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.68.0',
     date: '07.11.2026',
