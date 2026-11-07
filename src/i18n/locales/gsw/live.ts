@@ -53,6 +53,8 @@ export default {
   updatedAt: 'Aktualisiert {{time}}',
 
   referees: 'Schiedsrichter',
+  upNext: 'Als Nächschts',
+  scheduledAt: '(plant: {{time}})',
 
   // Final summary (match over)
   finalSetCol: 'Satz',
