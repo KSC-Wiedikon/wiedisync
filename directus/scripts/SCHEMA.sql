@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-06T14:54:03.610Z
+-- Generated:   2026-11-07T09:10:57.708Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict HyoiJYkgferGVv9XMLPtfSmzRhiP3eGax53LhNEgsS7u8ywfxvaW4H8SKTTbKuU
+\restrict NBLIqLFCLl9hYre7oe6sb7oI7LSMhkPaFcDfzvMgYBFgi45ADQDilsSmyn55RGk
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -18167,10 +18167,17 @@ CREATE INDEX referee_expenses_game_index ON public.referee_expenses USING btree 
 
 
 --
--- Name: referee_expenses_game_uidx; Type: INDEX; Schema: public; Owner: -
+-- Name: referee_expenses_game_member_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX referee_expenses_game_uidx ON public.referee_expenses USING btree (game) WHERE (game IS NOT NULL);
+CREATE UNIQUE INDEX referee_expenses_game_member_uidx ON public.referee_expenses USING btree (game, paid_by_member) WHERE ((game IS NOT NULL) AND (paid_by_member IS NOT NULL));
+
+
+--
+-- Name: referee_expenses_game_other_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX referee_expenses_game_other_uidx ON public.referee_expenses USING btree (game, lower(btrim((paid_by_other)::text))) WHERE ((game IS NOT NULL) AND (paid_by_member IS NULL));
 
 
 --
@@ -21587,7 +21594,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict HyoiJYkgferGVv9XMLPtfSmzRhiP3eGax53LhNEgsS7u8ywfxvaW4H8SKTTbKuU
+\unrestrict NBLIqLFCLl9hYre7oe6sb7oI7LSMhkPaFcDfzvMgYBFgi45ADQDilsSmyn55RGk
 
 
 
@@ -21605,7 +21612,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 455 migration(s) already in the schema above.
+-- Migration tracker seed — 456 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -22073,6 +22080,7 @@ FROM (VALUES
   ('448-hu20-scorer-from-referee-team.sql'),
   ('449-stats-missing-scorer-hu20-referee-and-taefeler.sql'),
   ('450-hu20-taefeler-not-scorer.sql'),
-  ('451-duty-rechecks.sql')
+  ('451-duty-rechecks.sql'),
+  ('452-referee-expenses-one-row-per-payer.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
