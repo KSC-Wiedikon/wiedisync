@@ -88,8 +88,8 @@ export default function RecentMatches({ channel }: { channel: string }) {
             {rows.map((r) => {
               const sport = normaliseSport(r.sport)
               const bySets = sport !== 'basketball'
-              const a = r.team_a_short || r.team_a_name || '—'
-              const b = r.team_b_short || r.team_b_name || '—'
+              const a = r.team_a_name || r.team_a_short || '—'
+              const b = r.team_b_name || r.team_b_short || '—'
               const results = Array.isArray(r.set_results) ? r.set_results.map(normaliseSetResult) : []
               // Match time only when the board timed every set (see types.ts → SetResult).
               const total = bySets ? totalSetDuration(results) : null
