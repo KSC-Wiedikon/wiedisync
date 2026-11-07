@@ -22,7 +22,7 @@ function TeamColumn({ team, align, big }: { team: TeamView; align: 'start' | 'en
   const { t } = useTranslation('live')
   const end = align === 'end'
   return (
-    <div className={cn('min-w-0', end ? 'text-right' : 'text-left')}>
+    <div className={cn('row-span-4 row-start-1 grid min-w-0 grid-rows-subgrid self-stretch', end ? 'col-start-3 text-right' : 'col-start-1 text-left')}>
       {/* No badge beside the chip: it would squeeze the team name on a phone. The
           bonus gets its own line under the meta instead. */}
       <TeamIdentity team={team} align={align} sport="basketball" />
@@ -30,7 +30,7 @@ function TeamColumn({ team, align, big }: { team: TeamView; align: 'start' | 'en
       <div
         key={team.points}
         className={cn(
-          'mt-1 font-black tabular-nums leading-none animate-score-bump',
+          'mt-1 self-center font-black tabular-nums leading-none animate-score-bump',
           big ? 'text-[length:min(40vh,18vw)] leading-none' : 'text-6xl sm:text-7xl',
           end ? 'origin-right' : 'origin-left',
         )}
@@ -67,10 +67,12 @@ export default function BasketballBoard({ state, big = false }: { state: BoardSt
       'rounded-2xl border border-hairline bg-card shadow-card',
       big ? 'flex h-full w-full flex-col justify-center px-6 py-3' : 'p-4 sm:p-6',
     )}>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+      {/* One grid, shared rows, like VolleyballBoard: a long team name only makes the name
+          row taller, so the two scores and everything under them stay level. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[repeat(4,auto)] items-center gap-x-2 sm:gap-x-4">
         <TeamColumn team={a} align="start" big={big} />
 
-        <div className="px-1 text-center">
+        <div className="col-start-2 row-start-2 px-1 text-center">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             {t('period')}
           </div>
