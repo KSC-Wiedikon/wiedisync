@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.69.4 — 2026-11-07
+
+### Changed
+
+- When the hall scoreboard has no full team names, the live page shows the names as typed, with a small Home or Away above them. A game link with nothing on it now goes straight to the scoreboard.
+
 ## v2.69.3 — 2026-11-07
 
 ### Changed
