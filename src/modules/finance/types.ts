@@ -190,6 +190,8 @@ export interface TeamHomeGame {
   home_team: string | null
   away_team: string | null
   league: string | null
+  /** How many referees the game lists; the GBO fee is priced per referee. */
+  referee_count: number
   status: string | null
 }
 

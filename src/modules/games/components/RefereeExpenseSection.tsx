@@ -26,6 +26,8 @@ interface RefereeExpenseSectionProps {
   teamId: string
   /** `games.league`: prices a new fee from the GBO table. */
   league?: string | null
+  /** How many referees the game lists; the GBO price is per referee. */
+  refereeCount?: number | null
   canEdit: boolean
   /** Fires after a successful create/update — a host that shows the fee
    *  elsewhere on the page (Team finance table + tiles) refetches on it. */
@@ -83,7 +85,7 @@ function spreadTotal(shares: ShareDraft[], total: string): ShareDraft[] {
   return shares.map((s, i) => ({ ...s, amount: amounts[i] }))
 }
 
-export default function RefereeExpenseSection({ gameId, teamId, league, canEdit, defaultOpen, onSaved }: RefereeExpenseSectionProps) {
+export default function RefereeExpenseSection({ gameId, teamId, league, refereeCount, canEdit, defaultOpen, onSaved }: RefereeExpenseSectionProps) {
   const { t, i18n } = useTranslation('games')
   const { user, isApproved } = useAuth()
   const { members } = useTeamMembers(teamId)
@@ -103,7 +105,7 @@ export default function RefereeExpenseSection({ gameId, teamId, league, canEdit,
   const [total, setTotal] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
 
-  const gbo = useMemo(() => gboRefereeFee(league), [league])
+  const gbo = useMemo(() => gboRefereeFee(league, refereeCount), [league, refereeCount])
   const totalValue = total ?? (gbo ? String(gbo.total) : '')
 
   const loadForm = useCallback((records: ExpandedExpense[]) => {
@@ -433,7 +435,7 @@ export default function RefereeExpenseSection({ gameId, teamId, league, canEdit,
             {gbo && (
               <p className="text-xs text-muted-foreground">
                 {t('refereeExpensesGboHint', {
-                  referees: gbo.referees,
+                  count: gbo.referees,
                   fee: gbo.feePerReferee,
                   travel: gbo.travelPerReferee,
                   total: gbo.total,

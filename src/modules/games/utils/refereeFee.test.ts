@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  countReferees,
   formatAmountInput,
   gboFeePerReferee,
   gboRefereeFee,
@@ -56,19 +57,39 @@ describe('gboFeePerReferee', () => {
   })
 })
 
+describe('countReferees', () => {
+  it('counts the listed referees', () => {
+    expect(countReferees([{ name: 'A' }, { name: 'B' }])).toBe(2)
+    expect(countReferees([{ name: 'A' }])).toBe(1)
+    expect(countReferees([])).toBe(0)
+  })
+
+  it('reads anything that is not a list as none', () => {
+    expect(countReferees(null)).toBe(0)
+    expect(countReferees(undefined)).toBe(0)
+    expect(countReferees('[]')).toBe(0)
+  })
+})
+
 describe('gboRefereeFee', () => {
   it.each([
-    ['Männer 2. Liga', 160],
-    ['Frauen 3. Liga Gruppe A', 140],
-    ['Frauen 5. Liga Gruppe B', 120],
-    ['Frauen U23 1. Liga', 140],
-    ['Frauen U23 3. Stärkeklasse', 120],
-  ])('%s: two referees, fee + travel = CHF %i', (league, total) => {
-    expect(gboRefereeFee(league)?.total).toBe(total)
+    ['Männer 2. Liga', 2, 160],
+    ['Frauen 3. Liga Gruppe A', 2, 140],
+    ['Herren 3. Liga Gruppe B', 1, 70],
+    ['Männer 4. Liga Gruppe C', 1, 60],
+    ['Frauen 5. Liga Gruppe B', 1, 60],
+    ['Frauen U23 1. Liga', 1, 70],
+    ['Frauen U23 3. Stärkeklasse', 1, 60],
+  ])('%s with %i referee(s) = CHF %i, fee + travel', (league, referees, total) => {
+    expect(gboRefereeFee(league, referees)?.total).toBe(total)
+  })
+
+  it.each([[0], [null], [undefined]])('assumes two referees when the game lists %s', (referees) => {
+    expect(gboRefereeFee('Frauen 5. Liga Gruppe B', referees)).toMatchObject({ referees: 2, total: 120 })
   })
 
   it('names the parts of the sum', () => {
-    expect(gboRefereeFee('Männer 2. Liga')).toEqual({
+    expect(gboRefereeFee('Männer 2. Liga', 2)).toEqual({
       referees: 2,
       feePerReferee: 60,
       travelPerReferee: 20,
@@ -77,7 +98,7 @@ describe('gboRefereeFee', () => {
   })
 
   it('is null when the table has no price', () => {
-    expect(gboRefereeFee('Züri Cup — Runde 2, Spiel 3')).toBeNull()
+    expect(gboRefereeFee('Züri Cup — Runde 2, Spiel 3', 1)).toBeNull()
   })
 })
 

@@ -311,6 +311,7 @@ export default function TeamFinancePage() {
                                       gameId={String(g.id)}
                                       teamId={String(teamId)}
                                       league={g.league}
+                                      refereeCount={g.referee_count}
                                       canEdit
                                       defaultOpen
                                       onSaved={() => void refetch()}
