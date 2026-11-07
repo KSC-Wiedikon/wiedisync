@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { readItems } from '@directus/sdk'
 import { client } from '@/lib/api'
 import { useRealtime } from '@/hooks/useRealtime'
+import { isLeftoverRow } from './liveNow'
 import { normaliseSetResult, normaliseSport } from './scoreboard'
 import type { BoardState, Connection, Envelope, LiveScoreRow, LiveStatus } from './types'
 
@@ -43,7 +44,7 @@ function num(v: unknown): number {
 
 /** Map a raw `live_scores` row to the Envelope the UI renders. */
 function rowToEnvelope(row: LiveScoreRow): Envelope {
-  const status: LiveStatus = row.status ?? 'idle'
+  const status: LiveStatus = isLeftoverRow(row) ? 'idle' : row.status ?? 'idle'
   // 'idle' => the board is blank / no match → the Live page shows its empty state.
   const match: BoardState | null =
     status === 'idle'
