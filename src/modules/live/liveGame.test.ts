@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isUpNext, matchGameByTeams, normaliseTeamName, refereeNames, sameTeams, scheduledTimeToday, staleSince } from './liveGame'
+import { homeIsTeamA, teamLabel } from './scoreboard'
 import type { BoardState, Envelope } from './types'
 
 describe('normaliseTeamName', () => {
@@ -117,5 +118,27 @@ describe('staleSince', () => {
     expect(staleSince(env({ status: 'final', updatedAt: '2026-11-07T10:00:00Z' }), now)).toBeNull()
     const ready = { ...played, points_a: 0 } as BoardState
     expect(staleSince(env({ match: ready, updatedAt: '2026-11-07T14:30:00Z' }), now)).toBeNull()
+  })
+})
+
+describe('homeIsTeamA and teamLabel', () => {
+  const vb = (period: number, points_a = 0, points_b = 0) => ({ sport: 'volleyball' as const, period, points_a, points_b })
+  it('home starts on the left and changes ends every set', () => {
+    expect([1, 2, 3, 4].map((p) => homeIsTeamA(vb(p)))).toEqual([true, false, true, false])
+  })
+  it('the fifth set changes again at 8', () => {
+    expect(homeIsTeamA(vb(5, 7, 5))).toBe(true)
+    expect(homeIsTeamA(vb(5, 8, 5))).toBe(false)
+    expect(homeIsTeamA(vb(5, 3, 8))).toBe(false)
+  })
+  it('a period not published counts as the first set; other sports stay put', () => {
+    expect(homeIsTeamA(vb(0))).toBe(true)
+    expect(homeIsTeamA({ sport: 'basketball', period: 2, points_a: 0, points_b: 0 })).toBe(true)
+  })
+  it('a full name always wins; never the short code', () => {
+    const t = (k: string) => k
+    expect(teamLabel({ name: 'KSC WIEDIKON D1', homeAway: 'home' }, t)).toBe('KSC WIEDIKON D1')
+    expect(teamLabel({ name: '', homeAway: 'home' }, t)).toBe('teamHome')
+    expect(teamLabel({ name: '', homeAway: 'away' }, t)).toBe('teamAway')
   })
 })

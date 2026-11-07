@@ -23,6 +23,9 @@ export default {
   sets: 'Set',
   set: 'Set {{n}}',
   teamFallback: 'Squadra',
+  toBoard: 'Al tabellone',
+  teamHome: 'Casa',
+  teamAway: 'Ospiti',
   toShort: 'TO', // timeout
   subShort: 'Sost', // sostituzioni
 
