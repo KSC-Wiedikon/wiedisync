@@ -136,6 +136,9 @@ export default {
 
   // Navigation
   today: 'Hüt',
+  wholeWeek: 'Ganzi Wuche',
+  filterByDay: 'Nach Tag filtere',
+  emptyWeek: 'Die Wuche isch nüt i de Halle',
   closures: 'Sperrige',
   prevWeek: 'Vorhärigi Wuche',
   nextWeek: 'Nächscht Wuche',

@@ -172,7 +172,7 @@ export default function DaySlotView({
             visibleHalls.map((hall) => (
               <div
                 key={hall.id}
-                className="flex min-w-0 items-center justify-center gap-1 border-r border-border/60 px-1 py-1.5 text-center text-xs font-medium text-muted-foreground last:border-r-0"
+                className="flex min-w-0 flex-col items-center justify-center gap-1 border-r border-border/60 px-1 py-1.5 text-center sm:flex-row text-xs font-medium text-muted-foreground last:border-r-0"
               >
                 <span className="min-w-0 break-words">{hall.name}</span>
                 {overlapGroupsByHall.has(hall.id) && (

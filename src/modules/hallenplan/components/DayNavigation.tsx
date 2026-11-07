@@ -1,17 +1,20 @@
 import { useTranslation } from 'react-i18next'
 import type { Hall, HallSlot } from '../../../types'
-import { FreedSlotsBar, SportFilterToggle } from './HallenplanNavControls'
+import { DayButtons, FreedSlotsBar, SportFilterToggle } from './HallenplanNavControls'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import IconButton from '@/components/IconButton'
 import type { FreedSlotInfo, SportFilter } from '../HallenplanPage'
-import { dayHeaders } from '../../../utils/dateUtils'
 import { currentLocale } from '../../../utils/dateHelpers'
 
 interface DayNavigationProps {
   weekDays: Date[]
-  selectedDayIndex: number
+  /** `null` = the whole week, shown as `weekLabel`. */
+  selectedDayIndex: number | null
   onSelectDay: (index: number) => void
+  weekLabel?: string
+  /** When given, a day can be cleared again with a "Whole week" button. */
+  onShowWholeWeek?: () => void
   onPrevWeek: () => void
   onNextWeek: () => void
   onToday: () => void
@@ -33,6 +36,8 @@ export default function DayNavigation({
   weekDays,
   selectedDayIndex,
   onSelectDay,
+  weekLabel = '',
+  onShowWholeWeek,
   onPrevWeek,
   onNextWeek,
   onToday,
@@ -63,12 +68,10 @@ export default function DayNavigation({
     t('daySunday'),
   ] as const
 
-  const selectedDay = weekDays[selectedDayIndex]
+  const selectedDay = selectedDayIndex === null ? undefined : weekDays[selectedDayIndex]
   const dateStr = selectedDay
-    ? `${DAY_FULL[selectedDayIndex]}, ${selectedDay.getDate()} ${selectedDay.toLocaleString(currentLocale(), { month: 'short' })}`
-    : ''
-
-  const todayStr = new Date().toDateString()
+    ? `${DAY_FULL[selectedDayIndex!]}, ${selectedDay.getDate()} ${selectedDay.toLocaleString(currentLocale(), { month: 'short' })}`
+    : weekLabel
 
   return (
     <div className="mb-4 space-y-3 rounded-2xl border border-hairline bg-card p-3 shadow-card">
@@ -89,32 +92,15 @@ export default function DayNavigation({
         </IconButton>
       </div>
 
-      {/* Day dots */}
-      <div className="flex justify-center gap-1">
-        {weekDays.map((day, i) => {
-          const isToday = day.toDateString() === todayStr
-          const isSelected = i === selectedDayIndex
-          return (
-            <button
-              key={i}
-              onClick={() => onSelectDay(i)}
-              className={`flex h-10 w-10 flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors ${
-                isSelected
-                  ? 'bg-selected text-selected-foreground'
-                  : isToday
-                    ? 'bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-400'
-                    : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <span className="text-[10px] leading-none">{dayHeaders()[i]}</span>
-              <span className="leading-tight">{day.getDate()}</span>
-            </button>
-          )
-        })}
-      </div>
+      <DayButtons weekDays={weekDays} selectedDayIndex={selectedDayIndex} onSelectDay={onSelectDay} />
 
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-2">
+        {onShowWholeWeek && selectedDayIndex !== null && (
+          <Button variant="outline" onClick={onShowWholeWeek}>
+            {t('wholeWeek')}
+          </Button>
+        )}
         <Button variant="outline" onClick={onToday}>
           {t('today')}
         </Button>
