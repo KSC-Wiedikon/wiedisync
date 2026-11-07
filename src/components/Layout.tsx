@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -10,6 +10,7 @@ import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
 import { useIdentityAutoShrink } from '../hooks/useIdentityAutoShrink'
 import { useIdentityAutoRepair } from '../hooks/useIdentityAutoRepair'
 import { usePushSync } from '../hooks/usePushNotifications'
+import LoadingSpinner from './LoadingSpinner'
 import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
@@ -121,7 +122,10 @@ export default function Layout() {
               {t('adminMode')}
             </div>
           )}
-          <Outlet />
+          {/* For the pages loaded on demand (App.tsx). */}
+          <Suspense fallback={<LoadingSpinner />}>
+            <Outlet />
+          </Suspense>
           {/* Not under live scoring either: a phone at the court must not scroll. */}
           {!(isDesktop && location.pathname.startsWith('/admin/explore'))
             && !location.pathname.startsWith('/live/score/') && (
