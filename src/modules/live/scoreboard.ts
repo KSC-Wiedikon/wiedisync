@@ -42,18 +42,26 @@ export function homeIsTeamA(s: Pick<BoardState, 'sport' | 'period' | 'points_a' 
   return set % 2 === 1
 }
 
-/** A team on the page: its full name, or Home / Away. Never the board's short code. */
-export function teamLabel(team: Pick<TeamView, 'name' | 'homeAway'>, t: (key: string) => string): string {
-  return team.name || t(team.homeAway === 'home' ? 'teamHome' : 'teamAway')
+/** A team on the page: its full name, else what the crew typed, else Home / Away. */
+export function teamLabel(team: Pick<TeamView, 'name' | 'short' | 'homeAway'>, t: (key: string) => string): string {
+  return team.name || team.short || t(team.homeAway === 'home' ? 'teamHome' : 'teamAway')
+}
+
+/** The board's own default names already say it, and beach changes ends every 7 points. */
+function tagsMakeSense(s: BoardState): boolean {
+  const defaults = ['HOME', 'AWAY']
+  return s.sport !== 'beach' && !defaults.includes(s.team_a_short.toUpperCase()) && !defaults.includes(s.team_b_short.toUpperCase())
 }
 
 /** Split a board snapshot into two side-agnostic team views (A=left by getState()). */
 export function toTeams(s: BoardState): [TeamView, TeamView] {
   const aIsHome = homeIsTeamA(s)
+  const tags = tagsMakeSense(s)
   return [
     {
       name: s.team_a_name,
       homeAway: aIsHome ? 'home' : 'away',
+      tagged: tags && !s.team_a_name && !!s.team_a_short,
       short: s.team_a_short || s.team_a_name,
       color: s.team_a_color,
       points: s.points_a,
@@ -67,6 +75,7 @@ export function toTeams(s: BoardState): [TeamView, TeamView] {
     {
       name: s.team_b_name,
       homeAway: aIsHome ? 'away' : 'home',
+      tagged: tags && !s.team_b_name && !!s.team_b_short,
       short: s.team_b_short || s.team_b_name,
       color: s.team_b_color,
       points: s.points_b,

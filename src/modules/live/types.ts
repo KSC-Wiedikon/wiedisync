@@ -149,8 +149,10 @@ export type Connection = 'connecting' | 'open' | 'reconnecting'
 export interface TeamView {
   name: string
   short: string
-  /** What the page calls a team the board sent no full name for (homeIsTeamA). */
+  /** Which side the team is on by the set number (homeIsTeamA). */
   homeAway: 'home' | 'away'
+  /** Show Home / Away above the name: the team is known only by what the crew typed. */
+  tagged: boolean
   color: string
   points: number
   sets: number

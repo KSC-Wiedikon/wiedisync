@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { formatTimeZurich } from '../../utils/dateHelpers'
 import FinalSummary from './components/FinalSummary'
 import RecentMatches from './components/RecentMatches'
 import Scoreboard from './components/Scoreboard'
 import UpNextCard from './components/UpNextCard'
-import { isUpNext, refereeNames, staleSince } from './liveGame'
+import { isEmptyGameLink, isUpNext, refereeNames, staleSince } from './liveGame'
 import { useLiveMatch } from './useLiveMatch'
 import { useLiveGame } from './useLiveGame'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
@@ -81,6 +81,9 @@ export default function LivePage() {
       <span className="font-medium text-foreground/80">{t('referees')}:</span> {referees.join(' · ')}
     </p>
   )
+
+  // replace, so Back does not come straight here again.
+  if (isEmptyGameLink(channel, envelope)) return <Navigate to="/live" replace />
 
   if (fullScreen) {
     return (
@@ -160,12 +163,6 @@ export default function LivePage() {
         <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
           <p className="text-base font-semibold text-foreground">{t('noMatch')}</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{t('noMatchHint')}</p>
-          {/* A game's own link with nothing on it: the match may well be on the hall's scoreboard. */}
-          {channel !== 'kscw' && (
-            <Link to="/live" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline dark:text-brand-300">
-              {t('toBoard')}
-            </Link>
-          )}
         </div>
       )}
 
