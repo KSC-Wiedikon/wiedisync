@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { readItems } from '@directus/sdk'
 import { client } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTimeCompactZurich } from '../../../utils/dateHelpers'
 import { formatDuration, totalSetDuration } from '../final'
@@ -14,7 +16,8 @@ import type { LiveSport, SetResult } from '../types'
  *
  * A `<Table>`, not a card stack: each row is a homogeneous record you scan
  * (CLAUDE.md → "Lists → tables, always"). The board's own result cards are the
- * live view above; this is the log.
+ * live view above; this is the log. A match with sets opens under its row: the score of
+ * each set, its time, and the totals.
  *
  * ⚠ This is scoreboard history, NOT the club's results — worded accordingly
  * ("recent on the scoreboard"). A board that knew the fixture archives the match
@@ -43,6 +46,7 @@ const n = (v: unknown) => (typeof v === 'string' ? Number(v) : (v as number)) ||
 export default function RecentMatches({ channel }: { channel: string }) {
   const { t } = useTranslation('live')
   const [rows, setRows] = useState<HistoryRow[] | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -93,10 +97,29 @@ export default function RecentMatches({ channel }: { channel: string }) {
               const results = Array.isArray(r.set_results) ? r.set_results.map(normaliseSetResult) : []
               // Match time only when the board timed every set (see types.ts → SetResult).
               const total = bySets ? totalSetDuration(results) : null
+              const hasSets = bySets && results.length > 0
+              const open = openId === r.id
+              const toggle = hasSets ? () => setOpenId(open ? null : r.id) : undefined
               return (
-                <TableRow key={r.id} className="min-h-11">
+                <Fragment key={r.id}>
+                <TableRow className={cn('min-h-11', hasSets && 'cursor-pointer')} onClick={toggle}>
                   <TableCell className="whitespace-normal break-words font-medium">
-                    {a} <span className="text-muted-foreground">–</span> {b}
+                    {/* The row takes the tap; the button is what a keyboard and a screen reader reach. */}
+                    {hasSets ? (
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        className="inline rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {a} <span className="text-muted-foreground">–</span> {b}
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={cn('ml-1 inline size-4 text-muted-foreground transition-transform motion-reduce:transition-none', open && 'rotate-180')}
+                        />
+                      </button>
+                    ) : (
+                      <>{a} <span className="text-muted-foreground">–</span> {b}</>
+                    )}
                   </TableCell>
                   <TableCell className="whitespace-normal text-right font-semibold tabular-nums">
                     {bySets
@@ -124,6 +147,33 @@ export default function RecentMatches({ channel }: { channel: string }) {
                     {formatDateTimeCompactZurich(r.finished_at) || '—'}
                   </TableCell>
                 </TableRow>
+                {open && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={4} className="bg-surface-sunken whitespace-normal">
+                      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm tabular-nums">
+                        {results.map((s, i) => (
+                          <Fragment key={i}>
+                            <span className="text-muted-foreground">{t('set', { n: i + 1 })}</span>
+                            <span>
+                              <span className={cn(s.a > s.b && 'font-bold')}>{s.a}</span>
+                              <span className="text-muted-foreground">:</span>
+                              <span className={cn(s.b > s.a && 'font-bold')}>{s.b}</span>
+                            </span>
+                            <span className="text-right text-xs text-muted-foreground">{s.dur != null ? dur(s.dur) : ''}</span>
+                          </Fragment>
+                        ))}
+                        <span className="mt-1 border-t border-border pt-1 text-muted-foreground">{t('points')}</span>
+                        <span className="mt-1 border-t border-border pt-1 font-semibold">
+                          {results.reduce((sum, s) => sum + s.a, 0)}:{results.reduce((sum, s) => sum + s.b, 0)}
+                        </span>
+                        <span className="mt-1 border-t border-border pt-1 text-right text-xs text-muted-foreground">
+                          {total !== null ? t('recentDuration', { time: dur(total) }) : ''}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               )
             })}
           </TableBody>
