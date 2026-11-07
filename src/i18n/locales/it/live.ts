@@ -53,6 +53,8 @@ export default {
   updatedAt: 'Aggiornato {{time}}',
 
   referees: 'Arbitri',
+  upNext: 'A seguire',
+  scheduledAt: '(previsto: {{time}})',
 
   // Final summary (match over)
   finalSetCol: 'Set',
