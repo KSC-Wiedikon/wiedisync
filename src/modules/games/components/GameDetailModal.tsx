@@ -960,6 +960,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             <RefereeExpenseSection
               gameId={game.id}
               teamId={kscwTeamId}
+              league={game.league}
               canEdit={!readOnly && canEditAsCoach}
               defaultOpen={focus === 'refereeExpense'}
             />
