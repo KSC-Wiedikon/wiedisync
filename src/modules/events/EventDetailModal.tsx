@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
 import { useAuth } from '../../hooks/useAuth'
+import { useEventSessions } from '../../hooks/useEventSessions'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useParticipation } from '../../hooks/useParticipation'
@@ -124,13 +125,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
   // Fetch sessions for multi-session events
   const hasSessionMode = event?.participation_mode && event.participation_mode !== 'whole'
-  const { data: sessionsRaw } = useCollection<EventSession>('event_sessions', {
-    filter: event ? { event: { _eq: event.id } } : undefined,
-    sort: ['sort_order', 'date', 'start_time'],
-    limit: 100,
-    enabled: !!user && !!event && !!hasSessionMode,
-  })
-  const sessions = sessionsRaw ?? []
+  const { sessions, isLoading: sessionsLoading } = useEventSessions(event?.id, !!user && !!hasSessionMode)
 
   if (!event) return null
 
@@ -415,6 +410,10 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                 <p className="text-sm italic text-muted-foreground">{t('guestNotInvited')}</p>
                 {countsRow}
               </>
+            ) : sessionsLoading ? (
+              // Not the whole-event buttons below: on a per-day event a tap there would
+              // save an answer that belongs to no day.
+              <div aria-busy="true" className="h-10 animate-pulse rounded-lg bg-stone-200/80 dark:bg-muted" />
             ) : hasSessionMode && sessions.length > 0 ? (
               // Per-day / per-session RSVP (participations.session_id) lives in
               // SessionParticipationSheet — untouched; this is only its entry

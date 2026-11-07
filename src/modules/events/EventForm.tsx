@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { useAuth } from '../../hooks/useAuth'
+import { useEventSessions } from '../../hooks/useEventSessions'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useMutation } from '../../hooks/useMutation'
 import { useCollection } from '../../lib/query'
@@ -202,13 +203,11 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const [submitting, setSubmitting] = useState(false)
 
   // Fetch existing sessions when editing
-  const { data: existingSessionsRaw } = useCollection<EventSession>('event_sessions', {
-    filter: event ? { event: { _eq: event.id } } : { id: { _eq: -1 } },
-    sort: ['sort_order', 'date', 'start_time'],
-    limit: 100,
-    enabled: !!user && !!event,
-  })
-  const existingSessions = existingSessionsRaw ?? []
+  const {
+    sessions: existingSessions,
+    rows: existingSessionsRaw,
+    isLoading: sessionsLoading,
+  } = useEventSessions(event?.id, !!user && !!event)
 
   // Seed / reset the form from the `event` prop (and whenever the modal reopens).
   // Adjust-state-during-render (React's reset-on-prop-change pattern) instead of a
@@ -555,6 +554,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // Saving before this event's sessions are known would treat them all as new.
+    if (sessionsLoading) return
     setError('')
 
     if (!title || !startDate) {
@@ -1336,7 +1337,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           <Button variant="ghost" type="button" onClick={onCancel}>
             {tc('cancel')}
           </Button>
-          <Button type="submit" loading={submitting || isLoading}>
+          <Button type="submit" loading={submitting || isLoading} disabled={sessionsLoading}>
             {submitting || isLoading ? tc('saving') : tc('save')}
           </Button>
         </div>

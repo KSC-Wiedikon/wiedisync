@@ -57,7 +57,16 @@ function parsePicturePos(pos: string) {
   return { x, y, z }
 }
 
+/**
+ * Keyed on the team: a notification can move `/teams/a` to `/teams/b` without a remount,
+ * and for that moment the requests on screen were team A's while Approve added to team B.
+ */
 export default function TeamDetail() {
+  const { teamSlug } = useParams<{ teamSlug: string }>()
+  return <TeamDetailView key={teamSlug} />
+}
+
+function TeamDetailView() {
   const { t } = useTranslation('teams')
   const { teamSlug } = useParams<{ teamSlug: string }>()
   const { hasAdminAccessToTeam, canViewTeam } = useAuth()
