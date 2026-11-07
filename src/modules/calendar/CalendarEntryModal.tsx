@@ -11,12 +11,12 @@ import SessionParticipationSheet from '../../components/SessionParticipationShee
 import { Button } from '@/components/ui/button'
 import AbsenceForm from '../absences/AbsenceForm'
 import { useAuth } from '../../hooks/useAuth'
+import { useEventSessions } from '../../hooks/useEventSessions'
 import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useRsvpLabels } from '../../hooks/useRsvpLabels'
-import { useCollection } from '../../lib/query'
 import type { CalendarEntry, BirthdaySource } from '../../types/calendar'
-import type { Training, Event as KscwEvent, Game, Absence, Member, Participation, EventSession } from '../../types'
+import type { Training, Event as KscwEvent, Game, Absence, Member, Participation } from '../../types'
 import type { RsvpStatus } from '../../utils/participationColors'
 import { formatDate } from '../../utils/dateUtils'
 import { formatTime, meetingTimeFromOffset, getDeadlineDate } from '../../utils/dateHelpers'
@@ -374,13 +374,7 @@ function CalendarRsvp({
   // Per-day / per-session events answer per session (participations.session_id).
   // Only the entry point lives here; the sheet itself is untouched.
   const sessionMode = activityType === 'event' && !!participationMode && participationMode !== 'whole'
-  const { data: sessionsRaw } = useCollection<EventSession>('event_sessions', {
-    filter: { event: { _eq: activityId } },
-    sort: ['sort_order', 'date', 'start_time'],
-    limit: 100,
-    enabled: sessionMode,
-  })
-  const sessions = sessionsRaw ?? []
+  const { sessions, isLoading: sessionsLoading } = useEventSessions(activityId, sessionMode)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
 
   const { participation, effectiveStatus, setStatus, saveConfirmed, dismissConfirmed, isLoading } = useParticipation(
@@ -419,6 +413,12 @@ function CalendarRsvp({
   // The waiting list may still hand back its seat after the deadline (migration 438).
   const lateDecline = deadlinePassed && mayDeclineAfterDeadline(
     participation, respondBy ? getDeadlineDate(respondBy, activityStartTime) : null)
+
+  // Not the whole-event buttons below: on a per-day event a tap there would save an
+  // answer that belongs to no day.
+  if (sessionsLoading) {
+    return <div aria-busy="true" className="h-10 animate-pulse rounded-lg bg-stone-200/80 dark:bg-muted" />
+  }
 
   if (sessionMode && sessions.length > 0) {
     return (

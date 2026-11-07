@@ -159,6 +159,9 @@ export function useEntryDocuments(entryId: number | null, enabled = true) {
     queryFn: () => kscwApi<{ documents: EntryDocument[] }>(`/finance/ledger/entries/${entryId}/documents`),
     enabled: enabled && entryId != null,
     select: (r) => r.documents,
+    // Off the global keepPreviousData: the dialog stays mounted, and its Delete must
+    // never be offered on another entry's receipt.
+    placeholderData: undefined,
   })
 }
 export function useReceiptCoverage(fiscalYearId: string | number | null | undefined, enabled = true) {
