@@ -4,7 +4,7 @@ import { currentSetNumber, toTeams } from '../scoreboard'
 import type { BoardState, TeamView } from '../types'
 import TeamIdentity from './TeamIdentity'
 
-/** The pulsing dot beside the team that is serving. */
+/** The pulsing dot beside the serving team's score: beside the chip it split long names mid-word. */
 function ServingDot({ label }: { label: string }) {
   return (
     <span
@@ -80,26 +80,19 @@ export default function VolleyballBoard({ state, big = false }: { state: BoardSt
           between them, then TO · Sub. Each row is as tall as its taller side, so a
           long team name only makes the name row taller — the two scores and the
           TO · Sub lines stay level with each other whatever the names are. */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-2 sm:gap-x-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 sm:gap-x-4">
         <div className="min-w-0 self-start">
-          <TeamIdentity
-            team={a}
-            align="start"
-            sport={sport}
-            indicator={a.serving ? <ServingDot label={t('serving')} /> : null}
-          />
+          <TeamIdentity team={a} align="start" sport={sport} />
         </div>
         <div aria-hidden="true" />
         <div className="min-w-0 self-start">
-          <TeamIdentity
-            team={b}
-            align="end"
-            sport={sport}
-            indicator={b.serving ? <ServingDot label={t('serving')} /> : null}
-          />
+          <TeamIdentity team={b} align="end" sport={sport} />
         </div>
 
-        <TeamScore team={a} align="start" big={big} />
+        <div className="flex min-w-0 items-center gap-2">
+          <TeamScore team={a} align="start" big={big} />
+          {a.serving && <ServingDot label={t('serving')} />}
+        </div>
         <div className="px-1 text-center">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             {t('sets')}
@@ -113,7 +106,10 @@ export default function VolleyballBoard({ state, big = false }: { state: BoardSt
             {t('set', { n: currentSetNumber(state) })}
           </div>
         </div>
-        <TeamScore team={b} align="end" big={big} />
+        <div className="flex min-w-0 flex-row-reverse items-center gap-2">
+          <TeamScore team={b} align="end" big={big} />
+          {b.serving && <ServingDot label={t('serving')} />}
+        </div>
 
         <div className="mt-1">
           <TeamCounts team={a} align="start" isBeach={isBeach} />
