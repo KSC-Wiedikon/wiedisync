@@ -103,10 +103,16 @@ export default function TeamFinancePage() {
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(teamsLoading || teamsQueryLoading || isLoading)
 
-  // Fee per game id — the recorder table looks its row up by game.
-  const refByGame = useMemo(() => {
-    const map = new Map<string, RefereeExpenseLine>()
-    for (const r of data?.referee_expenses ?? []) if (r.game) map.set(String(r.game.id), r)
+  // Fees per game id — the recorder table looks them up by game. Several rows
+  // when the fee was split, in the order they were recorded.
+  const refsByGame = useMemo(() => {
+    const map = new Map<string, RefereeExpenseLine[]>()
+    for (const r of data?.referee_expenses ?? []) {
+      if (!r.game) continue
+      const key = String(r.game.id)
+      map.set(key, [...(map.get(key) ?? []), r])
+    }
+    for (const list of map.values()) list.sort((a, b) => a.id - b.id)
     return map
   }, [data])
 
@@ -225,11 +231,11 @@ export default function TeamFinancePage() {
                 )}
               </section>
 
-              {/* Referee fees per home game — one row per game, record/edit in place */}
+              {/* Referee fees per home game — one line per game, record/edit in place */}
               {data.home_games.length > 0 && (
                 <section className="space-y-2">
                   <h2 className={sectionTitleCls}>{t('teamFinanceRefereeTitle')}</h2>
-                  <div className={tableWrapCls}>
+                  <div className={`@container ${tableWrapCls}`}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -241,8 +247,9 @@ export default function TeamFinancePage() {
                       </TableHeader>
                       <TableBody>
                         {data.home_games.map((g) => {
-                          const fee = refByGame.get(String(g.id))
-                          const editable = data.can_record_referee && !(fee?.payout && fee.payout_status !== 'cancelled')
+                          const fees = refsByGame.get(String(g.id)) ?? []
+                          const fee = fees.length > 0
+                          const editable = data.can_record_referee && !fees.some((f) => f.payout && f.payout_status !== 'cancelled')
                           const expanded = openGameId === g.id
                           return (
                             <Fragment key={g.id}>
@@ -256,18 +263,23 @@ export default function TeamFinancePage() {
                               <TableCell className="whitespace-normal break-words text-foreground">
                                 {g.home_team ?? '?'} – {g.away_team ?? '?'}
                                 <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                                  {fee ? (
-                                    <>
-                                      {fee.paid_by && <span>{t('refereePaidBy', { name: fee.paid_by })}</span>}
-                                      <RefereeStatusPill row={fee} />
-                                    </>
-                                  ) : (
+                                  {fee ? fees.map((f) => (
+                                    <Fragment key={f.id}>
+                                      {f.paid_by && (
+                                        <span>
+                                          {t('refereePaidBy', { name: f.paid_by })}
+                                          {fees.length > 1 && <span className="tabular-nums"> · {formatChf(toNum(f.amount))}</span>}
+                                        </span>
+                                      )}
+                                      <RefereeStatusPill row={f} />
+                                    </Fragment>
+                                  )) : (
                                     <span className="text-amber-700 dark:text-amber-300">{t('refereeNotRecorded')}</span>
                                   )}
                                 </span>
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-right align-middle tabular-nums text-foreground/85">
-                                {fee ? formatChf(toNum(fee.amount)) : <span className="text-muted-foreground/80">–</span>}
+                                {fee ? formatChf(fees.reduce((sum, f) => sum + toNum(f.amount), 0)) : <span className="text-muted-foreground/80">–</span>}
                               </TableCell>
                               {data.can_record_referee && (
                                 <TableCell className="w-px whitespace-nowrap pl-2 text-right align-middle">
@@ -291,13 +303,19 @@ export default function TeamFinancePage() {
                               <TableRow>
                                 {/* The game modal's own editor, inline under the game's row. */}
                                 <TableCell colSpan={data.can_record_referee ? 4 : 3} className="bg-surface-sunken px-4 py-3">
-                                  <RefereeExpenseSection
-                                    gameId={String(g.id)}
-                                    teamId={String(teamId)}
-                                    canEdit
-                                    defaultOpen
-                                    onSaved={() => void refetch()}
-                                  />
+                                  {/* On a phone the columns are wider than the table's box. Pin the editor
+                                      to the box (its width less this cell's padding) so it stays readable
+                                      instead of scrolling sideways with them. */}
+                                  <div className="sticky left-4 w-[calc(100cqw-2rem)]">
+                                    <RefereeExpenseSection
+                                      gameId={String(g.id)}
+                                      teamId={String(teamId)}
+                                      league={g.league}
+                                      canEdit
+                                      defaultOpen
+                                      onSaved={() => void refetch()}
+                                    />
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             )}

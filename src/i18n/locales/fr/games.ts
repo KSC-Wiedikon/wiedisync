@@ -171,6 +171,15 @@ export default {
   refereeExpensesEdit: 'Modifier',
   refereeExpensesNotRecorded: 'Pas encore enregistré',
   refereeExpensesReimbursed: 'Remboursé par le club — plus modifiable.',
+  refereeExpensesTotal: 'Total (CHF)',
+  refereeExpensesGboHint: 'GBO : {{referees}} arbitres × (CHF {{fee}} d\'indemnité + CHF {{travel}} de déplacement) = CHF {{total}}',
+  refereeExpensesSplitAdd: 'Partager avec une autre personne',
+  refereeExpensesSplitAddMore: 'Ajouter une autre personne',
+  refereeExpensesSplitHint: 'Modifier le total le répartit à nouveau à parts égales.',
+  refereeExpensesPerson: 'Personne {{n}}',
+  refereeExpensesShare: 'Part (CHF)',
+  refereeExpensesRemovePerson: 'Retirer la personne',
+  refereeExpensesChangedElsewhere: 'Quelqu\'un d\'autre a modifié ces frais entre-temps. Les valeurs actuelles sont affichées, merci de les vérifier.',
 
   // Auto Einsatzliste — volleyball uniquement, réservé aux entraîneurs
   autoNomination: 'Einsatzliste automatique',

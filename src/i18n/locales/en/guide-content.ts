@@ -1622,7 +1622,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "**Entries** lists the season's Teamkasse movements. **Sponsoring**, **Other income** and **Expense** rows are recorded by finance; you cannot add them here. **Referee fee** rows come from games: after a volleyball home game, a coach or team responsible opens the game in **Activities → Games & results** (the **Games** tab on a phone) and fills in **Referee expenses** with **Paid by** (a roster member or **Other person** with a name), **Amount (CHF)** and **Notes**, then **Save**. Captains cannot record fees. Each row shows who paid and a status."
+          "text": "**Entries** lists the season's Teamkasse movements. **Sponsoring**, **Other income** and **Expense** rows are recorded by finance; you cannot add them here. **Referee fee** rows come from games: after a volleyball home game, a coach or team responsible opens the game in **Activities → Games & results** (the **Games** tab on a phone) and fills in **Referee expenses** with **Paid by** (a roster member or **Other person** with a name), **Amount (CHF)** and **Notes**, then **Save**. The amount comes prefilled from the regional fee table (GBO) for two referees, fee plus travel; change it if the game was different. **Split with another person** shares it between several people, and each gets their own part reimbursed. Captains cannot record fees. Each row shows who paid and a status."
         },
         {
           "t": "h",
