@@ -29,6 +29,7 @@ import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
 import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs, meetingTimeFromOffset } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
+import { countReferees } from '../utils/refereeFee'
 import GameGuestSection from './GameGuestSection'
 import GameRecordingsSection from './GameRecordingsSection'
 import NominationPushDialog from './NominationPushDialog'
@@ -961,6 +962,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               gameId={game.id}
               teamId={kscwTeamId}
               league={game.league}
+              refereeCount={countReferees(game.referees_json)}
               canEdit={!readOnly && canEditAsCoach}
               defaultOpen={focus === 'refereeExpense'}
             />

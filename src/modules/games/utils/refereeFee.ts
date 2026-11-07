@@ -7,8 +7,8 @@
 /** "Reisespesen pauschal, pro Tag und SR". */
 export const GBO_TRAVEL_CHF = 20
 
-/** The prefill assumes a pair of referees (owner, 07.11.2026). The amount stays editable. */
-export const GBO_REFEREES = 2
+/** Assumed while a game lists no referees (owner, 07.11.2026). The amount stays editable. */
+export const GBO_DEFAULT_REFEREES = 2
 
 export interface GboRefereeFee {
   referees: number
@@ -45,15 +45,28 @@ export function gboFeePerReferee(league: string | null | undefined): number | nu
   return null
 }
 
-/** Fee + travel for the whole referee pair, or `null` when the table has no price. */
-export function gboRefereeFee(league: string | null | undefined): GboRefereeFee | null {
+/** How many referees a game lists in `referees_json`. */
+export function countReferees(referees: unknown): number {
+  return Array.isArray(referees) ? referees.length : 0
+}
+
+/**
+ * Fee + travel for the game's referees, or `null` when the table has no price.
+ * 4. and 5. Liga and most U23 games have one referee and 2. Liga has two, so the
+ * count comes from the game. With none listed yet it assumes two.
+ */
+export function gboRefereeFee(
+  league: string | null | undefined,
+  refereeCount?: number | null,
+): GboRefereeFee | null {
   const feePerReferee = gboFeePerReferee(league)
   if (feePerReferee == null) return null
+  const referees = refereeCount && refereeCount > 0 ? refereeCount : GBO_DEFAULT_REFEREES
   return {
-    referees: GBO_REFEREES,
+    referees,
     feePerReferee,
     travelPerReferee: GBO_TRAVEL_CHF,
-    total: GBO_REFEREES * (feePerReferee + GBO_TRAVEL_CHF),
+    total: referees * (feePerReferee + GBO_TRAVEL_CHF),
   }
 }
 

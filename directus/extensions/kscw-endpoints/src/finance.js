@@ -591,7 +591,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
           .whereNull('referee_duty_team').whereNull('referee_member')
           .where((qb) => qb.whereNull('status').orWhereNotIn('status', ['cancelled', 'postponed']))
           .orderBy([{ column: 'date', order: 'desc' }, { column: 'time', order: 'desc' }])
-          .select('id', database.raw('date::text as date'), database.raw('time::text as time'), 'home_team', 'away_team', 'league', 'status')
+          .select(
+            'id', database.raw('date::text as date'), database.raw('time::text as time'), 'home_team', 'away_team', 'league', 'status',
+            database.raw("json_array_length(CASE WHEN json_typeof(referees_json) = 'array' THEN referees_json ELSE '[]'::json END)::int AS referee_count"),
+          )
         : []
       // Who may write a fee from this page = who the items-API policy lets
       // write referee_expenses: coach/TR of THIS team (LEADER), the sport's
