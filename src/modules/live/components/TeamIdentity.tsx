@@ -5,7 +5,8 @@ import type { LiveSport, TeamView } from '../types'
 
 /**
  * A team's masthead on the scoreboard: the full name (or, for beach, the two players
- * stacked) on a chip in the team's own colour, Home or Away if the board sent no name.
+ * stacked) on a chip in the team's own colour, else what the crew typed with a small Home or
+ * Away above it.
  * Shared by every sport so the two halves of the board always align.
  */
 export default function TeamIdentity({
@@ -25,6 +26,11 @@ export default function TeamIdentity({
 
   return (
     <div className={cn('min-w-0', end ? 'text-right' : 'text-left')}>
+      {team.tagged && (
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t(team.homeAway === 'home' ? 'teamHome' : 'teamAway')}
+        </p>
+      )}
       <div className={cn('flex items-center gap-2', end && 'flex-row-reverse')}>
         <span
           className="inline-flex min-w-0 max-w-full items-center rounded-md px-1.5 py-1 text-[13px] font-bold uppercase leading-tight tracking-normal ring-1 ring-black/10 dark:ring-white/15 sm:px-2 sm:text-lg sm:tracking-wide"

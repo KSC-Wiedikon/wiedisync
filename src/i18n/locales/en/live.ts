@@ -23,7 +23,6 @@ export default {
   sets: 'Sets',
   set: 'Set {{n}}',
   teamFallback: 'Team',
-  toBoard: 'To the scoreboard',
   teamHome: 'Home',
   teamAway: 'Away',
   toShort: 'TO', // timeouts

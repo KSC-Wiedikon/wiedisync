@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isUpNext, matchGameByTeams, normaliseTeamName, refereeNames, sameTeams, scheduledTimeToday, staleSince } from './liveGame'
-import { homeIsTeamA, teamLabel } from './scoreboard'
+import { isEmptyGameLink, isUpNext, matchGameByTeams, normaliseTeamName, refereeNames, sameTeams, scheduledTimeToday, staleSince } from './liveGame'
+import { homeIsTeamA, teamLabel, toTeams } from './scoreboard'
 import type { BoardState, Envelope } from './types'
 
 describe('normaliseTeamName', () => {
@@ -135,10 +135,46 @@ describe('homeIsTeamA and teamLabel', () => {
     expect(homeIsTeamA(vb(0))).toBe(true)
     expect(homeIsTeamA({ sport: 'basketball', period: 2, points_a: 0, points_b: 0 })).toBe(true)
   })
-  it('a full name always wins; never the short code', () => {
+  it('a full name, then what was typed, then Home or Away', () => {
     const t = (k: string) => k
-    expect(teamLabel({ name: 'KSC WIEDIKON D1', homeAway: 'home' }, t)).toBe('KSC WIEDIKON D1')
-    expect(teamLabel({ name: '', homeAway: 'home' }, t)).toBe('teamHome')
-    expect(teamLabel({ name: '', homeAway: 'away' }, t)).toBe('teamAway')
+    expect(teamLabel({ name: 'KSC WIEDIKON D1', short: 'KSCW D1', homeAway: 'home' }, t)).toBe('KSC WIEDIKON D1')
+    expect(teamLabel({ name: '', short: 'KSCW D1', homeAway: 'home' }, t)).toBe('KSCW D1')
+    expect(teamLabel({ name: '', short: '', homeAway: 'away' }, t)).toBe('teamAway')
+  })
+})
+
+describe('toTeams tags', () => {
+  const s = (over: Partial<BoardState> = {}) => ({
+    sport: 'volleyball', period: 3, points_a: 0, points_b: 0, sets_won_a: 0, sets_won_b: 0, timeouts_a: 0, timeouts_b: 0,
+    subs_a: 0, subs_b: 0, fouls_a: 0, fouls_b: 0, set_results: [], serving_team: null,
+    team_a_name: '', team_a_short: 'KSCW D1', team_a_color: '#2563eb', team_b_name: '', team_b_short: 'WETZIKON', team_b_color: '#ef4444',
+    ...over,
+  }) as unknown as BoardState
+  it('tags typed names, across the change of ends', () => {
+    const [a, b] = toTeams(s())
+    expect([a.tagged, a.homeAway, b.tagged, b.homeAway]).toEqual([true, 'home', true, 'away'])
+    const [a2] = toTeams(s({ period: 4 }))
+    expect(a2.homeAway).toBe('away')
+  })
+  it('no tag on a full name, on the board defaults, on beach, or with nothing typed', () => {
+    expect(toTeams(s({ team_a_name: 'KSC WIEDIKON D1' }))[0].tagged).toBe(false)
+    expect(toTeams(s({ team_a_short: 'HOME' })).map((x) => x.tagged)).toEqual([false, false])
+    expect(toTeams(s({ sport: 'beach' })).map((x) => x.tagged)).toEqual([false, false])
+    expect(toTeams(s({ team_a_short: '' }))[0].tagged).toBe(false)
+  })
+})
+
+describe('isEmptyGameLink', () => {
+  const env = (over: Partial<Envelope>) => ({ channel: 'game-437', status: 'idle', match: null, ...over }) as Envelope
+  it('an idle game row sends you on', () => {
+    expect(isEmptyGameLink('game-437', env({}))).toBe(true)
+  })
+  it('not before the first read, for another channel, or with a match on it', () => {
+    expect(isEmptyGameLink('game-437', null)).toBe(false)
+    expect(isEmptyGameLink('game-437', env({ channel: 'game-1' }))).toBe(false)
+    expect(isEmptyGameLink('kscw', env({ channel: 'kscw' }))).toBe(false)
+    expect(isEmptyGameLink('other-board', env({ channel: 'other-board' }))).toBe(false)
+    expect(isEmptyGameLink('game-437', env({ status: 'final' }))).toBe(false)
+    expect(isEmptyGameLink('game-437', env({ status: 'live' }))).toBe(false)
   })
 })
