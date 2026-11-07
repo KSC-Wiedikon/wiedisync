@@ -23,7 +23,6 @@ export default {
   sets: 'Sätz',
   set: 'Satz {{n}}',
   teamFallback: 'Team',
-  toBoard: 'Zur Aazeigetafele',
   teamHome: 'Heim',
   teamAway: 'Gascht',
   toShort: 'AZ', // Auszite

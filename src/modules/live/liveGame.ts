@@ -73,6 +73,11 @@ export function staleSince(envelope: Envelope | null, now = new Date()): number 
   return Number.isFinite(at) && now.getTime() - at > LIVE_STALE_MS ? at : null
 }
 
+/** A game's own link with nothing on it: the match may well be on the hall's scoreboard. */
+export function isEmptyGameLink(channel: string, envelope: Envelope | null): boolean {
+  return /^game-\d+$/.test(channel) && envelope?.channel === channel && envelope.status === 'idle'
+}
+
 /** "16:00" for a game today, else null: "(scheduled: 16:00)" says today. */
 export function scheduledTimeToday(game: LiveGameCandidate | null | undefined, now = new Date()): string | null {
   if (!game?.time || game.date !== toZurichDateString(now)) return null

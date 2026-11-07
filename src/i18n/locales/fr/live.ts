@@ -23,7 +23,6 @@ export default {
   sets: 'Sets',
   set: 'Set {{n}}',
   teamFallback: 'Équipe',
-  toBoard: 'Vers le tableau d\'affichage',
   teamHome: 'Domicile',
   teamAway: 'Visiteurs',
   toShort: 'TM', // temps morts
