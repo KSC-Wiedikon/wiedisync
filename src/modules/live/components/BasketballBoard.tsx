@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { cn } from '@/lib/utils'
-import { toTeams } from '../scoreboard'
+import { teamLabel, toTeams } from '../scoreboard'
 import type { BoardState, TeamView } from '../types'
 import TeamIdentity from './TeamIdentity'
 
@@ -85,7 +85,7 @@ export default function BasketballBoard({ state, big = false }: { state: BoardSt
             )}
             {possession && (
               <span className="sr-only">
-                {t('possessionOf', { team: (possession === 'left' ? a : b).name || (possession === 'left' ? a : b).short })}
+                {t('possessionOf', { team: teamLabel(possession === 'left' ? a : b, t) })}
               </span>
             )}
           </div>

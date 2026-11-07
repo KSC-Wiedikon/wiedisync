@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.69.2'
+const APP_VERSION = '2.69.3'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.69.3',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "When the hall scoreboard has no full team names, the live page shows Home and Away instead of short codes, and a score nobody is updating no longer shows who is serving.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.69.2',
     date: '07.11.2026',

@@ -1,15 +1,17 @@
 import { useTranslation } from 'react-i18next'
 import { scheduledTimeToday, type LiveGameCandidate } from '../liveGame'
+import { teamLabel, toTeams } from '../scoreboard'
 import type { BoardState } from '../types'
 
 /**
  * A match set up on the board but not started (see isUpNext). The fixture's names when
- * the game is known (home first, as the league writes them), else the board's.
+ * the game is known (home first, as the league writes them), else the board's, else Home and Away.
  */
 export default function UpNextCard({ state, game }: { state: BoardState; game: LiveGameCandidate | null }) {
   const { t } = useTranslation('live')
-  const home = game?.home_team || state.team_a_name || state.team_a_short
-  const away = game?.away_team || state.team_b_name || state.team_b_short
+  const [a, b] = toTeams(state)
+  const home = game?.home_team || teamLabel(a, t)
+  const away = game?.away_team || teamLabel(b, t)
   const time = scheduledTimeToday(game)
   return (
     <div className="rounded-2xl border border-hairline bg-card p-6 text-center shadow-card sm:p-8">

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { formatTimeZurich } from '../../utils/dateHelpers'
 import FinalSummary from './components/FinalSummary'
@@ -66,6 +66,8 @@ export default function LivePage() {
   const referees = refereeNames(game?.referees_json)
   const stale = staleSince(envelope)
   const running = hasMatch && !isFinal && !upNext && stale == null
+  // Nobody is writing this score, so nobody is known to be serving: no blinking dot on it.
+  const shown = stale != null && envelope?.match ? { ...envelope.match, serving_team: null } : envelope?.match
   // A phone turned sideways shows the board alone, filling the screen (over the
   // tab bar). Height-bound so a tablet or a laptop keeps the normal page.
   const landscape = useMediaQuery('(orientation: landscape) and (max-height: 540px)')
@@ -134,7 +136,7 @@ export default function LivePage() {
           ) : upNext ? (
             <UpNextCard state={envelope!.match!} game={game} />
           ) : (
-            <Scoreboard state={envelope!.match!} />
+            <Scoreboard state={shown!} />
           )}
 
           {refereeLine && <div className="mt-3 px-1">{refereeLine}</div>}
@@ -158,6 +160,12 @@ export default function LivePage() {
         <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
           <p className="text-base font-semibold text-foreground">{t('noMatch')}</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{t('noMatchHint')}</p>
+          {/* A game's own link with nothing on it: the match may well be on the hall's scoreboard. */}
+          {channel !== 'kscw' && (
+            <Link to="/live" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline dark:text-brand-300">
+              {t('toBoard')}
+            </Link>
+          )}
         </div>
       )}
 
