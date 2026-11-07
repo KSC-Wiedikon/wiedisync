@@ -33,11 +33,20 @@ function extractMessage(obj: Record<string, unknown>): string | null {
       return first.message
     }
   }
+  // The SDK's RequestError has an empty message when reading the response body failed,
+  // and the real error sits in `errors`. A connection that dies mid-response is a
+  // TypeError "Failed to fetch" there, with status 200. Serialized, an Error is `{}`,
+  // which turned ordinary network drops into unreadable api_error entries.
+  if (directusErrors instanceof Error && !USELESS_MESSAGES.has(directusErrors.message.trim())) {
+    return directusErrors.message
+  }
   if (typeof obj.message === 'string' && !USELESS_MESSAGES.has(obj.message.trim())) {
     return obj.message
   }
-  // Surface HTTP-ish hints when present so the issue isn't opaque.
-  const status = obj.status ?? obj.statusCode ?? obj.code
+  // Surface HTTP-ish hints when present so the issue isn't opaque. RequestError keeps
+  // its status on the Response, which also serializes to `{}`.
+  const response = obj.response as { status?: unknown } | null | undefined
+  const status = obj.status ?? obj.statusCode ?? obj.code ?? response?.status
   if (status != null) {
     const op = typeof obj.operation === 'string' ? ` (${obj.operation})` : ''
     return `Request failed with status ${String(status)}${op}`

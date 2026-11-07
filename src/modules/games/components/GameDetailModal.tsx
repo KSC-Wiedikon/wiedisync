@@ -269,6 +269,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
     setPrevNominationGameId(game?.id)
     setAutoNomination(game?.auto_nomination_list ?? null)
     setNominationDialogOpen(false)
+    // This modal stays mounted, so these would carry over: a note typed on the last game
+    // was saved with the answer on this one, and an open deadline editor still held the
+    // last game's date.
+    setEditingDeadline(false)
+    setNoteInit(effectiveSync)
+    setNoteText(effectiveSync)
   }
   const lateKey = `${game?.id ?? ''}|${game?.type ?? ''}`
   const [prevLateKey, setPrevLateKey] = useState(lateKey)

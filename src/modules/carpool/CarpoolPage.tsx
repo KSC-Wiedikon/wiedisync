@@ -58,7 +58,8 @@ export default function CarpoolPage() {
           {t('errorDisabled')}
         </p>
       )}
-      {type && id && <CarpoolPanel type={type} id={id} standalone />}
+      {/* Keyed: a half-filled form or an open edit must not carry over to another activity. */}
+      {type && id && <CarpoolPanel key={`${type}-${id}`} type={type} id={id} standalone />}
     </div>
   )
 }
