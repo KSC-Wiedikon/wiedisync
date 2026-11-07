@@ -136,6 +136,9 @@ export default {
 
   // Navigation
   today: 'Oggi',
+  wholeWeek: 'Tutta la settimana',
+  filterByDay: 'Filtra per giorno',
+  emptyWeek: 'Niente nelle palestre questa settimana',
   closures: 'Chiusure',
   prevWeek: 'Settimana precedente',
   nextWeek: 'Settimana successiva',

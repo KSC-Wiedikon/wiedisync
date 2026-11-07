@@ -12,6 +12,10 @@ export const BB_GAME_PATTERN = /^BB\s/i
 const GAME_WARMUP_MINUTES = 45
 const GAME_TOTAL_DURATION = 165
 
+/** A game block shorter than this isn't a game running into the next one: it's two
+ *  games booked too close, which the conflict badge should keep showing. */
+const MIN_TRIMMED_GAME_MINUTES = 120
+
 /** A recurring training template is only presented as "available/frei" within
  *  this many weeks of today — matching the backend training-generation horizon
  *  (INDEFINITE_HORIZON_WEEKS in kscw-hooks/src/slot-cascade.js). Beyond it, a
@@ -77,6 +81,35 @@ export function gameToVirtualSlots(
       ...(hallIds.length > 1 ? { spanHallIds: hallIds } : {}),
     },
   } as HallSlot]
+}
+
+/**
+ * A game's block is an estimate (GAME_TOTAL_DURATION), so games scheduled back to back
+ * overlap by a few minutes on paper: 11:00 and 13:30 give 10:15–13:00 and 12:45–15:30.
+ * The first one simply finishes when the next one arrives, so its block ends there, and
+ * neither gets a conflict badge for it. Display only: the hall logic keeps the estimate.
+ *
+ * Only for back-to-back games. Two games at the same start, or a first game that would
+ * keep under MIN_TRIMMED_GAME_MINUTES, are a real double booking and stay as they are.
+ */
+export function trimConsecutiveGames<T extends HallSlot>(slots: T[]): T[] {
+  const hallsOf = (s: T) => s._virtual?.spanHallIds ?? [s.hall]
+  const games = slots.filter((s) => s.slot_type === 'game')
+  return slots.map((slot) => {
+    if (slot.slot_type !== 'game') return slot
+    const start = timeToMinutes(slot.start_time)
+    const end = timeToMinutes(slot.end_time)
+    const halls = hallsOf(slot)
+    let nextStart = end
+    for (const other of games) {
+      if (other.day_of_week !== slot.day_of_week) continue
+      const otherStart = timeToMinutes(other.start_time)
+      if (otherStart <= start || otherStart >= nextStart) continue
+      if (hallsOf(other).some((h) => halls.includes(h))) nextStart = otherStart
+    }
+    if (nextStart === end || nextStart - start < MIN_TRIMMED_GAME_MINUTES) return slot
+    return { ...slot, end_time: minutesToTime(nextStart) }
+  })
 }
 
 /**

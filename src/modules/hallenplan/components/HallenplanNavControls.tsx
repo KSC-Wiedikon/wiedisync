@@ -5,7 +5,48 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { HallSlot } from '../../../types'
+import { dayHeaders } from '../../../utils/dateUtils'
 import type { FreedSlotInfo, SportFilter } from '../HallenplanPage'
+
+/** One button per day of the week. `null` selects none, for a view of the whole week. */
+export function DayButtons({
+  weekDays,
+  selectedDayIndex,
+  onSelectDay,
+}: {
+  weekDays: Date[]
+  selectedDayIndex: number | null
+  onSelectDay: (index: number) => void
+}) {
+  const { t } = useTranslation('hallenplan')
+  const todayStr = new Date().toDateString()
+  return (
+    <div role="group" aria-label={t('filterByDay')} className="flex justify-center gap-1 sm:justify-start">
+      {weekDays.map((day, i) => {
+        const isSelected = i === selectedDayIndex
+        return (
+          <button
+            key={i}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onSelectDay(i)}
+            className={cn(
+              'flex h-10 w-10 flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors',
+              isSelected
+                ? 'bg-selected text-selected-foreground'
+                : day.toDateString() === todayStr
+                  ? 'bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-400'
+                  : 'text-muted-foreground hover:bg-muted',
+            )}
+          >
+            <span className="text-[10px] leading-none">{dayHeaders()[i]}</span>
+            <span className="leading-tight">{day.getDate()}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 /** VB / BB / All segmented toggle — shared by Week- and DayNavigation. */
 export function SportFilterToggle({

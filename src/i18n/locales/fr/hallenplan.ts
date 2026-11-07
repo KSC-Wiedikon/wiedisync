@@ -136,6 +136,9 @@ export default {
 
   // Navigation
   today: 'Aujourd\'hui',
+  wholeWeek: 'Toute la semaine',
+  filterByDay: 'Filtrer par jour',
+  emptyWeek: 'Rien dans les salles cette semaine',
   closures: 'Fermetures',
   prevWeek: 'Semaine precedente',
   nextWeek: 'Semaine suivante',

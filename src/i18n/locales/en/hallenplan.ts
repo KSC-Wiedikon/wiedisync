@@ -136,6 +136,9 @@ export default {
 
   // Navigation
   today: 'Today',
+  wholeWeek: 'Whole week',
+  filterByDay: 'Filter by day',
+  emptyWeek: 'Nothing in the halls this week',
   closures: 'Closures',
   prevWeek: 'Previous week',
   nextWeek: 'Next week',
