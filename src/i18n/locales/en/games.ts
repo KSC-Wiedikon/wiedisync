@@ -174,6 +174,16 @@ export default {
   refereeExpensesEdit: 'Edit',
   refereeExpensesNotRecorded: 'Not recorded yet',
   refereeExpensesReimbursed: 'Reimbursed by the club — no longer editable.',
+  refereeExpensesTotal: 'Total (CHF)',
+  refereeExpensesGboHint_one: 'GBO: {{count}} referee × (CHF {{fee}} fee + CHF {{travel}} travel) = CHF {{total}}',
+  refereeExpensesGboHint_other: 'GBO: {{count}} referees × (CHF {{fee}} fee + CHF {{travel}} travel) = CHF {{total}}',
+  refereeExpensesSplitAdd: 'Split with another person',
+  refereeExpensesSplitAddMore: 'Add another person',
+  refereeExpensesSplitHint: 'Changing the total splits it evenly again.',
+  refereeExpensesPerson: 'Person {{n}}',
+  refereeExpensesShare: 'Share (CHF)',
+  refereeExpensesRemovePerson: 'Remove person',
+  refereeExpensesChangedElsewhere: 'Someone else changed this fee in the meantime. The latest values are shown, please check them.',
 
   // Auto Einsatzliste — volleyball only, coach-gated.
   // "Einsatzliste" is the official Swiss Volley term and stays untranslated.

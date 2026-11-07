@@ -174,6 +174,16 @@ export default {
   refereeExpensesEdit: 'Bearbeiten',
   refereeExpensesNotRecorded: 'Noch nicht erfasst',
   refereeExpensesReimbursed: 'Vom Verein erstattet — nicht mehr bearbeitbar.',
+  refereeExpensesTotal: 'Total (CHF)',
+  refereeExpensesGboHint_one: 'GBO: {{count}} SR × (CHF {{fee}} Entschädigung + CHF {{travel}} Reisespesen) = CHF {{total}}',
+  refereeExpensesGboHint_other: 'GBO: {{count}} SR × (CHF {{fee}} Entschädigung + CHF {{travel}} Reisespesen) = CHF {{total}}',
+  refereeExpensesSplitAdd: 'Mit einer weiteren Person teilen',
+  refereeExpensesSplitAddMore: 'Weitere Person hinzufügen',
+  refereeExpensesSplitHint: 'Wenn du das Total änderst, wird es wieder gleichmässig aufgeteilt.',
+  refereeExpensesPerson: 'Person {{n}}',
+  refereeExpensesShare: 'Anteil (CHF)',
+  refereeExpensesRemovePerson: 'Person entfernen',
+  refereeExpensesChangedElsewhere: 'Jemand anderes hat diese Kosten inzwischen geändert. Die aktuellen Werte werden angezeigt, bitte prüfe sie.',
 
   // Auto Einsatzliste — nur Volleyball, nur Trainer:innen
   autoNomination: 'Auto-Einsatzliste',

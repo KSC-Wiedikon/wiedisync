@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.67.0'
+const APP_VERSION = '2.68.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.68.0',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Referee expenses start with the amount filled in: the game's referees at the regional rate, fee plus travel, or two referees if none are listed yet. Per referee that is CHF 80 in 2. Liga, 70 in 3. Liga and U23 1. Liga, and 60 in 4. Liga and below and the other U23 leagues. You can still change it, and cups, 1. Liga and up and junior leagues stay empty.",
+          "A referee fee can be split between two or more people. It is shared evenly to the nearest 5 Rappen, each share can be changed, and everyone gets their own part back in the season-end reimbursement.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.67.0',
     date: '06.11.2026',
