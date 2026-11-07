@@ -1,12 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { beachPair, readableOn } from '../scoreboard'
+import { beachPair, readableOn, teamLabel } from '../scoreboard'
 import type { LiveSport, TeamView } from '../types'
 
 /**
  * A team's masthead on the scoreboard: the full name (or, for beach, the two players
- * stacked) on a chip in the team's own colour, the short code only if the board sent
- * no name.
+ * stacked) on a chip in the team's own colour, Home or Away if the board sent no name.
  * Shared by every sport so the two halves of the board always align.
  */
 export default function TeamIdentity({
@@ -40,7 +39,7 @@ export default function TeamIdentity({
                     {p}
                   </span>
                 ))
-              : team.name || team.short || t('teamFallback')}
+              : teamLabel(team, t)}
           </span>
         </span>
       </div>

@@ -23,6 +23,9 @@ export default {
   sets: 'Sätze',
   set: 'Satz {{n}}',
   teamFallback: 'Team',
+  toBoard: 'Zur Anzeigetafel',
+  teamHome: 'Heim',
+  teamAway: 'Gast',
   toShort: 'AZ', // Auszeiten
   subShort: 'W', // Wechsel
 

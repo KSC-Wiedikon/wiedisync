@@ -29,11 +29,31 @@ export function normaliseSetResult(r: unknown): SetResult {
   return out
 }
 
+/**
+ * Whether team A is the home team, for a board that sent no full names and so no way to tell by
+ * name. The row is always A = left and the teams change ends, so it goes by the set: home starts
+ * on the left, every set changes ends, and the fifth changes again at 8. Whoever started on the
+ * left is home. Only a guess if the crew does not switch ends when the rules say.
+ */
+export function homeIsTeamA(s: Pick<BoardState, 'sport' | 'period' | 'points_a' | 'points_b'>): boolean {
+  if (s.sport !== 'volleyball') return true
+  const set = Math.max(s.period, 1)
+  if (set === 5 && Math.max(s.points_a, s.points_b) >= 8) return false
+  return set % 2 === 1
+}
+
+/** A team on the page: its full name, or Home / Away. Never the board's short code. */
+export function teamLabel(team: Pick<TeamView, 'name' | 'homeAway'>, t: (key: string) => string): string {
+  return team.name || t(team.homeAway === 'home' ? 'teamHome' : 'teamAway')
+}
+
 /** Split a board snapshot into two side-agnostic team views (A=left by getState()). */
 export function toTeams(s: BoardState): [TeamView, TeamView] {
+  const aIsHome = homeIsTeamA(s)
   return [
     {
       name: s.team_a_name,
+      homeAway: aIsHome ? 'home' : 'away',
       short: s.team_a_short || s.team_a_name,
       color: s.team_a_color,
       points: s.points_a,
@@ -46,6 +66,7 @@ export function toTeams(s: BoardState): [TeamView, TeamView] {
     },
     {
       name: s.team_b_name,
+      homeAway: aIsHome ? 'away' : 'home',
       short: s.team_b_short || s.team_b_name,
       color: s.team_b_color,
       points: s.points_b,
