@@ -686,7 +686,7 @@ export const CHECKS = [
     key: 'referee_fee_missing',
     section: 'duties', sport: 'vb', severity: 'warn', grain: 'game',
     title: 'Ended VB home game with no referee-fee record',
-    description: 'Season-long version of the referee-expense nudge (which only looks back 14 days): every finished VB home game should carry one referee_expenses row saying who paid the federation referees, or the season-end payout run under-reimburses. Games refereed by a club duty team (HU20) pay no federation fee and are skipped; empty sv_referees may otherwise be legitimately fee-free. overdue is set after 14 days. The coach or team responsible records it from the game.',
+    description: 'Season-long version of the referee-expense nudge (which only looks back 14 days): every finished VB home game should carry at least one referee_expenses row saying who paid the federation referees (one row per person when the fee was split), or the season-end payout run under-reimburses. Games refereed by a club duty team (HU20) pay no federation fee and are skipped; empty sv_referees may otherwise be legitimately fee-free. overdue is set after 14 days. The coach or team responsible records it from the game.',
     sql: `SELECT ${GAME_COLS}, t.name AS team, ({{today}} - g.date) AS days_ago, (({{today}} - g.date) > 14) AS overdue,
          refs.names AS sv_referees,
          (SELECT string_agg(concat_ws(' ', cm.first_name, cm.last_name), ', ' ORDER BY cm.last_name, cm.first_name)

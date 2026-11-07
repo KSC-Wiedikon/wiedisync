@@ -171,6 +171,16 @@ export default {
   refereeExpensesEdit: 'Modifica',
   refereeExpensesNotRecorded: 'Non ancora registrato',
   refereeExpensesReimbursed: 'Rimborsato dal club — non più modificabile.',
+  refereeExpensesTotal: 'Totale (CHF)',
+  refereeExpensesGboHint_one: 'GBO: {{count}} arbitro × (CHF {{fee}} indennità + CHF {{travel}} trasferta) = CHF {{total}}',
+  refereeExpensesGboHint_other: 'GBO: {{count}} arbitri × (CHF {{fee}} indennità + CHF {{travel}} trasferta) = CHF {{total}}',
+  refereeExpensesSplitAdd: 'Dividi con un\'altra persona',
+  refereeExpensesSplitAddMore: 'Aggiungi un\'altra persona',
+  refereeExpensesSplitHint: 'Se modifichi il totale, viene di nuovo diviso in parti uguali.',
+  refereeExpensesPerson: 'Persona {{n}}',
+  refereeExpensesShare: 'Quota (CHF)',
+  refereeExpensesRemovePerson: 'Rimuovi persona',
+  refereeExpensesChangedElsewhere: 'Qualcun altro ha modificato queste spese nel frattempo. Vengono mostrati i valori aggiornati, controllali.',
 
   // Auto Einsatzliste — solo pallavolo, riservato agli allenatori
   autoNomination: 'Einsatzliste automatica',
