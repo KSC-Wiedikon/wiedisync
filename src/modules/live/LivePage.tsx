@@ -6,8 +6,10 @@ import { formatTimeZurich } from '../../utils/dateHelpers'
 import FinalSummary from './components/FinalSummary'
 import RecentMatches from './components/RecentMatches'
 import Scoreboard from './components/Scoreboard'
+import UpNextCard from './components/UpNextCard'
+import { isUpNext, refereeNames } from './liveGame'
 import { useLiveMatch } from './useLiveMatch'
-import { useLiveReferees } from './useLiveReferees'
+import { useLiveGame } from './useLiveGame'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 
@@ -42,7 +44,8 @@ export default function LivePage() {
     }
     if (connection === 'reconnecting') return { tone: 'pending', label: t('statusReconnecting') }
     if (envelope.status === 'final') return { tone: 'final', label: t('statusFinal') }
-    if (envelope.status === 'idle') return { tone: 'idle', label: t('statusIdle') }
+    // Not started yet: the page must not call a warm-up "Live".
+    if (envelope.status === 'idle' || isUpNext(envelope)) return { tone: 'idle', label: t('statusIdle') }
     return { tone: 'live', label: t('statusLive') }
   }, [envelope, connection, t])
 
@@ -58,14 +61,17 @@ export default function LivePage() {
 
   const hasMatch = !!envelope?.match
   const isFinal = envelope?.status === 'final'
-  const referees = useLiveReferees(envelope)
+  const upNext = isUpNext(envelope)
+  const game = useLiveGame(envelope)
+  const referees = refereeNames(game?.referees_json)
+  const running = hasMatch && !isFinal && !upNext
   // A phone turned sideways shows the board alone, filling the screen (over the
   // tab bar). Height-bound so a tablet or a laptop keeps the normal page.
   const landscape = useMediaQuery('(orientation: landscape) and (max-height: 540px)')
-  const fullScreen = landscape && hasMatch && !isFinal
+  const fullScreen = landscape && running
   // Keep the screen on while a match is running — people watch for a whole set
   // without touching the phone.
-  useScreenWakeLock(hasMatch && !isFinal)
+  useScreenWakeLock(running)
 
   const refereeLine = referees.length > 0 && (
     <p className="text-xs text-muted-foreground">
@@ -124,6 +130,8 @@ export default function LivePage() {
               is stale detail — the final summary replaces it entirely. */}
           {isFinal ? (
             <FinalSummary state={envelope!.match!} />
+          ) : upNext ? (
+            <UpNextCard state={envelope!.match!} game={game} />
           ) : (
             <Scoreboard state={envelope!.match!} />
           )}

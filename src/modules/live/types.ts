@@ -91,6 +91,8 @@ export interface Envelope {
   match: BoardState | null
   /** The fixture a `game-<id>` row belongs to; null/absent on a board's own row. */
   gameId?: number | null
+  /** When the row was last written (Directus `date_updated`). */
+  updatedAt?: string | null
 }
 
 /**

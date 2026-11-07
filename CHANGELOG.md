@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.69.0 — 2026-11-07
+
+### Added
+
+- When a game is set up on the hall scoreboard but has not started, the live page now says “Up next” with both teams and the scheduled time, instead of 0:0 and “Live”.
+
+### Fixed
+
+- The live page could show the previous game's referees for a few minutes after the next game went up on the scoreboard.
+
 ## v2.68.0 — 2026-11-07
 
 ### Added
