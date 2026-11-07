@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LIVE_STALE_MS, liveHref, pickLiveNow, type NowRow } from './liveNow'
+import { isLeftoverRow, LIVE_STALE_MS, liveHref, NEVER_STARTED_MS, pickLiveNow, type NowRow } from './liveNow'
 import { historyFilter } from './scoreboard'
 
 const NOW = Date.UTC(2026, 9, 23, 19, 0)
@@ -23,6 +23,11 @@ describe('pickLiveNow', () => {
   it('drops a row nobody wrote for 20 minutes, keeps one without a timestamp', () => {
     expect(pickLiveNow([row({ date_updated: ago(LIVE_STALE_MS + 1) })], NOW)).toBeNull()
     expect(pickLiveNow([row({ date_updated: null })], NOW)?.channel).toBe('kscw')
+  })
+
+  it('nothing to watch yet is not advertised: a warm-up, or a board tapped after a game', () => {
+    expect(pickLiveNow([row({ points_a: 0, points_b: 0 })], NOW)).toBeNull()
+    expect(pickLiveNow([row({ points_a: 0, points_b: 0, set_results: [{ a: 25, b: 20 }] })], NOW)?.channel).toBe('kscw')
   })
 
   it('a row created once and never updated goes stale by its ts', () => {
@@ -60,6 +65,23 @@ describe('pickLiveNow', () => {
       row({ channel: 'game-2', source: 'phone', date_updated: ago(1000) }),
     ], NOW)
     expect(picked?.channel).toBe('game-2')
+  })
+})
+
+describe('isLeftoverRow', () => {
+  const live = { status: 'live' as const, points_a: 0, points_b: 0, sets_won_a: 0, sets_won_b: 0, date_updated: ago(60_000) }
+  it('a set count with nothing behind it (07.11: 0:0, sets 0:1) is not a match', () => {
+    expect(isLeftoverRow({ ...live, sets_won_b: 1 }, NOW)).toBe(true)
+    expect(isLeftoverRow({ ...live, sets_won_b: 1, set_results: [{ a: 20, b: 25 }] }, NOW)).toBe(false)
+  })
+  it('set up and never started: an hour of warm-up is fine, past 3 hours it is not coming', () => {
+    expect(isLeftoverRow({ ...live, date_updated: ago(60 * 60 * 1000) }, NOW)).toBe(false)
+    expect(isLeftoverRow({ ...live, date_updated: ago(NEVER_STARTED_MS + 1) }, NOW)).toBe(true)
+  })
+  it('anything played keeps it a match, however old; final and idle are not its business', () => {
+    expect(isLeftoverRow({ ...live, points_a: 1, date_updated: ago(NEVER_STARTED_MS + 1) }, NOW)).toBe(false)
+    expect(isLeftoverRow({ ...live, timeouts_a: 1, date_updated: ago(NEVER_STARTED_MS + 1) }, NOW)).toBe(false)
+    expect(isLeftoverRow({ ...live, status: 'final', sets_won_b: 1 }, NOW)).toBe(false)
   })
 })
 
