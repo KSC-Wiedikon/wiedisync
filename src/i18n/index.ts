@@ -1,210 +1,41 @@
-import i18n from 'i18next'
+import i18n, { type BackendModule } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-import common from './locales/en/common'
-import nav from './locales/en/nav'
-import jsExport from './locales/en/jsExport'
-import calendar from './locales/en/calendar'
-import games from './locales/en/games'
-import trainings from './locales/en/trainings'
-import absences from './locales/en/absences'
-import scorer from './locales/en/scorer'
-import teams from './locales/en/teams'
-import hallenplan from './locales/en/hallenplan'
-import hallenfinder from './locales/en/hallenfinder'
-import spielplanung from './locales/en/spielplanung'
-import auth from './locales/en/auth'
-import events from './locales/en/events'
-import home from './locales/en/home'
-import legal from './locales/en/legal'
-import admin from './locales/en/admin'
-import participation from './locales/en/participation'
-import notifications from './locales/en/notifications'
-import gameScheduling from './locales/en/gameScheduling'
-import basketballScheduling from './locales/en/basketballScheduling'
-import teamLinks from './locales/en/teamLinks'
-import scorerAssign from './locales/en/scorerAssign'
-import join from './locales/en/join'
-import feedback from './locales/en/feedback'
-import polls from './locales/en/polls'
-import carpool from './locales/en/carpool'
-import tournaments from './locales/en/tournaments'
-import bugfixes from './locales/en/bugfixes'
-import guide from './locales/en/guide'
-import invitations from './locales/en/invitations'
-import announcements from './locales/en/announcements'
-import broadcast from './locales/en/broadcast'
-import fines from './locales/en/fines'
-import pwa from './locales/en/pwa'
-import forms from './locales/en/forms'
-import finance from './locales/en/finance'
-import support from './locales/en/support'
-import live from './locales/en/live'
-import seasonHealth from './locales/en/seasonHealth'
+import en from './locales/en'
 
-import deCommon from './locales/de/common'
-import deNav from './locales/de/nav'
-import deJsExport from './locales/de/jsExport'
-import deCalendar from './locales/de/calendar'
-import deGames from './locales/de/games'
-import deTrainings from './locales/de/trainings'
-import deAbsences from './locales/de/absences'
-import deScorer from './locales/de/scorer'
-import deTeams from './locales/de/teams'
-import deHallenplan from './locales/de/hallenplan'
-import deHallenfinder from './locales/de/hallenfinder'
-import deSpielplanung from './locales/de/spielplanung'
-import deAuth from './locales/de/auth'
-import deEvents from './locales/de/events'
-import deHome from './locales/de/home'
-import deLegal from './locales/de/legal'
-import deAdmin from './locales/de/admin'
-import deParticipation from './locales/de/participation'
-import deNotifications from './locales/de/notifications'
-import deGameScheduling from './locales/de/gameScheduling'
-import deBasketballScheduling from './locales/de/basketballScheduling'
-import deTeamLinks from './locales/de/teamLinks'
-import deScorerAssign from './locales/de/scorerAssign'
-import deJoin from './locales/de/join'
-import deFeedback from './locales/de/feedback'
-import dePolls from './locales/de/polls'
-import deCarpool from './locales/de/carpool'
-import deTournaments from './locales/de/tournaments'
-import deBugfixes from './locales/de/bugfixes'
-import deGuide from './locales/de/guide'
-import deInvitations from './locales/de/invitations'
-import deAnnouncements from './locales/de/announcements'
-import deBroadcast from './locales/de/broadcast'
-import deFines from './locales/de/fines'
-import dePwa from './locales/de/pwa'
-import deForms from './locales/de/forms'
-import deFinance from './locales/de/finance'
-import deSupport from './locales/de/support'
-import deLive from './locales/de/live'
-import deSeasonHealth from './locales/de/seasonHealth'
+/**
+ * Only the member's own language is downloaded. All five together were about 2 MB of
+ * the first load, for a member who reads one of them, and on a slow connection the
+ * app took 20 s to start.
+ *
+ * English stays bundled: it is the fallback for any missing key, and exports read it
+ * directly through `getFixedT('en', …)`. So a German speaker downloads English and
+ * German. `changeLanguage` waits for the chunk and only then switches, so its callers
+ * need no change and nothing flashes in the wrong language.
+ */
+const LANGUAGE_CHUNKS: Record<string, () => Promise<{ default: Record<string, object> }>> = {
+  de: () => import('./locales/de'),
+  fr: () => import('./locales/fr'),
+  it: () => import('./locales/it'),
+  gsw: () => import('./locales/gsw'),
+}
 
-import frCommon from './locales/fr/common'
-import frNav from './locales/fr/nav'
-import frCalendar from './locales/fr/calendar'
-import frGames from './locales/fr/games'
-import frTrainings from './locales/fr/trainings'
-import frAbsences from './locales/fr/absences'
-import frScorer from './locales/fr/scorer'
-import frTeams from './locales/fr/teams'
-import frHallenplan from './locales/fr/hallenplan'
-import frSpielplanung from './locales/fr/spielplanung'
-import frAuth from './locales/fr/auth'
-import frEvents from './locales/fr/events'
-import frHome from './locales/fr/home'
-import frLegal from './locales/fr/legal'
-import frAdmin from './locales/fr/admin'
-import frParticipation from './locales/fr/participation'
-import frNotifications from './locales/fr/notifications'
-import frGameScheduling from './locales/fr/gameScheduling'
-import frBasketballScheduling from './locales/fr/basketballScheduling'
-import frTeamLinks from './locales/fr/teamLinks'
-import frScorerAssign from './locales/fr/scorerAssign'
-import frFeedback from './locales/fr/feedback'
-import frPolls from './locales/fr/polls'
-import frCarpool from './locales/fr/carpool'
-import frTournaments from './locales/fr/tournaments'
-import frBugfixes from './locales/fr/bugfixes'
-import frGuide from './locales/fr/guide'
-import frInvitations from './locales/fr/invitations'
-import frAnnouncements from './locales/fr/announcements'
-import frBroadcast from './locales/fr/broadcast'
-import frFines from './locales/fr/fines'
-import frPwa from './locales/fr/pwa'
-import frFinance from './locales/fr/finance'
-import frSupport from './locales/fr/support'
-import frLive from './locales/fr/live'
-import frForms from './locales/fr/forms'
-import frHallenfinder from './locales/fr/hallenfinder'
-import frJoin from './locales/fr/join'
-import frJsExport from './locales/fr/jsExport'
-import frSeasonHealth from './locales/fr/seasonHealth'
-
-import itCommon from './locales/it/common'
-import itNav from './locales/it/nav'
-import itCalendar from './locales/it/calendar'
-import itGames from './locales/it/games'
-import itTrainings from './locales/it/trainings'
-import itAbsences from './locales/it/absences'
-import itScorer from './locales/it/scorer'
-import itTeams from './locales/it/teams'
-import itHallenplan from './locales/it/hallenplan'
-import itSpielplanung from './locales/it/spielplanung'
-import itAuth from './locales/it/auth'
-import itEvents from './locales/it/events'
-import itHome from './locales/it/home'
-import itLegal from './locales/it/legal'
-import itAdmin from './locales/it/admin'
-import itParticipation from './locales/it/participation'
-import itNotifications from './locales/it/notifications'
-import itGameScheduling from './locales/it/gameScheduling'
-import itBasketballScheduling from './locales/it/basketballScheduling'
-import itTeamLinks from './locales/it/teamLinks'
-import itScorerAssign from './locales/it/scorerAssign'
-import itFeedback from './locales/it/feedback'
-import itPolls from './locales/it/polls'
-import itCarpool from './locales/it/carpool'
-import itTournaments from './locales/it/tournaments'
-import itBugfixes from './locales/it/bugfixes'
-import itGuide from './locales/it/guide'
-import itInvitations from './locales/it/invitations'
-import itAnnouncements from './locales/it/announcements'
-import itBroadcast from './locales/it/broadcast'
-import itFines from './locales/it/fines'
-import itPwa from './locales/it/pwa'
-import itFinance from './locales/it/finance'
-import itSupport from './locales/it/support'
-import itLive from './locales/it/live'
-import itForms from './locales/it/forms'
-import itHallenfinder from './locales/it/hallenfinder'
-import itJoin from './locales/it/join'
-import itJsExport from './locales/it/jsExport'
-import itSeasonHealth from './locales/it/seasonHealth'
-
-import gswCommon from './locales/gsw/common'
-import gswNav from './locales/gsw/nav'
-import gswCalendar from './locales/gsw/calendar'
-import gswGames from './locales/gsw/games'
-import gswTrainings from './locales/gsw/trainings'
-import gswAbsences from './locales/gsw/absences'
-import gswScorer from './locales/gsw/scorer'
-import gswTeams from './locales/gsw/teams'
-import gswHallenplan from './locales/gsw/hallenplan'
-import gswSpielplanung from './locales/gsw/spielplanung'
-import gswAuth from './locales/gsw/auth'
-import gswEvents from './locales/gsw/events'
-import gswHome from './locales/gsw/home'
-import gswLegal from './locales/gsw/legal'
-import gswAdmin from './locales/gsw/admin'
-import gswParticipation from './locales/gsw/participation'
-import gswNotifications from './locales/gsw/notifications'
-import gswGameScheduling from './locales/gsw/gameScheduling'
-import gswBasketballScheduling from './locales/gsw/basketballScheduling'
-import gswTeamLinks from './locales/gsw/teamLinks'
-import gswScorerAssign from './locales/gsw/scorerAssign'
-import gswFeedback from './locales/gsw/feedback'
-import gswJoin from './locales/gsw/join'
-import gswPolls from './locales/gsw/polls'
-import gswCarpool from './locales/gsw/carpool'
-import gswTournaments from './locales/gsw/tournaments'
-import gswBugfixes from './locales/gsw/bugfixes'
-import gswGuide from './locales/gsw/guide'
-import gswInvitations from './locales/gsw/invitations'
-import gswAnnouncements from './locales/gsw/announcements'
-import gswBroadcast from './locales/gsw/broadcast'
-import gswFines from './locales/gsw/fines'
-import gswPwa from './locales/gsw/pwa'
-import gswFinance from './locales/gsw/finance'
-import gswSupport from './locales/gsw/support'
-import gswLive from './locales/gsw/live'
-import gswSeasonHealth from './locales/gsw/seasonHealth'
-import gswJsExport from './locales/gsw/jsExport'
-import gswHallenfinder from './locales/gsw/hallenfinder'
-import gswForms from './locales/gsw/forms'
+const languageChunkBackend: BackendModule = {
+  type: 'backend',
+  init() {},
+  read(language, namespace, callback) {
+    const load = LANGUAGE_CHUNKS[language]
+    if (!load) {
+      callback(null, {})
+      return
+    }
+    // A failed chunk leaves the keys to the English fallback, never a blank app.
+    load().then(
+      (chunk) => callback(null, chunk.default[namespace] ?? {}),
+      (err: Error) => callback(err, false),
+    )
+  },
+}
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -220,266 +51,23 @@ function getInitialLanguage(): string {
 
 const savedLng = getInitialLanguage()
 
-i18n.use(initReactI18next).init({
+/** Settles once the first language is in, loaded or not. The first render waits for it. */
+export const i18nReady = i18n.use(languageChunkBackend).use(initReactI18next).init({
   lng: savedLng,
   fallbackLng: {
     gsw: ['de', 'en'],
     default: ['en'],
   },
-  ns: [
-    'common',
-    'nav',
-    'calendar',
-    'games',
-    'trainings',
-    'absences',
-    'scorer',
-    'teams',
-    'hallenplan',
-    'hallenfinder',
-    'spielplanung',
-    'auth',
-    'events',
-    'home',
-    'legal',
-    'admin',
-    'participation',
-    'notifications',
-    'gameScheduling',
-    'basketballScheduling',
-    'scorerAssign',
-    'join',
-    'feedback',
-    'polls',
-    'carpool',
-    'tournaments',
-    'bugfixes',
-    'guide',
-    'invitations',
-    'announcements',
-    'broadcast',
-    'fines',
-    'pwa',
-    'forms',
-    'finance',
-    'support',
-    'jsExport',
-    'live',
-    'seasonHealth',
-  ],
+  ns: Object.keys(en),
   defaultNS: 'common',
-  resources: {
-    en: {
-      common,
-      nav,
-      calendar,
-      games,
-      trainings,
-      absences,
-      scorer,
-      teams,
-      hallenplan,
-      hallenfinder,
-      spielplanung,
-      auth,
-      events,
-      home,
-      legal,
-      admin,
-      participation,
-      notifications,
-      gameScheduling,
-      basketballScheduling,
-      teamLinks,
-      scorerAssign,
-      join,
-      feedback,
-      polls,
-      carpool,
-      tournaments,
-      bugfixes,
-      guide,
-      invitations,
-      announcements,
-      broadcast,
-      fines,
-      pwa,
-      forms,
-      finance,
-      support,
-      live,
-      jsExport,
-      seasonHealth,
-    },
-    de: {
-      common: deCommon,
-      nav: deNav,
-      jsExport: deJsExport,
-      calendar: deCalendar,
-      games: deGames,
-      trainings: deTrainings,
-      absences: deAbsences,
-      scorer: deScorer,
-      teams: deTeams,
-      hallenplan: deHallenplan,
-      hallenfinder: deHallenfinder,
-      spielplanung: deSpielplanung,
-      auth: deAuth,
-      events: deEvents,
-      home: deHome,
-      legal: deLegal,
-      admin: deAdmin,
-      participation: deParticipation,
-      notifications: deNotifications,
-      gameScheduling: deGameScheduling,
-      basketballScheduling: deBasketballScheduling,
-      teamLinks: deTeamLinks,
-      scorerAssign: deScorerAssign,
-      join: deJoin,
-      feedback: deFeedback,
-      polls: dePolls,
-      carpool: deCarpool,
-      tournaments: deTournaments,
-      bugfixes: deBugfixes,
-      guide: deGuide,
-      invitations: deInvitations,
-      announcements: deAnnouncements,
-      broadcast: deBroadcast,
-      fines: deFines,
-      pwa: dePwa,
-      forms: deForms,
-      finance: deFinance,
-      support: deSupport,
-      live: deLive,
-      seasonHealth: deSeasonHealth,
-    },
-    fr: {
-      common: frCommon,
-      nav: frNav,
-      calendar: frCalendar,
-      games: frGames,
-      trainings: frTrainings,
-      absences: frAbsences,
-      scorer: frScorer,
-      teams: frTeams,
-      hallenplan: frHallenplan,
-      spielplanung: frSpielplanung,
-      auth: frAuth,
-      events: frEvents,
-      home: frHome,
-      legal: frLegal,
-      admin: frAdmin,
-      participation: frParticipation,
-      notifications: frNotifications,
-      gameScheduling: frGameScheduling,
-      basketballScheduling: frBasketballScheduling,
-      teamLinks: frTeamLinks,
-      scorerAssign: frScorerAssign,
-      feedback: frFeedback,
-      polls: frPolls,
-      carpool: frCarpool,
-      tournaments: frTournaments,
-      bugfixes: frBugfixes,
-      guide: frGuide,
-      invitations: frInvitations,
-      announcements: frAnnouncements,
-      broadcast: frBroadcast,
-      fines: frFines,
-      pwa: frPwa,
-      finance: frFinance,
-      support: frSupport,
-      live: frLive,
-      forms: frForms,
-      hallenfinder: frHallenfinder,
-      join: frJoin,
-      jsExport: frJsExport,
-      seasonHealth: frSeasonHealth,
-    },
-    it: {
-      common: itCommon,
-      nav: itNav,
-      calendar: itCalendar,
-      games: itGames,
-      trainings: itTrainings,
-      absences: itAbsences,
-      scorer: itScorer,
-      teams: itTeams,
-      hallenplan: itHallenplan,
-      spielplanung: itSpielplanung,
-      auth: itAuth,
-      events: itEvents,
-      home: itHome,
-      legal: itLegal,
-      admin: itAdmin,
-      participation: itParticipation,
-      notifications: itNotifications,
-      gameScheduling: itGameScheduling,
-      basketballScheduling: itBasketballScheduling,
-      teamLinks: itTeamLinks,
-      scorerAssign: itScorerAssign,
-      feedback: itFeedback,
-      polls: itPolls,
-      carpool: itCarpool,
-      tournaments: itTournaments,
-      bugfixes: itBugfixes,
-      guide: itGuide,
-      invitations: itInvitations,
-      announcements: itAnnouncements,
-      broadcast: itBroadcast,
-      fines: itFines,
-      pwa: itPwa,
-      finance: itFinance,
-      support: itSupport,
-      live: itLive,
-      forms: itForms,
-      hallenfinder: itHallenfinder,
-      join: itJoin,
-      jsExport: itJsExport,
-      seasonHealth: itSeasonHealth,
-    },
-    gsw: {
-      common: gswCommon,
-      nav: gswNav,
-      calendar: gswCalendar,
-      games: gswGames,
-      trainings: gswTrainings,
-      absences: gswAbsences,
-      scorer: gswScorer,
-      teams: gswTeams,
-      hallenplan: gswHallenplan,
-      spielplanung: gswSpielplanung,
-      auth: gswAuth,
-      events: gswEvents,
-      home: gswHome,
-      legal: gswLegal,
-      admin: gswAdmin,
-      participation: gswParticipation,
-      notifications: gswNotifications,
-      gameScheduling: gswGameScheduling,
-      basketballScheduling: gswBasketballScheduling,
-      teamLinks: gswTeamLinks,
-      scorerAssign: gswScorerAssign,
-      join: gswJoin,
-      feedback: gswFeedback,
-      polls: gswPolls,
-      carpool: gswCarpool,
-      tournaments: gswTournaments,
-      bugfixes: gswBugfixes,
-      guide: gswGuide,
-      invitations: gswInvitations,
-      announcements: gswAnnouncements,
-      broadcast: gswBroadcast,
-      fines: gswFines,
-      pwa: gswPwa,
-      finance: gswFinance,
-      support: gswSupport,
-      live: gswLive,
-      seasonHealth: gswSeasonHealth,
-      jsExport: gswJsExport,
-      hallenfinder: gswHallenfinder,
-      forms: gswForms,
-    },
-  },
+  resources: { en },
+  // `resources` holds English only; the backend fetches the rest.
+  partialBundledLanguages: true,
+  // `t` works from the very first line, on the English fallback until the chunk lands.
+  initAsync: false,
+  // Nothing here should ever suspend: the first render waits for i18nReady above, and a
+  // later `changeLanguage` keeps the current language on screen while it loads.
+  react: { useSuspense: false },
   interpolation: {
     escapeValue: false,
   },
