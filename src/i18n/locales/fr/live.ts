@@ -51,6 +51,7 @@ export default {
   eventSwitch: 'Changement de côté',
 
   updatedAt: 'Mis à jour {{time}}',
+  noUpdatesSince: 'Pas de mise à jour depuis {{time}}',
 
   referees: 'Arbitres',
   upNext: 'À suivre',

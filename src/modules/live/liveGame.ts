@@ -3,6 +3,7 @@
 // API client.
 
 import { toZurichDateString } from '../../utils/dateHelpers'
+import { LIVE_STALE_MS, writtenMs } from './liveNow'
 import type { Envelope } from './types'
 
 export interface LiveGameCandidate {
@@ -59,6 +60,17 @@ export function isUpNext(envelope: Envelope | null, now = new Date()): boolean {
     || m.set_results.length
   if (played) return false
   return !!envelope.updatedAt && toZurichDateString(new Date(envelope.updatedAt)) === toZurichDateString(now)
+}
+
+/**
+ * When a match left 'live' stopped being written, or null while it is still being written.
+ * Board switched off, no uplink, or a game row the board has moved on from: the page must not
+ * keep calling that score live. Nothing played is isUpNext's case: a warm-up writes nothing.
+ */
+export function staleSince(envelope: Envelope | null, now = new Date()): number | null {
+  if (!envelope?.match || envelope.status !== 'live' || isUpNext(envelope, now)) return null
+  const at = writtenMs({ date_updated: envelope.updatedAt, ts: envelope.ts })
+  return Number.isFinite(at) && now.getTime() - at > LIVE_STALE_MS ? at : null
 }
 
 /** "16:00" for a game today, else null: "(scheduled: 16:00)" says today. */
