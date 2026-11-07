@@ -23,8 +23,8 @@ function TeamColumn({ team, align, big }: { team: TeamView; align: 'start' | 'en
   const end = align === 'end'
   return (
     <div className={cn('min-w-0', end ? 'text-right' : 'text-left')}>
-      {/* No indicator slot here: a badge beside the chip squeezes the team code to
-          "BC…" on a phone. The bonus gets its own line under the meta instead. */}
+      {/* No badge beside the chip: it would squeeze the team name on a phone. The
+          bonus gets its own line under the meta instead. */}
       <TeamIdentity team={team} align={align} sport="basketball" />
       {/* Keyed on the score so a basket restarts the bump animation — see VolleyballBoard. */}
       <div
@@ -85,7 +85,7 @@ export default function BasketballBoard({ state, big = false }: { state: BoardSt
             )}
             {possession && (
               <span className="sr-only">
-                {t('possessionOf', { team: (possession === 'left' ? a : b).short })}
+                {t('possessionOf', { team: (possession === 'left' ? a : b).name || (possession === 'left' ? a : b).short })}
               </span>
             )}
           </div>

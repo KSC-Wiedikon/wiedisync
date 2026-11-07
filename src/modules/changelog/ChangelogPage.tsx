@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.69.0'
+const APP_VERSION = '2.69.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.69.1',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "The live page now shows teams with their full name everywhere instead of the short code.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.69.0',
     date: '07.11.2026',
