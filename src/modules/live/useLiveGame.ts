@@ -38,7 +38,8 @@ export function useLiveGame(envelope: Envelope | null): LiveGameCandidate | null
       if (gameId == null) {
         const mirror = await client.request<Array<{ game_id: number | string | null; team_a_name: string | null; team_b_name: string | null; date_updated: string | null }>>(
           readItems('live_scores', {
-            filter: { source: { _eq: `board:${channel}` } },
+            // _nnull: a row never updated has no date, and a descending sort puts it first.
+            filter: { source: { _eq: `board:${channel}` }, date_updated: { _nnull: true } },
             fields: ['game_id', 'team_a_name', 'team_b_name', 'date_updated'],
             sort: ['-date_updated'],
             limit: 1,

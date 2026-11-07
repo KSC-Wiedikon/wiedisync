@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.69.1'
+const APP_VERSION = '2.69.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.69.2',
+    date: '07.11.2026',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          "The live page and the “Watching live” banner no longer treat a score nobody is updating as live. A stray point on the hall scoreboard could leave the banner pointing at that old score while the real match went on.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.69.1',
     date: '07.11.2026',

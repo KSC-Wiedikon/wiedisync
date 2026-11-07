@@ -51,6 +51,7 @@ export default {
   eventSwitch: 'Siitewächsel',
 
   updatedAt: 'Aktualisiert {{time}}',
+  noUpdatesSince: 'Kei neui Date sit {{time}}',
 
   referees: 'Schiedsrichter',
   upNext: 'Als Nächschts',
