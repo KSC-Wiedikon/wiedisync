@@ -6,7 +6,7 @@ import { startNativeSystemBars } from './lib/nativeSystemBars'
 import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow, stripCacheBustParam } from './lib/chunkReload'
 // Pre-boot watchdog handshake — see public/boot-watchdog.js.
 import { BootSignal } from './lib/BootSignal'
-import './i18n'
+import { i18nReady } from './i18n'
 import './index.css'
 
 // A recovery reload (see chunkReload.ts) appends a cache-bust param to defeat
@@ -42,8 +42,11 @@ const root = createRoot(document.getElementById('root')!)
 // AccountingApp, the scheduling build (`npm run build:scheduling`) and the
 // accounting build (`npm run build:accounting`) never bundle the member App.
 async function bootstrap() {
+  // The app chunk and the language chunk load side by side, and the first render waits
+  // for both, so nobody sees a flash of English. A failed language falls back to English.
+  const languageIn = i18nReady.catch(() => undefined)
   if (import.meta.env.VITE_APP_TARGET === 'accounting') {
-    const { default: AccountingApp } = await import('./AccountingApp')
+    const [{ default: AccountingApp }] = await Promise.all([import('./AccountingApp'), languageIn])
     root.render(
       <StrictMode>
         <BootSignal />
@@ -51,7 +54,7 @@ async function bootstrap() {
       </StrictMode>,
     )
   } else if (import.meta.env.VITE_APP_TARGET === 'scheduling') {
-    const { default: SchedulingApp } = await import('./SchedulingApp')
+    const [{ default: SchedulingApp }] = await Promise.all([import('./SchedulingApp'), languageIn])
     root.render(
       <StrictMode>
         <BootSignal />
@@ -59,7 +62,7 @@ async function bootstrap() {
       </StrictMode>,
     )
   } else {
-    const { default: App } = await import('./App')
+    const [{ default: App }] = await Promise.all([import('./App'), languageIn])
     root.render(
       <StrictMode>
         <BootSignal />

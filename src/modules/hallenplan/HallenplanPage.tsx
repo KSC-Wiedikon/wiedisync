@@ -9,7 +9,12 @@ import { useWeekNavigation } from './hooks/useWeekNavigation'
 import { useHallenplanData } from './hooks/useHallenplanData'
 import WeekNavigation from './components/WeekNavigation'
 import WeekSlotView from './components/WeekSlotView'
+import { Button } from '@/components/ui/button'
+import { SectionHead } from '@/components/ActivityRow'
+import { dayHeaders } from '../../utils/dateUtils'
+import { toISODate } from '../../utils/dateHelpers'
 import DayNavigation from './components/DayNavigation'
+import { DayButtons } from './components/HallenplanNavControls'
 import DaySlotView from './components/DaySlotView'
 import SlotEditor from './components/SlotEditor'
 import SummaryView from './components/SummaryView'
@@ -50,7 +55,8 @@ export default function HallenplanPage() {
   const { weekDays, goNext, goPrev, goToday, weekLabel, mondayStr, sundayStr } = useWeekNavigation()
 
   const [selectedHallIds, setSelectedHallIds] = useState<string[]>([])
-  const [selectedDayIndex, setSelectedDayIndex] = useState(getTodayDayIndex)
+  // `null` = the whole week, on every screen size. A day is something you choose.
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingSlot, setEditingSlot] = useState<HallSlot | null>(null)
   const [prefill, setPrefill] = useState<{ day: number; time: string; hall: string } | null>(null)
@@ -219,7 +225,13 @@ export default function HallenplanPage() {
 
   function handleToday() {
     goToday()
-    setSelectedDayIndex(getTodayDayIndex())
+    // Stays on the whole week unless a single day was already chosen.
+    if (selectedDayIndex !== null) setSelectedDayIndex(getTodayDayIndex())
+  }
+
+  /** The selected day again means "back to the week". */
+  function handleSelectDay(index: number) {
+    setSelectedDayIndex((current) => (current === index ? null : index))
   }
 
   function handleClaimed() {
@@ -236,6 +248,33 @@ export default function HallenplanPage() {
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(isLoading)
 
+  function renderDay(dayIndex: number) {
+    return (
+      <DaySlotView
+        slots={filteredSlots}
+        closures={closures}
+        day={weekDays[dayIndex]}
+        dayIndex={dayIndex}
+        halls={halls}
+        teams={teams}
+        selectedHallIds={selectedHallIds}
+        isAdmin={effectiveIsAdmin}
+        isCoach={isCoach}
+        coachTeamIds={coachTeamIds}
+        onSlotClick={handleSlotClick}
+        onEmptyCellClick={handleEmptyCellClick}
+      />
+    )
+  }
+
+  // The days a stacked week shows: an empty day would be a whole empty time grid.
+  const daysWithContent = weekDays.flatMap((day, i) => {
+    const date = toISODate(day)
+    const inUse = filteredSlots.some((slot) => slot.day_of_week === i)
+      || closures.some((closure) => date >= closure.start_date && date <= closure.end_date)
+    return inUse ? [i] : []
+  })
+
   return (
     <div>
       <div className="mb-4">
@@ -244,9 +283,7 @@ export default function HallenplanPage() {
           <GuideHelpButton />
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {isMobile
-            ? t('subtitleDay')
-            : t('subtitleWeek')}
+          {selectedDayIndex === null ? t('subtitleWeek') : t('subtitleDay')}
         </p>
       </div>
 
@@ -255,7 +292,9 @@ export default function HallenplanPage() {
           <DayNavigation
             weekDays={weekDays}
             selectedDayIndex={selectedDayIndex}
-            onSelectDay={setSelectedDayIndex}
+            onSelectDay={handleSelectDay}
+            weekLabel={weekLabel}
+            onShowWholeWeek={() => setSelectedDayIndex(null)}
             onPrevWeek={goPrev}
             onNextWeek={goNext}
             onToday={handleToday}
@@ -273,23 +312,8 @@ export default function HallenplanPage() {
             onFreedSlotClick={handleSlotClick}
           />
 
-          {isLoading ? null : showSummary ? (
+          {!isLoading && showSummary && (
             <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} teams={teams} />
-          ) : (
-            <DaySlotView
-              slots={filteredSlots}
-              closures={closures}
-              day={weekDays[selectedDayIndex]}
-              dayIndex={selectedDayIndex}
-              halls={halls}
-              teams={teams}
-              selectedHallIds={selectedHallIds}
-              isAdmin={effectiveIsAdmin}
-              isCoach={isCoach}
-              coachTeamIds={coachTeamIds}
-              onSlotClick={handleSlotClick}
-              onEmptyCellClick={handleEmptyCellClick}
-            />
           )}
         </>
       ) : (
@@ -298,7 +322,7 @@ export default function HallenplanPage() {
             weekLabel={weekLabel}
             onPrev={goPrev}
             onNext={goNext}
-            onToday={goToday}
+            onToday={handleToday}
             halls={halls}
             selectedHallIds={selectedHallIds}
             onSelectHalls={setSelectedHallIds}
@@ -309,9 +333,23 @@ export default function HallenplanPage() {
             onSetSportFilter={setSportFilter}
             freedSlots={freedSlotInfos}
             onFreedSlotClick={handleSlotClick}
+            dayFilter={(
+              <div className="flex flex-wrap items-center gap-2">
+                <DayButtons weekDays={weekDays} selectedDayIndex={selectedDayIndex} onSelectDay={handleSelectDay} />
+                {selectedDayIndex !== null && (
+                  <Button variant="outline" onClick={() => setSelectedDayIndex(null)}>
+                    {t('wholeWeek')}
+                  </Button>
+                )}
+              </div>
+            )}
           />
+        </>
+      )}
 
-          {isLoading ? null : (
+      {!isLoading && !(isMobile && showSummary) && (
+        selectedDayIndex !== null ? renderDay(selectedDayIndex)
+          : !isMobile ? (
             <WeekSlotView
               slots={filteredSlots}
               closures={closures}
@@ -325,8 +363,24 @@ export default function HallenplanPage() {
               onSlotClick={handleSlotClick}
               onEmptyCellClick={handleEmptyCellClick}
             />
-          )}
-        </>
+          ) : daysWithContent.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">{t('emptyWeek')}</p>
+          ) : (
+            // A phone can't fit the week grid: at 7 days of hall columns each is about
+            // 18 px wide. So the whole week is the days, one under the other.
+            <div className="space-y-5">
+              {daysWithContent.map((i) => (
+                <section key={i}>
+                  <SectionHead
+                    as="h2"
+                    title={`${dayHeaders()[i]} ${weekDays[i].toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })}`}
+                    className="mb-2"
+                  />
+                  {renderDay(i)}
+                </section>
+              ))}
+            </div>
+          )
       )}
 
       {editorOpen && (

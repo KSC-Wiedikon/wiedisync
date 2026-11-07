@@ -136,6 +136,9 @@ export default {
 
   // Navigation
   today: 'Heute',
+  wholeWeek: 'Ganze Woche',
+  filterByDay: 'Nach Tag filtern',
+  emptyWeek: 'Diese Woche ist nichts in den Hallen',
   closures: 'Sperrungen',
   prevWeek: 'Vorherige Woche',
   nextWeek: 'Nächste Woche',
