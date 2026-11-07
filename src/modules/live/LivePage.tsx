@@ -7,7 +7,7 @@ import FinalSummary from './components/FinalSummary'
 import RecentMatches from './components/RecentMatches'
 import Scoreboard from './components/Scoreboard'
 import UpNextCard from './components/UpNextCard'
-import { isUpNext, refereeNames } from './liveGame'
+import { isUpNext, refereeNames, staleSince } from './liveGame'
 import { useLiveMatch } from './useLiveMatch'
 import { useLiveGame } from './useLiveGame'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
@@ -44,8 +44,8 @@ export default function LivePage() {
     }
     if (connection === 'reconnecting') return { tone: 'pending', label: t('statusReconnecting') }
     if (envelope.status === 'final') return { tone: 'final', label: t('statusFinal') }
-    // Not started yet: the page must not call a warm-up "Live".
-    if (envelope.status === 'idle' || isUpNext(envelope)) return { tone: 'idle', label: t('statusIdle') }
+    // Not started yet, or no longer written: neither is "Live".
+    if (envelope.status === 'idle' || isUpNext(envelope) || staleSince(envelope) != null) return { tone: 'idle', label: t('statusIdle') }
     return { tone: 'live', label: t('statusLive') }
   }, [envelope, connection, t])
 
@@ -64,7 +64,8 @@ export default function LivePage() {
   const upNext = isUpNext(envelope)
   const game = useLiveGame(envelope)
   const referees = refereeNames(game?.referees_json)
-  const running = hasMatch && !isFinal && !upNext
+  const stale = staleSince(envelope)
+  const running = hasMatch && !isFinal && !upNext && stale == null
   // A phone turned sideways shows the board alone, filling the screen (over the
   // tab bar). Height-bound so a tablet or a laptop keeps the normal page.
   const landscape = useMediaQuery('(orientation: landscape) and (max-height: 540px)')
@@ -146,7 +147,9 @@ export default function LivePage() {
             ) : (
               <span />
             )}
-            {lastReceivedAt && (
+            {stale != null ? (
+              <span className="ml-auto">{t('noUpdatesSince', { time: formatTimeZurich(new Date(stale)) })}</span>
+            ) : lastReceivedAt && (
               <span className="ml-auto">{t('updatedAt', { time: formatTimeZurich(new Date(lastReceivedAt)) })}</span>
             )}
           </div>

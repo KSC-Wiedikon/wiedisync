@@ -51,6 +51,7 @@ export default {
   eventSwitch: 'Seitenwechsel',
 
   updatedAt: 'Aktualisiert {{time}}',
+  noUpdatesSince: 'Keine neuen Daten seit {{time}}',
 
   referees: 'Schiedsrichter',
   upNext: 'Als Nächstes',

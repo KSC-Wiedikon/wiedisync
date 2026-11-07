@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isUpNext, matchGameByTeams, normaliseTeamName, refereeNames, sameTeams, scheduledTimeToday } from './liveGame'
+import { isUpNext, matchGameByTeams, normaliseTeamName, refereeNames, sameTeams, scheduledTimeToday, staleSince } from './liveGame'
 import type { BoardState, Envelope } from './types'
 
 describe('normaliseTeamName', () => {
@@ -91,5 +91,31 @@ describe('scheduledTimeToday', () => {
     expect(scheduledTimeToday({ ...game, date: '2026-11-08' }, now)).toBeNull()
     expect(scheduledTimeToday({ ...game, time: null }, now)).toBeNull()
     expect(scheduledTimeToday(null, now)).toBeNull()
+  })
+})
+
+describe('staleSince', () => {
+  const now = new Date('2026-11-07T15:40:00Z')
+  const played = {
+    points_a: 1, points_b: 0, sets_won_a: 0, sets_won_b: 0, timeouts_a: 0, timeouts_b: 0,
+    subs_a: 0, subs_b: 0, fouls_a: 0, fouls_b: 0, set_results: [],
+  } as unknown as BoardState
+  const env = (over: Partial<Envelope> = {}) =>
+    ({ status: 'live', updatedAt: '2026-11-07T15:39:00Z', ts: 0, match: played, ...over }) as Envelope
+
+  it('null while the row is being written', () => {
+    expect(staleSince(env(), now)).toBeNull()
+  })
+  it('the time of the last write once it stopped', () => {
+    expect(staleSince(env({ updatedAt: '2026-11-07T15:00:00Z' }), now)).toBe(Date.parse('2026-11-07T15:00:00Z'))
+  })
+  it('a row never updated goes by its ts', () => {
+    const ts = Date.parse('2026-11-07T14:53:17Z')
+    expect(staleSince(env({ updatedAt: null, ts }), now)).toBe(ts)
+  })
+  it('never for a final row, or a warm-up that writes nothing', () => {
+    expect(staleSince(env({ status: 'final', updatedAt: '2026-11-07T10:00:00Z' }), now)).toBeNull()
+    const ready = { ...played, points_a: 0 } as BoardState
+    expect(staleSince(env({ match: ready, updatedAt: '2026-11-07T14:30:00Z' }), now)).toBeNull()
   })
 })
