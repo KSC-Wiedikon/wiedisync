@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.69.1 — 2026-11-07
+
+### Changed
+
+- The live page now shows teams with their full name everywhere instead of the short code.
+
 ## v2.69.0 — 2026-11-07
 
 ### Added
