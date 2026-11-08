@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.72.0 — 2026-11-08
+
+### Added
+
+- Every fine has a short payment reference (e.g. F-56), shown under its category on the Fines page, in the “New fine” email and in the printed ledger. Put it in the TWINT or bank payment message so the treasurer can match the payment to the fine.
+
 ## v2.71.0 — 2026-11-08
 
 ### Added

@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
-import { useFines, formatFineAmount } from '../../hooks/useFines'
+import { useFines, formatFineAmount, fineRef } from '../../hooks/useFines'
 import { updateRecord } from '../../lib/api'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
@@ -215,6 +215,9 @@ export default function FinesPage() {
           <div className="text-xs text-amber-700 dark:text-amber-300">
             {t('fines:outstandingCount', { count: openOnly.length })}
           </div>
+          <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            {t('fines:refHint', { ref: fineRef(openOnly[0].id) })}
+          </div>
         </div>
       )}
 
@@ -324,12 +327,17 @@ export default function FinesPage() {
                   </TableCell>
                   <TableCell className="text-sm">
                     {t(`fines:${categoryLabelKey(f.category)}`)}
-                    {scope === 'mine' && (
-                      <span className="block text-xs text-muted-foreground sm:hidden">
-                        {teamName}
-                        {f.member == null && ` · ${t('fines:teamFineRow')}`}
-                      </span>
-                    )}
+                    {/* Payment reference; on "My fines" on a phone the team rides along. */}
+                    <span className="block text-xs text-muted-foreground">
+                      {scope === 'mine' && (
+                        <span className="sm:hidden">
+                          {teamName}
+                          {f.member == null && ` · ${t('fines:teamFineRow')}`}
+                          {' · '}
+                        </span>
+                      )}
+                      <span className="font-mono" title={t('fines:refTitle')}>{fineRef(f.id)}</span>
+                    </span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                     <span className="sm:hidden">

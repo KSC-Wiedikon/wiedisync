@@ -12,6 +12,9 @@ export default {
   colIssued: 'Ausgestellt',
   colTeam: 'Team',
   colActions: 'Aktionen',
+  refHint: 'Gib beim Bezahlen die Referenz in der Zahlungsmitteilung an (z. B. {{ref}}).',
+  refTitle: 'Zahlungsreferenz: in der Zahlungsmitteilung angeben',
+  colRef: 'Ref.',
   colReason: 'Grund',
 
   statusOpen: 'Offen',
