@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { Gavel } from 'lucide-react'
+import { ChevronDown, Gavel } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
@@ -10,6 +10,7 @@ import { useFines, formatFineAmount } from '../../hooks/useFines'
 import { updateRecord } from '../../lib/api'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
+import IconButton from '../../components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import EmptyState from '../../components/EmptyState'
 import TabBar from '../../components/TabBar'
@@ -72,6 +73,8 @@ export default function FinesPage() {
   const [teamFilter, setTeamFilter] = useState<string | 'all'>('all')
 
   const [waiving, setWaiving] = useState<Fine | null>(null)
+  // Phones: the row whose Mark as paid / Waive buttons are folded open.
+  const [openActions, setOpenActions] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [issuing, setIssuing] = useState<FinePickSelection | null>(null)
 
@@ -275,11 +278,19 @@ export default function FinesPage() {
               {scope === 'team' && <TableHead>{t('fines:colMember')}</TableHead>}
               <TableHead className="hidden sm:table-cell">{t('fines:colTeam')}</TableHead>
               <TableHead>{t('fines:colCategory')}</TableHead>
-              <TableHead className="text-right">{t('fines:colAmount')}</TableHead>
+              {/* Phones: the heading carries the currency so the cells can drop it. */}
+              <TableHead className="text-right">
+                <span className="sm:hidden">CHF</span>
+                <span className="hidden sm:inline">{t('fines:colAmount')}</span>
+              </TableHead>
               <TableHead className="hidden sm:table-cell">{t('fines:colStatus')}</TableHead>
               <TableHead className="hidden md:table-cell">{t('fines:colIssued')}</TableHead>
               <TableHead className="hidden lg:table-cell">{t('fines:colReason')}</TableHead>
-              {isLeader && <TableHead>{t('fines:colActions')}</TableHead>}
+              {isLeader && (
+                <TableHead className="w-11 px-0.5 sm:w-auto sm:px-2.5">
+                  <span className="sr-only sm:not-sr-only">{t('fines:colActions')}</span>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -291,9 +302,10 @@ export default function FinesPage() {
                 : m ? `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() : `#${f.member}`
               const teamName = (tm?.name as string) ?? `Team ${f.team}`
               return (
-                <TableRow key={f.id} className="min-h-[44px]">
+                <Fragment key={f.id}>
+                <TableRow className="min-h-[44px]">
                   {scope === 'team' && (
-                    <TableCell className={`font-medium whitespace-normal break-words ${f.member == null ? 'italic text-amber-700 dark:text-amber-400' : ''}`}>
+                    <TableCell className={`font-medium whitespace-normal wrap-anywhere sm:wrap-break-word ${f.member == null ? 'italic text-amber-700 dark:text-amber-400' : ''}`}>
                       {memberName}
                       {/* The team column is hidden on phones — a Teamkasse row still has to say WHICH team. */}
                       <span className="block text-xs font-normal not-italic text-muted-foreground sm:hidden">{teamName}</span>
@@ -320,7 +332,10 @@ export default function FinesPage() {
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
-                    {formatFineAmount(f.amount, f.currency)}
+                    <span className="sm:hidden">
+                      {(f.currency ?? 'CHF') === 'CHF' ? Number(f.amount).toFixed(2) : formatFineAmount(f.amount, f.currency)}
+                    </span>
+                    <span className="hidden sm:inline">{formatFineAmount(f.amount, f.currency)}</span>
                     {/* Phones: the status rides under the amount, so the actions fit. */}
                     <span className="mt-1 block sm:hidden"><StatusBadge status={f.status} /></span>
                   </TableCell>
@@ -332,20 +347,47 @@ export default function FinesPage() {
                     {f.reason ?? '—'}
                   </TableCell>
                   {isLeader && (
-                    <TableCell>
+                    <TableCell className="px-0.5 text-right sm:px-2.5 sm:text-left">
                       {canManageTeam(f.team) && f.status === 'open' && (
-                        <div className="flex flex-col gap-1 sm:flex-row">
-                          <Button size="sm" variant="outline" onClick={() => handleMarkPaid(f)}>
-                            {t('fines:markPaid')}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setWaiving(f)}>
-                            {t('fines:waive')}
-                          </Button>
-                        </div>
+                        <>
+                          {/* Phones: one chevron; the two actions open in a row beneath. */}
+                          <IconButton
+                            variant="ghost"
+                            label={t('fines:colActions')}
+                            aria-expanded={openActions === f.id}
+                            onClick={() => setOpenActions((cur) => (cur === f.id ? null : f.id))}
+                            className="sm:hidden"
+                          >
+                            <ChevronDown className={`transition-transform ${openActions === f.id ? 'rotate-180' : ''}`} />
+                          </IconButton>
+                          <div className="hidden gap-1 sm:flex">
+                            <Button size="sm" variant="outline" onClick={() => handleMarkPaid(f)}>
+                              {t('fines:markPaid')}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setWaiving(f)}>
+                              {t('fines:waive')}
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </TableCell>
                   )}
                 </TableRow>
+                {isLeader && openActions === f.id && canManageTeam(f.team) && f.status === 'open' && (
+                  <TableRow className="sm:hidden">
+                    <TableCell colSpan={9} className="bg-surface-sunken pt-0">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="min-w-0 flex-1 whitespace-normal" onClick={() => { setOpenActions(null); void handleMarkPaid(f) }}>
+                          {t('fines:markPaid')}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="min-w-0 flex-1 whitespace-normal" onClick={() => { setOpenActions(null); setWaiving(f) }}>
+                          {t('fines:waive')}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               )
             })}
           </TableBody>
