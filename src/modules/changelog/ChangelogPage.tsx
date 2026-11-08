@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.71.0'
+const APP_VERSION = '2.72.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.72.0',
+    date: '08.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Every fine has a short payment reference (e.g. F-56), shown under its category on the Fines page, in the “New fine” email and in the printed ledger. Put it in the TWINT or bank payment message so the treasurer can match the payment to the fine.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.71.0',
     date: '08.11.2026',

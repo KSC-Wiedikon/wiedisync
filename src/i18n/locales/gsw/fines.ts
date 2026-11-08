@@ -13,6 +13,9 @@ export default {
   colIssued: 'Vergäh',
   colTeam: 'Team',
   colActions: 'Aktione',
+  refHint: 'Gib bim Zahle d Referänz i de Zahligsmitteilig aa (z. B. {{ref}}).',
+  refTitle: 'Zahligsreferänz: i de Zahligsmitteilig aagäh',
+  colRef: 'Ref.',
   colReason: 'Grund',
 
   // Status

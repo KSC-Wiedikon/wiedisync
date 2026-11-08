@@ -13,6 +13,9 @@ export default {
   colIssued: 'Issued',
   colTeam: 'Team',
   colActions: 'Actions',
+  refHint: 'When you pay, put the reference in the payment message (e.g. {{ref}}).',
+  refTitle: 'Payment reference: put it in the payment message',
+  colRef: 'Ref.',
   colReason: 'Reason',
 
   // Status
