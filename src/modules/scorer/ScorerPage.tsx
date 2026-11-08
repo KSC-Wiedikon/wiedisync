@@ -26,6 +26,7 @@ import { RowList } from '@/components/ActivityRow'
 import { hasAnyVbAssignment, hasAnyBbAssignment, isFullyAssigned } from './components/assignmentStatus'
 import RosterModal from './components/RosterModal'
 import TeamOverview from './components/TeamOverview'
+import DutyHistory from './components/DutyHistory'
 import DelegationRequestBanner from './components/DelegationRequestBanner'
 import DutyRecheckCards from './components/DutyRecheckCards'
 import { useScorerDelegations } from './hooks/useScorerDelegations'
@@ -36,6 +37,7 @@ import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { bbAllDutyTeamIds } from './lib/bbDutyTeams'
+import { seasonRolloverDate } from '../../utils/season'
 
 type Tab = 'games' | 'overview'
 type SportTab = 'volleyball' | 'basketball'
@@ -79,7 +81,7 @@ export default function ScorerPage() {
     const v = new URLSearchParams(window.location.search).get('sport')
     return v === 'basketball' || v === 'bb' ? 'basketball' : v === 'volleyball' || v === 'vb' ? 'volleyball' : null
   })
-  const [overviewGroup, setOverviewGroup] = useState<'team' | 'game'>('team')
+  const [overviewGroup, setOverviewGroup] = useState<'team' | 'game' | 'history'>('team')
 
   // Deep-link from a calendar duty event: /scorer?roster=<gameId> opens the
   // home-team roster directly (the endpoint still enforces scorer + time window).
@@ -127,6 +129,24 @@ export default function ScorerPage() {
     all: true,
   })
   const upcomingGames = upcomingGamesRaw ?? []
+
+  // Duties already served this season — only for the "Done so far" overview,
+  // fetched when that tab opens. Seat columns only: this list is never edited.
+  const historyOpen = tab === 'overview' && overviewGroup === 'history'
+  const { data: pastGamesRaw, isLoading: pastGamesLoading } = useCollection<Game>('games', {
+    filter: { _and: [
+      { type: { _eq: 'home' } },
+      { date: { _gte: seasonRolloverDate() } },
+      { date: { _lt: today } },
+      { status: { _nin: ['postponed', 'cancelled'] } },
+    ] },
+    fields: ['id', 'date', 'time', 'source', 'kscw_team',
+      'scorer_member', 'scoreboard_member', 'scorer_scoreboard_member', 'referee_member',
+      'bb_scorer_member', 'bb_timekeeper_member', 'bb_24s_official'],
+    sort: ['date', 'time'],
+    all: true,
+    enabled: historyOpen && !!user,
+  })
 
 
   // Reminder email toggle (superuser only)
@@ -270,6 +290,10 @@ export default function ScorerPage() {
     url.searchParams.set('sport', next)
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
   }, [])
+  const pastGamesOfSport = useMemo(
+    () => (pastGamesRaw ?? []).filter((g) => getGameSport(g) === sportTab),
+    [pastGamesRaw, sportTab],
+  )
 
   const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
   // Admins see the assigned official's contact on any game (items API).
@@ -900,20 +924,32 @@ export default function ScorerPage() {
       {tab === 'overview' && (
         <div>
           <div className="mt-4">
-            <TabBar<'team' | 'game'>
-              tabs={[{ key: 'team', label: t('overviewByTeam') }, { key: 'game', label: t('overviewByGame') }]}
+            <TabBar<'team' | 'game' | 'history'>
+              tabs={[{ key: 'team', label: t('overviewByTeam') }, { key: 'game', label: t('overviewByGame') }, { key: 'history', label: t('overviewHistory') }]}
               active={overviewGroup}
               onChange={setOverviewGroup}
             />
           </div>
-          <TeamOverview
-            games={upcomingGames}
-            members={members}
-            teams={teams}
-            sport={sportTab}
-            groupBy={overviewGroup}
-            scopeTeamIds={effectiveIsAdmin || effectiveIsVorstand ? null : myDutyTeamIds}
-          />
+          {overviewGroup === 'history' ? (
+            <DutyHistory
+              games={pastGamesOfSport}
+              loading={pastGamesLoading || supportingLoading}
+              members={members}
+              teams={teams}
+              memberTeams={allMemberTeams}
+              sport={sportTab}
+              scopeTeamIds={effectiveIsAdmin || effectiveIsVorstand ? null : myDutyTeamIds}
+            />
+          ) : (
+            <TeamOverview
+              games={upcomingGames}
+              members={members}
+              teams={teams}
+              sport={sportTab}
+              groupBy={overviewGroup}
+              scopeTeamIds={effectiveIsAdmin || effectiveIsVorstand ? null : myDutyTeamIds}
+            />
+          )}
         </div>
       )}
 
