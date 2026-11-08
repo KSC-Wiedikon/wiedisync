@@ -9,6 +9,10 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - Officials page, “Done so far”: under Overview, every player of your team with the table duties they have already served this season, fewest first, so you can see who is next in line.
 - A filled duty seat now has a Remove button (with a confirmation). Before, a wrong pick could only be swapped for another person.
 
+### Fixed
+
+- Fines on a phone: “My fines” no longer shifts every value one column to the right of its heading or scrolls sideways. The team shows under the category and the status under the amount.
+
 ## v2.70.1 — 2026-11-07
 
 ### Fixed

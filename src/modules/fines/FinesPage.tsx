@@ -276,7 +276,7 @@ export default function FinesPage() {
               <TableHead className="hidden sm:table-cell">{t('fines:colTeam')}</TableHead>
               <TableHead>{t('fines:colCategory')}</TableHead>
               <TableHead className="text-right">{t('fines:colAmount')}</TableHead>
-              <TableHead>{t('fines:colStatus')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('fines:colStatus')}</TableHead>
               <TableHead className="hidden md:table-cell">{t('fines:colIssued')}</TableHead>
               <TableHead className="hidden lg:table-cell">{t('fines:colReason')}</TableHead>
               {isLeader && <TableHead>{t('fines:colActions')}</TableHead>}
@@ -299,7 +299,10 @@ export default function FinesPage() {
                       <span className="block text-xs font-normal not-italic text-muted-foreground sm:hidden">{teamName}</span>
                     </TableCell>
                   )}
-                  <TableCell className={`text-xs text-muted-foreground ${scope === 'team' ? 'hidden sm:table-cell' : ''}`}>
+                  {/* Hidden on phones in BOTH scopes, like its header. On "My fines" it
+                      used to stay visible under a hidden header, so every value sat one
+                      column right of its title and the row scrolled sideways (08.11.2026). */}
+                  <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">
                     {teamName}
                     {scope === 'mine' && f.member == null && (
                       <span className="ml-1 inline-block whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
@@ -307,9 +310,21 @@ export default function FinesPage() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">{t(`fines:${categoryLabelKey(f.category)}`)}</TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{formatFineAmount(f.amount, f.currency)}</TableCell>
-                  <TableCell><StatusBadge status={f.status} /></TableCell>
+                  <TableCell className="text-sm">
+                    {t(`fines:${categoryLabelKey(f.category)}`)}
+                    {scope === 'mine' && (
+                      <span className="block text-xs text-muted-foreground sm:hidden">
+                        {teamName}
+                        {f.member == null && ` · ${t('fines:teamFineRow')}`}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
+                    {formatFineAmount(f.amount, f.currency)}
+                    {/* Phones: the status rides under the amount, so the actions fit. */}
+                    <span className="mt-1 block sm:hidden"><StatusBadge status={f.status} /></span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell"><StatusBadge status={f.status} /></TableCell>
                   <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                     {formatDateCompactZurich(f.issued_at)}
                   </TableCell>
