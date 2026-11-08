@@ -16,6 +16,11 @@
 import { buildEmailLayout, buildInfoCard, escHtml, formatDateCH, FRONTEND_URL } from './email-template.js'
 import { loadSuppressed, normaliseEmail } from './email-suppression.js'
 
+/** Payment reference ("F-56"). Twin of fineRef() in src/hooks/useFines.ts. */
+export function fineRef(id) {
+  return `F-${id}`
+}
+
 const LANG_TO_CODE = { german: 'de', swiss_german: 'gsw', english: 'en', french: 'fr', italian: 'it' }
 
 // Category labels mirror src/i18n/locales/<lang>/fines.ts (category*).
@@ -27,6 +32,7 @@ const COPY = {
     intro: (team, amount) => `Du hast von <strong>${team}</strong> eine Busse über <strong>${amount}</strong> erhalten.`,
     team: 'Team', amount: 'Betrag', category: 'Kategorie', reason: 'Grund', date: 'Datum',
     categories: { late_signin: 'Späte Anmeldung', no_show: 'Nicht erschienen', late_payment: 'Zahlungsverzug', custom: 'Andere' },
+    ref: 'Zahlungsreferenz', refNote: 'Gib beim Bezahlen bitte die Referenz in der Zahlungsmitteilung an:',
     outro: 'Fragen zur Busse? Melde dich bei deinem Coach oder Teamverantwortlichen.',
     cta: 'Meine Bussen ansehen',
   },
@@ -37,6 +43,7 @@ const COPY = {
     intro: (team, amount) => `Du häsch vo <strong>${team}</strong> e Buess über <strong>${amount}</strong> übercho.`,
     team: 'Team', amount: 'Betrag', category: 'Kategorii', reason: 'Grund', date: 'Datum',
     categories: { late_signin: 'Späti Aamäldig', no_show: 'Nöd ercho', late_payment: 'Zahligsverzog', custom: 'Andersch' },
+    ref: 'Zahligsreferänz', refNote: 'Gib bim Zahle bitte d Referänz i de Zahligsmitteilig aa:',
     outro: 'Frage zur Buess? Meld di bi dim Coach oder de Teamverantwortliche.',
     cta: 'Mini Buesse aaluege',
   },
@@ -47,6 +54,7 @@ const COPY = {
     intro: (team, amount) => `<strong>${team}</strong> has fined you <strong>${amount}</strong>.`,
     team: 'Team', amount: 'Amount', category: 'Category', reason: 'Reason', date: 'Date',
     categories: { late_signin: 'Late sign-in', no_show: 'No-show', late_payment: 'Late payment', custom: 'Custom' },
+    ref: 'Payment reference', refNote: 'When you pay, please put the reference in the payment message:',
     outro: 'Questions about this fine? Ask your coach or team responsible.',
     cta: 'View my fines',
   },
@@ -57,6 +65,7 @@ const COPY = {
     intro: (team, amount) => `<strong>${team}</strong> t'a infligé une amende de <strong>${amount}</strong>.`,
     team: 'Équipe', amount: 'Montant', category: 'Catégorie', reason: 'Motif', date: 'Date',
     categories: { late_signin: 'Inscription tardive', no_show: 'Absence', late_payment: 'Retard de paiement', custom: 'Autre' },
+    ref: 'Référence de paiement', refNote: "En payant, indique s'il te plaît la référence dans le message de paiement :",
     outro: "Des questions sur cette amende ? Adresse-toi à ton coach ou au responsable d'équipe.",
     cta: 'Voir mes amendes',
   },
@@ -67,6 +76,7 @@ const COPY = {
     intro: (team, amount) => `<strong>${team}</strong> ti ha inflitto una multa di <strong>${amount}</strong>.`,
     team: 'Squadra', amount: 'Importo', category: 'Categoria', reason: 'Motivo', date: 'Data',
     categories: { late_signin: 'Iscrizione tardiva', no_show: 'Mancata presenza', late_payment: 'Ritardo di pagamento', custom: 'Altro' },
+    ref: 'Riferimento di pagamento', refNote: 'Quando paghi, indica per favore il riferimento nel messaggio di pagamento:',
     outro: 'Domande su questa multa? Rivolgiti al tuo coach o al responsabile della squadra.',
     cta: 'Vedi le mie multe',
   },
@@ -96,6 +106,7 @@ export async function sendFineIssuedEmail({ database, services, getSchema, log, 
     const categoryLabel = tt.categories[fine.category] || fine.category || ''
     const reason = String(fine.reason || '').trim()
     const dateStr = fine.activity_date ? formatDateCH(fine.activity_date) : ''
+    const ref = fine.id != null ? fineRef(fine.id) : ''
 
     const rows = [
       { label: tt.team, value: teamName, halfWidth: true },
@@ -103,10 +114,12 @@ export async function sendFineIssuedEmail({ database, services, getSchema, log, 
       { label: tt.category, value: categoryLabel, halfWidth: !!dateStr },
       ...(dateStr ? [{ label: tt.date, value: dateStr, halfWidth: true }] : []),
       ...(reason ? [{ label: tt.reason, value: reason }] : []),
+      ...(ref ? [{ label: tt.ref, value: ref }] : []),
     ]
     const bodyHtml =
       `<div style="font-size:14px;color:#e2e8f0;margin-bottom:16px">${tt.intro(escHtml(teamName), escHtml(amountStr))}</div>` +
       buildInfoCard(rows) +
+      (ref ? `<div style="font-size:14px;color:#e2e8f0;margin-top:16px">${escHtml(tt.refNote)} <strong>${escHtml(ref)}</strong></div>` : '') +
       `<div style="font-size:13px;color:#94a3b8;margin-top:16px">${escHtml(tt.outro)}</div>`
     const html = buildEmailLayout(bodyHtml, {
       title: tt.title,
@@ -123,7 +136,9 @@ export async function sendFineIssuedEmail({ database, services, getSchema, log, 
       `${tt.category}: ${categoryLabel}`,
       dateStr ? `${tt.date}: ${dateStr}` : '',
       reason ? `${tt.reason}: ${reason}` : '',
+      ref ? `${tt.ref}: ${ref}` : '',
       '',
+      ref ? `${tt.refNote} ${ref}` : '',
       tt.outro,
       `${FRONTEND_URL}/fines`,
     ].filter((l, i, a) => l !== '' || (a[i - 1] ?? '') !== '').join('\n')

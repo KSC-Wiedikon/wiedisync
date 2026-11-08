@@ -12,6 +12,9 @@ export default {
   colIssued: 'Émise le',
   colTeam: 'Équipe',
   colActions: 'Actions',
+  refHint: 'En payant, indique la référence dans le message de paiement (p. ex. {{ref}}).',
+  refTitle: 'Référence de paiement : à indiquer dans le message de paiement',
+  colRef: 'Réf.',
   colReason: 'Motif',
 
   statusOpen: 'Ouverte',

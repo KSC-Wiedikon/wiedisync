@@ -61,6 +61,8 @@ describe('buildFinesSummary', () => {
     const team = model.detail.find((r) => r.reason === 'Forfait')!
     expect(team).toMatchObject({ member: 'Whole team', category: 'Custom', activity: 'Game', amount: 50, status: 'Open' })
     expect(model.detail[0].activity).toBe('Training 10.09.2026')
+    // Every row carries the payment reference members put in their message.
+    expect(model.detail.every((r) => /^F-\S+$/.test(r.ref))).toBe(true)
   })
   it('names the file after team, season and day', () => {
     expect(model.filename).toBe('fines-H3-2026-27-2026-09-15')
