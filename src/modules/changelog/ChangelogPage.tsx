@@ -24,6 +24,12 @@ const CHANGELOG: ChangelogEntry[] = [
           "A filled duty seat now has a Remove button (with a confirmation). Before, a wrong pick could only be swapped for another person.",
         ],
       },
+      {
+        title: 'Fixed',
+        items: [
+          "Fines on a phone: “My fines” no longer shifts every value one column to the right of its heading or scrolls sideways. The team shows under the category and the status under the amount.",
+        ],
+      },
     ],
   },
   {
