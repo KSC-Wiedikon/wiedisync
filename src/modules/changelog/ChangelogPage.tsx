@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.70.1'
+const APP_VERSION = '2.71.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.71.0',
+    date: '08.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Officials page, “Done so far”: under Overview, every player of your team with the table duties they have already served this season, fewest first, so you can see who is next in line.",
+          "A filled duty seat now has a Remove button (with a confirmation). Before, a wrong pick could only be swapped for another person.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "Fines on a phone fit the screen: “My fines” no longer shifts every value one column right of its heading, the table no longer scrolls sideways, amounts drop the CHF (it is in the heading), and Mark as paid / Waive sit behind a chevron that opens them under the row.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.70.1',
     date: '07.11.2026',

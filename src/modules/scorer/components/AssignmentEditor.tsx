@@ -10,6 +10,7 @@ import { RowChip } from '@/components/ActivityRow'
 import TeamSelect from '../../../components/TeamSelect'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { cn } from '@/lib/utils'
+import { useConfirm } from '../../../components/ConfirmProvider'
 
 /** Read-only duty box. The min-height already fits a default Button (44px /
  *  sm 36px + py-1.5 + border), so a box with Delegate / Self-assign is exactly
@@ -90,6 +91,7 @@ export default function AssignmentEditor({
   teamPool,
 }: AssignmentEditorProps) {
   const { t, i18n } = useTranslation('scorer')
+  const confirm = useConfirm()
 
   // Person-first support: teams of THIS sport, and each member's sport teams —
   // so picking a person can auto-derive their duty team (ask if in several).
@@ -179,6 +181,15 @@ export default function AssignmentEditor({
     ? memberDisplayName(assignedPerson)
     : ''
 
+  async function handleRemove() {
+    if (!(await confirm({
+      message: t('removeAssignmentConfirm', { name: assignedName || '?' }),
+      confirmLabel: t('removeAssignment'),
+      danger: true,
+    }))) return
+    onPersonChange('')
+  }
+
   const teamNameOf = (id: string) => teams.find((tm) => tm.id === id)?.name ?? ''
   // A shared duty names the pool team the assignee plays in, else all of them.
   const personPoolTeam = personValue ? teamPool?.find((tid) => teamMemberIds.get(tid)?.has(personValue)) : undefined
@@ -242,6 +253,18 @@ export default function AssignmentEditor({
                   triggerClassName={personValue ? 'border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-900/25' : undefined}
                 />
               </div>
+              {/* Clear the seat. Without it a wrong pick could only be swapped
+                  for another person, never undone (Leo, BB Herren 1, 08.11.2026). */}
+              {personValue && !disabled && (
+                <IconButton
+                  variant="outline"
+                  label={t('removeAssignment')}
+                  onClick={() => { void handleRemove() }}
+                  className="shrink-0 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
+                >
+                  <X />
+                </IconButton>
+              )}
               {personValue && onDelegate && !disabled && (
                 <IconButton
                   variant="outline"

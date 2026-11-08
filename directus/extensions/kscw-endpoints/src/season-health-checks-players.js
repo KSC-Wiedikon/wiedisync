@@ -470,6 +470,46 @@ SELECT ${MEMBER_COLS},
  ORDER BY m.last_name, m.first_name, m.id, x.licence`,
   },
   {
+    // The sign-up form asks which table licence someone holds and approval
+    // writes the answer straight onto the flag — nobody checks it. A person
+    // Basketplan does not know at all is invisible to the two checks above, so
+    // a self-declared OTR opened the table seats unseen (Bassa Doumbe, H1,
+    // timekeeper on 06.11.2026 — Leo's report of 08.11.2026).
+    key: 'bb_official_flag_no_basketplan',
+    section: 'players',
+    sport: 'bb',
+    severity: 'warn',
+    grain: 'player',
+    title: 'OTR/OTN flag but the member is not in Basketplan',
+    description: 'The member holds an OTR/OTN flag, so BB duty assignment offers them for the table, but they have no licence number and no Basketplan record matches them (by licence number, name, or birthdate + first name), so the licence cannot be confirmed. Usually the licence was ticked on the sign-up form. Check with the person or Basketplan and clear the flag if they hold no licence.',
+    sql: `
+SELECT ${MEMBER_COLS},
+       concat_ws(', ',
+         CASE WHEN m.otr1_bb THEN 'OTR1' END, CASE WHEN m.otr2_bb THEN 'OTR2' END,
+         CASE WHEN m.otn1_bb THEN 'OTN1' END, CASE WHEN m.otn2_bb THEN 'OTN2' END) AS licences,
+       NULLIF(m.license_nr, '') AS licence_nr,
+       EXISTS (SELECT 1 FROM registrations r WHERE r.member = m.id AND r.officials_requested ~* '(otr|otn)') AS from_signup_form,
+       COALESCE(cr.teams, '') AS teams,
+       ${STAFF_OF} AS staff_of
+  FROM members m
+  LEFT JOIN ${CORE_ROSTER_BY_SPORT} cr ON cr.member_id = m.id AND cr.sport = 'basketball'
+  LEFT JOIN ${BP_MATCH} bp ON bp.member_id = m.id
+ WHERE ${REAL_PERSON}
+   AND m.kscw_membership_active = true
+   AND (m.otr1_bb IS TRUE OR m.otr2_bb IS TRUE OR m.otn1_bb IS TRUE OR m.otn2_bb IS TRUE)
+   AND bp.member_id IS NULL
+   -- A licence number means a federation licence exists; the scrape may just
+   -- not list them this season. Only flag people with nothing behind the flag.
+   AND NULLIF(btrim(COALESCE(m.license_nr, '')), '') IS NULL
+   -- Spelling drift is not a missing person: Lønow is "Lonow" in Basketplan,
+   -- Ronja is "Ronja Emma". Same birthdate + same first given name = them.
+   AND NOT EXISTS (
+     SELECT 1 FROM basketplan_people bp2
+      WHERE bp2.birthdate = m.birthdate
+        AND split_part(lower(btrim(bp2.first_name)), ' ', 1) = split_part(lower(btrim(m.first_name)), ' ', 1))
+ ORDER BY m.last_name, m.first_name, m.id`,
+  },
+  {
     key: 'bb_umbrella_junior_member',
     section: 'players',
     sport: 'bb',
