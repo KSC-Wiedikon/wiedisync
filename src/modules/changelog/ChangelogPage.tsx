@@ -27,7 +27,7 @@ const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Fixed',
         items: [
-          "Fines on a phone: “My fines” no longer shifts every value one column to the right of its heading or scrolls sideways. The team shows under the category and the status under the amount.",
+          "Fines on a phone fit the screen: “My fines” no longer shifts every value one column right of its heading, the table no longer scrolls sideways, amounts drop the CHF (it is in the heading), and Mark as paid / Waive sit behind a chevron that opens them under the row.",
         ],
       },
     ],
