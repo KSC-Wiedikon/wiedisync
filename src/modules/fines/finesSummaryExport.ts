@@ -12,6 +12,7 @@ import type { TFunction } from 'i18next'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { saveFile } from '../../utils/saveFile'
 import type { Fine, FineActivityType, FineRule, FineResetWindow } from '../../types'
+import { fineRef } from '../../hooks/useFines'
 
 export interface FinesSummaryMember {
   id: string | number
@@ -40,6 +41,8 @@ export interface FinesSummaryMemberRow {
 
 export interface FinesSummaryDetailRow {
   date: string
+  /** Payment reference ("F-56"), the one members put in the payment message. */
+  ref: string
   member: string
   category: string
   activity: string
@@ -159,6 +162,7 @@ export function buildFinesSummary(input: FinesSummaryInput, t: TFunction): Fines
     .sort((a, b) => a.issued_at.localeCompare(b.issued_at))
     .map((f): FinesSummaryDetailRow => ({
       date: formatDateCompactZurich(f.issued_at),
+      ref: fineRef(f.id),
       member: f.member == null ? teamLabel : memberName(memberMap.get(String(f.member)), f.member),
       category: t(categoryKey(f.category)),
       activity: f.activity_type
@@ -265,10 +269,10 @@ export async function exportFinesSummaryPdf(model: FinesSummaryModel, t: TFuncti
 
     heading(t('pdfAllFines'))
     table(
-      [t('pdfDate'), t('pdfMember'), t('colCategory'), t('pdfActivity'), t('colReason'), 'CHF', t('colStatus')],
-      model.detail.map((r) => [r.date, r.member, r.category, r.activity, r.reason, money(r.amount), r.status]),
-      [5],
-      { 0: 62, 1: 100, 2: 72, 3: 92, 5: 50, 6: 46 },
+      [t('pdfDate'), t('colRef'), t('pdfMember'), t('colCategory'), t('pdfActivity'), t('colReason'), 'CHF', t('colStatus')],
+      model.detail.map((r) => [r.date, r.ref, r.member, r.category, r.activity, r.reason, money(r.amount), r.status]),
+      [6],
+      { 0: 58, 1: 38, 2: 96, 3: 70, 4: 86, 6: 50, 7: 46 },
     )
   }
 

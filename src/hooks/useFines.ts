@@ -224,6 +224,15 @@ export function useFineQuote(
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /** Format a Fine amount as "CHF X.XX" (Swiss notation). */
+/**
+ * Short payment reference for a fine ("F-56"), for the TWINT / bank message so
+ * the treasurer can match a payment to its fine. Derived from the id — nothing
+ * stored. Twin of fineRef() in kscw-endpoints/src/fine-email.js.
+ */
+export function fineRef(id: string | number): string {
+  return `F-${id}`
+}
+
 export function formatFineAmount(amount: number, currency = 'CHF'): string {
   const n = Number(amount)
   if (!Number.isFinite(n)) return `${currency} ?`
