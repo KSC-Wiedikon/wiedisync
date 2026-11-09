@@ -1,12 +1,12 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronDown, Gavel } from 'lucide-react'
+import { ChevronDown, Gavel, Search } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
-import { useFines, formatFineAmount, fineRef } from '../../hooks/useFines'
+import { useFines, formatFineAmount, fineRef, parseFineRef } from '../../hooks/useFines'
 import { updateRecord } from '../../lib/api'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
@@ -71,6 +71,12 @@ export default function FinesPage() {
   }
   const [statusFilter, setStatusFilter] = useState<FineStatus | 'all'>('open')
   const [teamFilter, setTeamFilter] = useState<string | 'all'>('all')
+  // Search: a payment reference (F-56) looks the fine up by id across every
+  // status and team, so a paid one is found too; anything else filters the
+  // loaded list by member, team or reason.
+  const [search, setSearch] = useState('')
+  const refId = parseFineRef(search)
+  const textQuery = refId == null ? search.trim().toLocaleLowerCase('de-CH') : ''
 
   const [waiving, setWaiving] = useState<Fine | null>(null)
   // Phones: the row whose Mark as paid / Waive buttons are folded open.
@@ -98,12 +104,16 @@ export default function FinesPage() {
       if (branches.length === 0) return { id: { _eq: -1 } }
       filters.push(branches.length === 1 ? branches[0] : { _or: branches })
     }
-    if (statusFilter !== 'all') filters.push({ status: { _eq: statusFilter } })
-    if (scope === 'team' && teamFilter !== 'all') filters.push({ team: { _eq: teamFilter } })
+    if (refId != null) {
+      filters.push({ id: { _eq: refId } })
+    } else {
+      if (statusFilter !== 'all') filters.push({ status: { _eq: statusFilter } })
+      if (scope === 'team' && teamFilter !== 'all') filters.push({ team: { _eq: teamFilter } })
+    }
     if (filters.length === 0) return undefined
     if (filters.length === 1) return filters[0]
     return { _and: filters }
-  }, [scope, isBoard, userId, coachTeamIds, memberTeamIds, statusFilter, teamFilter])
+  }, [scope, isBoard, userId, coachTeamIds, memberTeamIds, statusFilter, teamFilter, refId])
 
   const { data: finesRaw, refetch, isLoading } = useFines({ filter: finesFilter })
   const fines = finesRaw ?? []
@@ -140,6 +150,22 @@ export default function FinesPage() {
   const memberMap = useMemo(() => new Map((membersRaw ?? []).map((m) => [String(m.id), m])), [membersRaw])
   const teamMap = useMemo(() => new Map((teamsRaw ?? []).map((tm) => [String(tm.id), tm])), [teamsRaw])
 
+  // A text search narrows the loaded list (the reference search already
+  // narrowed the query itself).
+  const shown = textQuery
+    ? fines.filter((f) => {
+      const m = memberMap.get(String(f.member))
+      const hay = [
+        m ? `${m.last_name ?? ''} ${m.first_name ?? ''} ${m.nickname ?? ''}` : '',
+        (teamMap.get(String(f.team))?.name as string) ?? '',
+        f.reason ?? '',
+        t(`fines:${categoryLabelKey(f.category)}`),
+      ].join(' ').toLocaleLowerCase('de-CH')
+      return hay.includes(textQuery)
+    })
+    : fines
+  const searching = refId != null || !!textQuery
+
   // Leader-only team picker
   const leaderTeams = (teamsRaw ?? []).filter((tm) => coachTeamIds.includes(String(tm.id)))
   const canManageTeam = (teamId: string | number): boolean => {
@@ -170,7 +196,7 @@ export default function FinesPage() {
   )
 
   // Totals strip (for the active filter)
-  const total = fines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
+  const total = shown.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
   // The "outstanding" strip is the member's PERSONAL balance — a team fine is
   // owed by the Teamkasse and must never inflate it (migration 350).
   const openOnly = fines.filter((f) => f.status === 'open' && f.member != null)
@@ -207,7 +233,7 @@ export default function FinesPage() {
       </div>
 
       {/* Member outstanding strip */}
-      {scope === 'mine' && openOnly.length > 0 && (
+      {scope === 'mine' && openOnly.length > 0 && !searching && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/40">
           <div className="font-medium text-amber-900 dark:text-amber-200">
             {t('fines:outstanding', { amount: formatFineAmount(openTotal) })}
@@ -228,12 +254,29 @@ export default function FinesPage() {
         onChange={setScope}
       />
 
-      {/* Status + team filters */}
+      {/* Search: a payment reference (F-56) or a name */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('fines:searchPlaceholder')}
+          aria-label={t('fines:searchPlaceholder')}
+          className="h-11 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
+        />
+      </div>
+      {refId != null && (
+        <p className="-mt-2 text-xs text-muted-foreground">{t('fines:searchRefHint', { ref: fineRef(refId) })}</p>
+      )}
+
+      {/* Status + team filters (a reference search looks past both) */}
       <div className="flex flex-wrap items-center gap-2">
         <select
+          disabled={refId != null}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as FineStatus | 'all')}
-          className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           {STATUSES.map((s) => (
             <option key={s.key} value={s.key}>{t(`fines:${s.tKey}`)}</option>
@@ -242,9 +285,10 @@ export default function FinesPage() {
 
         {scope === 'team' && leaderTeams.length > 0 && (
           <select
+            disabled={refId != null}
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             <option value="all">{t('fines:filterAll')}</option>
             {/* Grouped by sport (CLAUDE.md → team pickers): someone coaching in both
@@ -263,13 +307,18 @@ export default function FinesPage() {
         )}
 
         <div className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-          {fines.length > 0 ? `${fines.length} · ${formatFineAmount(total)}` : null}
+          {shown.length > 0 ? `${shown.length} · ${formatFineAmount(total)}` : null}
         </div>
       </div>
 
       {/* Loading spinner, then table or empty state */}
-      <div className={!pageLoading && fines.length > 0 ? 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card' : undefined}>
-      {pageLoading ? null : fines.length === 0 ? (
+      <div className={!pageLoading && shown.length > 0 ? 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card' : undefined}>
+      {pageLoading ? null : shown.length === 0 && searching ? (
+        <EmptyState
+          icon={<Search className="h-10 w-10" />}
+          title={t('fines:searchEmpty', { query: search.trim() })}
+        />
+      ) : shown.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
           title={scope === 'mine' ? t('fines:emptyMember') : isBoard ? t('fines:empty') : t('fines:emptyTeam')}
@@ -297,7 +346,7 @@ export default function FinesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {fines.map((f) => {
+            {shown.map((f) => {
               const m = memberMap.get(String(f.member))
               const tm = teamMap.get(String(f.team))
               const memberName = f.member == null
