@@ -4862,7 +4862,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     `, [DEADLINE_SWEEP_LOOKBACK_DAYS])
   }
 
-  // ── Cron: Maybe → No at the deadline (every minute) ──
+  let noResponseSweepRunning = false
+
+  // ── Cron: Maybe → No and no answer → No at the deadline (every minute) ──
   // Same reason the capacity Maybe sweep (migration 438) runs every minute: the
   // deadline is an instant, and a daily run acts on it up to a day late. The
   // 07:00 participation cron still calls it once more, first, so its
@@ -4881,6 +4883,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `Staff past the deadline: ${err.message}`, event: 'cron.decline_staff_past_deadline', stack: err.stack })
       logCronError('decline_staff_past_deadline', err)
+    }
+    // Players with no answer → No (+ late sign-in fine) at the deadline too
+    // (owner 09.11.2026: H3's Sunday 20:00 deadline left two players on "no
+    // reply" until the 07:00 UTC run next morning). Under-min trainings are
+    // cancelled first, so nobody is fined for a training about to be called
+    // off; the Maybe sweep above has already run, so a Maybe is not a
+    // non-responder. A slow run (pushes + emails per fine) can outlast the
+    // minute: the next one skips instead of racing it.
+    if (noResponseSweepRunning) return
+    noResponseSweepRunning = true
+    try {
+      await autoCancelTrainingsUnderMin()
+      const res = await sweepDeadlineNoResponses()
+      if (res.declined > 0) log.info(`No answer past the deadline: ${res.declined} turned into No, ${res.fined} fined`)
+    } catch (err) {
+      log.error({ msg: `Deadline no-response sweep: ${err.message}`, event: 'cron.deadline_no_response_sweep', stack: err.stack })
+      logCronError('deadline_no_response_sweep', err)
+    } finally {
+      noResponseSweepRunning = false
     }
   })
 
@@ -4957,12 +4978,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // tentative sweep on purpose: a `tentative` that just became `declined`
       // already has a row, so it is not a non-responder and must not be fined
       // for a maybe it did give.
+      // Also runs every minute now (above); here it is only a catch-up, and it
+      // stands aside when the minute run holds it.
       let noResponse = { declined: 0, fined: 0 }
-      try {
-        noResponse = await sweepDeadlineNoResponses()
-      } catch (sweepErr) {
-        log.error({ msg: `Deadline no-response sweep: ${sweepErr.message}`, event: 'cron.deadline_no_response_sweep', stack: sweepErr.stack })
-        logCronError('deadline_no_response_sweep', sweepErr)
+      if (!noResponseSweepRunning) {
+        noResponseSweepRunning = true
+        try {
+          noResponse = await sweepDeadlineNoResponses()
+        } catch (sweepErr) {
+          log.error({ msg: `Deadline no-response sweep: ${sweepErr.message}`, event: 'cron.deadline_no_response_sweep', stack: sweepErr.stack })
+          logCronError('deadline_no_response_sweep', sweepErr)
+        } finally {
+          noResponseSweepRunning = false
+        }
       }
 
       log.info(`Participation reminders: games=${gamesInserted?.rowCount || 0}, trainings=${trainingsInserted?.rowCount || 0}, auto-cancelled=${autoCancelled?.rowCount || 0}, no-response-declined=${noResponse.declined}, auto-fined=${noResponse.fined}`)
