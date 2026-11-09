@@ -233,6 +233,15 @@ export function fineRef(id: string | number): string {
   return `F-${id}`
 }
 
+/**
+ * A typed payment reference → fine id, or null when it isn't one. Accepts how
+ * people copy it out of a payment message: "F-56", "f56", "F 56", "#56", "56".
+ */
+export function parseFineRef(q: string): number | null {
+  const m = /^\s*(?:f|#)?\s*-?\s*(\d{1,9})\s*$/i.exec(q)
+  return m ? Number(m[1]) : null
+}
+
 export function formatFineAmount(amount: number, currency = 'CHF'): string {
   const n = Number(amount)
   if (!Number.isFinite(n)) return `${currency} ?`

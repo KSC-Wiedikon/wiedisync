@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.73.0 — 2026-11-09
+
+### Added
+
+- Fines page: search by payment reference (F-56, f56 or 56) or by name. A reference finds the fine in any status and team, so a payment for a fine already marked paid can be checked too.
+
 ## v2.72.0 — 2026-11-08
 
 ### Added
