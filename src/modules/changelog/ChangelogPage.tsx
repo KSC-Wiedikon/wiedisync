@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.72.0'
+const APP_VERSION = '2.73.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.73.0',
+    date: '09.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Fines page: search by payment reference (F-56, f56 or 56) or by name. A reference finds the fine in any status and team, so a payment for a fine already marked paid can be checked too.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.72.0',
     date: '08.11.2026',
