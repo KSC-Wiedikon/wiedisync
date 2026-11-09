@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.73.0'
+const APP_VERSION = '2.73.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.73.1',
+    date: '09.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Players who have not answered by the deadline now turn to No (with the team’s late sign-in fine) right at the deadline, like an open Maybe already did, instead of the next morning at 08:00.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.73.0',
     date: '09.11.2026',
