@@ -29,7 +29,7 @@
  * ⚠ ONE ClubDesk session per account — run under the shared .sync.lock.
  * ⚠ 'commit' writes to the club's legal member record — gate behind a human OK.
  */
-import { launchBrowser } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
 import { gridHasColumn } from './clubdesk-dom.mjs'
 import { readFileSync } from 'node:fs'
 
@@ -131,15 +131,7 @@ async function openKontakte(page) {
   await page.fill('#userId', USER); await page.fill('#password', PASS)
   await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.click('#submit')]); await sleep(3000)
   if (await page.locator('#password').count()) throw new Error('login failed — bad creds/blocked')
-  const navBtn = await page.evaluate(() => {
-    const b = [...document.querySelectorAll('div')].map((e) => ({ e, r: e.getBoundingClientRect() }))
-      .filter(({ r }) => r.top > 40 && r.top < 120 && r.left < 320 && r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70)
-      .sort((a, c) => a.r.left - c.r.left)[1]
-    return b ? { x: b.r.left + b.r.width / 2, y: b.r.top + b.r.height / 2 } : null
-  })
-  if (!navBtn) throw new Error('Kontakte toolbar button not found')
-  await page.mouse.click(navBtn.x, navBtn.y)
-  await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 }); await sleep(1200)
+  await clickKontakte(page, log); await sleep(1200)
   // Switch to "Alle Kontakte" so the grid spans members AND non-members —
   // ehemalige / Nicht-Mitglieder aren't in the default "Mitglieder" view but can
   // still be on a roster and need a group (2026-07-15).

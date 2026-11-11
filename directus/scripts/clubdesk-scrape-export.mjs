@@ -30,7 +30,7 @@
  *   never on class names, and assert after every step.
  */
 
-import { launchBrowser } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -115,21 +115,9 @@ async function run() {
 
     // ── 2. Open Kontakte (2nd toolbar button) ─────────────────────────
     step(24, 'Opening the contact list…')
-    const navBtn = await page.evaluate(() => {
-      const btns = [...document.querySelectorAll('div')]
-        .map((e) => ({ e, r: e.getBoundingClientRect() }))
-        .filter(({ r }) => r.top > 40 && r.top < 120 && r.left < 320 &&
-          r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70)
-        .sort((a, b) => a.r.left - b.r.left)
-      const b = btns[1] // [0]=dashboard, [1]=Kontakte
-      if (!b) return null
-      return { x: b.r.left + b.r.width / 2, y: b.r.top + b.r.height / 2 }
-    })
-    if (!navBtn) throw new Error('Could not locate the Kontakte toolbar button.')
-    await page.mouse.click(navBtn.x, navBtn.y)
-    // Assert the contact list loaded via its "(NNN Einträge)" count header
-    // (plain "Mitglieder" also appears in hidden help links on the dashboard).
-    await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 })
+    // The count header "(NNN Einträge)" proves the list loaded (plain "Mitglieder"
+    // also appears in hidden help links on the dashboard).
+    await clickKontakte(page, log)
     await page.waitForTimeout(1500)
     const count = (await page.locator('body').innerText()).match(/Mitglieder\s*\((\d+)\s*Eintr/)
     step(30, `Contact list open${count ? ` — ${count[1]} members in the default group` : ''}.`)

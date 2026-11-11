@@ -31,7 +31,7 @@
  * immune to the name drift ClubDesk carries (see CLAUDE.md → ClubDesk contact
  * matching). The clubdesk_id/[Id] is NOT Filtern-searchable.
  */
-import { launchBrowser } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
 const USER = process.env.CLUBDESK_USER, PASS = process.env.CLUBDESK_PASS
 const WORKLIST = process.argv[2], MODE = process.argv[3] || 'preview'
@@ -77,8 +77,7 @@ async function openKontakte(page) {
   await page.fill('#userId', USER); await page.fill('#password', PASS)
   await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.click('#submit')]); await sleep(3000)
   if (await page.locator('#password').count()) throw new Error('login failed')
-  const navBtn = await page.evaluate(() => { const b = [...document.querySelectorAll('div')].map((e) => ({ e, r: e.getBoundingClientRect() })).filter(({ r }) => r.top > 40 && r.top < 120 && r.left < 320 && r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70).sort((a, c) => a.r.left - c.r.left)[1]; return b ? { x: b.r.left + b.r.width / 2, y: b.r.top + b.r.height / 2 } : null })
-  await page.mouse.click(navBtn.x, navBtn.y); await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 }); await sleep(1200)
+  await clickKontakte(page, log); await sleep(1200)
   const ak = await page.evaluate(() => { const o = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }; for (const e of document.querySelectorAll('*')) if (o(e) === 'Alle Kontakte') { const r = e.getBoundingClientRect(); if (r.left < 300 && r.width > 0) return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } } return null })
   if (ak) { await page.mouse.click(ak.x, ak.y); await sleep(1600) }
 }
