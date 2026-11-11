@@ -66,3 +66,39 @@ export async function launchBrowser(opts = {}) {
 }
 
 export { chromium }
+
+/**
+ * Open the Kontakte module (2nd toolbar button) and wait until its grid header
+ * "(N Einträge)" is VISIBLE. Retries the click up to 3 times.
+ *
+ * Until 11.11.2026 every script clicked once and waited on
+ * `getByText(/\(\d+\s*Eintr/).first()`. That locator can resolve to a header that is
+ * in the DOM but hidden — on 11.11.2026 the import scraper's second login (the
+ * commit run, seconds after a clean preview) found "Mitglieder (694 Einträge)"
+ * hidden for the full 20 s and the push failed. The click had not opened the
+ * module (toolbar not ready yet). Waiting on a visible match and clicking again is
+ * safe: nothing has been typed into ClubDesk at this point.
+ *
+ * @param {import('playwright').Page} page
+ * @param {(msg: string) => void} [log] progress line on each retry
+ */
+export async function clickKontakte(page, log = () => {}) {
+  const header = page.getByText(/\(\d+\s*Eintr/).filter({ visible: true }).first()
+  let last
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    const navBtn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('div')].map((e) => ({ e, r: e.getBoundingClientRect() }))
+        .filter(({ r }) => r.top > 40 && r.top < 120 && r.left < 320 && r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70)
+        .sort((a, c) => a.r.left - c.r.left)[1] // [0]=dashboard, [1]=Kontakte
+      return b ? { x: b.r.left + b.r.width / 2, y: b.r.top + b.r.height / 2 } : null
+    })
+    if (navBtn) {
+      await page.mouse.click(navBtn.x, navBtn.y)
+      try { await header.waitFor({ timeout: 15000 }); return } catch (err) { last = err }
+    } else {
+      last = new Error('Could not locate the Kontakte toolbar button.')
+    }
+    if (attempt < ATTEMPTS) { log(`Kontakte did not open (attempt ${attempt}/${ATTEMPTS}) — clicking again…`); await sleep(3000) }
+  }
+  throw new Error(`Kontakte did not open after ${ATTEMPTS} clicks: ${String(last?.message ?? last).split('\n')[0]}`)
+}

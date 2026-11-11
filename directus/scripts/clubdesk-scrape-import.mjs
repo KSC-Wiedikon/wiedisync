@@ -25,7 +25,7 @@
  * ⚠ ONE ClubDesk session per account — run on the dedicated service account.
  * ⚠ 'commit' writes to the club's legal member record. Gate it behind a human OK.
  */
-import { launchBrowser } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
 import { pickExact } from './clubdesk-dom.mjs'
 
 const USER = process.env.CLUBDESK_USER
@@ -173,15 +173,7 @@ async function run() {
     log('Logged in.')
 
     // Kontakte (2nd toolbar icon)
-    const navBtn = await page.evaluate(() => {
-      const btns = [...document.querySelectorAll('div')].map((e) => ({ e, r: e.getBoundingClientRect() }))
-        .filter(({ r }) => r.top > 40 && r.top < 120 && r.left < 320 && r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70)
-        .sort((a, b) => a.r.left - b.r.left)
-      const b = btns[1]; return b ? { x: b.r.left + b.r.width / 2, y: b.r.top + b.r.height / 2 } : null
-    })
-    if (!navBtn) throw new Error('Could not locate the Kontakte toolbar button.')
-    await page.mouse.click(navBtn.x, navBtn.y)
-    await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 }); await sleep(1500)
+    await clickKontakte(page, log); await sleep(1500)
     result.count_before = await readGridCount(page)
     log(`Kontakte open (${result.count_before ?? '?'} Einträge). Opening Import…`)
 
