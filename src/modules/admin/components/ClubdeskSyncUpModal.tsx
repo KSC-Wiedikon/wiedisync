@@ -249,7 +249,19 @@ export default function ClubdeskSyncUpModal({
         // 3s: the dialog now shows the push's own phase and log, and a five-second
         // gap between lines reads as a stall in a live log.
         await new Promise((r) => setTimeout(r, 3_000))
-        const s = await kscwApi<UpStatus>('/clubdesk-member-sync/up-status')
+        let s: UpStatus
+        try {
+          s = await kscwApi<UpStatus>('/clubdesk-member-sync/up-status')
+        } catch (e) {
+          // A status read that never got an answer (phone between cells, a
+          // gateway blip) says nothing about the push, which runs on the server
+          // either way. Until 11.11.2026 one such miss on mobile data ended the
+          // dialog with "Failed to fetch" while the push committed seconds
+          // later. Keep asking until the deadline instead.
+          const status = (e as { status?: number }).status
+          if ((status === undefined || status === 502 || status === 503 || status === 504) && Date.now() <= deadline) continue
+          throw e
+        }
         setJob({ progress: s.progress ?? null, phase: s.phase ?? null, log: s.log ?? null })
         if (s.state === 'done') { setResult(s.result); setPhase('done'); setPushStartedAt(null); landed = s.result; break }
         if (s.state === 'failed') { setPushStartedAt(null); throw new Error(s.message || t('clubdeskUpFailed')) }
