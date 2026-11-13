@@ -99,7 +99,6 @@ export default function ManualGameModal({
   const [autoConfirmRsvp, setAutoConfirmRsvp] = useState<boolean | null>(null)
   const [teamAutoConfirmDefault, setTeamAutoConfirmDefault] = useState(false)
   const [autoNominationList, setAutoNominationList] = useState<boolean | null>(null)
-  const [teamAutoNominationDefault, setTeamAutoNominationDefault] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // ── Prop → form seeding ────────────────────────────────────────────
@@ -181,14 +180,12 @@ export default function ManualGameModal({
     setPrevAutoConfirm(autoConfirmDeps)
     if (!open || !teamId) {
       setTeamAutoConfirmDefault(false)
-      setTeamAutoNominationDefault(false)
     } else {
       const teamRel = (allTeams ?? []).find((t) => String(t.id) === teamId) as Team | undefined
       const fe = teamRel?.features_enabled as
-        | { game_auto_confirm?: boolean; auto_nomination_list?: boolean }
+        | { game_auto_confirm?: boolean }
         | undefined
       setTeamAutoConfirmDefault(fe?.game_auto_confirm === true)
-      setTeamAutoNominationDefault(fe?.auto_nomination_list === true)
     }
   }
 
@@ -263,7 +260,6 @@ export default function ManualGameModal({
       setAutoConfirmRsvp(null)
       setTeamAutoConfirmDefault(false)
       setAutoNominationList(null)
-      setTeamAutoNominationDefault(false)
       setSubmitError(null)
     }
   }
@@ -652,45 +648,8 @@ export default function ManualGameModal({
           </div>
         </div>
 
-        {/* Auto Einsatzliste override — volleyball only (no Volleymanager for basketball) */}
-        {isVolleyball && (
-          <div className="space-y-1.5 text-sm">
-            <div>
-              <Label className="font-medium">{t('games:autoNomination')}</Label>
-              <p className="text-xs text-muted-foreground">
-                {t('games:autoNominationHint', {
-                  def: teamAutoNominationDefault ? t('games:autoNominationOn') : t('games:autoNominationOff'),
-                })}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {([
-                { value: null, label: t('games:autoNominationUseTeamDefault') },
-                { value: true, label: t('games:autoNominationOn') },
-                { value: false, label: t('games:autoNominationOff') },
-              ] as { value: boolean | null; label: string }[]).map((opt) => {
-                const active = autoNominationList === opt.value
-                return (
-                  <Button
-                    key={String(opt.value)}
-                    type="button"
-                    onClick={() => setAutoNominationList(opt.value)}
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      'rounded-full',
-                      active
-                        ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
-                        : 'bg-transparent text-muted-foreground hover:bg-accent',
-                    )}
-                  >
-                    {opt.label}
-                  </Button>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* No Auto Einsatzliste override any more: the automatic list is off for every team
+            (owner, 13.11.2026). The game's stored value is only passed through on save. */}
 
         {/* Conflict banner */}
         {errors.length > 0 && (

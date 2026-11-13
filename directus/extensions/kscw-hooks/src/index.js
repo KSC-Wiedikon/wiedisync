@@ -9387,7 +9387,6 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (isSvrzRcBlackout()) return
 
       const rows = await database('games as g')
-        .leftJoin('teams as t', 't.id', 'g.kscw_team')
         .whereRaw("g.game_id LIKE 'vb_%'")
         .where('g.status', 'scheduled')
         .whereNotNull('g.kscw_team')
@@ -9397,10 +9396,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           "(COALESCE(g.vm_nomination_status, '') NOT IN ('saved', 'filled')"
           + " OR g.vm_nomination_sheet_changed_at > COALESCE(g.vm_nomination_claimed_at, 'epoch'::timestamptz))",
         )
-        .whereRaw(
-          "(COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true"
-          + ' OR g.vm_nomination_sheet_changed_at IS NOT NULL)',
-        )
+        // Only a coach's saved match sheet is sent (owner, 13.11.2026): the team / game
+        // flag auto_nomination_list no longer files a list — see nomination-schedule.js.
+        .whereNotNull('g.vm_nomination_sheet_changed_at')
         .whereBetween('g.date', [
           new Date(Date.now() - 86400000).toISOString().slice(0, 10),
           new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),

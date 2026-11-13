@@ -217,6 +217,7 @@ export default {
   nominationPreviewOfficials: 'Ufficiali',
   nominationOfficialEmpty: 'Vuoto',
   nominationOfficialKeep: 'Come in Volleymanager',
+  nominationOfficialKeepNamed: '{{name}} (come in Volleymanager)',
   nominationOfficialUnknown: 'Membro sconosciuto',
   nominationOfficialsFromSheet: 'Dal referto di questa partita.',
   nominationOfficialsFromTeam: 'Predefinito della squadra, solo chi ha detto Sì — modificabile nell\'editor della rosa sotto Impostazioni partite.',

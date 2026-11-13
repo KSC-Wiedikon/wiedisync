@@ -12,12 +12,22 @@ import {
 // Sat 14.11.2026 11:00 Zurich (CET = UTC+1) = 10:00Z.
 const KICKOFF = Date.UTC(2026, 10, 14, 10, 0)
 const MIN = 60 * 1000
-const GAME = { id: 424, date: '2026-11-14', time: '11:00:00', vm_nomination_status: null, vm_nomination_claimed_at: null }
+// The coach saved the match sheet two days before: only such a game is ever sent.
+const SAVED_AT = KICKOFF - 2 * 24 * 60 * MIN
+const GAME = { id: 424, date: '2026-11-14', time: '11:00:00', vm_nomination_status: null, vm_nomination_claimed_at: null, vm_nomination_sheet_changed_at: new Date(SAVED_AT).toISOString() }
 const DAY_BEFORE = KICKOFF - NOMINATION_LEAD_MS
 const SECOND_CHANCE = KICKOFF - NOMINATION_SECOND_CHANCE_MS
 const iso = (ms) => new Date(ms).toISOString()
 
 describe('nominationPushDue', () => {
+  it('no automatic list: a game nobody saved a sheet for is never sent (owner, 13.11.2026)', () => {
+    const plain = { ...GAME, vm_nomination_sheet_changed_at: null }
+    for (const vm_nomination_status of [null, 'pending', 'failed', 'skipped']) {
+      expect(nominationPushDue({ ...plain, vm_nomination_status }, DAY_BEFORE)).toBe(false)
+      expect(nominationPushDue({ ...plain, vm_nomination_status }, SECOND_CHANCE)).toBe(false)
+    }
+  })
+
   it('first attempt 24 h before kickoff, not earlier', () => {
     expect(nominationPushDue(GAME, DAY_BEFORE - 1)).toBe(false)
     expect(nominationPushDue(GAME, DAY_BEFORE)).toBe(true)
@@ -34,8 +44,9 @@ describe('nominationPushDue', () => {
 
   it('a saved or closed list is final, also at the second chance', () => {
     for (const vm_nomination_status of ['saved', 'closed']) {
-      expect(nominationPushDue({ ...GAME, vm_nomination_status }, DAY_BEFORE + 5 * MIN)).toBe(false)
-      expect(nominationPushDue({ ...GAME, vm_nomination_status }, SECOND_CHANCE)).toBe(false)
+      const game = { ...GAME, vm_nomination_status, vm_nomination_claimed_at: iso(DAY_BEFORE) }
+      expect(nominationPushDue(game, DAY_BEFORE + 5 * MIN)).toBe(false)
+      expect(nominationPushDue(game, SECOND_CHANCE)).toBe(false)
     }
   })
 

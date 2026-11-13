@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.73.1'
+const APP_VERSION = '2.74.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.74.0',
+    date: '13.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "The automatic Einsatzliste is off for every team. Wiedisync no longer files a list in Volleymanager by itself; it only checks the list before kickoff (−2 h and −45 min) and emails the coaches when it differs from the answers. The “Auto Einsatzliste” switches in the team settings and on games are gone.",
+          "The Create / Update Einsatzliste button now sits under Show roster, the RSVP list and Show IDs. Saving the match sheet still updates the list in Volleymanager.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "Create Einsatzliste no longer refuses with “No head coach (C) set” when no C is set in Wiedisync but Volleymanager already has one: that C stays on the list.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.73.1',
     date: '09.11.2026',
