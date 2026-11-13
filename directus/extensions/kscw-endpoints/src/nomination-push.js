@@ -34,6 +34,7 @@ import { writeUserLog } from './activity-log.js'
 import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
 import { externalAccountsEnabled, externalWritesEnv, refuseExternalOnDev } from './external-accounts.js'
 import { gameStartMs } from './scorer-roster.js'
+import { loadVmCheck } from './vm-sheet-check.js'
 import { isSvrzRcBlackout } from './vm-windows.js'
 
 // ⚠ MIRROR of pickPlayerIds(), pickOfficials() and officialsWhoSaidYes() in
@@ -89,6 +90,20 @@ export function officialsWhoSaidYes(picked, canBeNamed) {
   }
 }
 
+function vmCoachName(c) {
+  return `${c.first_initial ?? ''} ${c.last_name ?? ''}`.trim()
+}
+
+/**
+ * The head-coach gate. 'ok' = we name a licensed member; 'vm' = we name none, but
+ * Volleymanager already has a C and keeps it; else 'missing' / 'no_licence'.
+ */
+export function officialsHeadCoach(c) {
+  if (!c) return 'missing'
+  if ('keep' in c) return c.name ? 'vm' : 'missing'
+  return c.license_nr ? 'ok' : 'no_licence'
+}
+
 /**
  * Who goes up as C / AC1 / AC2 for this game, as display rows, plus the head-coach
  * gate. C is REQUIRED (VM fines a list without one); AC1/AC2 are optional. "Set"
@@ -122,8 +137,21 @@ async function resolveOfficials(database, gameId, teamId) {
       ? { member: Number(m.id), name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim(), license_nr: m.license_nr || null }
       : { member: v, name: null, license_nr: null }
   }
-  const c = officials.coach
-  const headCoach = !c || 'keep' in c ? 'missing' : !c.license_nr ? 'no_licence' : 'ok'
+  // "Keep VM's" for C is fine when VM already names one: the push leaves it there (the
+  // worker checks the live list again). Known from the last stored VM read, never a live one.
+  if (officials.coach && 'keep' in officials.coach) {
+    let list = (await loadVmCheck(database, gameId))?.list
+    if (typeof list === 'string') list = JSON.parse(list)
+    const vmC = list?.coaches?.find((x) => x.role === 'coach')
+    if (vmC) {
+      const m = vmC.license_nr
+        ? await database('members').where('license_nr', String(vmC.license_nr)).first('first_name', 'last_name')
+        : null
+      const name = m ? `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() : vmCoachName(vmC)
+      officials.coach = { keep: true, name: name || 'Volleymanager' }
+    }
+  }
+  const headCoach = officialsHeadCoach(officials.coach)
   const nameOf = (id) => {
     const m = people.find((x) => Number(x.id) === id)
     return m ? `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() : String(id)
@@ -311,7 +339,7 @@ export function registerNominationPush(router, { database, logger }) {
           officials_source: source,
           officials_not_named: notNamed,
           officials_none_yes: noneYes,
-          // 'ok' | 'missing' | 'no_licence' — the push is refused unless 'ok'.
+          // 'ok' | 'vm' | 'missing' | 'no_licence' — the push is refused unless 'ok' or 'vm'.
           head_coach: headCoach,
           status: game.vm_nomination_status ?? null,
           // A list is already in VM (a re-save replaces it) / the referee closed it.
@@ -417,7 +445,7 @@ export function registerNominationPush(router, { database, logger }) {
     // find a person by licence. Refused here, before any claim, so nothing changes.
     try {
       const { headCoach } = await resolveOfficials(database, gameId, game.kscw_team)
-      if (headCoach !== 'ok') {
+      if (headCoach !== 'ok' && headCoach !== 'vm') {
         return res.status(422).json({
           error: headCoach === 'missing' ? 'No head coach (C) set for this game' : 'The head coach (C) has no licence number',
           code: headCoach === 'missing' ? 'no_head_coach' : 'head_coach_no_licence',
