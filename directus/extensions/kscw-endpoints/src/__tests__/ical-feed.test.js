@@ -17,7 +17,6 @@
  */
 import { describe, it, expect } from 'vitest'
 import { registerICalFeed, feedFloor } from '../ical-feed.js'
-import { isTournamentLeague } from '../tournament.js'
 
 // ─── Fake knex (subset used by the events and games sections) ────────────────
 
@@ -86,12 +85,6 @@ function makeDb(tables) {
           // A multi-day event that began before the floor but is still running
           // stays in the feed — that is what the coalesce is for.
           add((r) => String(r.end_date || r.start_date).slice(0, 10) >= floor.slice(0, 10))
-          return chain
-        }
-        if (sql.includes("!~*")) {
-          // excludeTournaments(): the league is not a tournament day.
-          const col = (sql.match(/COALESCE\((\w+(?:\.\w+)?)/) || [])[1]?.split('.').pop() || 'league'
-          add((r) => !isTournamentLeague(r[col]))
           return chain
         }
         if (sql.includes('invited_roles')) {
@@ -328,12 +321,25 @@ describe('GET /kscw/ical?team=… — called-up games', () => {
     expect(uids(body)).toEqual([774, 775, 778, 779])
   })
 
-  it('tournament days stay out of the feed (owner, 13.11.2026)', async () => {
+  it('a tournament day is one all-day event, not its matches (owner, 13.11.2026)', async () => {
     const fx = gameFixtures()
-    fx.games.push({ ...game(780, 1, 20), league: 'SM Quali MU23 A' })
-    fx.games.push({ ...game(781, 1, 22), league: 'Männer U23 1. Stärkeklasse' })
+    const t = (id, time, home, away, extra = {}) => ({
+      ...game(id, 1, 20), time, league: 'SM Quali MU23 A', home_team: home, away_team: away, ...extra,
+    })
+    fx.games.push(
+      t(782, '12:45:00', 'KSC Wiedikon H1', 'Wädivolley HU23'),
+      t(780, '09:00:00', 'KSC Wiedikon H1', 'VBC Rämi', { status: 'completed', home_score: 2, away_score: 1 }),
+      t(781, '15:15:00', 'VC Tornado Adliswil', 'KSC Wiedikon H1', { type: 'away' }),
+    )
     const body = await feed(fx, { team: '1' })
-    expect(uids(body)).toEqual([774, 777, 779, 781])
+    expect(uids(body)).toEqual([774, 777, 779])          // no single tournament match
+    const ev = body.split('BEGIN:VEVENT').find((e) => e.includes('UID:tournament-1-'))
+    expect(ev).toBeDefined()
+    expect(ev).toMatch(/DTSTART;VALUE=DATE:\d{8}/)
+    expect(ev).toContain('SUMMARY:KSC Wiedikon H1 – SM Quali MU23 A')
+    const desc = ev.match(/DESCRIPTION:(.*)/)[1]
+    expect(desc).toBe('Turnier: 3 Spiele\\n09:00 KSC Wiedikon H1 - VBC Rämi (2:1)\\n12:45 KSC Wiedikon H1 - Wädivolley HU23\\n15:15 VC Tornado Adliswil - KSC Wiedikon H1')
+    expect(body.match(/UID:tournament-/g)).toHaveLength(1)
   })
 
   it("a pre-rollover link follows the team to this season's call-ups", async () => {
