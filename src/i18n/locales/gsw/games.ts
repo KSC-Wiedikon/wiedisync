@@ -220,6 +220,7 @@ export default {
   nominationPreviewOfficials: 'Offizielli',
   nominationOfficialEmpty: 'Läär',
   nominationOfficialKeep: 'Wie im Volleymanager',
+  nominationOfficialKeepNamed: '{{name}} (wie im Volleymanager)',
   nominationOfficialUnknown: 'Unbekannts Mitglied',
   nominationOfficialsFromSheet: 'Us em Matchblatt vo dem Spiel.',
   nominationOfficialsFromTeam: 'Team-Standard, nur wer zuegseit hät — änderbar im Kader-Editor under Spiel-Standards.',

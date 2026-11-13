@@ -181,9 +181,6 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // late" alarm instead of its banner + revealed phone/email. Seeded TRUE so the
   // very first frame is guarded rather than answered.
   const [lateFetched, setLateFetched] = useState(false)
-  // Per-game Einsatzliste override — held locally so the pills react instantly;
-  // the write goes through updateGame (which invalidates the games query).
-  const [autoNomination, setAutoNomination] = useState<boolean | null>(game?.auto_nomination_list ?? null)
   const [nominationDialogOpen, setNominationDialogOpen] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
@@ -268,7 +265,6 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const [prevNominationGameId, setPrevNominationGameId] = useState(game?.id)
   if (prevNominationGameId !== game?.id) {
     setPrevNominationGameId(game?.id)
-    setAutoNomination(game?.auto_nomination_list ?? null)
     setNominationDialogOpen(false)
     // This modal stays mounted, so these would carry over: a note typed on the last game
     // was saved with the answer on this one, and an open deadline editor still held the
@@ -510,23 +506,11 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   }
 
   // Einsatzliste (Volleymanager nomination list) — coach-only, volleyball only.
-  const teamNominationDefault = kscwTeamObj?.features_enabled?.auto_nomination_list === true
   const nominationStatus = (fullGame ?? game).vm_nomination_status ?? null
   const nominationCount = (fullGame ?? game).vm_nomination_count
   const nominationError = (fullGame ?? game).vm_nomination_error
   const nominationPushedAt = (fullGame ?? game).vm_nomination_pushed_at
   const showNomination = kscwSport === 'volleyball' && canEditAsCoach
-
-  async function saveNominationOverride(value: boolean | null) {
-    const previous = autoNomination
-    setAutoNomination(value) // optimistic — the pills must not lag the tap
-    try {
-      await updateGame(gameId, { auto_nomination_list: value })
-    } catch {
-      setAutoNomination(previous)
-      toast.error(t('common:error'))
-    }
-  }
 
   // A saved result is stored provisional at once — re-read so the score block shows it.
   // The Results tab's cards come from the combined activities query, under its own
@@ -861,6 +845,26 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 {t('idsTitle')}
               </Button>
             )}
+            {/* Manual push, any time before kickoff — previews first, and warns before
+                amending a list that is already filed in Volleymanager. */}
+            {showNomination && !readOnly && nominationStatus !== 'closed' && String(game.game_id ?? '').startsWith('vb_') && (
+              <Button
+                variant="outline"
+                className="mt-2 w-full"
+                disabled={nominationStatus === 'pending'}
+                onClick={() => setNominationDialogOpen(true)}
+              >
+                {t(nominationStatus === 'saved' || nominationStatus === 'filled' ? 'nominationUpdateCta' : 'nominationCreateCta')}
+              </Button>
+            )}
+            {nominationDialogOpen && (
+              <NominationPushDialog
+                gameId={gameId}
+                open={nominationDialogOpen}
+                onClose={() => setNominationDialogOpen(false)}
+                onStarted={reloadAfterNominationPush}
+              />
+            )}
           </div>
         )}
 
@@ -1058,80 +1062,21 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         )}
 
         {/* Einsatzliste — volleyball only (no Volleymanager for basketball), coach only.
-            The override drives the T-24 h auto-push; the box below is the push journal. */}
-        {showNomination && (
+            The push journal. No automatic list any more (owner, 13.11.2026): Volleymanager is
+            written from the match sheet or the button beneath Show IDs. */}
+        {showNomination && nominationStatus && (
           <div className="space-y-3 border-t border-hairline px-6 py-4">
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('nominationStatusLabel')}
             </h4>
 
-            {game.status === 'scheduled' && !readOnly && (
-              <div className="space-y-1.5">
-                <p className="text-sm font-medium text-foreground/85">{t('autoNomination')}</p>
-                <p className="text-xs text-muted-foreground">
-                  {t('autoNominationHint', {
-                    def: teamNominationDefault ? t('autoNominationOn') : t('autoNominationOff'),
-                  })}
-                </p>
-                <div className="flex flex-wrap gap-2 pt-0.5">
-                  {([
-                    { value: null, label: t('autoNominationUseTeamDefault') },
-                    { value: true, label: t('autoNominationOn') },
-                    { value: false, label: t('autoNominationOff') },
-                  ] as { value: boolean | null; label: string }[]).map((opt) => {
-                    const active = autoNomination === opt.value
-                    return (
-                      <Button
-                        key={String(opt.value)}
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        aria-pressed={active}
-                        onClick={() => saveNominationOverride(opt.value)}
-                        className={`rounded-full ${
-                          active
-                            ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        {opt.label}
-                      </Button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* Push journal — read-only. `filled` is a warning, not an error. */}
-            {nominationStatus && (
-              <NominationStatusBox
-                status={nominationStatus}
-                count={nominationCount}
-                pushedAt={nominationPushedAt}
-                error={nominationError}
-              />
-            )}
-
-            {/* Manual push, any time before kickoff — previews first, and warns before
-                amending a list that is already filed in Volleymanager. */}
-            {game.status === 'scheduled' && !readOnly && nominationStatus !== 'closed' && String(game.game_id ?? '').startsWith('vb_') && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={nominationStatus === 'pending'}
-                onClick={() => setNominationDialogOpen(true)}
-              >
-                {t(nominationStatus === 'saved' || nominationStatus === 'filled' ? 'nominationUpdateCta' : 'nominationCreateCta')}
-              </Button>
-            )}
-            {nominationDialogOpen && (
-              <NominationPushDialog
-                gameId={gameId}
-                open={nominationDialogOpen}
-                onClose={() => setNominationDialogOpen(false)}
-                onStarted={reloadAfterNominationPush}
-              />
-            )}
+            <NominationStatusBox
+              status={nominationStatus}
+              count={nominationCount}
+              pushedAt={nominationPushedAt}
+              error={nominationError}
+            />
           </div>
         )}
 

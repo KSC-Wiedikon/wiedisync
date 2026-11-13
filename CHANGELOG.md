@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.74.0 — 2026-11-13
+
+### Changed
+
+- The automatic Einsatzliste is off for every team. Wiedisync no longer files a list in Volleymanager by itself; it only checks the list before kickoff (−2 h and −45 min) and emails the coaches when it differs from the answers. The “Auto Einsatzliste” switches in the team settings and on games are gone.
+- The Create / Update Einsatzliste button now sits under Show roster, the RSVP list and Show IDs. Saving the match sheet still updates the list in Volleymanager.
+
+### Fixed
+
+- Create Einsatzliste no longer refuses with “No head coach (C) set” when no C is set in Wiedisync but Volleymanager already has one: that C stays on the list.
+
 ## v2.73.1 — 2026-11-09
 
 ### Changed

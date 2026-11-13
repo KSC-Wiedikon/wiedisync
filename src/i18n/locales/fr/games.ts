@@ -217,6 +217,7 @@ export default {
   nominationPreviewOfficials: 'Officiels',
   nominationOfficialEmpty: 'Vide',
   nominationOfficialKeep: 'Comme dans Volleymanager',
+  nominationOfficialKeepNamed: '{{name}} (comme dans Volleymanager)',
   nominationOfficialUnknown: 'Membre inconnu',
   nominationOfficialsFromSheet: 'Depuis la feuille de match de ce match.',
   nominationOfficialsFromTeam: 'Valeur par défaut de l\'équipe, seulement celles et ceux qui ont répondu Oui — modifiable dans l\'éditeur d\'effectif sous Paramètres des matchs.',
