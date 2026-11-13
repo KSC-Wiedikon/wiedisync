@@ -1,7 +1,8 @@
 /**
  * Tournament games — a day of short matches (SM Quali, a youth tournament), not a fixture.
- * Owner, 13.11.2026: they stay off the school's hall calendar (gcal-push.js) and the
- * members' iCal feed (ical-feed.js). The app itself still lists them.
+ * Owner, 13.11.2026: they stay off the school's hall calendar (gcal-push.js), and the
+ * members' iCal feed shows each tournament day as ONE all-day event per team
+ * (ical-feed.js tournamentDayEvent). The app itself still lists the matches.
  *
  * Swiss Volley gives no "tournament" flag, so the league name decides: "SM …" (Swiss
  * championship rounds), "Turnier", "Tournoi", "Torneo", "Tournament", "Finalrunde",
