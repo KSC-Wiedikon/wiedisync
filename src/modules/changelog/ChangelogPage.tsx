@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.74.0'
+const APP_VERSION = '2.74.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.74.1',
+    date: '13.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Tournament days (SM Quali and other tournaments) no longer go to the school’s hall calendar or to the calendar subscription (iCal). They still show in the app.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.74.0',
     date: '13.11.2026',
