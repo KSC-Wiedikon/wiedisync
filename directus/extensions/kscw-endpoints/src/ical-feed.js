@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto'
 import { writeUserLog } from './activity-log.js'
 import { seasonStartDate } from './season.js'
 import { publicEventsScope } from './public-events.js'
+import { excludeTournaments } from './tournament.js'
 
 // Frontend app base for the "view roster" deep-link on duty events. Overridable
 // per environment; defaults to prod.
@@ -262,7 +263,8 @@ export function registerICalFeed(router, { database, logger }) {
         // the per-member `game_guests` rows above only reach a tokened link of a
         // regular player, never a token-less team link or a coach. Leaks nothing a
         // team feed doesn't already publish — only that this team plays the game.
-        let q = database('games').where('date', '>=', from)
+        // Tournament days (SM Quali …) are not in the feed (owner, 13.11.2026).
+        let q = excludeTournaments(database('games').where('date', '>=', from))
         if (scoped) {
           const calledUpGameIds = database('game_guest_teams').whereIn('team', teamIds).select('game')
           // One parenthesised group, so the OR branches stay under the date floor
