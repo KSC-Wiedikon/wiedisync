@@ -17,6 +17,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { registerICalFeed, feedFloor } from '../ical-feed.js'
+import { isTournamentLeague } from '../tournament.js'
 
 // ─── Fake knex (subset used by the events and games sections) ────────────────
 
@@ -85,6 +86,12 @@ function makeDb(tables) {
           // A multi-day event that began before the floor but is still running
           // stays in the feed — that is what the coalesce is for.
           add((r) => String(r.end_date || r.start_date).slice(0, 10) >= floor.slice(0, 10))
+          return chain
+        }
+        if (sql.includes("!~*")) {
+          // excludeTournaments(): the league is not a tournament day.
+          const col = (sql.match(/COALESCE\((\w+(?:\.\w+)?)/) || [])[1]?.split('.').pop() || 'league'
+          add((r) => !isTournamentLeague(r[col]))
           return chain
         }
         if (sql.includes('invited_roles')) {
@@ -319,6 +326,14 @@ describe('GET /kscw/ical?team=… — called-up games', () => {
   it('a personal token still adds games the member was picked for by name', async () => {
     const body = await feed(gameFixtures(), { team: '3', token: 'tok-50' })
     expect(uids(body)).toEqual([774, 775, 778, 779])
+  })
+
+  it('tournament days stay out of the feed (owner, 13.11.2026)', async () => {
+    const fx = gameFixtures()
+    fx.games.push({ ...game(780, 1, 20), league: 'SM Quali MU23 A' })
+    fx.games.push({ ...game(781, 1, 22), league: 'Männer U23 1. Stärkeklasse' })
+    const body = await feed(fx, { team: '1' })
+    expect(uids(body)).toEqual([774, 777, 779, 781])
   })
 
   it("a pre-rollover link follows the team to this season's call-ups", async () => {

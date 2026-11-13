@@ -21,6 +21,7 @@
 
 import crypto from 'node:crypto'
 import { eventHallIds, eventBookingDays, entryHallIds, timeWindow } from './hall-bookings.js'
+import { excludeTournaments } from './tournament.js'
 
 export const KSCW_CALENDAR_ID = '145bqacb4v5qfkr97u2fdchi5o@group.calendar.google.com'
 const KWI_ADDRESS = 'Kantonsschule Wiedikon, Goldbrunnenstrasse 80, 8055 Zürich'
@@ -282,13 +283,15 @@ export async function pushHomeGames(db, log) {
     // never swept, even if the game row is later corrected or deleted.
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Zurich' }).format(new Date())
 
-    const games = await db('games as g')
+    // Tournament days (SM Quali …) stay off the school's calendar (owner, 13.11.2026);
+    // an event of ours for one is swept below like any game that left the list.
+    const games = await excludeTournaments(db('games as g')
       .join('halls as h', 'h.id', 'g.hall')
       .leftJoin('teams as t', 't.id', 'g.kscw_team')
       .where('g.type', 'home')
       .whereRaw("h.name ~* '^kwi'")
       .andWhere('g.date', '>=', today)
-      .whereNotNull('g.game_id')
+      .whereNotNull('g.game_id'), 'g.league')
       .select(
         'g.game_id',
         'g.away_team',
