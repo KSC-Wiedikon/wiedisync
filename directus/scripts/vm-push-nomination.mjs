@@ -202,6 +202,8 @@ export function nominatedLicences(list) {
 //      are named (officialsWhoSaidYes);
 //   3. whatever VM already has. We never clear a slot we have no opinion on, so an
 //      official a human entered in Volleymanager survives our push.
+const NO_HEAD_COACH = 'No head coach (C) set — set one in the team settings (Game defaults) or on the match sheet';
+
 export const OFFICIAL_SLOTS = [
   ['coach', 'coachPerson'],
   ['assistant_coach_1', 'firstAssistantCoachPerson'],
@@ -442,10 +444,12 @@ async function main() {
   // has not set its C costs nothing and gets a status that says exactly what to do.
   // (The manual endpoint refuses the same case up front.)
   const headCoach = officialMembers.find((m) => Number(m.id) === picked.slots.coach);
-  if (typeof picked.slots.coach !== 'number') {
-    return finish('failed', { error: 'No head coach (C) set — set one in the team settings (Game defaults) or on the match sheet' });
+  // undefined = nobody named here: VM's own C stays, checked on the live list below.
+  const keepVmCoach = picked.slots.coach === undefined;
+  if (picked.slots.coach === null) {
+    return finish('failed', { error: NO_HEAD_COACH });
   }
-  if (!headCoach?.license_nr) {
+  if (!keepVmCoach && !headCoach?.license_nr) {
     return finish('failed', { error: `Head coach (C) ${headCoach ? `${headCoach.first_name} ${headCoach.last_name}` : ''} has no licence number`.replace('  ', ' ') });
   }
 
@@ -466,6 +470,11 @@ async function main() {
   if (list?.closed || list?.isClosedForTeam) {
     return finish('closed', { listId: idOf(list), count: (list.indoorPlayerNominations ?? []).length,
       error: 'closed by the referee in Volleymanager — nothing was changed' });
+  }
+
+  // Nobody named as C here, so VM's own C stays — but only if VM has one.
+  if (keepVmCoach && !list?.coachPerson) {
+    return finish('failed', { error: NO_HEAD_COACH });
   }
 
   // The sheet shows a nominated licence we hold no member for, but cannot edit or name it,

@@ -9,7 +9,7 @@ import { kscwApi } from '@/lib/api'
 import { hasApiErrorCode } from '@/lib/apiErrorCode'
 
 type OfficialRole = 'coach' | 'assistant_coach_1' | 'assistant_coach_2'
-type Official = { keep: true } | { member: number; name: string | null; license_nr: string | null } | null
+type Official = { keep: true; name?: string } | { member: number; name: string | null; license_nr: string | null } | null
 
 interface Preview {
   players: { member: number; name: string; license_nr: string | null }[]
@@ -17,7 +17,7 @@ interface Preview {
   officials_source: 'game' | 'team'
   officials_not_named: string[]
   officials_none_yes: boolean
-  head_coach: 'ok' | 'missing' | 'no_licence'
+  head_coach: 'ok' | 'vm' | 'missing' | 'no_licence'
   status: string | null
   exists: boolean
   closed: boolean
@@ -80,7 +80,7 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
 
   function officialText(o: Official): string {
     if (o === null) return t('nominationOfficialEmpty')
-    if ('keep' in o) return t('nominationOfficialKeep')
+    if ('keep' in o) return o.name ? t('nominationOfficialKeepNamed', { name: o.name }) : t('nominationOfficialKeep')
     const name = o.name || t('nominationOfficialUnknown')
     return o.license_nr ? name : `${name} — ${t('nominationNoLicence')}`
   }
@@ -153,7 +153,7 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
                 <span>{t('nominationOfficialsNoYes')}</span>
               </p>
             )}
-            {preview.head_coach !== 'ok' && (
+            {preview.head_coach !== 'ok' && preview.head_coach !== 'vm' && (
               <p className="mt-2 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t(preview.head_coach === 'missing' ? 'nominationHeadCoachMissing' : 'nominationHeadCoachNoLicence')}</span>
@@ -167,7 +167,7 @@ export default function NominationPushDialog({ gameId, open, onClose, onStarted 
             <Button variant="outline" onClick={onClose}>{t('common:cancel')}</Button>
             <Button
               onClick={push}
-              disabled={sending || preview.started || preview.closed || preview.head_coach !== 'ok' || licensed.length === 0}
+              disabled={sending || preview.started || preview.closed || (preview.head_coach !== 'ok' && preview.head_coach !== 'vm') || licensed.length === 0}
             >
               {t(exists ? 'nominationUpdateCta' : 'nominationCreateCta')}
             </Button>

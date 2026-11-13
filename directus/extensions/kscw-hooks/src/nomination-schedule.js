@@ -9,6 +9,11 @@
  * on the match sheet, which saves the list itself.
  *
  * The exception is a change on that sheet no push has seen yet: the cron sends it.
+ *
+ * 13.11.2026 (owner): the automatic list is OFF for every team. The team / game toggle
+ * `auto_nomination_list` no longer files anything; only a coach's saved match sheet (or the
+ * button) reaches Volleymanager. The kickoff −2 h / −45 min check (vm-sheet-check.js) and
+ * its emails stay, so the automatic part is a check now, never a write.
  */
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 
@@ -42,7 +47,10 @@ export function nominationPushDue(game, now = Date.now()) {
   if (status === 'closed') return false
   const lastAttempt = ms(game.vm_nomination_claimed_at)
   const sheetChanged = ms(game.vm_nomination_sheet_changed_at)
-  if (sheetChanged != null && (lastAttempt == null || sheetChanged > lastAttempt)) return true
+  // No automatic list any more (owner, 13.11.2026): the cron only sends what a coach saved
+  // on the match sheet. Without that, the game gets the kickoff −2 h / −45 min check only.
+  if (sheetChanged == null) return false
+  if (lastAttempt == null || sheetChanged > lastAttempt) return true
   if (status === 'saved' || status === 'filled') return false
   if (!status || status === 'pending' || lead <= NOMINATION_SECOND_CHANCE_MS) return true
   if (status !== 'failed') return false

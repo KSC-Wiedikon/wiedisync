@@ -977,15 +977,9 @@ function TeamSettingsSection({ team, staff, onUpdate }: {
           <SettingRow label={t('featureAutoConfirmGame')} hint={t('featureAutoConfirmGameHint')}>
             <SwitchToggle checked={settings.game_auto_confirm === true} onChange={() => requestAutoConfirmToggle('game')} />
           </SettingRow>
-          {/* Volleyball only — the Einsatzliste lives in Volleymanager, basketball has no
-              equivalent. No confirm dialog: unlike auto-confirm (which backfills existing
-              participations) this flag is only read at push time, so flipping it is
-              forward-only and has no retroactive effect. */}
-          {team.sport === 'volleyball' && (
-            <SettingRow label={t('featureAutoNominationList')} hint={t('featureAutoNominationListHint')}>
-              <SwitchToggle checked={settings.auto_nomination_list === true} onChange={() => toggleBool('auto_nomination_list')} />
-            </SettingRow>
-          )}
+          {/* No "Auto Einsatzliste" switch any more: the automatic list is off for every
+              team (owner, 13.11.2026). Volleymanager is only written from the match sheet or
+              the button; the kickoff −2 h / −45 min check still compares and emails. */}
           {team.sport === 'volleyball' && (
             <div className="px-4 py-3">
               <div className="text-sm font-medium text-foreground">{t('nominationOfficials')}</div>

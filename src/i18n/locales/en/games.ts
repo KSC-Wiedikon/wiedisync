@@ -221,6 +221,7 @@ export default {
   nominationPreviewOfficials: 'Officials',
   nominationOfficialEmpty: 'Empty',
   nominationOfficialKeep: 'As in Volleymanager',
+  nominationOfficialKeepNamed: '{{name}} (as in Volleymanager)',
   nominationOfficialUnknown: 'Unknown member',
   nominationOfficialsFromSheet: 'From this game\'s match sheet.',
   nominationOfficialsFromTeam: 'Team default, only those who said Yes — change it in the roster editor under Game defaults.',

@@ -49,3 +49,22 @@ describe('nomination officials — preview mirrors the worker', () => {
     expect(previewYes(previewPick(rows, def), new Set(yes))).toEqual(workerYes(workerPick(rows, def), new Set(yes)))
   })
 })
+
+describe('head-coach gate', async () => {
+  const { officialsHeadCoach } = await import('../nomination-push.js')
+  it('a licensed member is ok', () => {
+    expect(officialsHeadCoach({ member: 1, name: 'A B', license_nr: '123' })).toBe('ok')
+  })
+  it('a member without a licence is refused', () => {
+    expect(officialsHeadCoach({ member: 1, name: 'A B', license_nr: null })).toBe('no_licence')
+  })
+  it('nobody named, but Volleymanager already has a C: keep it', () => {
+    expect(officialsHeadCoach({ keep: true, name: 'Vit Maca' })).toBe('vm')
+  })
+  it('nobody named and no C in Volleymanager: missing', () => {
+    expect(officialsHeadCoach({ keep: true })).toBe('missing')
+  })
+  it('a slot cleared on the match sheet: missing', () => {
+    expect(officialsHeadCoach(null)).toBe('missing')
+  })
+})
