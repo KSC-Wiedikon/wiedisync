@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.74.0'
+const APP_VERSION = '2.74.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,30 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.74.2',
+    date: '13.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Calendar subscription (iCal): a tournament day is now one all-day event per team (e.g. “KSC Wiedikon HU23-1 – SM Quali MU23 A”), with every match and its time in the notes, instead of the single matches. The school’s hall calendar still leaves tournaments out.",
+        ],
+      },
+    ],
+  },
+  {
+    version: '2.74.1',
+    date: '13.11.2026',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          "Tournament days (SM Quali and other tournaments) no longer go to the school’s hall calendar or to the calendar subscription (iCal). They still show in the app.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.74.0',
     date: '13.11.2026',

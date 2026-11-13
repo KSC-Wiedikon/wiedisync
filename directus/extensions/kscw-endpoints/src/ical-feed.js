@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto'
 import { writeUserLog } from './activity-log.js'
 import { seasonStartDate } from './season.js'
 import { publicEventsScope } from './public-events.js'
+import { isTournamentLeague } from './tournament.js'
 
 // Frontend app base for the "view roster" deep-link on duty events. Overridable
 // per environment; defaults to prod.
@@ -92,6 +93,50 @@ function toZurichDate(input) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(d)
+}
+
+/**
+ * One all-day VEVENT for a team's tournament day: the league as the title, every match
+ * with its kick-off (and score once played) in the description, the venue(s) as LOCATION.
+ * The UID is per team and day, so a subscribed calendar updates the one entry in place.
+ */
+export function tournamentDayEvent({ team, date, games }, { now, hallById = {} }) {
+  const sorted = [...games].sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+  const first = sorted[0]
+  const ours = first.type === 'home' ? first.home_team : first.away_team
+  const leagues = [...new Set(sorted.map((g) => g.league).filter(Boolean))]
+  const title = `${ours || 'KSC Wiedikon'} – ${leagues.join(' / ') || 'Turnier'}`
+
+  const venues = []
+  for (const g of sorted) {
+    let venue = g.hall ? hallById[g.hall] : null
+    if (!venue && g.away_hall_json) {
+      venue = g.away_hall_json
+      if (typeof venue === 'string') { try { venue = JSON.parse(venue) } catch { venue = null } }
+    }
+    const loc = venue
+      ? [venue.name, venue.address, venue.city].map((x) => String(x || '').trim()).filter(Boolean).join(', ')
+      : ''
+    if (loc && !venues.includes(loc)) venues.push(loc)
+  }
+
+  const matchLines = sorted.map((g) => {
+    const time = g.time ? String(g.time).slice(0, 5) : '--:--'
+    let line = `${time} ${g.home_team || ''} - ${g.away_team || ''}`
+    if (g.status === 'completed') line += ` (${g.home_score}:${g.away_score})`
+    if (g.status === 'postponed') line += ' [VERSCHOBEN]'
+    return line
+  })
+  const desc = [`Turnier: ${sorted.length} ${sorted.length === 1 ? 'Spiel' : 'Spiele'}`, ...matchLines].join('\n')
+
+  const out = [
+    'BEGIN:VEVENT', `UID:tournament-${team ?? 'x'}-${date}@kscw.ch`, `DTSTAMP:${now}`,
+    `DTSTART;VALUE=DATE:${fmtDate(date)}`, `DTEND;VALUE=DATE:${fmtDate(nextDay(date))}`,
+    `SUMMARY:${esc(title)}`,
+  ]
+  if (venues.length) out.push(`LOCATION:${esc(venues.join(' / '))}`)
+  out.push(`DESCRIPTION:${esc(desc)}`, 'END:VEVENT')
+  return out
 }
 
 export function registerICalFeed(router, { database, logger }) {
@@ -283,9 +328,19 @@ export function registerICalFeed(router, { database, logger }) {
             )
           : {}
 
+        // Tournament days (SM Quali …) are one all-day event per team and day, not a
+        // row of short matches (owner, 13.11.2026). Collected here, written after the loop.
+        const tournamentDays = new Map()
+
         for (const g of games) {
           if (!g.date) continue
           const d = toISO(g.date)
+          if (isTournamentLeague(g.league)) {
+            const key = `${g.kscw_team ?? ''}|${d}`
+            if (!tournamentDays.has(key)) tournamentDays.set(key, { team: g.kscw_team, date: d, games: [] })
+            tournamentDays.get(key).games.push(g)
+            continue
+          }
           let title = `${g.home_team || ''} - ${g.away_team || ''}`
           if (g.status === 'completed') title += ` (${g.home_score}:${g.away_score})`
 
@@ -331,6 +386,10 @@ export function registerICalFeed(router, { database, logger }) {
           if (location) lines.push(`LOCATION:${esc(location)}`)
           if (desc) lines.push(`DESCRIPTION:${esc(desc)}`)
           lines.push('END:VEVENT')
+        }
+
+        for (const day of tournamentDays.values()) {
+          lines.push(...tournamentDayEvent(day, { now, hallById }))
         }
       }
 

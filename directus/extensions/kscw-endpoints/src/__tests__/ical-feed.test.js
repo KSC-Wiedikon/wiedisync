@@ -321,6 +321,27 @@ describe('GET /kscw/ical?team=… — called-up games', () => {
     expect(uids(body)).toEqual([774, 775, 778, 779])
   })
 
+  it('a tournament day is one all-day event, not its matches (owner, 13.11.2026)', async () => {
+    const fx = gameFixtures()
+    const t = (id, time, home, away, extra = {}) => ({
+      ...game(id, 1, 20), time, league: 'SM Quali MU23 A', home_team: home, away_team: away, ...extra,
+    })
+    fx.games.push(
+      t(782, '12:45:00', 'KSC Wiedikon H1', 'Wädivolley HU23'),
+      t(780, '09:00:00', 'KSC Wiedikon H1', 'VBC Rämi', { status: 'completed', home_score: 2, away_score: 1 }),
+      t(781, '15:15:00', 'VC Tornado Adliswil', 'KSC Wiedikon H1', { type: 'away' }),
+    )
+    const body = await feed(fx, { team: '1' })
+    expect(uids(body)).toEqual([774, 777, 779])          // no single tournament match
+    const ev = body.split('BEGIN:VEVENT').find((e) => e.includes('UID:tournament-1-'))
+    expect(ev).toBeDefined()
+    expect(ev).toMatch(/DTSTART;VALUE=DATE:\d{8}/)
+    expect(ev).toContain('SUMMARY:KSC Wiedikon H1 – SM Quali MU23 A')
+    const desc = ev.match(/DESCRIPTION:(.*)/)[1]
+    expect(desc).toBe('Turnier: 3 Spiele\\n09:00 KSC Wiedikon H1 - VBC Rämi (2:1)\\n12:45 KSC Wiedikon H1 - Wädivolley HU23\\n15:15 VC Tornado Adliswil - KSC Wiedikon H1')
+    expect(body.match(/UID:tournament-/g)).toHaveLength(1)
+  })
+
   it("a pre-rollover link follows the team to this season's call-ups", async () => {
     // Team id 2 is last season's H3; the feed hops it to 3 before matching.
     const body = await feed(gameFixtures(), { team: '2' })

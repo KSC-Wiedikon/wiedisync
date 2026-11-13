@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.74.2 — 2026-11-13
+
+### Changed
+
+- Calendar subscription (iCal): a tournament day is now one all-day event per team (e.g. “KSC Wiedikon HU23-1 – SM Quali MU23 A”), with every match and its time in the notes, instead of the single matches. The school’s hall calendar still leaves tournaments out.
+
+## v2.74.1 — 2026-11-13
+
+### Changed
+
+- Tournament days (SM Quali and other tournaments) no longer go to the school’s hall calendar or to the calendar subscription (iCal). They still show in the app.
+
 ## v2.74.0 — 2026-11-13
 
 ### Changed
