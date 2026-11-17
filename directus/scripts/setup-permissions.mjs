@@ -2900,6 +2900,30 @@ async function main() {
       // delete over that member's CURRENT-season RSVPs, unbounded in time.
       { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      // Anyone's RSVP on a TRAINING of a team I coach/TR (migration 453). The
+      // member-side branches above miss a player borrowed from another team for
+      // one session: he is on none of my teams, so the host coach got a 403 when
+      // he set that player's answer (17.11.2026, D1 coach → H1 player). `training`
+      // is the derived m2o behind the varchar activity_id. Trainings only — events
+      // stay "your own people" (a shared tournament is no mandate over another
+      // team's answers, see the READ note below) and games have the guest branch.
+      // active: true for the same ex-coach reason as above.
+      {
+        _and: [
+          { activity_type: { _eq: 'training' } },
+          {
+            training: {
+              team: {
+                active: { _eq: true },
+                _or: [
+                  { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+                  { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+                ],
+              },
+            },
+          },
+        ],
+      },
       // Guests of a game I lead (migration 271). They are on no team of mine, so the
       // member_teams branches above miss them and the coach — the one person who has
       // to pick the squad — would read a roster with the borrowed players blank.
