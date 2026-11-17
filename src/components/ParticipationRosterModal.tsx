@@ -660,6 +660,17 @@ export default function ParticipationRosterModal({
   }, [clubWideTeamRows, clubWideTeamRowsArePrevious])
 
   const effectiveTeamsByMember = isClubWide ? clubWideTeamsByMember : teamsByMember
+  // Per-row edit gate. The server lets a coach/TR write a row when the member is on
+  // a team they lead, or (migration 453) when the row is on a training of that team.
+  // Games have the guest branch. EVENTS stay "your own people": a shared tournament
+  // is no mandate over another team's answers, so a pencil on such a row would only
+  // earn a 403 (logged 17.11.2026 as a permission error). Admins are not scoped.
+  const canEditMemberRow = useCallback((memberId: string | number): boolean => {
+    if (!canEditRoster) return false
+    if (effectiveIsAdmin || activityType !== 'event') return true
+    const memberTeams = effectiveTeamsByMember.get(String(memberId)) ?? []
+    return memberTeams.some((tid) => canManageTeam(tid) || teamResponsibleIds.includes(String(tid)))
+  }, [canEditRoster, effectiveIsAdmin, activityType, effectiveTeamsByMember, canManageTeam, teamResponsibleIds])
   const effectiveTeamNameById = isClubWide ? clubWideTeamNames : teamNameById
   // What the team dropdown offers: the event's invited teams normally, the teams
   // the respondents actually belong to when the event is club-wide.
@@ -2600,7 +2611,7 @@ export default function ParticipationRosterModal({
                         </span>
                       )
                     })()}
-                    {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                    {canEditMemberRow(member.id) && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
                       <IconButton
                         type="button"
                         size="sm"
@@ -2623,7 +2634,7 @@ export default function ParticipationRosterModal({
                   // their own row below, so the pencil hides to avoid a dead affordance.
                   <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                     <RsvpBrick status={status} label={statusLabelText(member.id, status)} />
-                    {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                    {canEditMemberRow(member.id) && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
                       <IconButton
                         type="button"
                         size="sm"
@@ -2795,7 +2806,7 @@ export default function ParticipationRosterModal({
                       ) : (
                         <>
                           <RsvpBrick status="waitlisted" label={statusLabels.waitlisted} />
-                          {canEditRoster && !savingMemberIds.has(wp.member) && (
+                          {canEditMemberRow(wp.member) && !savingMemberIds.has(wp.member) && (
                             <IconButton
                               type="button"
                               size="sm"
@@ -2887,7 +2898,7 @@ export default function ParticipationRosterModal({
                               </span>
                             )
                           })()}
-                          {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                          {canEditMemberRow(member.id) && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
                             <IconButton
                               type="button"
                               size="sm"
@@ -2905,7 +2916,7 @@ export default function ParticipationRosterModal({
                       ) : (
                         <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                           <RsvpBrick status={status} label={status ? (statusLabels[status] ?? t('notResponded')) : t('notResponded')} />
-                          {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                          {canEditMemberRow(member.id) && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
                             <IconButton
                               type="button"
                               size="sm"
