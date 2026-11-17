@@ -5,7 +5,8 @@ All infra details (IPs, URLs, ports, credentials, deploy commands) live in **INF
 
 ## The shared VolleyManager account (cross-repo)
 There is ONE VolleyManager login and the **svrz_rc** project (`~/repos/svrz_rc`, API
-container on lenovoserver) uses the same one. VM keeps the active role per *account*,
+container on lenovoserver) and **OpenVolley**'s schedule sync (daily 22:30 UTC, backend
+on lenovoserver) use the same one. VM keeps the active role per *account*,
 not per session, so two jobs overlapping means the loser reads under the winner's role
 — which for club-scoped resources is a 200 with the **wrong rows**, not a 403.
 `claimVmAccount` only guards jobs inside this Directus process; svrz_rc's own lock
