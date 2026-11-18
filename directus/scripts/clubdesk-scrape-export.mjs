@@ -30,7 +30,7 @@
  *   never on class names, and assert after every step.
  */
 
-import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte, dismissAfterLoginInfo } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -110,6 +110,7 @@ async function run() {
     if (await page.locator('#password').count()) {
       throw new Error('Still on the login form after submit — wrong credentials, or login blocked (2FA/CAPTCHA?).')
     }
+    await dismissAfterLoginInfo(page, (m) => step(14, m))
     const me = (await page.locator('body').innerText().catch(() => '')).match(/Benutzer:\s*([^\n]+)/)
     step(16, `Logged in${me ? ` as ${me[1].trim()}` : ''}.`)
 

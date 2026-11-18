@@ -25,7 +25,7 @@
  * ⚠ ONE ClubDesk session per account — run on the dedicated service account.
  * ⚠ 'commit' writes to the club's legal member record. Gate it behind a human OK.
  */
-import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte, dismissAfterLoginInfo } from './clubdesk-browser.mjs'
 import { pickExact } from './clubdesk-dom.mjs'
 
 const USER = process.env.CLUBDESK_USER
@@ -170,6 +170,7 @@ async function run() {
     await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.click('#submit')])
     await sleep(3000)
     if (await page.locator('#password').count()) throw new Error('Still on login form — bad credentials, or login blocked.')
+    await dismissAfterLoginInfo(page, log)
     log('Logged in.')
 
     // Kontakte (2nd toolbar icon)

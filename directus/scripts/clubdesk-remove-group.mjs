@@ -18,7 +18,7 @@
  * ⚠ ONE ClubDesk session per account — run under the shared .sync.lock.
  * ⚠ 'commit' edits the club's legal member record.
  */
-import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte, dismissAfterLoginInfo } from './clubdesk-browser.mjs'
 import { gridHasColumn } from './clubdesk-dom.mjs'
 import { readFileSync } from 'node:fs'
 const USER = process.env.CLUBDESK_USER, PASS = process.env.CLUBDESK_PASS
@@ -152,6 +152,7 @@ async function openKontakte(page) {
   await page.fill('#userId', USER); await page.fill('#password', PASS)
   await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.click('#submit')]); await sleep(3000)
   if (await page.locator('#password').count()) throw new Error('login failed')
+  await dismissAfterLoginInfo(page, log)
   await clickKontakte(page, log); await sleep(1200)
   const ak = await page.evaluate(() => { const o = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }; for (const e of document.querySelectorAll('*')) if (o(e) === 'Alle Kontakte') { const r = e.getBoundingClientRect(); if (r.left < 300 && r.width > 0) return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } } return null })
   if (ak) { await page.mouse.click(ak.x, ak.y); await sleep(1600) }

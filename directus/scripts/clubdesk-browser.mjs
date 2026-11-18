@@ -68,6 +68,41 @@ export async function launchBrowser(opts = {}) {
 export { chromium }
 
 /**
+ * Click past ClubDesk's after-login notice pages, if any, so the app shell loads.
+ *
+ * ClubDesk sometimes puts a full-page notice between login and the app: a form
+ * with a hidden `afterLoginInfo` field, a "Nicht mehr anzeigen" checkbox and a
+ * "Weiter" submit button. On 18.11.2026 it was a Christmas referral promo
+ * (afterLoginInfoId_20261116001). The page has no module launcher, so the nightly
+ * finance sync failed with "Launcher icon row not found (got 0 icons)", and every
+ * other script would have failed on Kontakte. Each notice has its own id, so
+ * ticking "Nicht mehr anzeigen" only hides that one. New notices will come.
+ *
+ * Safe to run on every login: nothing is typed into the register here. The
+ * checkbox only hides the notice for the service account. Loops in case
+ * ClubDesk queues more than one.
+ *
+ * @param {import('playwright').Page} page
+ * @param {(msg: string) => void} [log]
+ */
+export async function dismissAfterLoginInfo(page, log = () => {}) {
+  for (let n = 0; n < 5; n++) {
+    const form = page.locator('form').filter({ has: page.locator('input[type=hidden][value="afterLoginInfo"]') }).first()
+    if (!(await form.count())) return
+    const id = await form.locator('input[type=hidden][value^="afterLoginInfoId_"]').first().getAttribute('value').catch(() => null)
+    const title = ((await form.innerText().catch(() => '')).split('\n').find((l) => l.trim()) || '').trim().slice(0, 80)
+    log(`ClubDesk after-login notice${id ? ` (${id})` : ''}: "${title}" — dismissing…`)
+    const box = form.locator('input[type=checkbox]').first()
+    if (await box.count()) await box.check().catch(() => {})
+    const next = form.locator('button[type=submit]', { hasText: 'Weiter' }).first()
+    if (!(await next.count())) throw new Error(`ClubDesk after-login notice${id ? ` ${id}` : ''} has no "Weiter" button — log in as the service account and dismiss it by hand.`)
+    await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), next.click()])
+    await sleep(3000)
+  }
+  throw new Error('ClubDesk kept showing after-login notices (5 dismissed) — log in as the service account and check.')
+}
+
+/**
  * Open the Kontakte module (2nd toolbar button) and wait until its grid header
  * "(N Einträge)" is VISIBLE. Retries the click up to 3 times.
  *

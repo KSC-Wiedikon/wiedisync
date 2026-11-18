@@ -29,7 +29,7 @@
  * ⚠ ONE ClubDesk session per account — run under the shared .sync.lock.
  * ⚠ 'commit' writes to the club's legal member record — gate behind a human OK.
  */
-import { launchBrowser, clickKontakte } from './clubdesk-browser.mjs'
+import { launchBrowser, clickKontakte, dismissAfterLoginInfo } from './clubdesk-browser.mjs'
 import { gridHasColumn } from './clubdesk-dom.mjs'
 import { readFileSync } from 'node:fs'
 
@@ -131,6 +131,7 @@ async function openKontakte(page) {
   await page.fill('#userId', USER); await page.fill('#password', PASS)
   await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.click('#submit')]); await sleep(3000)
   if (await page.locator('#password').count()) throw new Error('login failed — bad creds/blocked')
+  await dismissAfterLoginInfo(page, log)
   await clickKontakte(page, log); await sleep(1200)
   // Switch to "Alle Kontakte" so the grid spans members AND non-members —
   // ehemalige / Nicht-Mitglieder aren't in the default "Mitglieder" view but can
