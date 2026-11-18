@@ -29,7 +29,7 @@
  * so every year is selected and exported in turn (exportAllBookingYears).
  */
 
-import { launchBrowser } from './clubdesk-browser.mjs'
+import { launchBrowser, dismissAfterLoginInfo } from './clubdesk-browser.mjs'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -342,6 +342,7 @@ async function run() {
     if (await page.locator('#password').count()) {
       throw new Error('Still on the login form after submit — wrong credentials, or login blocked (2FA/CAPTCHA?).')
     }
+    await dismissAfterLoginInfo(page, log)
     log('Logged in.')
 
     // ── Rechnungen → export ───────────────────────────────────────────
