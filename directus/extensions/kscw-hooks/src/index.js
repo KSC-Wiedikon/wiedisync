@@ -45,6 +45,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { createEmailReminders, isWeeklyDigestTime } from './email-reminders.js'
 import { createEinsatzlisteAlert, einsatzlisteAlertDue, nominationFlagAlertDue, vmReadDue } from './einsatzliste-alert.js'
 import { nominationPushDue } from './nomination-schedule.js'
+import { waitForVmAccount } from './vm-account-wait.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -9686,6 +9687,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // it back on exit, and the dispatcher waits for that before the next.
     vmResultSweepRunning = true
     try {
+      // The */5 Einsatzliste tick fires at :35 too and holds the account for a moment
+      // even when nothing is due — wait for it instead of losing the hour (18.11.2026).
+      await waitForVmAccount(vmAccountHeldBy)
       const q = await dispatchQueuedResultPushes({ database, log, max: VM_RESULT_QUEUE_MAX })
       if (q.queued) {
         log.info({
@@ -9701,6 +9705,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // The dispatch can take minutes; re-check before the reads.
     if (isSvrzRcBlackout(new Date())) return
 
+    // Same wait as above: a short holder is waited for, a long one (vm_sync, a push
+    // worker) still skips the hour. The wait is short, but re-check the window after it.
+    vmResultSweepRunning = true
+    try {
+      await waitForVmAccount(vmAccountHeldBy)
+    } finally {
+      vmResultSweepRunning = false
+    }
+    if (isSvrzRcBlackout(new Date())) return
     let releaseVmAccount = claimVmAccount('vm_result_sweep')
     if (!releaseVmAccount) {
       // A deliberate skip, not a failure — the next hour reads it.
