@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest'
 
 process.env.SV_API_KEY ||= 'test-key'
-const { applyLocalGuards, cmpVal, deriveLeagueLabel } = await import('../sv-sync.js')
+const { applyLocalGuards, cmpVal, deriveLeagueLabel, resolveHomeHall } = await import('../sv-sync.js')
 
 describe('applyLocalGuards — local cancel preservation', () => {
   it('keeps a locally-cancelled game cancelled when the feed still says scheduled', () => {
@@ -157,5 +157,50 @@ describe('cmpVal — change-detection normalization', () => {
     expect(cmpVal('away_hall_json', undefined)).toBe('')
     expect(cmpVal('home_score', 3)).toBe('3')
     expect(cmpVal('home_score', '3')).toBe('3')
+  })
+})
+
+describe('resolveHomeHall — the app owns the hall before the season, VM after', () => {
+  // Real prod mapping: KWI A/B/C are separate gyms, Döltschi 1 and 2 share one.
+  const vmGymByHall = new Map([
+    ['1', '9427f854'], ['2', '600f0efa'], ['3', 'a3265f9d'],
+    ['4', '5a80a35c'], ['12', '5a80a35c'],
+  ])
+  const run = (existing, feedHall, seasonStarted = true) =>
+    resolveHomeHall({ existing, feedHall, seasonStarted, vmGymByHall })
+
+  it('takes the feed hall once the season has started (#406697: KWI A → KWI C)', () => {
+    expect(run({ hall: 1, additional_halls: null }, 3)).toBe(3)
+  })
+
+  it('keeps our hall before the season starts', () => {
+    expect(run({ hall: 1, additional_halls: null }, 3, false)).toBe(1)
+  })
+
+  it('never NULLs a set hall when the feed hall is missing or unmapped', () => {
+    expect(run({ hall: 1 }, null)).toBe(1)
+    expect(run({ hall: 1 }, undefined)).toBe(1)
+  })
+
+  it('fills an empty hall from the feed', () => {
+    expect(run({ hall: null }, 2)).toBe(2)
+  })
+
+  it('keeps an A+B combo — the sync never writes additional_halls', () => {
+    expect(run({ hall: 1, additional_halls: [2] }, 3)).toBe(1)
+    expect(run({ hall: 1, additional_halls: '[2]' }, 3)).toBe(1)
+  })
+
+  it('treats an empty additional_halls as no combo', () => {
+    expect(run({ hall: 1, additional_halls: [] }, 3)).toBe(3)
+    expect(run({ hall: 1, additional_halls: '[]' }, 3)).toBe(3)
+  })
+
+  it('keeps Döltschi 1 when the feed says Döltschi 2 (one VM gym)', () => {
+    expect(run({ hall: 4 }, 12)).toBe(4)
+  })
+
+  it('leaves an unchanged hall alone, whatever the id type', () => {
+    expect(run({ hall: '3' }, 3)).toBe('3')
   })
 })
