@@ -560,7 +560,7 @@ ORDER BY t.name, o.team_name, b.id`,
     severity: 'warn',
     grain: 'game',
     title: 'Mirrored game disagrees with its confirmed booking',
-    description: 'The games row members see does not match what the Spielplaner confirmed: a home game on another hall than the booked slot (sv-sync never rewrites hall — FREEZE_HALLS — so a Saturday rebalance or a feed hall id that maps to the wrong court persists silently), or a date/time that differs from the agreed slot / away proposal while the booking still owns the date (before the season’s vm_authority_date; afterwards the feed’s date wins and only the hall is compared). Halls that share a VolleyManager gym (Döltschi 1/2) count as equal. Fix: reconcile-games re-applies the slot, or move the booking to where the game really is.',
+    description: 'The games row members see does not match what the Spielplaner confirmed: a home game on another hall than the booked slot (before the season starts the booking owns the hall; once a game of the season has a result sv-sync takes the hall from VolleyManager, so a difference then means VM placed the game elsewhere than we booked), or a date/time that differs from the agreed slot / away proposal while the booking still owns the date (before the season’s vm_authority_date; afterwards the feed’s date wins and only the hall is compared). Halls that share a VolleyManager gym (Döltschi 1/2) count as equal. Fix: before the season, reconcile-games re-applies the slot; after it, move the booking to where VM has the game (or correct VM), since the next sync takes VM’s hall again.',
     sql: `
 WITH s AS (
   SELECT cur.id, (cur.vm_authority_date IS NOT NULL AND {{today}} >= cur.vm_authority_date) AS feed_owns

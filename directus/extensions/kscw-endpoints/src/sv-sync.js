@@ -147,6 +147,36 @@ export function applyLocalGuards(data, existing) {
   }
 }
 
+// Who owns an existing home game's `hall`: the app before the season starts,
+// the feed (VolleyManager) after. Replaces the blanket FREEZE_HALLS of
+// 2026-07-09, which pinned every hall forever — so when VM moved HU23-1's
+// 22.11.2026 game (#406697) from KWI A to KWI C, kscw.ch kept showing KWI A.
+// Before the season the halls are still being negotiated and hand-corrected
+// (Terminplanung slots, Saturday rebalance), which the feed used to clobber;
+// once the first game of the season has a result, VM is the source of truth.
+// Even then the existing hall is kept when:
+//  • the feed gives no hall, or one no `halls` row maps (never NULL a set hall);
+//  • the row is a combo (`additional_halls`, the A+B derbies): VM carries those
+//    as one combo gym, which no hall row maps by design (migration 220), and
+//    this sync never writes `additional_halls`, so moving only the primary
+//    would leave a court set no VM gym matches;
+//  • both halls are the same VM gym (Döltschi 1/2 share one): the feed cannot
+//    tell them apart, so a hand-picked Döltschi 1 must not flip to Döltschi 2.
+// Exported for tests.
+export function resolveHomeHall({ existing, feedHall, seasonStarted, vmGymByHall }) {
+  if (!seasonStarted) return existing.hall
+  if (feedHall == null) return existing.hall
+  if (existing.hall == null) return feedHall
+  if (String(feedHall) === String(existing.hall)) return existing.hall
+  let extra = existing.additional_halls
+  if (typeof extra === 'string') { try { extra = JSON.parse(extra) } catch { extra = null } }
+  if (Array.isArray(extra) && extra.length > 0) return existing.hall
+  const gymOld = vmGymByHall?.get(String(existing.hall))
+  const gymNew = vmGymByHall?.get(String(feedHall))
+  if (gymOld && gymOld === gymNew) return existing.hall
+  return feedHall
+}
+
 export async function syncSvGames(db, log) {
   log.info('[SV Sync] Fetching games...')
 
@@ -178,8 +208,9 @@ export async function syncSvGames(db, log) {
   // mislink games to the archived row.
   const teamRows = await db('teams').where('active', true).whereNot('team_id', '').select('id', 'team_id', 'features_enabled')
   const teamLookup = Object.fromEntries(teamRows.map(t => [t.team_id, t]))
-  const hallRows = await db('halls').whereNot('sv_hall_id', '').select('id', 'sv_hall_id')
-  const hallLookup = Object.fromEntries(hallRows.map(h => [h.sv_hall_id, h.id]))
+  const allHallRows = await db('halls').select('id', 'sv_hall_id', 'vm_hall_id')
+  const hallLookup = Object.fromEntries(allHallRows.filter(h => h.sv_hall_id).map(h => [h.sv_hall_id, h.id]))
+  const vmGymByHall = new Map(allHallRows.filter(h => h.vm_hall_id).map(h => [String(h.id), h.vm_hall_id]))
 
   // Batch-fetch all existing SV games, grouped by game_id (1 query instead of
   // N). Grouped — not one-per-id — because an intra-club fixture (e.g. the
@@ -190,7 +221,7 @@ export async function syncSvGames(db, log) {
   const existingRows = await db('games').where('source', 'swiss_volley')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'away_hall_json', 'league', 'round',
-      'sets_json', 'referees_json', 'respond_by', 'kscw_team', 'type')
+      'sets_json', 'referees_json', 'respond_by', 'kscw_team', 'type', 'additional_halls')
   const existingByGameId = new Map()
   for (const r of existingRows) {
     const list = existingByGameId.get(r.game_id)
@@ -224,18 +255,14 @@ export async function syncSvGames(db, log) {
   }
   const todayStr = new Date().toISOString().slice(0, 10)
 
-  // TEMPORARY hall freeze (2026-07-09). The SV feed's hall names are ambiguous
-  // and have been overwriting hand-corrected home halls (e.g. D4's KWI A slot →
-  // feed's KWI C) and rotting A+B combos (feed rewrites the primary `hall`,
-  // leaving `additional_halls` stale). Swiss Volley is renaming the halls to be
-  // unambiguous; until then we NEVER let the feed change an existing game's
-  // `hall`. Flip to false (or delete the guard) once the rename lands, so the
-  // feed owns `hall` again. Creates still take the feed hall — only updates are
-  // frozen. `additional_halls` is never written by this sync, so it's unaffected.
-  // ⚠ When removing this freeze, port bp-sync's applyLocalGuards hall/venue
-  // defaulting (undefined → keep existing) — otherwise a hallLookup miss NULLs
-  // a hand-set hall again.
-  const FREEZE_HALLS = true
+  // A season has started once any KSCW fixture of it carries a result. From
+  // then on the feed owns home halls (resolveHomeHall). Keyed on a result, not
+  // the earliest date, because an unscheduled fixture can sit at a placeholder
+  // date that would lift the guard too early.
+  const startedSeasons = new Set()
+  for (const g of kscwGames) {
+    if (g.resultSummary?.winner && g.playDate) startedSeasons.add(deriveSeason(g.playDate))
+  }
 
   // Fields to compare — if all match, skip the update
   const COMPARE_FIELDS = [
@@ -345,9 +372,17 @@ export async function syncSvGames(db, log) {
         }
 
         if (existing) {
-          // Hall freeze: never let the feed change an existing game's hall while
-          // the SV hall names are ambiguous (see FREEZE_HALLS above).
-          if (FREEZE_HALLS) data.hall = existing.hall
+          // Home hall: the app's before the season starts, VM's after (see
+          // resolveHomeHall). Away rows carry no hall (away_hall_json instead).
+          data.hall = resolveHomeHall({
+            existing,
+            feedHall: data.hall,
+            seasonStarted: startedSeasons.has(base.season),
+            vmGymByHall,
+          })
+          if (String(data.hall ?? '') !== String(existing.hall ?? '')) {
+            log.info(`[SV Sync] vb_${gameId}: hall ${existing.hall ?? '–'} → ${data.hall ?? '–'} (from the feed)`)
+          }
           // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
           // let a feed placeholder overwrite it (a real reschedule reaches these via
           // the tool). Scores/status/teams/etc. below still sync.
