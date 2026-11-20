@@ -56,6 +56,9 @@ const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftOnSite', 'ruleVbSoftHu20
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
 
+/** A home game that carries duties (the planner and the Overview use the same test). */
+const isDutyHomeGame = (g: Game) => g.type === 'home' && g.status !== 'postponed'
+
 export default function ScorerAssignPage() {
   const { t, i18n } = useTranslation('scorerAssign')
   // Exports are ALWAYS English, whatever the UI language (app-wide convention).
@@ -77,13 +80,17 @@ export default function ScorerAssignPage() {
   // the team summary counts the duties still ahead (23.09.2026).
   const [fromDate] = useState(() => { const t = todayLocal(); return t > seasonStart ? t : seasonStart })
 
-  // Data loading
-  const { data: allGamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
-    filter: { _and: [{ date: { _gte: fromDate } }, { date: { _lte: seasonEnd } }, { status: { _neq: 'cancelled' } }] },
+  // Data loading — the WHOLE season is read, because the Overview tab's
+  // "Include past games" needs the played games too (it read an empty past when
+  // this query started at today, 20.11.2026). The planner still only ever sees
+  // `allGames` (today on): past games stay out of planning, export and roll-out.
+  const { data: seasonGamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
+    filter: { _and: [{ date: { _gte: seasonStart } }, { date: { _lte: seasonEnd } }, { status: { _neq: 'cancelled' } }] },
     sort: ['date', 'time'],
     all: true,
   })
-  const allGames = useMemo(() => allGamesRaw ?? [], [allGamesRaw])
+  const seasonGames = useMemo(() => seasonGamesRaw ?? [], [seasonGamesRaw])
+  const allGames = useMemo(() => seasonGames.filter((g) => g.date >= fromDate), [seasonGames, fromDate])
 
   // All active teams (both sports); each engine filters to its own sport.
   const { data: teamsRaw, isLoading: teamsLoading } = useCollection<Team>('teams', {
@@ -238,8 +245,15 @@ export default function ScorerAssignPage() {
   )
 
   const homeGames = useMemo(
-    () => sportGames.filter((g) => g.type === 'home' && g.status !== 'postponed'),
+    () => sportGames.filter(isDutyHomeGame),
     [sportGames],
+  )
+  // Overview only: the same home games over the WHOLE season, played ones
+  // included — DutyOverview applies its own "Include past games" date filter.
+  const overviewHomeGames = useMemo(
+    () => seasonGames.filter((g) => getGameSport(g) === sportTab && isDutyHomeGame(g)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [seasonGames, sportTab, teamSportById],
   )
 
   const teamNameById = useMemo(() => {
@@ -889,7 +903,7 @@ export default function ScorerAssignPage() {
         <div className="mt-4"><LoadingSpinner /></div>
       ) : (
         <DutyOverview
-          games={homeGames}
+          games={overviewHomeGames}
           teams={teams}
           members={members}
           hallNameById={hallNameById}
