@@ -183,6 +183,13 @@ export default function HallenplanView() {
       return
     }
 
+    // A plain slot a team holds → details + "Write to the coaches", for everyone
+    // who cannot edit it.
+    if (!meta && !isAdmin && slot.team?.length) {
+      setVirtualDetailSlot(slot)
+      return
+    }
+
     // Admin: real slots → open slot editor
     if (isAdmin && !meta) {
       setEditingSlot(slot)
@@ -363,6 +370,7 @@ export default function HallenplanView() {
           slot={virtualDetailSlot}
           halls={halls}
           teams={teams}
+          date={weekDays[virtualDetailSlot.day_of_week]}
           onClose={() => setVirtualDetailSlot(null)}
         />
       )}

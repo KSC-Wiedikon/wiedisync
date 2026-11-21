@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.74.2'
+const APP_VERSION = '2.75.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,30 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.75.0',
+    date: '21.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Hall plan: tap a team’s slot and choose “Write to the coaches” to email that team’s coaches and team responsibles. They get your email address so they can reply.",
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          "Referee expenses can now be recorded and edited from a game opened in the Calendar too, not only from Games, Home and Finance.",
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          "Hall plan: everyone now sees which team is in a hall and when. Until now, other teams’ trainings showed up as free slots for anyone who isn’t an admin.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.74.2',
     date: '13.11.2026',

@@ -2,6 +2,20 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.75.0 — 2026-11-21
+
+### Added
+
+- Hall plan: tap a team’s slot and choose “Write to the coaches” to email that team’s coaches and team responsibles. They get your email address so they can reply.
+
+### Changed
+
+- Referee expenses can now be recorded and edited from a game opened in the Calendar too, not only from Games, Home and Finance.
+
+### Fixed
+
+- Hall plan: everyone now sees which team is in a hall and when. Until now, other teams’ trainings showed up as free slots for anyone who isn’t an admin.
+
 ## v2.74.2 — 2026-11-13
 
 ### Changed
