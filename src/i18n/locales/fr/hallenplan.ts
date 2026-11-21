@@ -250,4 +250,17 @@ export default {
   hallImpactTrainings: '{{count}} entrainement(s)',
   hallImpactGames: '{{count}} match(s)',
   hallImpactUnknown: 'Impossible de verifier ce qui depend de cette salle.',
+
+  // « Écrire aux entraîneurs » sur un créneau (POST /kscw/hallenplan/contact)
+  contactCoaches: 'Écrire aux entraîneurs',
+  contactCoachesOf: 'Écrire aux entraîneurs de {{team}}',
+  contactPlaceholder: 'P. ex. pourrions-nous utiliser la salle ce jour-là ?',
+  contactHint: 'Part par e-mail aux entraîneurs et responsables de l\'équipe. Ils voient ton adresse e-mail pour pouvoir te répondre.',
+  contactSend: 'Envoyer',
+  contactSent: 'Message envoyé à {{team}}',
+  contactSentShort: 'Envoyé',
+  contactNoRecipients: 'Cette équipe n\'a ni entraîneur ni responsable avec une adresse e-mail.',
+  contactRateLimited: 'Trop de messages. Réessaie dans une heure.',
+  contactNoSenderEmail: 'Ton profil n\'a pas d\'adresse e-mail, personne ne pourrait te répondre. Ajoutes-en une dans ton profil.',
+  contactFailed: 'Le message n\'a pas pu être envoyé. Réessaie, s\'il te plaît.',
 } as const
