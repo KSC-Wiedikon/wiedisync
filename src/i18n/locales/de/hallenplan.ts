@@ -250,4 +250,17 @@ export default {
   hallImpactTrainings: '{{count}} Training(s)',
   hallImpactGames: '{{count}} Spiel(e)',
   hallImpactUnknown: 'Konnte nicht prüfen, was von dieser Halle abhängt.',
+
+  // "Den Trainern schreiben" auf einem Hallen-Slot (POST /kscw/hallenplan/contact)
+  contactCoaches: 'Den Trainern schreiben',
+  contactCoachesOf: 'Den Trainern von {{team}} schreiben',
+  contactPlaceholder: 'Z. B. Könnten wir die Halle an diesem Tag nutzen?',
+  contactHint: 'Geht per E-Mail an die Trainer und Teamverantwortlichen des Teams. Sie sehen deine E-Mail-Adresse, damit sie antworten können.',
+  contactSend: 'Senden',
+  contactSent: 'Nachricht an {{team}} gesendet',
+  contactSentShort: 'Gesendet',
+  contactNoRecipients: 'Dieses Team hat keinen Trainer und keine Teamverantwortlichen mit E-Mail-Adresse.',
+  contactRateLimited: 'Zu viele Nachrichten. Versuch es in einer Stunde nochmals.',
+  contactNoSenderEmail: 'Dein Profil hat keine E-Mail-Adresse, also könnte niemand antworten. Trag eine in deinem Profil ein.',
+  contactFailed: 'Die Nachricht konnte nicht gesendet werden. Bitte versuch es nochmals.',
 } as const

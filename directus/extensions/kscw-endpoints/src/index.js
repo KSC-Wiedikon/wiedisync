@@ -59,6 +59,7 @@ import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
 import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii, scrubJsonString, redactUrlTokens, capLogged } from './error-log.js'
 import { registerStats } from './stats.js'
 import { registerHallenfinder } from './hallenfinder.js'
+import { registerHallPlan } from './hall-plan.js'
 import { registerRegistration } from './registration.js'
 import { registerNewsletter } from './newsletter.js'
 import { registerNewsletterDigest } from './newsletter-digest.js'
@@ -2819,6 +2820,7 @@ export default {
     registerGameRecordings(router, ctx)
     registerWieplayBridge(router, ctx)
     registerCarpools(router, ctx)
+    registerHallPlan(router, ctx)
     registerBbTournamentPicks(router, ctx)
     registerLiveScoring(router, ctx)
     registerGameResult(router, ctx)

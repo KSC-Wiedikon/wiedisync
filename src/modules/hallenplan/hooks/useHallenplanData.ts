@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useCollection } from '../../../lib/query'
-import { flattenM2MTeams } from '../../../lib/api'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useCollection, keys } from '../../../lib/query'
+import { flattenM2MTeams, kscwApi } from '../../../lib/api'
 
 // Shared stable empty fallback. Using a module-level constant (not a fresh `[]`
 // literal per render) keeps `?? EMPTY` referentially stable while a query is
@@ -97,16 +98,27 @@ export function useHallenplanData(
   })
   const games = gamesRaw ?? EMPTY
 
-  // Trainings for this week
+  // Trainings for this week — EVERY team's, through /kscw/hallenplan/trainings.
+  // ⚠ Not the items API: below admin it returns only the caller's own teams'
+  // trainings (MY_TEAMS_FILTER), and a recurring slot with no training that week
+  // renders as "Free" — so every other team's weekly training looked free to
+  // members and claimable to coaches. The endpoint returns all of them, with
+  // notes and cancel reasons only for the caller's own teams. Keyed under the
+  // `trainings` collection so a training edit (useMutation) refreshes it too.
   const {
     data: trainingsRaw,
     isLoading: trainingsLoading,
     isPlaceholderData: trainingsStale,
     refetch: refetchTrainings,
-  } = useCollection<Training>('trainings', {
-    filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }] },
-    all: true,
-    sort: ['date', 'start_time'],
+  } = useQuery<Training[]>({
+    queryKey: [...keys.collection('trainings'), 'hallenplan', mondayStr, sundayStr],
+    queryFn: async () => {
+      const res = await kscwApi<{ data: Training[] }>(
+        `/hallenplan/trainings?from=${encodeURIComponent(mondayStr)}&to=${encodeURIComponent(sundayStr)}`,
+      )
+      return res.data ?? []
+    },
+    placeholderData: keepPreviousData,
   })
   const trainings = trainingsRaw ?? EMPTY
 
