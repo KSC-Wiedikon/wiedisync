@@ -4,13 +4,17 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import type { HallSlot, Hall, Team, Game, Training, HallEvent, Event } from '../../../types'
-import { formatTime } from '../../../utils/dateHelpers'
+import { formatTime, toISODate } from '../../../utils/dateHelpers'
 import { describeExtraHalls } from '../../../utils/extraHalls'
+import SlotContactForm from './SlotContactForm'
 
 interface Props {
+  /** A virtual slot (game / training / booking), or a plain hall slot a team holds. */
   slot: HallSlot
   halls: Hall[]
   teams: Team[]
+  /** The slot's day in the shown week — what "Write to the coaches" refers to. */
+  date?: Date
   isAdmin?: boolean
   onClose: () => void
   onEditSlot?: (training: Training) => void
@@ -26,20 +30,77 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, onClose, onEditSlot }: Props) {
+export default function VirtualSlotDetailModal({ slot, halls, teams, date, isAdmin, onClose, onEditSlot }: Props) {
   const { t } = useTranslation('hallenplan')
   const navigate = useNavigate()
-  const meta = slot._virtual!
+  const meta = slot._virtual
 
   const hallName = [
     halls.find((h) => h.id === slot.hall)?.name ?? '',
-    ...(meta.source === 'training' ? describeExtraHalls((meta.sourceRecord as Training).extra_halls, halls, t) : []),
+    ...(meta?.source === 'training'
+      ? describeExtraHalls((meta.sourceRecord as Training).extra_halls, halls, t)
+      : describeExtraHalls(slot.extra_halls, halls, t)),
   ].filter(Boolean).join(' + ')
-  const teamObjs = teams.filter((tm) => slot.team?.includes(tm.id))
+  const teamObjs = teams.filter((tm) => slot.team?.some((id) => String(id) === String(tm.id)))
   const teamName = teamObjs.map((tm) => tm.name).join(', ')
 
+  // Who to write to: a slot a team actually holds this day. Not a freed slot (the
+  // team gave it up), not an away game's freed hall, not a booking.
+  const contactable = !!date && teamObjs.length > 0
+    && !meta?.isFreed && !meta?.isSpielhalleFreed && !meta?.isAway && !meta?.isCancelled
+    && (!meta || meta.source === 'training' || meta.source === 'game')
+  const contactForm = contactable ? (
+    <SlotContactForm
+      teams={teamObjs}
+      hallId={slot.hall || null}
+      date={toISODate(date!)}
+      startTime={slot.start_time?.slice(0, 5) ?? ''}
+      endTime={slot.end_time?.slice(0, 5) ?? ''}
+      slotType={slot.slot_type}
+    />
+  ) : null
+
+  const slotTypeLabels: Record<string, string> = {
+    training: t('typeTraining'),
+    game: t('typeGame'),
+    event: t('typeEvent'),
+    away: t('typeAway'),
+    other: t('typeOther'),
+  }
+
+  // A plain hall slot (no game / training behind it this week, e.g. beyond the
+  // generated trainings): what it is, who holds it, and the contact form.
+  if (!meta) {
+    const kind = slotTypeLabels[slot.slot_type] ?? t('typeOther')
+    const realTitle = teamName ? `${kind} — ${teamName}` : (slot.label || kind)
+    return (
+      <Modal open onClose={onClose} title={realTitle} size="sm">
+        <div className="space-y-1">
+          <DetailRow label={t('hall')} value={hallName} />
+          {teamObjs.length > 0 && (
+            <div className="flex gap-3 py-1.5">
+              <span className="w-24 shrink-0 text-sm font-medium text-muted-foreground">{t('team')}</span>
+              <span className="flex flex-wrap items-center gap-1">
+                {teamObjs.map((tm) => (
+                  <TeamChip key={tm.id} team={tm.name} size="sm" />
+                ))}
+              </span>
+            </div>
+          )}
+          <DetailRow label={t('startTime')} value={slot.start_time?.slice(0, 5) || ''} />
+          <DetailRow label={t('endTime')} value={slot.end_time?.slice(0, 5) || ''} />
+          <DetailRow label={t('label')} value={teamName ? (slot.label || '') : ''} />
+        </div>
+        {contactForm}
+      </Modal>
+    )
+  }
+
+  // From here on the slot is a virtual one.
+  const vm = meta
+
   function renderGame() {
-    const game = meta.sourceRecord as Game
+    const game = vm.sourceRecord as Game
     const statusLabels: Record<string, string> = {
       scheduled: t('statusScheduled'),
       live: t('statusLive'),
@@ -69,7 +130,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
         {game.status === 'completed' && (
           <DetailRow label={t('result')} value={`${game.home_score}:${game.away_score}`} />
         )}
-        {meta.isAway && game.home_team && (
+        {vm.isAway && game.home_team && (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {t('typeAway')} — {game.home_team} vs {game.away_team}
           </div>
@@ -79,7 +140,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
   }
 
   function renderTraining() {
-    const training = meta.sourceRecord as Training
+    const training = vm.sourceRecord as Training
 
     return (
       <div className="space-y-1">
@@ -97,7 +158,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
         <DetailRow label={t('startTime')} value={slot.start_time?.slice(0, 5) || ''} />
         <DetailRow label={t('endTime')} value={slot.end_time?.slice(0, 5) || ''} />
         <DetailRow label={t('notes')} value={training.notes} />
-        {meta.isCancelled && (
+        {vm.isCancelled && (
           <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {t('cancelled')}{training.cancel_reason ? `: ${training.cancel_reason}` : ''}
           </div>
@@ -107,7 +168,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
   }
 
   function renderHallEvent() {
-    const event = meta.sourceRecord as HallEvent
+    const event = vm.sourceRecord as HallEvent
 
     return (
       <div className="space-y-1">
@@ -123,7 +184,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
   // A club event that books halls (migration 409). The slot carries this day's
   // window; the event may span several days.
   function renderClubEvent() {
-    const event = meta.sourceRecord as Event
+    const event = vm.sourceRecord as Event
     return (
       <div className="space-y-1">
         <DetailRow label={t('hall')} value={hallName} />
@@ -137,53 +198,55 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
   }
 
   const titles: Record<string, string> = {
-    game: meta.isAway ? t('typeAway') : t('typeGame'),
+    game: vm.isAway ? t('typeAway') : t('typeGame'),
     training: t('typeTraining'),
     hall_event: t('typeEvent'),
     club_event: t('typeEvent'),
   }
 
-  const gameRecord = meta.source === 'game' ? meta.sourceRecord as Game : null
+  const gameRecord = vm.source === 'game' ? vm.sourceRecord as Game : null
   const hasGameNames = gameRecord?.home_team && gameRecord?.away_team
 
-  const title = meta.isSpielhalleFreed
+  const title = vm.isSpielhalleFreed
     ? 'Spielhalle'
-    : meta.source === 'game'
+    : vm.source === 'game'
       ? hasGameNames
         ? `${titles.game}: ${gameRecord!.home_team} vs ${gameRecord!.away_team}`
         : `${titles.game}${teamName ? ` — ${teamName}` : ''}`
-      : meta.source === 'training'
+      : vm.source === 'training'
         ? `${titles.training}${teamName ? ` — ${teamName}` : ''}`
-        : (meta.sourceRecord as HallEvent).title
+        : (vm.sourceRecord as HallEvent).title
 
   return (
     <Modal open onClose={onClose} title={title} size="sm">
-      {meta.isSpielhalleFreed ? (
+      {vm.isSpielhalleFreed ? (
         <div className="space-y-1">
           <DetailRow label={t('hall')} value={hallName} />
           <DetailRow label={t('slot')} value={`${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`} />
         </div>
       ) : (
         <>
-          {meta.source === 'game' && renderGame()}
-          {meta.source === 'training' && renderTraining()}
-          {meta.source === 'hall_event' && renderHallEvent()}
-          {meta.source === 'club_event' && renderClubEvent()}
+          {vm.source === 'game' && renderGame()}
+          {vm.source === 'training' && renderTraining()}
+          {vm.source === 'hall_event' && renderHallEvent()}
+          {vm.source === 'club_event' && renderClubEvent()}
         </>
       )}
 
+      {contactForm}
+
       <div className="mt-4 border-t border-border pt-3">
-        {isAdmin && meta.source === 'club_event' && (
+        {isAdmin && vm.source === 'club_event' && (
           <div className="mb-3 flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={() => { onClose(); navigate('/events') }}>
               {t('goToEvents')}
             </Button>
           </div>
         )}
-        {isAdmin && (meta.source === 'training' || meta.source === 'game') && (
+        {isAdmin && (vm.source === 'training' || vm.source === 'game') && (
           <div className="mb-3 flex flex-wrap justify-end gap-2">
-            {meta.source === 'training' && onEditSlot && (
-              <Button variant="outline" onClick={() => onEditSlot(meta.sourceRecord as Training)}>
+            {vm.source === 'training' && onEditSlot && (
+              <Button variant="outline" onClick={() => onEditSlot(vm.sourceRecord as Training)}>
                 {t('editSlot')}
               </Button>
             )}
@@ -191,10 +254,10 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
               variant="outline"
               onClick={() => {
                 onClose()
-                navigate(meta.source === 'training' ? '/trainings' : '/games')
+                navigate(vm.source === 'training' ? '/trainings' : '/games')
               }}
             >
-              {meta.source === 'training' ? t('goToTrainings') : t('goToGames')}
+              {vm.source === 'training' ? t('goToTrainings') : t('goToGames')}
             </Button>
           </div>
         )}

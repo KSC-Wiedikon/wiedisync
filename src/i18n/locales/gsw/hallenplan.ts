@@ -250,4 +250,17 @@ export default {
   hallImpactTrainings: '{{count}} Training(s)',
   hallImpactGames: '{{count}} Spiel(e)',
   hallImpactUnknown: 'Hät nöd chöne prüefe, was vo dere Halle abhanget.',
+
+  // "De Trainer schriibe" uf eme Halle-Slot (POST /kscw/hallenplan/contact)
+  contactCoaches: 'De Trainer schriibe',
+  contactCoachesOf: 'De Trainer vo {{team}} schriibe',
+  contactPlaceholder: 'Z. B. Chönted mir d Halle a dem Tag bruuche?',
+  contactHint: 'Gaht per E-Mail a d Trainer und Teamverantwortliche vom Team. Sie gsehnd dini E-Mail-Adrässe, damit sie chönd antworte.',
+  contactSend: 'Sände',
+  contactSent: 'Nachricht a {{team}} gsändet',
+  contactSentShort: 'Gsändet',
+  contactNoRecipients: 'Das Team hät kei Trainer und kei Teamverantwortliche mit E-Mail-Adrässe.',
+  contactRateLimited: 'Zvill Nachrichte. Probier\'s i einere Stund nomal.',
+  contactNoSenderEmail: 'Dis Profil hät kei E-Mail-Adrässe, also chönnt niemer antworte. Trag eini i dim Profil ii.',
+  contactFailed: 'D Nachricht hät nöd chöne gsändet werde. Probier\'s bitte nomal.',
 } as const

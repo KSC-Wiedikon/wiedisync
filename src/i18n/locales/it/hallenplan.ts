@@ -250,4 +250,17 @@ export default {
   hallImpactTrainings: '{{count}} allenamento/i',
   hallImpactGames: '{{count}} partita/e',
   hallImpactUnknown: 'Impossibile verificare cosa dipende da questa palestra.',
+
+  // "Scrivi agli allenatori" su uno slot (POST /kscw/hallenplan/contact)
+  contactCoaches: 'Scrivi agli allenatori',
+  contactCoachesOf: 'Scrivi agli allenatori di {{team}}',
+  contactPlaceholder: 'Per es. potremmo usare la palestra quel giorno?',
+  contactHint: 'Arriva per e-mail agli allenatori e ai responsabili della squadra. Vedono il tuo indirizzo e-mail per poterti rispondere.',
+  contactSend: 'Invia',
+  contactSent: 'Messaggio inviato a {{team}}',
+  contactSentShort: 'Inviato',
+  contactNoRecipients: 'Questa squadra non ha allenatori né responsabili con un indirizzo e-mail.',
+  contactRateLimited: 'Troppi messaggi. Riprova tra un\'ora.',
+  contactNoSenderEmail: 'Il tuo profilo non ha un indirizzo e-mail, nessuno potrebbe risponderti. Aggiungine uno nel tuo profilo.',
+  contactFailed: 'Non è stato possibile inviare il messaggio. Riprova.',
 } as const
