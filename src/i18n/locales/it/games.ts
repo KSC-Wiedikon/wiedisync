@@ -131,7 +131,7 @@ export default {
   showMore: 'Mostra più partite',
   participation: 'Partecipazione',
   participationRoster: 'Vedi le risposte',
-  setDeadline: 'Imposta scadenza',
+  setDeadline: 'Imposta scadenza di risposta',
   respondBy: 'Rispondi entro',
   comeAndSupport: 'Vieni a fare il tifo!',
   guestsCannotParticipate: 'Gli ospiti non possono partecipare alle partite',

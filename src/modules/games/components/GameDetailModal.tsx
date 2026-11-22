@@ -188,6 +188,13 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // does not refresh after the PATCH, so the flipped value is held here, keyed by
   // game id so it never leaks onto the next game opened.
   const [carpoolOverride, setCarpoolOverride] = useState<{ id: string; on: boolean } | null>(null)
+  // Same for the answer deadline and the meeting time: after OK the modal kept
+  // reading the opener's copy, so a saved deadline looked like it never stuck
+  // (22.11.2026, game 799) and the meeting-time choice snapped back.
+  const [savedFields, setSavedFields] = useState<{ id: string; respond_by?: string | null; meeting_offset_minutes?: number | null } | null>(null)
+  const saved = savedFields?.id === game?.id ? savedFields : null
+  const respondBy = saved && 'respond_by' in saved ? saved.respond_by : game?.respond_by
+  const meetingOffset = saved && 'meeting_offset_minutes' in saved ? saved.meeting_offset_minutes : game?.meeting_offset_minutes
   const carpoolActions = useCarpoolActions('game', game?.id ?? '')
   const [carpoolScopeOverride, setCarpoolScopeOverride] = useState<{ id: string; teams: string[] } | null>(null)
   // Teams this game is opened to (migration 271). A shared game puts both staffs
@@ -892,7 +899,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             type="game"
             id={game.id}
             defaultExpanded={focus === 'carpool'}
-            suggestedTime={meetingTimeFromOffset(game.time, game.meeting_offset_minutes) || null}
+            suggestedTime={meetingTimeFromOffset(game.time, meetingOffset) || null}
           />
         </div>
 
@@ -904,10 +911,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           {game.league && <DetailRow label={t('league')} value={game.league} />}
           <DetailRow label={t('date')} value={dateStr} />
           <DetailRow label={t('kickoff')} value={game.time ? formatTime(game.time) : '–'} />
-          {meetingTimeFromOffset(game.time, game.meeting_offset_minutes) && (
+          {meetingTimeFromOffset(game.time, meetingOffset) && (
             <DetailRow
               label={tc('meetingTime')}
-              value={meetingTimeFromOffset(game.time, game.meeting_offset_minutes)}
+              value={meetingTimeFromOffset(game.time, meetingOffset)}
             />
           )}
           <DetailRow label={t('gameType')} value={game.type === 'home' ? t('typeHome') : t('typeAway')} />
@@ -1086,15 +1093,24 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             button moved up beneath the RSVP tallies; this section now renders
             only when it has content (a deadline to show, or a coach who can
             set one) so it never leaves an empty bordered strip. */}
-        {game.status === 'scheduled' && (game.respond_by || (!readOnly && canToggleCarpool)) && (
+        {game.status === 'scheduled' && (respondBy || (!readOnly && canToggleCarpool)) && (
           <div className="space-y-3 border-t border-hairline px-6 py-4">
             {/* Besammlung (migration 340). Stored as minutes before kickoff, so
                 it stays right when Swiss Volley moves the fixture — the coach
                 picks the gap once and never revisits it after a reschedule. */}
             {!readOnly && canEditAsCoach && (
               <MeetingTimeSelect
-                value={game.meeting_offset_minutes ?? null}
-                onChange={(v) => { void updateGame(game.id, { meeting_offset_minutes: v }) }}
+                value={meetingOffset ?? null}
+                onChange={async (v) => {
+                  const before = savedFields
+                  setSavedFields({ ...saved, id: game.id, meeting_offset_minutes: v })
+                  try {
+                    await updateGame(game.id, { meeting_offset_minutes: v })
+                  } catch {
+                    setSavedFields(before)
+                    toast.error(tc('errorSaving'))
+                  }
+                }}
                 startClock={game.time}
               />
             )}
@@ -1133,8 +1149,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 }}
               />
             )}
-            {game.respond_by && !editingDeadline && (
-              <DetailRow label={t('respondBy')} value={`${formatDate(game.respond_by)}${(() => { const p = parseRespondByTime(game.respond_by, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />
+            {respondBy && !editingDeadline && (
+              <DetailRow label={t('respondBy')} value={`${formatDate(respondBy)}${(() => { const p = parseRespondByTime(respondBy, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />
             )}
             {!readOnly && canEditAsCoach && (
               editingDeadline ? (
@@ -1152,7 +1168,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   />
                   <Button
                     onClick={async () => {
-                      await updateGame(game.id, { respond_by: deadlineValue ? toUtcIsoFromDatetimeLocal(`${deadlineValue}T${deadlineTime || game?.time?.slice(0, 5) || '23:59'}`) : null })
+                      const value = deadlineValue ? toUtcIsoFromDatetimeLocal(`${deadlineValue}T${deadlineTime || game?.time?.slice(0, 5) || '23:59'}`) : null
+                      try {
+                        await updateGame(game.id, { respond_by: value })
+                      } catch {
+                        toast.error(tc('errorSaving'))
+                        return
+                      }
+                      setSavedFields({ ...saved, id: game.id, respond_by: value })
                       setEditingDeadline(false)
                     }}
                   >
@@ -1172,7 +1195,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   variant="link"
                   size="sm"
                   onClick={() => {
-                    const parsed = parseRespondByTime(game.respond_by, game.time)
+                    const parsed = parseRespondByTime(respondBy, game.time)
                     setDeadlineValue(parsed?.date ?? '')
                     setDeadlineTime(parsed?.time ?? '')
                     setEditingDeadline(true)
@@ -1224,7 +1247,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
       teamIds={kscwTeamId ? [kscwTeamId] : []}
       title={t('participationRoster')}
       activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
-      respondBy={game?.respond_by}
+      respondBy={respondBy ?? undefined}
       activityStartTime={game?.time}
       showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}
     />
