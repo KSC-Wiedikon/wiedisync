@@ -27,7 +27,7 @@ export default {
   ibanNudgeCta: 'Add IBAN',
   ibanNudgeDismiss: 'Not now',
   ibanConfirmNudgeTitle: 'Confirm your IBAN',
-  ibanConfirmNudgeBody: "We have an IBAN on file for you — please confirm it's correct (or change it) under Finance, so reimbursements reach the right account.",
+  ibanConfirmNudgeBody: "We have an IBAN on file for you. Please confirm it's correct (or change it) under Finance, so reimbursements reach the right account.",
   ibanConfirmNudgeCta: 'Confirm in Finance',
   refExpenseNudgeTitle: 'Referee expenses not recorded',
   refExpenseNudgeBody: 'Who paid the referees at this home game, and how much? Record it so the club can reimburse them at the end of the season.',

@@ -44,7 +44,7 @@ export default {
   finalNoWinner: 'Match ended level',
   foulsShort: 'Fouls', // team fouls this period
   bonus: 'Bonus',
-  bonusHint: 'In the bonus — the opponent has 5 team fouls, so this team shoots free throws.',
+  bonusHint: 'In the bonus: the opponent has 5 team fouls, so this team shoots free throws.',
   possessionOf: 'Possession: {{team}}',
 
   // Board events

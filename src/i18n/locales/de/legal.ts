@@ -27,7 +27,7 @@ export default {
   dataRegisterTitle:
     'Stammdaten für Mitgliederverwaltung und Verbände',
   dataRegisterText:
-    'Für die Vereinsverwaltung und die Anmeldung bei den Verbänden erfassen wir zusätzlich Postadresse, PLZ und Ort, Nationalität, Geschlecht, AHV-Nummer sowie — bei Nachwuchstrainerinnen und -trainern — die J+S-Personennummer. Die AHV-Nummer wird für die Verbands- und J+S-Meldungen benötigt und ist ausschliesslich für den Vorstand und die Administration sichtbar.',
+    'Für die Vereinsverwaltung und die Anmeldung bei den Verbänden erfassen wir zusätzlich Postadresse, PLZ und Ort, Nationalität, Geschlecht, AHV-Nummer sowie, bei Nachwuchstrainerinnen und -trainern, die J+S-Personennummer. Die AHV-Nummer wird für die Verbands- und J+S-Meldungen benötigt und ist ausschliesslich für den Vorstand und die Administration sichtbar.',
   dataFinanceTitle:
     'Zahlungs- und Rechnungsdaten',
   dataFinanceText:
@@ -41,32 +41,32 @@ export default {
   legalBasisText:
     'Die Verarbeitung personenbezogener Daten erfolgt auf Grundlage von:',
   legalBasisContract:
-    'Vertragserfüllung (Vereinsmitgliedschaft) — für die Verwaltung von Mitgliederdaten, Trainings und Spielplanung.',
+    'Vertragserfüllung (Vereinsmitgliedschaft) – für die Verwaltung von Mitgliederdaten, Trainings und Spielplanung.',
   legalBasisInterest:
-    'Berechtigtes Interesse — für die öffentliche Darstellung von Teamkadern, wie es im Vereinssport üblich und von den Mitgliedern erwartet wird.',
+    'Berechtigtes Interesse – für die öffentliche Darstellung von Teamkadern, wie es im Vereinssport üblich und von den Mitgliedern erwartet wird.',
   legalBasisConsent:
-    'Einwilligung — Mitglieder laden ihr Profilfoto selbst hoch und können es jederzeit ändern oder entfernen.',
+    'Einwilligung – Mitglieder laden ihr Profilfoto selbst hoch und können es jederzeit ändern oder entfernen.',
 
   thirdPartyTitle: '4. Auftragsverarbeiter',
   thirdPartyIntro: 'Folgende Dienstleister werden als Auftragsverarbeiter eingesetzt:',
   thirdPartyCloudflare:
-    'Cloudflare, Inc. — Frontend-Hosting (Cloudflare Pages) | Global (USA) | DPA, EU-Standardvertragsklauseln, Swiss-US Data Privacy Framework',
+    'Cloudflare, Inc. – Frontend-Hosting (Cloudflare Pages) | Global (USA) | DPA, EU-Standardvertragsklauseln, Swiss-US Data Privacy Framework',
   thirdPartySwissVolley:
-    'Swiss Volley API (api.volleyball.ch) — Wir rufen öffentlich verfügbare Spieldaten und Ranglisten ab. Es werden keine personenbezogenen Daten an Swiss Volley übermittelt.',
+    'Swiss Volley API (api.volleyball.ch) – Wir rufen öffentlich verfügbare Spieldaten und Ranglisten ab. Es werden keine personenbezogenen Daten an Swiss Volley übermittelt.',
   thirdPartyGCal:
-    'Google Calendar — Wir rufen einen öffentlichen Kalender-Feed ab, um Hallenbelegungen anzuzeigen. Es werden keine personenbezogenen Daten an Google übermittelt.',
+    'Google Calendar – Wir rufen einen öffentlichen Kalender-Feed ab, um Hallenbelegungen anzuzeigen. Es werden keine personenbezogenen Daten an Google übermittelt.',
   thirdPartyBasketplan:
-    'Basketplan (basketball.ch) — Wir rufen öffentlich verfügbare Spieldaten und Ranglisten ab. Es werden keine personenbezogenen Daten an Basketplan übermittelt.',
+    'Basketplan (basketball.ch) – Wir rufen öffentlich verfügbare Spieldaten und Ranglisten ab. Es werden keine personenbezogenen Daten an Basketplan übermittelt.',
   thirdPartyMigadu:
-    'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigungen und Erinnerungen | Schweiz | DPA',
+    'Migadu (migadu.com) – E-Mail-Versand für Benachrichtigungen und Erinnerungen | Schweiz | DPA',
   thirdPartyInfomaniak:
-    'Infomaniak Network SA — Backend-Hosting (Directus) | Schweiz (Rechenzentrum Genf) | DPA, nDSG- und DSGVO-konform',
+    'Infomaniak Network SA – Backend-Hosting (Directus) | Schweiz (Rechenzentrum Genf) | DPA, nDSG- und DSGVO-konform',
   thirdPartyClubDesk:
     'ClubDesk (Vereinsverwaltung, Schweiz): Mitgliederstammdaten inklusive Kontaktangaben, AHV-Nummer und Zahlungsverbindung werden mit der Vereinsverwaltung ClubDesk abgeglichen, aus der ein Grossteil dieser Daten ursprünglich stammt.',
   thirdPartySentry:
-    'Sentry (sentry.io) — Fehlererfassung und Performance-Monitoring | EU (de.sentry.io, Deutschland) | DPA, DSGVO-konform. Es werden keine personenbezogenen Daten (Name, E-Mail) an Sentry übermittelt.',
+    'Sentry (sentry.io) – Fehlererfassung und Performance-Monitoring | EU (de.sentry.io, Deutschland) | DPA, DSGVO-konform. Es werden keine personenbezogenen Daten (Name, E-Mail) an Sentry übermittelt.',
   thirdPartyCloudflareWorkers:
-    'Cloudflare Workers — Verarbeitung von Push-Benachrichtigungen | Global (USA) | DPA, EU-Standardvertragsklauseln, Swiss-US Data Privacy Framework',
+    'Cloudflare Workers – Verarbeitung von Push-Benachrichtigungen | Global (USA) | DPA, EU-Standardvertragsklauseln, Swiss-US Data Privacy Framework',
 
   retentionTitle: '5. Aufbewahrungsfristen',
   retentionText:
@@ -83,11 +83,11 @@ export default {
   rightsTitle: '7. Ihre Rechte',
   rightsText:
     'Gemäss dem Schweizer Datenschutzgesetz (nDSG) haben Sie folgende Rechte:',
-  rightsAccess: 'Auskunftsrecht — Sie können Auskunft über Ihre gespeicherten Daten verlangen.',
-  rightsCorrection: 'Berichtigungsrecht — Sie können die Berichtigung unrichtiger Daten verlangen. Viele Daten können Sie direkt in Ihrem Profil anpassen.',
-  rightsDeletion: 'Recht auf Löschung — Sie können die Löschung Ihrer Daten verlangen oder Ihr Konto selbst löschen.',
-  rightsPortability: 'Recht auf Datenherausgabe — Sie können Ihre Daten in einem gängigen Format erhalten.',
-  rightsObject: 'Widerspruchsrecht — Sie können der Verarbeitung Ihrer Daten jederzeit widersprechen.',
+  rightsAccess: 'Auskunftsrecht – Sie können Auskunft über Ihre gespeicherten Daten verlangen.',
+  rightsCorrection: 'Berichtigungsrecht – Sie können die Berichtigung unrichtiger Daten verlangen. Viele Daten können Sie direkt in Ihrem Profil anpassen.',
+  rightsDeletion: 'Recht auf Löschung – Sie können die Löschung Ihrer Daten verlangen oder Ihr Konto selbst löschen.',
+  rightsPortability: 'Recht auf Datenherausgabe – Sie können Ihre Daten in einem gängigen Format erhalten.',
+  rightsObject: 'Widerspruchsrecht – Sie können der Verarbeitung Ihrer Daten jederzeit widersprechen.',
   rightsContact:
     'Für Anfragen zu Ihren Rechten wenden Sie sich bitte an: kscw@kscw.ch',
   rightsFDPIC:

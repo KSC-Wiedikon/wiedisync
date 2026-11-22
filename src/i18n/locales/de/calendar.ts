@@ -22,7 +22,7 @@ export default {
   filterTitle: 'Filter',
   filterCategories: 'Kategorien',
   showHiddenAbsences: 'Nicht-Verfügbarkeiten & nicht-blockierende Absenzen anzeigen',
-  showHiddenAbsencesHint: 'Standardmässig aus — sie überladen den Kalender und betreffen das übrige Team nicht.',
+  showHiddenAbsencesHint: 'Standardmässig aus, weil sie den Kalender überladen und das übrige Team nicht betreffen.',
 
   // Filter groups
   filterGroupGames: 'Spiele',
@@ -69,15 +69,15 @@ export default {
   icalScopeMineHint: 'Deine Teams, Aufgebote und Einsätze. Er passt sich an, wenn sich deine Teams ändern – du brauchst nie einen neuen Link.',
   icalScopeTeams: 'Teams auswählen',
   icalScopeTeamsHint: 'Nur die Teams, die du auswählst. Der Link bleibt gleich, wenn sich deine Teams ändern.',
-  icalMinePrivacyHint: 'Persönlicher Link — bitte privat halten. Er passt sich selbst an, wenn sich deine Teams ändern.',
+  icalMinePrivacyHint: 'Persönlicher Link – bitte privat halten. Er passt sich selbst an, wenn sich deine Teams ändern.',
   icalGenerateLink: 'Abo-Link erstellen',
   icalLinkReadyLabel: 'Abo-Link (in deine Kalender-App kopieren):',
   icalCopyLink: 'Kopieren',
   icalLinkCopied: 'Kopiert!',
-  icalCopyFailed: 'Kopieren fehlgeschlagen — Link markieren und manuell kopieren',
+  icalCopyFailed: 'Kopieren fehlgeschlagen – Link markieren und manuell kopieren',
   icalOpenInApp: 'Oder direkt in deiner Kalender-App öffnen',
   icalSubscribeHint:
-    'Füge diesen Link in deine Kalender-App ein, um zu abonnieren — er bleibt automatisch aktuell. Google Kalender: Weitere Kalender → Per URL. Apple Kalender: Ablage → Kalenderabo hinzufügen.',
+    'Füge diesen Link in deine Kalender-App ein, um zu abonnieren. Er bleibt automatisch aktuell. Google Kalender: Weitere Kalender → Per URL. Apple Kalender: Ablage → Kalenderabo hinzufügen.',
   // Table columns
   colType: 'Typ',
   colTitle: 'Titel',
@@ -92,13 +92,13 @@ export default {
   icalDutiesHint: 'Abonniere einen persönlichen Kalender, der deine Schreiber- und Täfeler-Einsätze automatisch einträgt.',
   icalDutiesGenerate: 'Persönlichen Link erstellen',
   icalDutiesIncludedHint: 'Deine eigenen Schreiber-/Offiziellen-Einsätze sind in diesem Abo immer enthalten.',
-  icalDutiesPrivacyHint: 'Persönlicher Link — bitte privat halten. Er zeigt nur deinen Einsatzplan (keine persönlichen Daten).',
+  icalDutiesPrivacyHint: 'Persönlicher Link – bitte privat halten. Er zeigt nur deinen Einsatzplan (keine persönlichen Daten).',
   icalDutiesError: 'Persönlicher Link konnte nicht erstellt werden.',
 
   // Detailmodal + Rasterüberlagerungen
   coach: 'Trainer',
   cancelled: 'Abgesagt',
-  cancelledGameDay: 'Abgesagt — Spieltag',
+  cancelledGameDay: 'Abgesagt – Spieltag',
   moreCount: '+{{count}} weitere',
   absentCount: '{{count}} abwesend',
   eventTypeClub: 'Verein',

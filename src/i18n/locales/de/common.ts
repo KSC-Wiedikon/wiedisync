@@ -130,7 +130,7 @@ export default {
   householdLinkedAccount: 'Verknüpftes Konto',
   householdBackTo: 'Zurück zu {{name}}',
   switchAccount: 'Konto wechseln',
-  householdSwitchDesync: 'Etwas ist aus dem Takt geraten — wird sicherheitshalber neu geladen',
+  householdSwitchDesync: 'Etwas ist aus dem Takt geraten – wird sicherheitshalber neu geladen',
   householdResume: 'Weiter mit {{name}}',
   confirmDelete: 'Diesen Eintrag löschen?',
   overlapDetected: 'Überschneidung erkannt:',
@@ -154,7 +154,7 @@ export default {
   hidePassword: 'Passwort verbergen',
   allSports: 'Alle Sportarten',
   view: 'Ansicht',
-  showingFirstOf: 'Erste {{shown}} von {{total}} — Suche verfeinern',
+  showingFirstOf: 'Erste {{shown}} von {{total}} – Suche verfeinern',
   verificationCode: 'Bestätigungscode',
   digitLabel: 'Ziffer {{n}}',
 
@@ -209,7 +209,7 @@ export default {
   reinstateEventConfirm: 'Diesen Anlass wiederherstellen?',
   reinstateGameConfirm: 'Dieses Spiel wiederherstellen?',
   cancelReasonLabel: 'Grund (optional)',
-  cancelReasonPlaceholder: 'Für das Team sichtbar — z. B. Halle überschwemmt',
+  cancelReasonPlaceholder: 'Für das Team sichtbar – z. B. Halle überschwemmt',
   keepBtn: 'Behalten',
   cancelConfirmBtn: 'Absagen',
   reinstateConfirmBtn: 'Wiederherstellen',
@@ -234,7 +234,7 @@ export default {
 
   // Not found (catch-all route)
   notFoundTitle: 'Seite nicht gefunden',
-  notFoundText: 'Diese Seite gibt es nicht — oder nicht mehr. Vielleicht hat sich die Adresse geändert.',
+  notFoundText: 'Diese Seite gibt es nicht – oder nicht mehr. Vielleicht hat sich die Adresse geändert.',
   notFoundHome: 'Zur Startseite',
   notFoundBack: 'Zurück',
 
@@ -242,9 +242,9 @@ export default {
   sessionExpiredTitle: 'Sitzung abgelaufen',
   sessionExpiredText: 'Du wurdest abgemeldet. Melde dich neu an, um weiterzuarbeiten.',
   sessionExpiredAction: 'Neu anmelden',
-  appUpdatedRepeatAction: 'Wiedisync wurde auf die neueste Version aktualisiert — bitte die letzte Aktion wiederholen.',
+  appUpdatedRepeatAction: 'Wiedisync wurde auf die neueste Version aktualisiert – bitte die letzte Aktion wiederholen.',
   householdAnsweringFor: 'Antwort für {{name}}',
-  householdNotSetUp: 'Dieses Profil ist noch nicht eingerichtet — du bist wieder in deinem eigenen Konto',
+  householdNotSetUp: 'Dieses Profil ist noch nicht eingerichtet – du bist wieder in deinem eigenen Konto',
   householdNotWhileActing: 'Nicht verfügbar, während du ein anderes Konto verwendest',
   householdSwitchTo: 'Wechseln zu {{names}}',
   fileNotYours: 'Du kannst nur ein Bild verwenden, das du selbst hochgeladen hast',

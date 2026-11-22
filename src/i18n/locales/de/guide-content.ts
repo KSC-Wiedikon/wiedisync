@@ -10,11 +10,11 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Wiedisync ist die Mitglieder-App des KSC Wiedikon. Sie ist der eine Ort für deine Spiele, Trainings und Events, deine Anwesenheit, deine Schreibereinsätze, die Vereinsfinanzen und dein persönliches Profil — auf dem Handy oder in jedem Browser."
+          "text": "Wiedisync ist die Mitglieder-App des KSC Wiedikon. Sie ist der eine Ort für deine Spiele, Trainings und Events, deine Anwesenheit, deine Schreibereinsätze, die Vereinsfinanzen und dein persönliches Profil, auf dem Handy oder in jedem Browser."
         },
         {
           "t": "note",
-          "text": "Gratis — und das offizielle Tool des Vereins. Vom Verein selbst gebaut und betrieben als kostenloser Ersatz für bezahlte Teamverwaltungs-Apps; du brauchst sie für deine Absenzen, die Spielverwaltung und vor allem für deine Schreibereinsätze."
+          "text": "Sie ist gratis und das offizielle Tool des Vereins. Der Verein hat sie selbst gebaut und betreibt sie als kostenlosen Ersatz für bezahlte Teamverwaltungs-Apps; du brauchst sie für deine Absenzen, die Spielverwaltung und vor allem für deine Schreibereinsätze."
         },
         {
           "t": "h",
@@ -29,10 +29,10 @@ export default {
           "items": [
             "Spieler/innen: deine Aktivitäten, Zu- und Absagen, Absenzen, Schreibereinsätze, Rechnungen und dein Profil.",
             "Eltern: ein Login für die ganze Familie; ein Balken oben zeigt, in wessen Konto du gerade bist, und lässt dich wechseln (siehe Abschnitt Haushalte und Familienkonten).",
-            "Coaches und Teamverantwortliche: führen das Team — Kader, Trainings, Events, Spiele, Formulare, Umfragen, Bussen und Teamfinanzen. Die Gruppe **Teams & Coaching** ist für euch geschrieben.",
+            "Coaches und Teamverantwortliche: führen das Team – Kader, Trainings, Events, Spiele, Formulare, Umfragen, Bussen und Teamfinanzen. Die Gruppe **Teams & Coaching** ist für euch geschrieben.",
             "Captains: tragen im Kader den Badge **Captain** und können Teamrechnungen unter **Finanzen → Teamfinanzen** begleichen.",
             "Spielplaner: planen die Heimspiele des Vereins über den Eintrag **Spielplanung** im Menü (siehe Abschnitt Spielplanung).",
-            "Vorstand und Finanzen: Vereinsfinanzen — Mitgliederbeiträge, Rechnungen, Zahlungen und die Buchhaltung (siehe Abschnitt Vereinsfinanzen).",
+            "Vorstand und Finanzen: Vereinsfinanzen – Mitgliederbeiträge, Rechnungen, Zahlungen und die Buchhaltung (siehe Abschnitt Vereinsfinanzen).",
             "Admins: Anmeldungen, Hallen, Schreiberzuteilung, Vereinskommunikation und die Mitgliederdatenbank. **VB-Admin** und **BB-Admin** decken je eine Sportart ab; die **Superadmin**-Tools sind für diejenigen, die die App betreiben. Admin-Rechte gelten nur, solange der **Admin-Modus** unter **Options** eingeschaltet ist."
           ]
         },
@@ -62,7 +62,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "kscw.ch ist die öffentliche Website des Vereins: Sie zeigt jedes Team mit seinem Kader, und dort melden sich neue Mitglieder an. Wiedisync ist die App nur für Mitglieder dahinter. Beide nutzen dieselben Daten; was Besucher über dich sehen — Nachname, Jahrgang, Foto — richtet sich nach den Datenschutz-Einstellungen in deinem Profil (siehe Abschnitt Dein Profil)."
+          "text": "kscw.ch ist die öffentliche Website des Vereins: Sie zeigt jedes Team mit seinem Kader, und dort melden sich neue Mitglieder an. Wiedisync ist die App nur für Mitglieder dahinter. Beide nutzen dieselben Daten; was Besucher über dich sehen (Nachname, Jahrgang, Foto), richtet sich nach den Datenschutz-Einstellungen in deinem Profil (siehe Abschnitt Dein Profil)."
         }
       ]
     },
@@ -327,12 +327,12 @@ export default {
         {
           "t": "ul",
           "items": [
-            "**Aktivität** — ein Spiel, Training oder Event wurde erstellt, verschoben, abgesagt oder wieder angesetzt, oder du wurdest aufgeboten.",
-            "**Bevorstehend** — eine Erinnerung am Tag vor einer Aktivität. **Frist** — eine Erinnerung am Tag vor der Antwortfrist, falls du noch nicht geantwortet hast.",
-            "**Frist verpasst** — du hast nicht rechtzeitig geantwortet und wurdest als abwesend eingetragen, mit Busse, wo die Regeln deines Teams das vorsehen (siehe Abschnitt Bussen).",
-            "**Resultat** — für dein Spiel wurde ein Resultat eingetragen.",
-            "**Schreiberdienst** — dir wurde ein Einsatz angeboten oder deine Anfrage wurde beantwortet.",
-            "**Spesen** — deine Spesen wurden bezahlt oder abgelehnt. **Busse** — eine Busse für dich oder dein Team wurde erstellt, bezahlt oder erlassen.",
+            "**Aktivität** – ein Spiel, Training oder Event wurde erstellt, verschoben, abgesagt oder wieder angesetzt, oder du wurdest aufgeboten.",
+            "**Bevorstehend** – eine Erinnerung am Tag vor einer Aktivität. **Frist** – eine Erinnerung am Tag vor der Antwortfrist, falls du noch nicht geantwortet hast.",
+            "**Frist verpasst** – du hast nicht rechtzeitig geantwortet und wurdest als abwesend eingetragen, mit Busse, wo die Regeln deines Teams das vorsehen (siehe Abschnitt Bussen).",
+            "**Resultat** – für dein Spiel wurde ein Resultat eingetragen.",
+            "**Schreiberdienst** – dir wurde ein Einsatz angeboten oder deine Anfrage wurde beantwortet.",
+            "**Spesen** – deine Spesen wurden bezahlt oder abgelehnt. **Busse** – eine Busse für dich oder dein Team wurde erstellt, bezahlt oder erlassen.",
             "**Vereinsnews** öffnet News, **Anlass-Einladung** den Event, **Lizenz** dein Profil. Formulare öffnen Formulare; eine **Beitrittsanfrage** (Coaches und Teamverantwortliche) öffnet die Teamseite."
           ]
         },
@@ -362,11 +362,11 @@ export default {
         },
         {
           "t": "p",
-          "text": "Öffne **Mein Profil** und suche **E-Mail-Benachrichtigungen**. Alle haben **Vereinsnews** und **Anlass-Einladungen**; Coaches und Teamverantwortliche zusätzlich **Team-Beitrittsanfragen** und **Formular-Einsendungen**; Admins **Neue Anmeldungen**. Alle sind standardmässig eingeschaltet. Schaltest du eine aus, bleibt nur diese E-Mail weg — die Glocke zeigt sie weiterhin. Formulare schicken keine E-Mail: **Formular-Einsendungen** schaltet stattdessen den Push für Antworten auf öffentliche Formulare ab."
+          "text": "Öffne **Mein Profil** und suche **E-Mail-Benachrichtigungen**. Alle haben **Vereinsnews** und **Anlass-Einladungen**; Coaches und Teamverantwortliche zusätzlich **Team-Beitrittsanfragen** und **Formular-Einsendungen**; Admins **Neue Anmeldungen**. Alle sind standardmässig eingeschaltet. Schaltest du eine aus, bleibt nur diese E-Mail weg; die Glocke zeigt sie weiterhin. Formulare schicken keine E-Mail: **Formular-Einsendungen** schaltet stattdessen den Push für Antworten auf öffentliche Formulare ab."
         },
         {
           "t": "tip",
-          "text": "Um Vereins-E-Mails abzubestellen, schalte **Vereinsnews** aus — das deckt auch Gruppen-E-Mails aus dem Vereinspostfach ab. Passwort-Resets, Einladungen, Spesen-Mails und **Kontaktieren**-Nachrichten eines Coachs werden immer zugestellt."
+          "text": "Um Vereins-E-Mails abzubestellen, schalte **Vereinsnews** aus; das deckt auch Gruppen-E-Mails aus dem Vereinspostfach ab. Passwort-Resets, Einladungen, Spesen-Mails und **Kontaktieren**-Nachrichten eines Coachs werden immer zugestellt."
         }
       ]
     },
@@ -404,7 +404,7 @@ export default {
             "Dunkelblau: Heimspiele. Gelb: Auswärtsspiele. Indigo: deine Schreibereinsätze.",
             "Grün: Trainings. Violett: Events. Cyan: Hallenbelegungen. Pink: Geburtstage. Schwarz: Absenzen.",
             "Rot: Hallensperrungen; der ganze Tag ist eingefärbt.",
-            "Durchgestrichen: abgesagt; ein Training, das wegen eines Spieltags ausfällt, zeigt in den Details **Abgesagt — Spieltag**."
+            "Durchgestrichen: abgesagt; ein Training, das wegen eines Spieltags ausfällt, zeigt in den Details **Abgesagt – Spieltag**."
           ]
         },
         {
@@ -494,7 +494,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Du bekommst zusätzlich den Tab **Coach-Dashboard** und kannst Antworten bearbeiten, Spieler/innen aufbieten, Frist und Besammlung setzen, ein Spiel absagen, das Team kontaktieren und bei Volleyball-Heimspielen **Schiedsrichterkosten** erfassen – siehe Abschnitt Trainings, Spiele und Events verwalten."
+          "text": "Du bekommst zusätzlich den Tab **Coach-Dashboard** und kannst Antworten bearbeiten, Spieler/innen aufbieten, Frist und Besammlung setzen, ein Spiel absagen, das Team kontaktieren und bei Volleyball-Heimspielen **Schiedsrichterkosten** erfassen (siehe Abschnitt Trainings, Spiele und Events verwalten)."
         }
       ]
     },
@@ -543,8 +543,8 @@ export default {
           "items": [
             "Ein abgesagtes Training bleibt abgeblendet in der Liste, mit dem Grund in Rot; das Team wird benachrichtigt.",
             "Ist **Automatisch absagen** eingestellt, wird ein Training abgesagt, sobald die Frist mit weniger zugesagten Spieler/innen als dem Minimum abläuft.",
-            "An einem Tag, an dem dein Team ein Spiel hat, heim oder auswärts, wird sein Training automatisch abgesagt (**Abgesagt — Spieltag** im Kalender).",
-            "Hat ein anderes Team danach ein Heimspiel in deiner Halle (ab 45 Minuten vor Spielbeginn), endet dein Training früher (**Endet früher — anschliessend Heimspiel in der Halle**) oder wird abgesagt, wenn das Spiel es ganz überdeckt.",
+            "An einem Tag, an dem dein Team ein Spiel hat, heim oder auswärts, wird sein Training automatisch abgesagt (**Abgesagt – Spieltag** im Kalender).",
+            "Hat ein anderes Team danach ein Heimspiel in deiner Halle (ab 45 Minuten vor Spielbeginn), endet dein Training früher (**Endet früher – anschliessend Heimspiel in der Halle**) oder wird abgesagt, wenn das Spiel es ganz überdeckt.",
             "Spielst du in zwei Teams und eines hat ein Spiel, wirst du für das Training des anderen Teams an diesem Tag auf **Nein** gesetzt (Notiz `Game <Team>`); eine Antwort, die du selbst gegeben hast, wird nie überschrieben.",
             "Wird das Spiel verschoben oder abgesagt, werden das Training und die automatischen Absagen wiederhergestellt."
           ]
@@ -900,7 +900,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Ein Haushalt erlaubt es einem erwachsenen Login, für mehrere Mitglieder zu handeln — typischerweise ein Elternteil, das Zu- und Absagen, Absenzen und Formulare für seine Kinder erledigt. Jedes Kind behält seinen eigenen Mitgliedereintrag, seinen Platz im Kader, seine Beiträge und seine Lizenz; nur der Login wird geteilt. Haushalte werden von den Admins des Clubs eingerichtet, und es können nur gewöhnliche Mitglieder verwaltet werden — keine Coaches, Teamverantwortlichen, Spielplaner oder Personen mit einer Admin-Rolle."
+          "text": "Ein Haushalt erlaubt es einem erwachsenen Login, für mehrere Mitglieder zu handeln – typischerweise ein Elternteil, das Zu- und Absagen, Absenzen und Formulare für seine Kinder erledigt. Jedes Kind behält seinen eigenen Mitgliedereintrag, seinen Platz im Kader, seine Beiträge und seine Lizenz; nur der Login wird geteilt. Haushalte werden von den Admins des Clubs eingerichtet, und es können nur gewöhnliche Mitglieder verwaltet werden, keine Coaches, Teamverantwortlichen, Spielplaner oder Personen mit einer Admin-Rolle."
         },
         {
           "t": "h",
@@ -916,11 +916,11 @@ export default {
         },
         {
           "t": "p",
-          "text": "Während du für ein Kind handelst, nimmt der Balken die Farbe dieses Kindes an, und die Antwort-Buttons bei Trainings, Spielen und Events tragen den Namen des Kindes — bei einem Kind namens Mila heissen sie **Mila kommt**, **Mila kann nicht** und **Vielleicht, Mila** — so siehst du immer, für wen du antwortest."
+          "text": "Während du für ein Kind handelst, nimmt der Balken die Farbe dieses Kindes an, und die Antwort-Buttons bei Trainings, Spielen und Events tragen den Namen des Kindes. Bei einem Kind namens Mila heissen sie **Mila kommt**, **Mila kann nicht** und **Vielleicht, Mila**, so siehst du immer, für wen du antwortest."
         },
         {
           "t": "note",
-          "text": "Das Handeln ist echt, keine Vorschau: Was du eingibst, zählt für das Kind und wird unter seinem Namen erfasst, und im Prüfprotokoll des Clubs wird vermerkt, dass du es getan hast. Alle offenen Tabs folgen dem Wechsel, und bei jedem Öffnen der App startest du als du selbst — das zuletzt gewählte Kind wird nie automatisch wiederhergestellt."
+          "text": "Das Handeln ist echt, keine Vorschau: Was du eingibst, zählt für das Kind und wird unter seinem Namen erfasst, und im Prüfprotokoll des Clubs wird vermerkt, dass du es getan hast. Alle offenen Tabs folgen dem Wechsel, und bei jedem Öffnen der App startest du als du selbst; das zuletzt gewählte Kind wird nie automatisch wiederhergestellt."
         },
         {
           "t": "h",
@@ -936,13 +936,13 @@ export default {
             "Passwort ändern oder setzen sowie das Konto löschen",
             "Abstimmen bei Umfragen (siehe Abschnitt Umfragen)",
             "Einen Schreiberdienst delegieren (siehe Abschnitt Schreiberdienst)",
-            "Einen Kalender-Abo-Link erstellen oder erneuern — **Abonnieren** auf der Kalenderseite",
+            "Einen Kalender-Abo-Link erstellen oder erneuern – **Abonnieren** auf der Kalenderseite",
             "Ausweisdokumente öffnen: Ein verwaltetes Mitglied hat sich nie angemeldet, darum existiert für dieses kein Schlüssel"
           ]
         },
         {
           "t": "tip",
-          "text": "Falls die App einmal den Überblick verliert, für wen du gerade handelst, zeigt sie **Etwas ist aus dem Takt geraten — wird sicherheitshalber neu geladen** und lädt sich selbst neu."
+          "text": "Falls die App einmal den Überblick verliert, für wen du gerade handelst, zeigt sie **Etwas ist aus dem Takt geraten – wird sicherheitshalber neu geladen** und lädt sich selbst neu."
         },
         {
           "t": "h",
@@ -987,7 +987,7 @@ export default {
           "items": [
             "Tippe auf **Ausfüllen**. Fragen mit * sind Pflichtfelder.",
             "Beantworte die Fragen. Bei einer Datei-Frage tippst du auf **Datei auswählen**; das rote Kreuz neben dem Dateinamen entfernt die Datei, damit du eine andere wählen kannst.",
-            "Drücke **Absenden**. Du siehst den Dankestext der Autorin bzw. des Autors oder **Danke — deine Antwort wurde gespeichert.**, dann drückst du **Fertig**."
+            "Drücke **Absenden**. Du siehst den Dankestext der Autorin bzw. des Autors oder **Danke – deine Antwort wurde gespeichert.**, dann drückst du **Fertig**."
           ]
         },
         {
@@ -1005,7 +1005,7 @@ export default {
         {
           "t": "ul",
           "items": [
-            "Anonyme Formulare zeigen **Dieses Formular ist anonym — deine Antworten werden nicht mit deinem Namen verknüpft.** Niemand kann erkennen, welche Antwort deine ist, deshalb lässt sie sich nicht bearbeiten, und das Formular zeigt auch nach deiner Antwort weiterhin **Ausfüllen**. Fülle es nicht zweimal aus.",
+            "Anonyme Formulare zeigen **Dieses Formular ist anonym – deine Antworten werden nicht mit deinem Namen verknüpft.** Niemand kann erkennen, welche Antwort deine ist, deshalb lässt sie sich nicht bearbeiten, und das Formular zeigt auch nach deiner Antwort weiterhin **Ausfüllen**. Fülle es nicht zweimal aus.",
             "Erlaubt die Autorin bzw. der Autor mehrere Antworten pro Person, bleibt das Formular mit **Ausfüllen** aufgelistet und der Dankesbildschirm bietet **Weitere einreichen** an. Frühere Antworten können nicht geändert werden."
           ]
         },
@@ -1015,7 +1015,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Wenn du noch nicht geantwortet hast, kann die Autorin bzw. der Autor eine Erinnerung senden: **Erinnerung — bitte ausfüllen:** plus Formulartitel in der Glocke sowie eine Push-Nachricht mit dem Titel **Erinnerung**. Beide öffnen die Seite **Formulare**. Sobald du geantwortet hast, erreichen dich keine weiteren Erinnerungen."
+          "text": "Wenn du noch nicht geantwortet hast, kann die Autorin bzw. der Autor eine Erinnerung senden: **Erinnerung – bitte ausfüllen:** plus Formulartitel in der Glocke sowie eine Push-Nachricht mit dem Titel **Erinnerung**. Beide öffnen die Seite **Formulare**. Sobald du geantwortet hast, erreichen dich keine weiteren Erinnerungen."
         }
       ]
     },
@@ -1025,7 +1025,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Umfragen sind kurze Team-Befragungen: eine Frage, ein paar Optionen. Du findest sie auf deiner Teamseite unter **Umfragen** — **Mitglieder-Tools → Teams** am Desktop (**Team**, wenn du nur in einem Team bist), **Mehr → Mitglieder-Tools → Teams** auf dem Handy, dann dein Team auswählen. Offene Umfragen deiner Teams erscheinen zusätzlich auf der Startseite als **Aktive Umfragen**. Der Abschnitt wird nur bei Teams angezeigt, bei denen Umfragen eingeschaltet sind."
+          "text": "Umfragen sind kurze Team-Befragungen: eine Frage, ein paar Optionen. Du findest sie auf deiner Teamseite unter **Umfragen**: **Mitglieder-Tools → Teams** am Desktop (**Team**, wenn du nur in einem Team bist), **Mehr → Mitglieder-Tools → Teams** auf dem Handy, dann dein Team auswählen. Offene Umfragen deiner Teams erscheinen zusätzlich auf der Startseite als **Aktive Umfragen**. Der Abschnitt wird nur bei Teams angezeigt, bei denen Umfragen eingeschaltet sind."
         },
         {
           "t": "h",
@@ -1036,12 +1036,12 @@ export default {
           "items": [
             "Tippe auf eine Option. Bei einer **Einzelauswahl**-Umfrage kannst du eine Option wählen, bei einer **Mehrfachauswahl**-Umfrage mehrere.",
             "Drücke **Abstimmen**. Deine Antwort wird als **Abgestimmt** markiert.",
-            "Um sie zu ändern, drücke **Stimme ändern**, passe deine Auswahl an und drücke erneut **Stimme ändern** — oder **Abbrechen**, um die alte Antwort zu behalten."
+            "Um sie zu ändern, drücke **Stimme ändern**, passe deine Auswahl an und drücke erneut **Stimme ändern**, oder **Abbrechen**, um die alte Antwort zu behalten."
           ]
         },
         {
           "t": "note",
-          "text": "Eine Umfrage kann eine **Frist** haben (dd.mm.yyyy). Du kannst den ganzen Tag über abstimmen. Ab dem nächsten Tag steht dort **Abstimmung beendet**, die Umfrage verschwindet von der Startseiten-Karte und nimmt keine Stimmen mehr an — ihr Badge bleibt aber auf der Teamseite **Offen**, bis die Teamleitung sie schliesst."
+          "text": "Eine Umfrage kann eine **Frist** haben (dd.mm.yyyy). Du kannst den ganzen Tag über abstimmen. Ab dem nächsten Tag steht dort **Abstimmung beendet**, die Umfrage verschwindet von der Startseiten-Karte und nimmt keine Stimmen mehr an; ihr Badge bleibt aber auf der Teamseite **Offen**, bis die Teamleitung sie schliesst."
         },
         {
           "t": "h",
@@ -1052,7 +1052,7 @@ export default {
           "items": [
             "Mit **Ergebnisse für alle sichtbar** erscheinen die Ergebnisbalken, sobald du abgestimmt hast oder sobald die Umfrage geschlossen ist bzw. ihre Frist abgelaufen ist.",
             "Ohne diese Option siehst du nach dem Abstimmen nur deine eigene markierte Antwort und den Hinweis **Ergebnisse sind nur für die Teamleitung sichtbar**.",
-            "Mit **Anonyme Abstimmung** kann niemand — auch dein Coach nicht — sehen, wer was gewählt hat; es gibt nur Summen.",
+            "Mit **Anonyme Abstimmung** kann niemand, auch dein Coach nicht, sehen, wer was gewählt hat; es gibt nur Summen.",
             "Geschlossene Umfragen liegen in der aufklappbaren Liste **Geschlossene Umfragen** am Ende des Abschnitts."
           ]
         },
@@ -1070,7 +1070,7 @@ export default {
             "**Frage** und mindestens zwei **Optionen** (**Option hinzufügen**, **Entfernen**). Der Button **Umfrage erstellen** bleibt ausgegraut, bis beides vorhanden ist.",
             "**Abstimmungsmodus**: **Einzelauswahl** oder **Mehrfachauswahl**.",
             "**Frist**, oder leer lassen für **Keine Frist**.",
-            "**Anonyme Abstimmung** (standardmässig aus) verbirgt, wer abgestimmt hat — auch vor dir.",
+            "**Anonyme Abstimmung** (standardmässig aus) verbirgt, wer abgestimmt hat, auch vor dir.",
             "**Ergebnisse für alle sichtbar** (standardmässig ein); schalte es aus, damit nur die Teamleitung die Summen sieht."
           ]
         },
@@ -1084,7 +1084,7 @@ export default {
         },
         {
           "t": "tip",
-          "text": "Umfragen werden pro Team im Kader-Editor unter **Team-Einstellungen → Features → Umfragen (Team-Abstimmungen & Entscheidungen)** eingeschaltet — siehe Abschnitt Kader-Editor."
+          "text": "Umfragen werden pro Team im Kader-Editor unter **Team-Einstellungen → Features → Umfragen (Team-Abstimmungen & Entscheidungen)** eingeschaltet (siehe Abschnitt Kader-Editor)."
         }
       ]
     },
@@ -1161,7 +1161,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Die Kachel **Offener Betrag** zeigt, was du noch schuldest. Jede Rechnung zeigt **Betreff**, **Datum**, **Fällig**, **Betrag**, **Offen** und **Status**: **Offen**, **Teilweise bezahlt**, **Bestätigung ausstehend**, **Bezahlt** oder **Storniert**; aus ClubDesk gespiegelte Rechnungen behalten ihren deutschen Statustext. Bei einer beitragsfreien Mitgliedschaft steht entweder **Nichts zu bezahlen — deine Mitgliedschaft ist beitragsfrei.** oder eine Rechnung über CHF 0.00, die den Grund auflistet."
+          "text": "Die Kachel **Offener Betrag** zeigt, was du noch schuldest. Jede Rechnung zeigt **Betreff**, **Datum**, **Fällig**, **Betrag**, **Offen** und **Status**: **Offen**, **Teilweise bezahlt**, **Bestätigung ausstehend**, **Bezahlt** oder **Storniert**; aus ClubDesk gespiegelte Rechnungen behalten ihren deutschen Statustext. Bei einer beitragsfreien Mitgliedschaft steht entweder **Nichts zu bezahlen – deine Mitgliedschaft ist beitragsfrei.** oder eine Rechnung über CHF 0.00, die den Grund auflistet."
         },
         {
           "t": "p",
@@ -1193,7 +1193,7 @@ export default {
         },
         {
           "t": "tip",
-          "text": "Für Auszahlungen braucht es eine Schweizer oder Liechtensteiner IBAN sowie deine Postleitzahl und deinen Ort im Profil — sonst wird die Auszahlung übersprungen und die Finanzen erfahren, warum."
+          "text": "Für Auszahlungen braucht es eine Schweizer oder Liechtensteiner IBAN sowie deine Postleitzahl und deinen Ort im Profil, sonst wird die Auszahlung übersprungen und die Finanzen erfahren, warum."
         },
         {
           "t": "h",
@@ -1295,9 +1295,9 @@ export default {
         {
           "t": "ul",
           "items": [
-            "**Späte Anmeldung** — du hast bis zur Frist nicht geantwortet, oder ein Coach musste dich danach bestätigen.",
-            "**Nicht erschienen** — du warst angemeldet, bist aber nicht gekommen.",
-            "**Zahlungsverzug** und **Andere** — werden von Hand für alles Übrige vergeben.",
+            "**Späte Anmeldung** – du hast bis zur Frist nicht geantwortet, oder ein Coach musste dich danach bestätigen.",
+            "**Nicht erschienen** – du warst angemeldet, bist aber nicht gekommen.",
+            "**Zahlungsverzug** und **Andere** – werden von Hand für alles Übrige vergeben.",
             "Jedes Team legt seine eigene Staffel fest: Der Betrag steigt mit jeder Wiederholung in derselben Kategorie (zum Beispiel CHF 10.00, dann CHF 20.00) und wird nach einem Fenster von **Kalendermonat** bis **Unbegrenzt** zurückgesetzt."
           ]
         },
@@ -1313,7 +1313,7 @@ export default {
           "t": "ul",
           "items": [
             "Die App zieht kein Geld ein. Begleiche die Busse bei deinem Coach oder deiner Teamverantwortlichen; sie drücken **Als bezahlt markieren**.",
-            "Ein Coach kann eine offene Busse mit **Erlassen** aufheben, immer mit einem Grund. Betrag, Kategorie und Grund lassen sich nachträglich nicht ändern — eine falsche Busse wird erlassen und neu vergeben.",
+            "Ein Coach kann eine offene Busse mit **Erlassen** aufheben, immer mit einem Grund. Betrag, Kategorie und Grund lassen sich nachträglich nicht ändern; eine falsche Busse wird erlassen und neu vergeben.",
             "Ein Eintrag in der Glocke und ein Push sagen dir, wenn eine Busse vergeben (**Neue Busse**), bezahlt (**Busse bezahlt**) oder erlassen (**Busse erlassen**) wird; eine automatische Busse für eine späte Anmeldung kommt als ein Push **Training: Frist verpasst** oder **Spiel: Frist verpasst**. Nach 14 Tagen bekommst du einmal täglich eine Erinnerung **Offene Busse(n)** per Push."
           ]
         },
@@ -1481,7 +1481,7 @@ export default {
           "t": "ul",
           "items": [
             "**Aus der im Volleymanager erfassten Einsatzliste.** Diese Liste entscheidet, wer spielt. Die Spalte **✓** gleicht jede Person mit ihrer Antwort ab: grüner Haken zugesagt, gelbes Zeichen vielleicht oder keine Antwort, rotes Kreuz abgesagt.",
-            "**Aus den bestätigten Zusagen — keine Einsatzliste vorhanden.** Die Rückfalllösung für Basketball und nicht erfasste Listen (ohne Spalte **✓**).",
+            "**Aus den bestätigten Zusagen – keine Einsatzliste vorhanden.** Die Rückfalllösung für Basketball und nicht erfasste Listen (ohne Spalte **✓**).",
             "Ein Warnzeichen bedeutet, dass Volleymanager diese Person als nicht spielberechtigt meldet."
           ]
         },
@@ -1630,7 +1630,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Der Verein erstattet Schiedsrichterspesen einmal pro Saison, in einer Auszahlung pro Mitglied, die von den Finanzen ausgelöst wird. Bis dahin zeigt eine Spese **Saisonende**; **Erfasst** heisst, sie wurde mit CHF 0.00 eingetragen; **Angekündigt** heisst, die Auszahlung existiert, aber das Geld wurde noch nicht überwiesen; **Erstattet 15.06.2026** heisst, sie ist erledigt. Nach dem Lauf ist der Eintrag des Spiels gesperrt: **Vom Verein erstattet — nicht mehr bearbeitbar.** Die Person, die bezahlt hat, sieht dieselben Spesen unter **Von dir bezahlte Schiedsrichterspesen** in **Rechnungen & Rückerstattungen**."
+          "text": "Der Verein erstattet Schiedsrichterspesen einmal pro Saison, in einer Auszahlung pro Mitglied, die von den Finanzen ausgelöst wird. Bis dahin zeigt eine Spese **Saisonende**; **Erfasst** heisst, sie wurde mit CHF 0.00 eingetragen; **Angekündigt** heisst, die Auszahlung existiert, aber das Geld wurde noch nicht überwiesen; **Erstattet 15.06.2026** heisst, sie ist erledigt. Nach dem Lauf ist der Eintrag des Spiels gesperrt: **Vom Verein erstattet – nicht mehr bearbeitbar.** Die Person, die bezahlt hat, sieht dieselben Spesen unter **Von dir bezahlte Schiedsrichterspesen** in **Rechnungen & Rückerstattungen**."
         },
         {
           "t": "tip",
@@ -1951,8 +1951,8 @@ export default {
           "t": "ul",
           "items": [
             "**Einige Personen haben keine J+S-Nummer und wurden übersprungen**: Die Namen stehen unter **Leitende** und **Spieler**. Sie bleiben aus der Anwesenheits-Datei draussen, bis ihre J+S-Personennummer erfasst ist.",
-            "**Bei einigen Trainings fehlt der Ort oder die Zeit — J+S verlangt beides und weist die Datei sonst zurück**: Die Daten stehen unter **Kein Ort** und **Keine Zeit**. Ergänze Halle und Startzeit (siehe Abschnitt Trainings, Spiele und Events verwalten) und lade dann erneut herunter.",
-            "**Keine Teilnehmenden für diese Saison — der Export enthält nur Leiter/innen. Bitte die gewählte Saison prüfen.**: Das Kader des Teams für diese Saison ist leer. Die Datei wird trotzdem heruntergeladen, prüfe also die Saison vor dem Import."
+            "**Bei einigen Trainings fehlt der Ort oder die Zeit – J+S verlangt beides und weist die Datei sonst zurück**: Die Daten stehen unter **Kein Ort** und **Keine Zeit**. Ergänze Halle und Startzeit (siehe Abschnitt Trainings, Spiele und Events verwalten) und lade dann erneut herunter.",
+            "**Keine Teilnehmenden für diese Saison – der Export enthält nur Leiter/innen. Bitte die gewählte Saison prüfen.**: Das Kader des Teams für diese Saison ist leer. Die Datei wird trotzdem heruntergeladen, prüfe also die Saison vor dem Import."
           ]
         },
         {
@@ -1971,7 +1971,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Spieler/innen können ein Foto ihrer ID oder ihres Passes hinterlegen, damit ihr Coach es vor einem Spiel den Schiedsrichtern zeigen kann. Es wird auf dem Gerät der Spielerin oder des Spielers verschlüsselt, bevor es hochgeladen wird; öffnen können es nur die Person selbst sowie die aktuellen Coaches und Teamverantwortlichen ihrer Teams — weder der Verein noch die Admins noch der Server. Deines verwaltest du unter **Mein Profil** → **Profil bearbeiten** → **Ausweisdokument** (Handy: **Mehr**, dann deine Profilzeile)."
+          "text": "Spieler/innen können ein Foto ihrer ID oder ihres Passes hinterlegen, damit ihr Coach es vor einem Spiel den Schiedsrichtern zeigen kann. Es wird auf dem Gerät der Spielerin oder des Spielers verschlüsselt, bevor es hochgeladen wird; öffnen können es nur die Person selbst sowie die aktuellen Coaches und Teamverantwortlichen ihrer Teams, weder der Verein noch die Admins noch der Server. Deines verwaltest du unter **Mein Profil** → **Profil bearbeiten** → **Ausweisdokument** (Handy: **Mehr**, dann deine Profilzeile)."
         },
         {
           "t": "h",
@@ -1983,7 +1983,7 @@ export default {
         },
         {
           "t": "note",
-          "text": "Nutze **Passwort ändern** unter **Profil bearbeiten** — so bleibt dein Schlüssel erhalten. Ein Reset-Link oder -Code löscht ihn: Dokumente, die mit dir geteilt wurden, lassen sich nicht mehr öffnen, und dein eigenes musst du erneut hochladen."
+          "text": "Nutze **Passwort ändern** unter **Profil bearbeiten**, so bleibt dein Schlüssel erhalten. Ein Reset-Link oder -Code löscht ihn: Dokumente, die mit dir geteilt wurden, lassen sich nicht mehr öffnen, und dein eigenes musst du erneut hochladen."
         },
         {
           "t": "h",
@@ -2003,16 +2003,16 @@ export default {
         },
         {
           "t": "p",
-          "text": "Der Zugriff wird beim Hochladen fix für die Personen vergeben, die bereits einen Schlüssel haben; wer seinen Schlüssel erst später erstellt, hat keinen Zugriff, bis er wiederhergestellt wird. Öffne unter **Mitglieder-Tools** → **Teams** das Team: Die Spalte **ID** zeigt, wer ein Dokument hinterlegt hat und seit wann. **Dokumentzugriff** neben **Aktuelles Kader** öffnet **Wer diese Dokumente öffnen kann** — ein Status pro Person der Teamleitung und Dokument:"
+          "text": "Der Zugriff wird beim Hochladen fix für die Personen vergeben, die bereits einen Schlüssel haben; wer seinen Schlüssel erst später erstellt, hat keinen Zugriff, bis er wiederhergestellt wird. Öffne unter **Mitglieder-Tools** → **Teams** das Team: Die Spalte **ID** zeigt, wer ein Dokument hinterlegt hat und seit wann. **Dokumentzugriff** neben **Aktuelles Kader** öffnet **Wer diese Dokumente öffnen kann**, mit einem Status pro Person der Teamleitung und Dokument:"
         },
         {
           "t": "ul",
           "items": [
-            "**Kann öffnen** — nichts zu tun.",
-            "**Öffnet nicht** — der Schlüssel wurde nach dem Upload geändert.",
-            "**Noch kein Schlüssel** — nie erteilt; lässt sich von der Teamseite aus beheben.",
-            "**Kein Identitätsschlüssel erstellt** — die Person muss zuerst einen Schlüssel erstellen; das kann niemand für sie tun.",
-            "**Ehemalige Teamleitung, hat weiterhin Zugriff** — behält den Schlüssel, bis die Spielerin oder der Spieler das Dokument ersetzt oder löscht."
+            "**Kann öffnen** – nichts zu tun.",
+            "**Öffnet nicht** – der Schlüssel wurde nach dem Upload geändert.",
+            "**Noch kein Schlüssel** – nie erteilt; lässt sich von der Teamseite aus beheben.",
+            "**Kein Identitätsschlüssel erstellt** – die Person muss zuerst einen Schlüssel erstellen; das kann niemand für sie tun.",
+            "**Ehemalige Teamleitung, hat weiterhin Zugriff** – behält den Schlüssel, bis die Spielerin oder der Spieler das Dokument ersetzt oder löscht."
           ]
         },
         {
@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Öffne **Admin → Spielbetrieb → Schreiber-Zuteilung** (Desktop) oder **Mehr → Admin → Spielbetrieb → Schreiber-Zuteilung** (Handy). Du brauchst Volleyball- oder Basketball-Admin-Zugang. Die Seite deckt die aktuelle **Saison** ab. Unter **Zuteilung** planst du; **Übersicht** zeigt, was auf den Spielen gespeichert ist. Die automatische Zuteilung startet nur ein Superadmin. Solange kein Entwurf offen ist, listet **Zuteilung** alle kommenden Heimspiele mit ihren gespeicherten Einsätzen: Dienstteam oder Person änderst du direkt in der Tabelle – jede Änderung wird sofort gespeichert."
+          "text": "Öffne **Admin → Spielbetrieb → Schreiber-Zuteilung** (Desktop) oder **Mehr → Admin → Spielbetrieb → Schreiber-Zuteilung** (Handy). Du brauchst Volleyball- oder Basketball-Admin-Zugang. Die Seite deckt die aktuelle **Saison** ab. Unter **Zuteilung** planst du; **Übersicht** zeigt, was auf den Spielen gespeichert ist. Die automatische Zuteilung startet nur ein Superadmin. Solange kein Entwurf offen ist, listet **Zuteilung** alle kommenden Heimspiele mit ihren gespeicherten Einsätzen: Dienstteam oder Person änderst du direkt in der Tabelle; jede Änderung wird sofort gespeichert."
         },
         {
           "t": "h",
@@ -2226,7 +2226,7 @@ export default {
           "items": [
             "Tippe auf **Details anzeigen**, korrigiere, was falsch ist, und dann **Speichern**.",
             "Beachte das Duplikat-Badge: **Bereits Mitglied**, **Wiedereintritt** oder **Mögliches Duplikat**. **Prüfen & zusammenführen** vergleicht die beiden Datensätze Feld für Feld; **N Feld(er) zusammenführen** verknüpft die Anmeldung mit diesem Mitglied, ohne sie zu bestätigen.",
-            "Kontrolliere **Team**: Bei der Bestätigung kommt die Person in den Kader jedes dort genannten aktiven Teams (ein passendes Team erscheint als Chip). Eine Funktion als Coach oder Teamverantwortliche/r wird nie automatisch vergeben — nutze danach den Kader-Editor.",
+            "Kontrolliere **Team**: Bei der Bestätigung kommt die Person in den Kader jedes dort genannten aktiven Teams (ein passendes Team erscheint als Chip). Eine Funktion als Coach oder Teamverantwortliche/r wird nie automatisch vergeben. Nutze danach den Kader-Editor.",
             "**Bestätigen** oder **Ablehnen**. Zum Ablehnen brauchst du eine **Begründung**, die die Person per E-Mail erhält."
           ]
         },
@@ -2240,7 +2240,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Die Bestätigung erstellt oder verknüpft den Mitgliederdatensatz, schickt der Person per E-Mail einen einmalig gültigen Link zum Erstellen ihres Kontos (Coaches und Teamverantwortliche des Teams in Kopie) und informiert die Sport-Admins. Der ClubDesk-Kontakt wird beim nächsten **Hochladen** angelegt — lege ihn nicht von Hand an. **Einladung erneut senden** auf einer bestätigten Zeile verschickt eine neue Einladung."
+          "text": "Die Bestätigung erstellt oder verknüpft den Mitgliederdatensatz, schickt der Person per E-Mail einen einmalig gültigen Link zum Erstellen ihres Kontos (Coaches und Teamverantwortliche des Teams in Kopie) und informiert die Sport-Admins. Der ClubDesk-Kontakt wird beim nächsten **Hochladen** angelegt; lege ihn nicht von Hand an. **Einladung erneut senden** auf einer bestätigten Zeile verschickt eine neue Einladung."
         },
         {
           "t": "h",
@@ -2351,7 +2351,7 @@ export default {
         },
         {
           "t": "note",
-          "text": "Das Auslösen verschickt nie E-Mails — nutze **E-Mail** beim Lauf. Der Versand startet im Testmodus: Jede Nachricht geht an den Test-Empfänger, bis du auf **Ausschalten (live gehen)** klickst und die Anzahl Mitglieder eintippst. **Lauf stornieren** storniert die noch offenen Rechnungen; bezahlte bleiben bestehen."
+          "text": "Das Auslösen verschickt nie E-Mails; nutze **E-Mail** beim Lauf. Der Versand startet im Testmodus: Jede Nachricht geht an den Test-Empfänger, bis du auf **Ausschalten (live gehen)** klickst und die Anzahl Mitglieder eintippst. **Lauf stornieren** storniert die noch offenen Rechnungen; bezahlte bleiben bestehen."
         },
         {
           "t": "h",
@@ -2374,7 +2374,7 @@ export default {
           "items": [
             "**Mitglieder**: IBAN, Kategorie, Kontakte und Rechnungen pro Mitglied; **Anderen Kontakt verrechnen** für Minderjährige oder Firmen, **PDF anhängen** oder **Auszahlungs-QR anzeigen** und dann **Speichern & herunterladen**, um von Hand zurückzuerstatten. Nur die Finanz-Rolle (oder ein Admin im Admin-Modus) kann hier bearbeiten.",
             "**Teams**: Sponsoring, Einnahmen und Ausgaben pro Team über **Eintrag hinzufügen**, dazu die **Schiedsrichter-Rückerstattung** am Saisonende: **Vorschau**, dann **Auszahlungen erstellen**, eine pro Mitglied. Ohne Schweizer oder Liechtensteiner IBAN oder ohne Postleitzahl und Ort: wird übersprungen und aufgelistet.",
-            "**Spesen**: von Mitgliedern hochgeladene Belege. Setze **Bezahlt** oder **Abgelehnt** — das Mitglied wird in der App, per Push und per E-Mail mit deiner **Notiz ans Mitglied** benachrichtigt; **Bezahlt** erstellt zudem die Auszahlung. Die **Interne Notiz** bleibt verborgen."
+            "**Spesen**: von Mitgliedern hochgeladene Belege. Setze **Bezahlt** oder **Abgelehnt**, dann wird das Mitglied in der App, per Push und per E-Mail mit deiner **Notiz ans Mitglied** benachrichtigt; **Bezahlt** erstellt zudem die Auszahlung. Die **Interne Notiz** bleibt verborgen."
           ]
         },
         {

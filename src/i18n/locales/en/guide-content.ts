@@ -10,11 +10,11 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Wiedisync is the KSC Wiedikon member app. It is the one place for your games, trainings and events, your attendance, your scorer duties, club finances and your personal profile — on your phone or in any browser."
+          "text": "Wiedisync is the KSC Wiedikon member app. It is the one place for your games, trainings and events, your attendance, your scorer duties, club finances and your personal profile, on your phone or in any browser."
         },
         {
           "t": "note",
-          "text": "Free — and the club's official tool. Built and run by the club as a free replacement for paid team-management apps; you need it for your absences, game management and above all your scorer duties."
+          "text": "It is free and the club's official tool. The club built it and runs it as a free replacement for paid team-management apps; you need it for your absences, game management and above all your scorer duties."
         },
         {
           "t": "h",
@@ -62,7 +62,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "kscw.ch is the club's public website: it shows each team with its roster and is where new members sign up. Wiedisync is the members-only app behind it. They share the same data, so what visitors see about you — surname, year of birth, photo — follows the privacy settings on your profile (see the section Your profile)."
+          "text": "kscw.ch is the club's public website: it shows each team with its roster and is where new members sign up. Wiedisync is the members-only app behind it. They share the same data, so what visitors see about you (surname, year of birth, photo) follows the privacy settings on your profile (see the section Your profile)."
         }
       ]
     },
@@ -362,11 +362,11 @@ export default {
         },
         {
           "t": "p",
-          "text": "Open **My profile** and find **Email notifications**. Everyone has **Club news** and **Event invitations**; coaches and team responsibles also get **Team join requests** and **Form submissions**; admins get **New registrations**. All are on by default. Turning one off silences that email only — the bell still shows it. Forms send no email: **Form submissions** silences the push for public-form answers instead."
+          "text": "Open **My profile** and find **Email notifications**. Everyone has **Club news** and **Event invitations**; coaches and team responsibles also get **Team join requests** and **Form submissions**; admins get **New registrations**. All are on by default. Turning one off silences that email only; the bell still shows it. Forms send no email: **Form submissions** silences the push for public-form answers instead."
         },
         {
           "t": "tip",
-          "text": "To unsubscribe from club emails, switch off **Club news** — this also covers group emails from the club mailbox. Password resets, invites, expense mails and a coach's **Contact** messages are always delivered."
+          "text": "To unsubscribe from club emails, switch off **Club news**; this also covers group emails from the club mailbox. Password resets, invites, expense mails and a coach's **Contact** messages are always delivered."
         }
       ]
     },
@@ -494,7 +494,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "You also get the **Coach dashboard** tab and can edit answers, call up players, set deadline and meeting time, cancel a game, contact the team and record **Referee expenses** on volleyball home games — see the section Managing trainings, games and events."
+          "text": "You also get the **Coach dashboard** tab and can edit answers, call up players, set deadline and meeting time, cancel a game, contact the team and record **Referee expenses** on volleyball home games (see the section Managing trainings, games and events)."
         }
       ]
     },
@@ -900,7 +900,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "A household lets one adult login act for several members — typically a parent doing RSVPs, absences and forms for their children. Each child keeps their own member record, roster place, fees and licence; only the login is shared. Households are set up by the club's admins, and only ordinary members can be managed — not coaches, team responsibles, Spielplaner or anyone with an admin role."
+          "text": "A household lets one adult login act for several members — typically a parent doing RSVPs, absences and forms for their children. Each child keeps their own member record, roster place, fees and licence; only the login is shared. Households are set up by the club's admins, and only ordinary members can be managed, not coaches, team responsibles, Spielplaner or anyone with an admin role."
         },
         {
           "t": "h",
@@ -916,11 +916,11 @@ export default {
         },
         {
           "t": "p",
-          "text": "While you act for a child, the bar takes that child's own colour, and the answer buttons on trainings, games and events carry the child's name — for a child called Mila they read **Mila is coming**, **Mila can't** and **Maybe, Mila** — so you always see who you are answering for."
+          "text": "While you act for a child, the bar takes that child's own colour, and the answer buttons on trainings, games and events carry the child's name. For a child called Mila they read **Mila is coming**, **Mila can't** and **Maybe, Mila**, so you always see who you are answering for."
         },
         {
           "t": "note",
-          "text": "Acting is real, not a preview: what you enter counts for the child and is recorded under their name, and the club's audit record notes that you did it. All open tabs follow the switch, and each time you open the app you start as yourself — the last child you used is never restored automatically."
+          "text": "Acting is real, not a preview: what you enter counts for the child and is recorded under their name, and the club's audit record notes that you did it. All open tabs follow the switch, and each time you open the app you start as yourself; the last child you used is never restored automatically."
         },
         {
           "t": "h",
@@ -1021,11 +1021,11 @@ export default {
     },
     "polls": {
       "title": "Polls",
-      "summary": "Vote in team polls, and — as a coach or team responsible — create, close and read them.",
+      "summary": "Vote in team polls and, as a coach or team responsible, create, close and read them.",
       "body": [
         {
           "t": "p",
-          "text": "Polls are short team surveys: one question, a few options. You find them on your team page under **Polls** — **Member tools → Teams** on desktop (**Team** if you are in only one), **More → Member tools → Teams** on a phone, then pick your team. Open polls of your teams also appear on the home page as **Active polls**. The section only shows for teams with polls switched on."
+          "text": "Polls are short team surveys: one question, a few options. You find them on your team page under **Polls**: **Member tools → Teams** on desktop (**Team** if you are in only one), **More → Member tools → Teams** on a phone, then pick your team. Open polls of your teams also appear on the home page as **Active polls**. The section only shows for teams with polls switched on."
         },
         {
           "t": "h",
@@ -1036,7 +1036,7 @@ export default {
           "items": [
             "Tap an option. A **Single choice** poll takes one pick, a **Multiple choice** poll several.",
             "Press **Vote**. Your answer is marked **Voted**.",
-            "To revise it, press **Change vote**, adjust your picks and press **Change vote** again — or **Cancel** to keep the old answer."
+            "To revise it, press **Change vote**, adjust your picks and press **Change vote** again, or **Cancel** to keep the old answer."
           ]
         },
         {
@@ -1052,7 +1052,7 @@ export default {
           "items": [
             "With **Results visible to everyone**, the result bars appear once you have voted, or once the poll is closed or past its deadline.",
             "Without it you see, after voting, only your own marked answer and the hint **Results are only visible to team managers**.",
-            "With **Anonymous voting**, nobody — not even your coach — can see who chose what; only totals exist.",
+            "With **Anonymous voting**, nobody, not even your coach, can see who chose what; only totals exist.",
             "Closed polls sit in the collapsible **Closed polls** list at the bottom of the section."
           ]
         },
@@ -1070,7 +1070,7 @@ export default {
             "**Question** and at least two **Options** (**Add option**, **Remove**). The **Create poll** button stays greyed out until both are there.",
             "**Voting mode**: **Single choice** or **Multiple choice**.",
             "**Deadline**, or leave it empty for **No deadline**.",
-            "**Anonymous voting** (off by default) hides who voted — from you too.",
+            "**Anonymous voting** (off by default) hides who voted, from you too.",
             "**Results visible to everyone** (on by default); switch it off to keep the totals to managers."
           ]
         },
@@ -1084,7 +1084,7 @@ export default {
         },
         {
           "t": "tip",
-          "text": "Polls are switched on per team in the roster editor under **Team Settings → Features → Polls (team voting & decisions)** — see the section Roster editor."
+          "text": "Polls are switched on per team in the roster editor under **Team Settings → Features → Polls (team voting & decisions)** (see the section Roster editor)."
         }
       ]
     },
@@ -1193,7 +1193,7 @@ export default {
         },
         {
           "t": "tip",
-          "text": "Payouts need a Swiss or Liechtenstein IBAN plus your postal code and city on your profile — otherwise the payout is skipped and finance is told why."
+          "text": "Payouts need a Swiss or Liechtenstein IBAN plus your postal code and city on your profile; otherwise the payout is skipped and finance is told why."
         },
         {
           "t": "h",
@@ -1313,7 +1313,7 @@ export default {
           "t": "ul",
           "items": [
             "The app does not collect money. Settle the fine with your coach or team responsible; they press **Mark as paid**.",
-            "A coach can **Waive** an open fine, always with a reason. Amount, category and reason cannot be edited afterwards — a wrong fine is waived and reissued.",
+            "A coach can **Waive** an open fine, always with a reason. Amount, category and reason cannot be edited afterwards; a wrong fine is waived and reissued.",
             "A bell entry and a push tell you when a fine is issued (**New fine**), paid (**Fine paid**) or waived (**Fine waived**); an automatic late sign-in fine comes as one **Training: deadline missed** or **Game: deadline missed** push. After 14 days you get one **Open fine(s)** reminder push a day."
           ]
         },
@@ -1971,7 +1971,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "A player can put a photo of their ID or passport on file so that their coach can show it to a referee before a game. It is encrypted on the player's device before upload; only the player and their teams' current coaches and team responsibles can open it — not the club, not the admins, not the server. Manage yours under **My profile** → **Edit profile** → **Identity document** (phone: **More**, then your profile row)."
+          "text": "A player can put a photo of their ID or passport on file so that their coach can show it to a referee before a game. It is encrypted on the player's device before upload; only the player and their teams' current coaches and team responsibles can open it; the club, the admins and the server cannot. Manage yours under **My profile** → **Edit profile** → **Identity document** (phone: **More**, then your profile row)."
         },
         {
           "t": "h",
@@ -1983,7 +1983,7 @@ export default {
         },
         {
           "t": "note",
-          "text": "Use **Change password** under **Edit profile** — it keeps your key. A reset link or code loses it: documents shared with you stop opening, and your own must be uploaded again."
+          "text": "Use **Change password** under **Edit profile**; it keeps your key. A reset link or code loses it: documents shared with you stop opening, and your own must be uploaded again."
         },
         {
           "t": "h",
@@ -2003,7 +2003,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Access is fixed at upload time to the readers who already have a key; anyone who creates a key later holds nothing until access is restored. Under **Member tools** → **Teams**, open the team: the **ID** column shows who has a document, and since when. **Document access**, next to **Current roster**, opens **Who can open these documents** — one state per staff member and document:"
+          "text": "Access is fixed at upload time to the readers who already have a key; anyone who creates a key later holds nothing until access is restored. Under **Member tools** → **Teams**, open the team: the **ID** column shows who has a document, and since when. **Document access**, next to **Current roster**, opens **Who can open these documents**, with one state per staff member and document:"
         },
         {
           "t": "ul",
@@ -2153,7 +2153,7 @@ export default {
       "body": [
         {
           "t": "p",
-          "text": "Open **Admin → Game operations → Scorer assignment** (desktop) or **More → Admin → Game operations → Scorer assignment** (phone). You need volleyball or basketball admin access. The page covers the current **Season**. **Assignment** is where you plan; **Overview** shows what is saved on the games. Only a superadmin runs the automatic assignment. Whenever no draft is open, **Assignment** lists every upcoming home game with its saved duties: change a duty team or person right in the table — each change is saved immediately."
+          "text": "Open **Admin → Game operations → Scorer assignment** (desktop) or **More → Admin → Game operations → Scorer assignment** (phone). You need volleyball or basketball admin access. The page covers the current **Season**. **Assignment** is where you plan; **Overview** shows what is saved on the games. Only a superadmin runs the automatic assignment. Whenever no draft is open, **Assignment** lists every upcoming home game with its saved duties: change a duty team or person right in the table; each change is saved immediately."
         },
         {
           "t": "h",
@@ -2226,7 +2226,7 @@ export default {
           "items": [
             "Tap **Show details**, correct what is wrong, then **Save**.",
             "Look at the duplicate badge: **Already a member**, **Returning member** or **Possible duplicate**. **Review & merge** compares the two records field by field; **Merge N field(s)** links the registration to that member without approving it.",
-            "Check **Team**: on approval the applicant joins the roster of every active team named there (a matching team shows as a chip). A coach or team responsible function is never granted automatically — use the roster editor afterwards.",
+            "Check **Team**: on approval the applicant joins the roster of every active team named there (a matching team shows as a chip). A coach or team responsible function is never granted automatically. Use the roster editor afterwards.",
             "**Approve** or **Reject**. Rejecting needs a **Reason**, which the applicant receives by email."
           ]
         },
@@ -2240,7 +2240,7 @@ export default {
         },
         {
           "t": "p",
-          "text": "Approval creates or links the member record, emails the applicant a single-use link to create their account (the team's coaches and team responsibles in copy) and notifies the sport admins. The ClubDesk contact is created at the next **Sync up** — do not create it by hand. **Resend invite** on an approved row sends a fresh invite."
+          "text": "Approval creates or links the member record, emails the applicant a single-use link to create their account (the team's coaches and team responsibles in copy) and notifies the sport admins. The ClubDesk contact is created at the next **Sync up**; do not create it by hand. **Resend invite** on an approved row sends a fresh invite."
         },
         {
           "t": "h",
@@ -2351,7 +2351,7 @@ export default {
         },
         {
           "t": "note",
-          "text": "Issuing never emails anyone — use **Email** on the run. Sending starts in test mode: every message goes to the test recipient until you click **Turn off (go live)** and type the member count. **Cancel run** voids still-open invoices; paid ones stay."
+          "text": "Issuing never emails anyone; use **Email** on the run. Sending starts in test mode: every message goes to the test recipient until you click **Turn off (go live)** and type the member count. **Cancel run** voids still-open invoices; paid ones stay."
         },
         {
           "t": "h",
@@ -2374,7 +2374,7 @@ export default {
           "items": [
             "**Members**: IBAN, category, contacts and invoices per member; **Bill a different contact** for minors or companies, **Attach PDF**, or **Show pay-out QR** then **Save & download** to reimburse by hand. Only the finance role (or an admin in admin mode) edits here.",
             "**Teams**: sponsoring, income and expenses per team via **Add entry**, plus the season-end **Referee reimbursement**: **Preview**, then **Create payouts**, one per member. No Swiss or Liechtenstein IBAN, or no postal code and city: skipped and listed.",
-            "**Expenses**: receipts uploaded by members. Set **Paid** or **Rejected** — the member is notified in-app, by push and by email with your **Note to the member**; **Paid** also creates the payout. The **Internal note** stays hidden."
+            "**Expenses**: receipts uploaded by members. Set **Paid** or **Rejected** and the member is notified in-app, by push and by email with your **Note to the member**; **Paid** also creates the payout. The **Internal note** stays hidden."
           ]
         },
         {

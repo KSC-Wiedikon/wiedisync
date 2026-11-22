@@ -73,11 +73,11 @@ export default {
   closureUpdatedToast_one: 'Closure updated: {{range}}, 1 hall',
   closureUpdatedToast_other: 'Closure updated: {{range}}, {{count}} halls',
   closureDeletedToast: 'Closure deleted',
-  closureSyncOwnedWarning: 'This source is managed by an automatic sync — a closure saved here is deleted again on the next run. Use "Admin" or "Caretaker" for a manual closure.',
+  closureSyncOwnedWarning: 'This source is managed by an automatic sync: a closure saved here is deleted again on the next run. Use "Admin" or "Caretaker" for a manual closure.',
 
   // Hall-administration calendar (gcal) — per-entry closure override
   gcalEntriesTitle: 'Hall administration calendar',
-  gcalEntriesSubtitle: 'Nothing the hall administration puts on this calendar takes effect until you approve it. Approve an entry and it closes the halls it names for whole days — or, if it has a start and end time on one day, books just those halls for that time and shortens or cancels only the trainings it overlaps. Refuse it and nothing happens. If they move an entry, it comes back here for a new decision.',
+  gcalEntriesSubtitle: 'Nothing the hall administration puts on this calendar takes effect until you approve it. Approve an entry and it closes the halls it names for whole days. If it has a start and end time on one day, it books just those halls for that time and shortens or cancels only the trainings it overlaps. Refuse it and nothing happens. If they move an entry, it comes back here for a new decision.',
   gcalEntriesEmpty: 'No upcoming entries from the hall administration',
   gcalColEntry: 'Entry',
   gcalColStatus: 'Status',
