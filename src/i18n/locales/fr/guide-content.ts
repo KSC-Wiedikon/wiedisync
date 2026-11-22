@@ -1442,7 +1442,7 @@ export default {
           "t": "ul",
           "items": [
             "Les résultats arrivent pendant la nuit depuis les fédérations, pas de vous.",
-            "**Fixer le delai** fixe le délai de réponse. **Heure de rassemblement** est enregistrée en minutes avant le début, elle survit donc à un report.",
+            "**Fixer le délai de réponse** fixe la date et l'heure avant lesquelles les joueurs doivent répondre. **Heure de rassemblement** est enregistrée en minutes avant le début, elle survit donc à un report.",
             "**Joueur·euses convoqué·es** : **Convoquer des joueur·euses** d'une autre équipe du même sport, **Ouvrir à une équipe entière** (son cadre principal ; les joueur·euses invité·es seulement individuellement) ou individuellement. Ils sont notifiés et peuvent répondre ; **A un match ce jour-là** signale un conflit.",
             "**Frais d'arbitrage** (matchs à domicile de volleyball) : indiquez qui a payé les arbitres et combien ; la page d'accueil affiche **Enregistrer maintenant** pendant 14 jours (voir la section Finances d'équipe)."
           ]

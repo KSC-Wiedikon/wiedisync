@@ -134,7 +134,7 @@ export default {
   showMore: 'Show more games',
   participation: 'Participation',
   participationRoster: 'View RSVPs',
-  setDeadline: 'Set deadline',
+  setDeadline: 'Set RSVP deadline',
   respondBy: 'Respond by',
   comeAndSupport: 'Come and support!',
   guestsCannotParticipate: 'Guests cannot participate in games',

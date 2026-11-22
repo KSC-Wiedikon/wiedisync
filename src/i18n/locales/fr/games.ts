@@ -131,7 +131,7 @@ export default {
   showMore: 'Afficher plus de matchs',
   participation: 'Participation',
   participationRoster: 'Voir les réponses',
-  setDeadline: 'Fixer le delai',
+  setDeadline: 'Fixer le délai de réponse',
   respondBy: 'Repondre avant le',
   comeAndSupport: 'Venez encourager !',
   guestsCannotParticipate: 'Les invités ne peuvent pas participer aux matchs',

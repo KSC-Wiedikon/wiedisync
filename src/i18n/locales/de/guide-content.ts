@@ -1442,7 +1442,7 @@ export default {
           "t": "ul",
           "items": [
             "Resultate kommen über Nacht von den Verbänden, nicht von dir.",
-            "**Frist setzen** legt die Anmeldefrist fest. **Besammlung** wird als Minuten vor Spielbeginn gespeichert und bleibt so auch bei einer Verschiebung erhalten.",
+            "**Antwortfrist setzen** legt fest, bis wann die Spieler antworten sollen. **Besammlung** wird als Minuten vor Spielbeginn gespeichert und bleibt so auch bei einer Verschiebung erhalten.",
             "**Aufgebotene Spieler*innen**: **Spieler*innen aufbieten** aus einem anderen Team derselben Sportart, **Für ein ganzes Team öffnen** (das Stammkader; Gastspieler*innen nur einzeln) oder einzeln. Sie werden benachrichtigt und können antworten; **Hat an dem Tag ein Spiel** weist auf eine Überschneidung hin.",
             "**Schiedsrichterkosten** (Volleyball-Heimspiele): erfasse, wer die Schiedsrichter bezahlt hat und wie viel; die Startseite zeigt 14 Tage lang **Jetzt erfassen** (siehe Abschnitt Teamfinanzen)."
           ]
