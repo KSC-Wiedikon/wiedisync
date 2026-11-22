@@ -134,7 +134,7 @@ export default {
   showMore: 'Mehr Spiele anzeigen',
   participation: 'Teilnahme',
   participationRoster: 'Zu- und Absagen anzeigen',
-  setDeadline: 'Frist setzen',
+  setDeadline: 'Antwortfrist setzen',
   respondBy: 'Antwort bis',
   comeAndSupport: 'Komm und unterstütze uns!',
   guestsCannotParticipate: 'Gäste können nicht an Spielen teilnehmen',

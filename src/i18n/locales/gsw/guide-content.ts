@@ -1442,7 +1442,7 @@ export default {
           "t": "ul",
           "items": [
             "D Resultat chömed über Nacht vo de Verbänd, nöd vo dir.",
-            "**Frischt setze** setzt d Antwortfrischt. D **Bsammlig** wird als Minute vor em Start gspeicheret, drum bliibt si au bi ere Verschiebig richtig.",
+            "**Antwortfrischt setze** leit fescht, bis wänn d Spieler antworte sölled. D **Bsammlig** wird als Minute vor em Start gspeicheret, drum bliibt si au bi ere Verschiebig richtig.",
             "**Ufbotte**: **Spieler*inne ufbiete** us emene andere Team vom gliiche Sport, mit **Für es ganzes Team ufmache** (s Stammkader; Gaschtspieler*inne nur einzeln) oder einzeln. Si werded benachrichtiget und chönd antworte; **Hät a dem Tag es Spiel** zeigt e Überschniidig aa.",
             "**Schiedsrichterchöschte** (Volleyball-Heimspiel): erfass, wer d Schiedsrichter zahlt hät und wie viel; d Startsiite zeigt 14 Täg lang **Jetzt erfasse** (lueg de Abschnitt Teamfinanze)."
           ]

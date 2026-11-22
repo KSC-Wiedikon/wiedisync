@@ -134,7 +134,7 @@ export default {
   showMore: 'Meh Spiel aazeige',
   participation: 'Teilnahm',
   participationRoster: 'Zue- und Absäge aazeige',
-  setDeadline: 'Frischt setze',
+  setDeadline: 'Antwortfrischt setze',
   respondBy: 'Antwort bis',
   comeAndSupport: 'Chum und unterstütz eus!',
   guestsCannotParticipate: 'Gäscht chönd nöd a Spiel teilneh',
