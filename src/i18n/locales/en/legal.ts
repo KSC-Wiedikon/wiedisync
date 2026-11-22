@@ -27,7 +27,7 @@ export default {
   dataRegisterTitle:
     'Master data for club administration and federations',
   dataRegisterText:
-    'For club administration and federation registration we additionally record postal address, postcode and town, nationality, sex, AHV (social security) number and — for junior coaches — the J+S personal number. The AHV number is required for federation and J+S filings and is visible only to the board and administration.',
+    'For club administration and federation registration we additionally record postal address, postcode and town, nationality, sex, AHV (social security) number and, for junior coaches, the J+S personal number. The AHV number is required for federation and J+S filings and is visible only to the board and administration.',
   dataFinanceTitle:
     'Payment and invoicing data',
   dataFinanceText:

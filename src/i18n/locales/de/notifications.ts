@@ -54,7 +54,7 @@ export default {
   event_created: 'Neuer Event: {{title}}',
   form_published: 'Neues Formular: {{title}}',
   form_submission: 'Neue Antwort: {{title}}',
-  form_reminder: 'Erinnerung — bitte ausfüllen: {{title}}',
+  form_reminder: 'Erinnerung – bitte ausfüllen: {{title}}',
   event_updated: 'Event aktualisiert: {{title}}',
   event_deleted: 'Event abgesagt: {{title}}',
   upcoming_game: '{{home_team}} vs {{away_team}} in {{hall}} am {{date}} {{time}}',
@@ -125,8 +125,8 @@ export default {
   // lives in `title`, a {team, date, amount} bag in `body`, so the bell renders
   // in the READER's language rather than the cron's.
   deadlineMissed: 'Frist verpasst',
-  auto_declined_deadline: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst — als nicht dabei eingetragen',
-  auto_declined_deadline_fined: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst — als nicht dabei eingetragen, Busse {{amount}}',
+  auto_declined_deadline: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst – als nicht dabei eingetragen',
+  auto_declined_deadline_fined: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst – als nicht dabei eingetragen, Busse {{amount}}',
   // Car pooling (migration 378) — body JSON: { name, seats?, activity }
   carpoolLabel: 'Fahrgemeinschaft',
   carpool_joined: '{{name}} fährt bei dir mit ({{seats}} Platz/Plätze), noch {{free}} frei: {{activity}}',

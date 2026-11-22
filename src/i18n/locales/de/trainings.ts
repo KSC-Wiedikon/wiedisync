@@ -1,6 +1,6 @@
 export default {
   /** Migration 354: trainings_hall_slot_date_uq rejected a concurrent create. */
-  duplicateSlotDate: 'Für diesen Hallenslot existiert an diesem Datum bereits ein Training. Aktualisiere und versuche es erneut — jemand hat es vielleicht gerade erstellt.',
+  duplicateSlotDate: 'Für diesen Hallenslot existiert an diesem Datum bereits ein Training. Aktualisiere und versuche es erneut – jemand hat es vielleicht gerade erstellt.',
   title: 'Trainings',
   subtitle: 'Trainingsübersicht mit Anwesenheitskontrolle',
 
@@ -13,7 +13,7 @@ export default {
   cancelled: 'Abgesagt',
 
   // Attendance sheet
-  attendanceTitle: 'Anwesenheit — {{date}}',
+  attendanceTitle: 'Anwesenheit – {{date}}',
   attendanceTitleShort: 'Anwesenheit',
   noPlayers: 'Keine Spieler',
   noPlayersAssigned: 'Diesem Team wurden noch keine Spieler zugewiesen.',
@@ -111,14 +111,14 @@ export default {
   isTrialTrainingHint: 'Auf der Teamseite öffentlich sichtbar, wenn das Team für neue Spieler offen ist.',
   trialBadge: 'Probetraining',
   shortenedBadge: 'Verkürzt',
-  shortenedHint: 'Endet früher — anschliessend Heimspiel in der Halle',
-  shortenedHallHint: 'Kürzer als üblich ({{usual}}) — die Halle ist teilweise belegt',
+  shortenedHint: 'Endet früher – anschliessend Heimspiel in der Halle',
+  shortenedHallHint: 'Kürzer als üblich ({{usual}}) – die Halle ist teilweise belegt',
 
   // Serie — manuell (ohne Hallenslot)
   weekday: 'Wochentag',
   manualStartTime: 'Startzeit',
   manualEndTime: 'Endzeit',
-  manualHint: 'Es wird kein Hallenslot verwendet. Wochentag, Zeiten und Halle selbst wählen — die Serie hängt an keinem Slot, eine Absage gibt also keine Hallenzeit für andere Teams frei.',
+  manualHint: 'Es wird kein Hallenslot verwendet. Wochentag, Zeiten und Halle selbst wählen. Die Serie hängt an keinem Slot, eine Absage gibt also keine Hallenzeit für andere Teams frei.',
   manualEndAfterStart: 'Die Endzeit muss nach der Startzeit liegen.',
   noSlotsForTeam: 'Dieses Team hat keine Hallenslots. Auf manuelle Eingabe wechseln, um trotzdem eine Serie zu erzeugen.',
 } as const

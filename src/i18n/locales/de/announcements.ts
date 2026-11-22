@@ -111,7 +111,7 @@ export default {
 
   // Detail modal + archive
   openLink: 'Mehr erfahren',
-  linkHint: 'Link zum vergünstigten Ticket — der Rabatt sollte bereits angewendet sein.',
+  linkHint: 'Link zum vergünstigten Ticket – der Rabatt sollte bereits angewendet sein.',
   loadMore: 'Mehr anzeigen',
   signInRequired: 'Bitte einloggen, um Neuigkeiten zu sehen.',
 

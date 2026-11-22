@@ -59,7 +59,7 @@ export default {
   result_closed: "Geschlossen",
   result_wish_picked: "Aus Wochenend-Wunsch gewählt",
   wishesTitle: "Wochenenden, an denen ihr spielen wollt",
-  wishesHint: "Neue Turniere sind offen, sobald sie publiziert werden. Trag die Wochenenden ein, an denen dein Team spielen will: Sobald dort ein offenes Turnier für eure Altersklasse erscheint, wird es automatisch gewählt und angemeldet — höchstens eines pro Wochenende, nie an einem Ort, den ihr meiden wollt.",
+  wishesHint: "Neue Turniere sind offen, sobald sie publiziert werden. Trag die Wochenenden ein, an denen dein Team spielen will: Sobald dort ein offenes Turnier für eure Altersklasse erscheint, wird es automatisch gewählt und angemeldet, höchstens eines pro Wochenende und nie an einem Ort, den ihr meiden wollt.",
   wishNone: "Noch keine Wochenenden.",
   weekend: "Sa {{sat}} – So {{sun}}",
   wishWaiting: "Wartet auf ein Turnier",

@@ -100,7 +100,7 @@ export default {
   editedByTeamResponsibleOn: 'Edited by team responsible ({{name}}) on {{at}}',
   editedByAdminOn: 'Edited by admin ({{name}}) on {{at}}',
   detailsOnBehalfPlaceholder: 'Why are you logging this on behalf of the player?',
-  noteOnBehalfHint: 'You\'re editing on behalf of another player — please leave a note explaining why. The note is visible to the player.',
+  noteOnBehalfHint: 'You\'re editing on behalf of another player. Please leave a note explaining why. The note is visible to the player.',
   notePlaceholder: 'Additional information...',
   atLeastOneDay: 'Select at least one day',
   noWeeklyAbsences: 'No weekly unavailabilities',

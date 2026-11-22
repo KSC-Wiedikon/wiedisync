@@ -9,7 +9,7 @@ export default {
   searchTeam: 'Team suchen…',
   noTeamFound: 'Kein Team gefunden.',
   freeSlot: 'Freier Trainingsslot',
-  freeSlotHint: 'Kein Team zugewiesen — für jedes Team zum Beanspruchen freigegeben',
+  freeSlotHint: 'Kein Team zugewiesen – für jedes Team zum Beanspruchen freigegeben',
   dayOfWeek: 'Wochentag',
   slotType: 'Typ',
   startTime: 'Startzeit',
@@ -73,11 +73,11 @@ export default {
   closureUpdatedToast_one: 'Sperrung aktualisiert: {{range}}, 1 Halle',
   closureUpdatedToast_other: 'Sperrung aktualisiert: {{range}}, {{count}} Hallen',
   closureDeletedToast: 'Sperrung gelöscht',
-  closureSyncOwnedWarning: 'Diese Quelle wird von einem automatischen Sync verwaltet — eine hier gespeicherte Sperrung wird beim nächsten Lauf wieder gelöscht. Nimm «Admin» oder «Hauswart» für eine manuelle Sperrung.',
+  closureSyncOwnedWarning: 'Diese Quelle wird von einem automatischen Sync verwaltet: Eine hier gespeicherte Sperrung wird beim nächsten Lauf wieder gelöscht. Nimm «Admin» oder «Hauswart» für eine manuelle Sperrung.',
 
   // Hall-administration calendar (gcal) — per-entry closure override
   gcalEntriesTitle: 'Kalender der Hallenverwaltung',
-  gcalEntriesSubtitle: 'Was die Hallenverwaltung in diesen Kalender stellt, gilt erst, wenn du es freigibst. Ein freigegebener Eintrag sperrt die genannten Hallen ganztägig — oder, wenn er an einem Tag eine Start- und Endzeit hat, reserviert er nur diese Hallen für diese Zeit und kürzt oder streicht nur die betroffenen Trainings. Lehnst du ihn ab, passiert nichts. Verschiebt die Hallenverwaltung einen Eintrag, landet er wieder hier.',
+  gcalEntriesSubtitle: 'Was die Hallenverwaltung in diesen Kalender stellt, gilt erst, wenn du es freigibst. Ein freigegebener Eintrag sperrt die genannten Hallen ganztägig. Hat er an einem Tag eine Start- und Endzeit, reserviert er nur diese Hallen für diese Zeit und kürzt oder streicht nur die betroffenen Trainings. Lehnst du ihn ab, passiert nichts. Verschiebt die Hallenverwaltung einen Eintrag, landet er wieder hier.',
   gcalEntriesEmpty: 'Keine bevorstehenden Einträge der Hallenverwaltung',
   gcalColEntry: 'Eintrag',
   gcalColStatus: 'Status',
@@ -113,8 +113,8 @@ export default {
   gcalPushRemoveConfirm: 'Diese Sperrung aus dem Kalender der Hallenverwaltung entfernen?',
   gcalPushedToast: 'Im Hallenkalender publiziert',
   gcalPushRemovedToast: 'Aus dem Hallenkalender entfernt',
-  gcalPushDuplicateToast: 'Nicht publiziert — die Hallenverwaltung hat diesen Zeitraum bereits erfasst ({{title}})',
-  gcalPushDryRunToast: 'Zum Publizieren markiert (Dev läuft trocken — nichts geschrieben)',
+  gcalPushDuplicateToast: 'Nicht publiziert – die Hallenverwaltung hat diesen Zeitraum bereits erfasst ({{title}})',
+  gcalPushDryRunToast: 'Zum Publizieren markiert (Dev läuft trocken – nichts geschrieben)',
   gcalPushDisabledToast: 'Markiert, aber der Kalender-Push ist auf dieser Umgebung nicht konfiguriert',
 
 
@@ -215,7 +215,7 @@ export default {
 
   // Raster- / Editor-Feinschliff
   noDataToDisplay: 'Keine Daten vorhanden',
-  breakExpand: 'Nichts gebucht {{from}}–{{to}} — klicken, um diese Stunden anzuzeigen',
+  breakExpand: 'Nichts gebucht {{from}}–{{to}} – klicken, um diese Stunden anzuzeigen',
   switchOverlap: 'Überlappung wechseln',
   labelPlaceholder: 'z.B. Schnuppertraining, Heimspiel vs. TVA',
   sportVolleyball: 'Volleyball',
