@@ -265,7 +265,7 @@ export default {
   kantonsschule: 'Kantonsschule',
   kantonsschuleHint: 'Which Zurich Kantonsschule you attend. The club is asked for these numbers.',
   kantonsschuleUnset: '— Not answered',
-  kantonsschuleNo: 'Nein — I am not at a Kantonsschule',
+  kantonsschuleNo: 'No, I am not at a Kantonsschule',
   kantonsschuleSearch: 'Search schools…',
   federationOfOrigin: 'Federation of origin',
   federationOfOriginHint: 'The national federation that first licensed you. If this is your first licence, choose Switzerland. Swiss Volley or Swiss Basketball then becomes your federation of origin.',

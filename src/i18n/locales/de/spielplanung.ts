@@ -109,7 +109,6 @@ export default {
     hall: 'Halle',
     hallPlaceholder: 'Halle auswählen',
     hallComboAB: 'KWI A + B',
-    saturdayHint: 'Vorbelegt: {{hall}} – Samstag empfohlen vor KWI A/B',
     awayVenue: 'Auswärts-Spielort',
     venueName: 'Name der Halle',
     venueAddress: 'Adresse',

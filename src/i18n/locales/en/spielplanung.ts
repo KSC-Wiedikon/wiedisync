@@ -111,7 +111,6 @@ export default {
     hall: 'Hall',
     hallPlaceholder: 'Select hall',
     hallComboAB: 'KWI A + B',
-    saturdayHint: 'Prefilled: {{hall}} — Saturday prefers KWI C / own training over A/B',
     awayVenue: 'Away venue',
     venueName: 'Venue name',
     venueAddress: 'Address',
