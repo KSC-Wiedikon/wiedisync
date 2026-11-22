@@ -88,7 +88,7 @@ export default {
 
   // Self-assign
   selfAssign: 'Ich übernehme',
-  selfAssignSuccess: 'Angemeldet — bis dann!',
+  selfAssignSuccess: 'Angemeldet – bis dann!',
   selfAssignError: 'Anmeldung fehlgeschlagen (evtl. gerade vergeben oder nicht berechtigt).',
   selfAssignClash: 'Du hast zu dieser Zeit schon einen Einsatz.',
   staffAssignSuccess: 'Eingeteilt.',
@@ -102,7 +102,7 @@ export default {
   confirmSelfAssignArrival_scorer_scoreboard: 'Du musst spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignArrival_referee: 'Du musst spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignArrival_bb: 'Du musst spätestens <strong>20 Minuten</strong> vor Spielbeginn in der Halle sein.',
-  confirmSelfAssignWarning: 'Diese Wahl ist <strong>endgültig</strong>. Sobald du eine Aufgabe übernimmst, kannst du sie nicht mehr abgeben — der einzige Weg ist, sie <strong>an ein anderes Mitglied zu delegieren</strong>.',
+  confirmSelfAssignWarning: 'Diese Wahl ist <strong>endgültig</strong>. Sobald du eine Aufgabe übernimmst, kannst du sie nicht mehr abgeben; der einzige Weg ist, sie <strong>an ein anderes Mitglied zu delegieren</strong>.',
   confirmSelfAssignAbsence: 'Du hast an diesem Datum eine Absenz eingetragen. Du kannst den Dienst trotzdem übernehmen, prüfe aber zuerst deine Verfügbarkeit.',
   cancelAction: 'Abbrechen',
   confirmAction: 'Bestätigen',
@@ -111,7 +111,7 @@ export default {
   selectTeam: 'Team wählen',
   selectPerson: 'Person wählen',
   pickDutyTeamTitle: 'Welches Dienst-Team?',
-  pickDutyTeamBody: '{{name}} ist in mehreren Teams — wähle das für diesen Dienst zuständige.',
+  pickDutyTeamBody: '{{name}} ist in mehreren Teams – wähle das für diesen Dienst zuständige.',
 
   // Overview
   overviewEmpty: 'Keine Zuteilungen gefunden.',
@@ -150,8 +150,8 @@ export default {
 
   // Reminder toggle
   reminderEmails: 'Erinnerungs-E-Mails',
-  reminderEmailsOn: 'AN — Erinnerungen werden am Vortag verschickt',
-  reminderEmailsOff: 'AUS — Keine Erinnerungs-E-Mails',
+  reminderEmailsOn: 'AN – Erinnerungen werden am Vortag verschickt',
+  reminderEmailsOff: 'AUS – Keine Erinnerungs-E-Mails',
 
   // Info panel
   infoTitle: 'Infos zum Schreiberdienst',
@@ -192,7 +192,7 @@ export default {
   rosterError: 'Die Aufstellung konnte nicht geladen werden.',
   rosterColLicence: 'Lizenz',
   rosterSourceVm: 'Einsatzliste aus Volleymanager',
-  rosterSourceRsvp: 'Keine Einsatzliste in Volleymanager — nur zugesagte Spieler',
+  rosterSourceRsvp: 'Keine Einsatzliste in Volleymanager – nur zugesagte Spieler',
   rosterNotEligible: 'Laut Volleymanager nicht spielberechtigt',
   rosterNoConfirmed: 'Noch keine zugesagten Spieler.',
   rosterCaptain: 'Captain',
@@ -202,9 +202,9 @@ export default {
   dutyBadge: 'Einsatz',
   dutyBannerTitle: 'Du hast {{role}}-Einsatz',
   dutyEmergencyButton: 'Notfall: Team-Leiter kontaktieren',
-  dutyEmergencySent: 'Team-Leiter angezeigt — der Verein wurde benachrichtigt.',
+  dutyEmergencySent: 'Team-Leiter angezeigt – der Verein wurde benachrichtigt.',
   dutyEmergencyError: 'Alarm konnte nicht gesendet werden. Bitte einen Team-Leiter direkt anrufen.',
-  dutyEmergencyRevealed: 'Team-Leiter — jetzt kontaktieren:',
+  dutyEmergencyRevealed: 'Team-Leiter – jetzt kontaktieren:',
   dutyEmergencyNoLeaders: 'Keine Team-Leiter hinterlegt. Luca oder Thamy kontaktieren.',
   roleCoach: 'Trainer/in',
   roleResponsible: 'Teamverantwortliche/r',

@@ -36,7 +36,7 @@ export default {
   crossTeamBadge: {
     title: 'Team-Konflikte: {{count}}',
     aria: 'Team-Konflikte: {{count}}',
-    hint: 'Ein Team mit gemeinsamen Spielern spielt an diesem Tag — das blockiert hier einen Heimslot.',
+    hint: 'Ein Team mit gemeinsamen Spielern spielt an diesem Tag – das blockiert hier einen Heimslot.',
     kind: {
       game: 'Spiel',
       home: 'Heimspiel',
@@ -95,7 +95,7 @@ export default {
   // Manual game creation modal
   manualGame: {
     title: 'Manuelles Spiel erfassen',
-    subtitle: 'Überspringt den Einlade-Flow — Admin / Spielplaner setzt alle Details selbst.',
+    subtitle: 'Überspringt den Einlade-Flow – Admin / Spielplaner setzt alle Details selbst.',
     sport: 'Sportart',
     team: 'Team',
     teamPlaceholder: 'Team auswählen',
@@ -109,7 +109,6 @@ export default {
     hall: 'Halle',
     hallPlaceholder: 'Halle auswählen',
     hallComboAB: 'KWI A + B',
-    saturdayHint: 'Vorbelegt: {{hall}} — Samstag empfohlen vor KWI A/B',
     awayVenue: 'Auswärts-Spielort',
     venueName: 'Name der Halle',
     venueAddress: 'Adresse',
@@ -130,8 +129,8 @@ export default {
       sameTeamSameDay: 'Dieses Team spielt bereits am gleichen Tag ({{time}} gegen {{opponent}}).',
       hallOverlap: 'Die Halle ist zu einer überlappenden Zeit bereits belegt ({{time}}–{{endTime}}).',
       sameTeamWithinTwoDays: 'Dieses Team spielt auch am {{date}} um {{time}} ({{daysDelta}} Tage Abstand).',
-      clubBlocked: 'Dieser Tag ist vereinsweit gesperrt ({{reason}}) — keine Heimspiele.',
-      clubBlockedNoReason: 'Dieser Tag ist vereinsweit gesperrt — keine Heimspiele.',
+      clubBlocked: 'Dieser Tag ist vereinsweit gesperrt ({{reason}}) – keine Heimspiele.',
+      clubBlockedNoReason: 'Dieser Tag ist vereinsweit gesperrt – keine Heimspiele.',
     },
   },
 

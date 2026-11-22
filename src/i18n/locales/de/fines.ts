@@ -41,7 +41,7 @@ export default {
   allTime: 'insgesamt',
 
   issueFine: 'Busse vergeben',
-  issueFineFor: 'Busse vergeben — {{name}}',
+  issueFineFor: 'Busse vergeben – {{name}}',
   issueFineSubmit: 'Busse vergeben',
   issueFineSuccess: 'Busse vergeben',
   issueFineError: 'Busse konnte nicht vergeben werden: {{error}}',
@@ -53,8 +53,8 @@ export default {
   targetLabel: 'Wer wird gebüsst?',
   targetMember: 'Ein Mitglied',
   targetTeam: 'Das ganze Team',
-  targetTeamHint: 'Diese Busse schuldet das Team — kein persönliches Saldo ändert sich. Eskalationsstufen gelten nicht, gib den Betrag selbst ein.',
-  issueFineForTeam: 'Busse vergeben — {{name}} (Team)',
+  targetTeamHint: 'Diese Busse schuldet das Team – kein persönliches Saldo ändert sich. Eskalationsstufen gelten nicht, gib den Betrag selbst ein.',
+  issueFineForTeam: 'Busse vergeben – {{name}} (Team)',
   teamFineRow: 'Ganzes Team',
   amountPlaceholderTeam: 'Betrag eingeben',
   markPaid: 'Als bezahlt markieren',
@@ -84,7 +84,7 @@ export default {
 
   previewLine: '{{ordinal}} {{categoryLabel}} {{window}} → {{amount}}',
   previewNoRule: 'Keine Regel für diese Kategorie. Bitte Betrag manuell eingeben.',
-  previewError: 'Betrag konnte nicht berechnet werden — bitte manuell eingeben.',
+  previewError: 'Betrag konnte nicht berechnet werden – bitte manuell eingeben.',
 
   outstanding: 'Offen: {{amount}}',
   outstandingCount_one: '{{count}} offene Busse',

@@ -112,7 +112,7 @@ describe('LoginPage passkey button', () => {
     auth.loginWithPasskey.mockRejectedValue(serverError(401, 'passkey_unknown'))
     renderLogin()
     await click(passkeyButton())
-    expect(alerts()).toEqual(['This passkey is no longer set up — it was removed, or your password was changed. Sign in with your password.'])
+    expect(alerts()).toEqual(['This passkey is no longer set up: it was removed, or your password was changed. Sign in with your password.'])
     expect(container.querySelector('input[type="password"]')).not.toBeNull()
     expect(submitButton()?.disabled).toBe(false)
   })

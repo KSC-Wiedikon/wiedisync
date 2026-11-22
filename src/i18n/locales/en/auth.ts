@@ -15,7 +15,7 @@ export default {
   sendingResetLink: 'Sending link...',
   enterEmailFirst: 'Please enter your email first.',
   accountAlreadyExists: 'An account with this email already exists. Please sign in.',
-  sharedEmailHouseholdHint: 'This email belongs to a family member\'s login. Sign in with it — an admin can link other family members to the same login, and you switch between them with the bar at the top of the app.',
+  sharedEmailHouseholdHint: 'This email belongs to a family member\'s login. Sign in with it. An admin can link other family members to the same login, and you switch between them with the bar at the top of the app.',
   noAccountYet: 'Don\'t have an account?',
 
   // Profile
@@ -99,13 +99,13 @@ export default {
   inviteClaimedTitle: 'Invite already used',
   inviteClaimedDescription: 'This invite has already been used. If that was you, you can simply sign in.',
   inviteNoEmail: 'No email address is stored for you. Ask an admin to add one first.',
-  inviteEmailInUse: 'This email already has a login in your family. Sign in with it instead — an admin can link this person to that login so you can switch between family members.',
+  inviteEmailInUse: 'This email already has a login in your family. Sign in with it instead. An admin can link this person to that login so you can switch between family members.',
   inviteRedeemFailed: 'Could not activate the account. Please try again.',
   inviteFetchErrorTitle: 'Something went wrong',
   inviteFetchErrorDescription: 'We could not check your invite right now. Please check your connection and try again — your invite is still valid.',
   inviteRetry: 'Try again',
   registrationClosedTitle: 'Registration is invite-only',
-  registrationClosedDescription: 'We could not find a member with this email. New memberships are handled on the club website — or ask your coach for a WiediSync invite.',
+  registrationClosedDescription: 'We could not find a member with this email. New memberships are handled on the club website. You can also ask your coach for a WiediSync invite.',
   registrationClosedWebsiteLink: 'Membership signup on kscw.ch',
 
   // Team selection
@@ -126,7 +126,7 @@ export default {
   onboardingTitle: 'Welcome to KSC Wiedikon',
   onboardingSubtitle: 'Please complete your profile to continue.',
   verifyTitle: 'Please check your data',
-  verifyBody: 'We will be processing the licences for next season shortly. Please check that everything below is correct — address, email, phone number, date of birth, nationality, federation of origin, sex, playing position and number, and your IBAN and AHV number if you have them.',
+  verifyBody: 'We will be processing the licences for next season shortly. Please check that everything below is correct: address, email, phone number, date of birth, nationality, federation of origin, sex, playing position and number, and your IBAN and AHV number if you have them.',
   verifyReadOnly: 'Greyed-out fields such as your fee category and licence can only be changed by the club. If something there is wrong, contact Luca or your TK.',
   verifyMinors: 'If you are under 16, please do this together with a parent.',
   verifyConfirm: 'Everything is correct',
@@ -166,7 +166,7 @@ export default {
   resetSuccess: 'Your password has been changed successfully. You can now sign in.',
   resetError: 'This link is invalid or expired. Please request a new reset link.',
   noAccountFound: 'No account found with this email address.',
-  noAccountFoundHint: 'If you are already a member, try the address the club has on file for you — it may differ from this one. Otherwise create an account.',
+  noAccountFoundHint: 'If you are already a member, try the address the club has on file for you, which may differ from this one. Otherwise create an account.',
 
   // Emailed reset link (the flow that works once an account has a password)
   resetLinkDescription: 'Enter your email address and we will send you a link to choose a new password.',
@@ -265,10 +265,10 @@ export default {
   kantonsschule: 'Kantonsschule',
   kantonsschuleHint: 'Which Zurich Kantonsschule you attend. The club is asked for these numbers.',
   kantonsschuleUnset: '— Not answered',
-  kantonsschuleNo: 'Nein — I am not at a Kantonsschule',
+  kantonsschuleNo: 'No, I am not at a Kantonsschule',
   kantonsschuleSearch: 'Search schools…',
   federationOfOrigin: 'Federation of origin',
-  federationOfOriginHint: 'The national federation that first licensed you. If this is your first licence, choose Switzerland — Swiss Volley or Swiss Basketball then becomes your federation of origin.',
+  federationOfOriginHint: 'The national federation that first licensed you. If this is your first licence, choose Switzerland. Swiss Volley or Swiss Basketball then becomes your federation of origin.',
   nationalityHint: 'Select all that apply.',
   // Coaching education (migration 274). "J+S" is the federal Jugend+Sport
   // programme and keeps its Swiss name in every locale — it is a brand, not a
@@ -302,7 +302,7 @@ export default {
   invalidEmail: 'Please enter a valid email address',
   // Notification preferences (migration 156)
   emailNotifyTitle: 'Email notifications',
-  emailNotifyHint: "Choose which alerts you want to receive. Turning one off silences that notification — the in-app bell still shows it.",
+  emailNotifyHint: "Choose which alerts you want to receive. Turning one off silences that notification; the in-app bell still shows it.",
   emailNotifyRegistrations: 'New registrations',
   emailNotifyJoinRequests: 'Team join requests',
   emailNotifyFormSubmissions: 'Form submissions',
@@ -324,7 +324,7 @@ export default {
 
   // Identity document (end-to-end encrypted)
   idTitle: 'Identity document',
-  idExplainer: 'Encrypted on your device before it leaves it. Your coaches and team responsibles can show it to a referee before a game. Nobody else can open it — not the club, not the admins, not the server.',
+  idExplainer: 'Encrypted on your device before it leaves it. Your coaches and team responsibles can show it to a referee before a game. Nobody else can open it: neither the club nor the admins nor the server.',
   idSetupHint: 'Enter your password once to create your encryption key. It never leaves this device.',
   idUnlockHint: 'Enter your password to unlock your encryption key on this device.',
   idPasswordPlaceholder: 'Your password',
@@ -347,7 +347,7 @@ export default {
   idUploaded_other: 'Uploaded and encrypted. {{count}} team leaders can open it.',
   idGapTitle_one: '{{count}} team leader cannot open your ID yet',
   idGapTitle_other: '{{count}} team leaders cannot open your ID yet',
-  idGapHint: '{{names}} joined your team\'s staff after you uploaded it. Grant access to fix it — your document is not re-uploaded and nobody else gains access.',
+  idGapHint: '{{names}} joined your team\'s staff after you uploaded it. Grant access to fix it. Your document is not re-uploaded, and nobody else gains access.',
   idGrant: 'Grant access',
   idGranted_one: 'Access granted to {{count}} team leader.',
   idGranted_other: 'Access granted to {{count}} team leaders.',
@@ -381,7 +381,7 @@ export default {
   pwWrongCurrent: 'Your current password is not correct.',
   pwChanged: 'Password changed',
   pwChangedKeyKept: 'Password changed. Your identity document is still readable.',
-  pwKeyNotice: 'Changing your password here keeps your encryption key, so your identity document stays readable. A password reset by email does not — it would lose the key and you would have to upload the document again.',
+  pwKeyNotice: 'Changing your password here keeps your encryption key, so your identity document stays readable. A password reset by email does not: it would lose the key, and you would have to upload the document again.',
   // Licence status card (migration 301) — read-only for the member by design.
   licenceStatusTitle: 'Licence status',
   licenceStatusHelp: 'Set by the club and confirmed by your federation. Ask your coach if it looks wrong.',
@@ -399,7 +399,7 @@ export default {
   passkeyOtpLabel: 'Code from your authenticator app',
   passkeyOtpNeeded: 'Your account uses an authenticator app. Enter its 6-digit code.',
   passkeysTitle: 'Passkeys',
-  passkeysHint: 'Sign in with your fingerprint, face or PIN instead of the password. A passkey belongs to one device — add one on each device you use.',
+  passkeysHint: 'Sign in with your fingerprint, face or PIN instead of the password. A passkey belongs to one device, so add one on each device you use.',
   passkeysPasswordNote: 'Changing your password removes all your passkeys.',
   passkeysNone: 'No passkeys yet.',
   passkeyColName: 'Passkey',
@@ -423,7 +423,7 @@ export default {
   passkeyUnlockHint: 'Unlock with your fingerprint, face or PIN.',
   passkeyUnlock: 'Unlock',
   passkeyUnlockFailed: 'That did not work. Try again, or log out and sign in with your password.',
-  passkeyErrUnknown: 'This passkey is no longer set up — it was removed, or your password was changed. Sign in with your password.',
+  passkeyErrUnknown: 'This passkey is no longer set up: it was removed, or your password was changed. Sign in with your password.',
   passkeyErrExpired: 'Please try again.',
   passkeyErrRestricted: 'Sign-in is not possible right now.',
   passkeyErrOrigin: 'Passkeys cannot be used on this page.',

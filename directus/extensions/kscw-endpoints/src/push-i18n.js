@@ -105,14 +105,14 @@ const T = {
     it: 'Partita: scadenza mancata',
   },
   'autoDeclined.body': {
-    de: '{date} — du bist als nicht dabei eingetragen',
+    de: '{date} – du bist als nicht dabei eingetragen',
     gsw: '{date} — du bisch als nöd debi iiträit',
     en: '{date} — you\'ve been marked as not coming',
     fr: '{date} — tu es inscrit comme absent',
     it: '{date} — sei registrato come assente',
   },
   'autoDeclinedFined.body': {
-    de: '{date} — als nicht dabei eingetragen, Busse {amount}',
+    de: '{date} – als nicht dabei eingetragen, Busse {amount}',
     gsw: '{date} — als nöd debi iiträit, Bueß {amount}',
     en: '{date} — marked as not coming, fine {amount}',
     fr: '{date} — inscrit comme absent, amende {amount}',
@@ -637,7 +637,7 @@ const T = {
     it: 'Multa(e) aperta(e)',
   },
   'fineReminder.body': {
-    de: 'Du hast {count} offene Busse(n) — total {amount}',
+    de: 'Du hast {count} offene Busse(n) – total {amount}',
     gsw: 'Du häsch {count} offeni Bueße — total {amount}',
     en: 'You have {count} open fine(s) — total {amount}',
     fr: 'Tu as {count} amende(s) ouverte(s) — total {amount}',
@@ -653,7 +653,7 @@ const T = {
     it: 'Nuovo modulo',
   },
   'formPublished.body': {
-    de: '{title} — bitte ausfüllen',
+    de: '{title} – bitte ausfüllen',
     gsw: '{title} — bitte usfülle',
     en: '{title} — please fill in',
     fr: '{title} — merci de remplir',
@@ -726,7 +726,7 @@ const T = {
     it: 'La tua licenza per {season} è stata ordinata.',
   },
   'licenceStatus.body.finalized': {
-    de: 'Deine Lizenz für {season} ist abgeschlossen — wir warten auf die Bestätigung des Verbands.',
+    de: 'Deine Lizenz für {season} ist abgeschlossen – wir warten auf die Bestätigung des Verbands.',
     gsw: 'Dini Lizänz für {season} isch fertig — mir warte uf d Bestätigung vom Verband.',
     en: 'Your licence for {season} is complete — waiting for the federation to confirm.',
     fr: 'Ta licence pour {season} est finalisée — en attente de la confirmation de la fédération.',
@@ -784,7 +784,7 @@ const T = {
     it: '{name} ti ha tolto dal suo passaggio: {activity}',
   },
   'carpool_cancelled.push': {
-    de: '{name} hat die Fahrt abgesagt — such dir eine neue: {activity}',
+    de: '{name} hat die Fahrt abgesagt – such dir eine neue: {activity}',
     gsw: '{name} hät d Fahrt abgseit — lueg für ä neui: {activity}',
     en: '{name} cancelled the ride — find another one: {activity}',
     fr: '{name} a annulé le trajet — trouve une autre voiture : {activity}',

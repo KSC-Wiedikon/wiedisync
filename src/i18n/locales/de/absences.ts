@@ -100,7 +100,7 @@ export default {
   editedByTeamResponsibleOn: 'Bearbeitet von der Teamverantwortlichen ({{name}}) am {{at}}',
   editedByAdminOn: 'Bearbeitet vom Admin ({{name}}) am {{at}}',
   detailsOnBehalfPlaceholder: 'Warum trägst du das stellvertretend für die Spielerin/den Spieler ein?',
-  noteOnBehalfHint: 'Du bearbeitest stellvertretend für eine andere Person — bitte hinterlasse eine Notiz mit dem Grund. Die Notiz ist für die betroffene Person sichtbar.',
+  noteOnBehalfHint: 'Du bearbeitest stellvertretend für eine andere Person. Bitte hinterlasse eine Notiz mit dem Grund. Die Notiz ist für die betroffene Person sichtbar.',
   notePlaceholder: 'Zusätzliche Informationen...',
   atLeastOneDay: 'Mindestens ein Tag wählen',
   noWeeklyAbsences: 'Keine wöchentlichen Abwesenheiten',
@@ -151,7 +151,7 @@ export default {
   hallClosed: 'Halle geschlossen',
   // Team blocking (migration 085) — coach/TR scheduling blackouts
   teamBlocks: 'Team-Sperren',
-  teamBlocksHint: 'Sperrt die Spielplanung für ein Team an diesen Tagen — eine harte Sperre, auch wenn nur wenige Spieler fehlen.',
+  teamBlocksHint: 'Sperrt die Spielplanung für ein Team an diesen Tagen – eine harte Sperre, auch wenn nur wenige Spieler fehlen.',
   addTeamBlock: 'Team-Sperre hinzufügen',
   noTeamBlocks: 'Keine bevorstehenden Team-Sperren.',
   teamBlocking: 'Team-Sperre',
