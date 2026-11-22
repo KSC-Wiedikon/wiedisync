@@ -41,7 +41,8 @@ test('gameToSvrzRow extracts all fields, club identifier as string', () => {
   assert.equal(typeof row.home_club_id, 'string', 'home_club_id must be string (preserves leading zeros if SVRZ used them)');
   assert.equal(row.home_club_id, String(game.encounter.teamHome.club.identifier));
   assert.equal(row.home_club_name, game.encounter.teamHome.club.name);
-  assert.equal(row.home_team_name, game.encounter.teamHome.name);
+  // the fixture's club number (900xxx) is of no association -> the German translation (vm-team-language.mjs)
+  assert.equal(row.home_team_name, game.encounter.teamHome.translations.de.name);
   assert.equal(row.away_club_id, String(game.encounter.teamAway.club.identifier));
   assert.equal(row.league_short, game.encounter.teamHome.leagueCategory.name);
   assert.equal(row.gender, game.group.phase.league.gender);
