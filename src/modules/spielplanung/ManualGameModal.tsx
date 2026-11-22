@@ -92,7 +92,6 @@ export default function ManualGameModal({
   const [time, setTime] = useState<string>(defaultTime)
   const [hallId, setHallId] = useState<string>('')
   const [additionalHalls, setAdditionalHalls] = useState<string[]>([])
-  const [saturdayHintHall, setSaturdayHintHall] = useState<string>('')
   const [awayVenue, setAwayVenue] = useState({ name: '', address: '', city: '', plus_code: '' })
   const [league, setLeague] = useState('')
   const [round, setRound] = useState('')
@@ -157,7 +156,6 @@ export default function ManualGameModal({
         ? editingGame.additional_halls.map((v) => String(typeof v === 'object' && v !== null && 'id' in v ? (v as { id: unknown }).id : v))
         : [],
     )
-    setSaturdayHintHall('')
     const ah = editingGame.away_hall_json
     setAwayVenue({
       name: ah?.name ?? '',
@@ -253,7 +251,6 @@ export default function ManualGameModal({
       setTime(defaultTime())
       setHallId('')
       setAdditionalHalls([])
-      setSaturdayHintHall('')
       setAwayVenue({ name: '', address: '', city: '', plus_code: '' })
       setLeague('')
       setRound('')
@@ -310,7 +307,6 @@ export default function ManualGameModal({
   const hallSelectValue = isComboSelected ? HALL_COMBO_AB : hallId
 
   function onHallSelectChange(value: string) {
-    setSaturdayHintHall('') // user took over
     if (value === HALL_COMBO_AB && kwiA && kwiB) {
       setHallId(String(kwiA.id))
       setAdditionalHalls([String(kwiB.id)])
@@ -356,7 +352,6 @@ export default function ManualGameModal({
     if (!pick) return
     setHallId(pick)
     setAdditionalHalls([])
-    setSaturdayHintHall(pick)
   }
 
   const { errors, warnings } = useGameConflicts({
@@ -554,13 +549,6 @@ export default function ManualGameModal({
                 ))}
               </SelectContent>
             </Select>
-            {saturdayHintHall && hallId === saturdayHintHall && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t('manualGame.saturdayHint', {
-                  hall: halls?.find((h) => String(h.id) === saturdayHintHall)?.name ?? '',
-                })}
-              </p>
-            )}
           </div>
         ) : (
           <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">

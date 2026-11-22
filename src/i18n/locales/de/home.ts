@@ -27,7 +27,7 @@ export default {
   ibanNudgeCta: 'IBAN hinterlegen',
   ibanNudgeDismiss: 'Später',
   ibanConfirmNudgeTitle: 'IBAN bestätigen',
-  ibanConfirmNudgeBody: 'Wir haben eine IBAN für dich hinterlegt — bitte bestätige unter Finanzen, dass sie stimmt (oder ändere sie), damit Rückerstattungen ankommen.',
+  ibanConfirmNudgeBody: 'Wir haben eine IBAN für dich hinterlegt. Bitte bestätige unter Finanzen, dass sie stimmt (oder ändere sie), damit Rückerstattungen ankommen.',
   ibanConfirmNudgeCta: 'In Finanzen bestätigen',
   refExpenseNudgeTitle: 'Schiedsrichterspesen nicht erfasst',
   refExpenseNudgeBody: 'Wer hat die Schiedsrichter an diesem Heimspiel bezahlt, und wie viel? Erfasse es, damit der Verein die Person am Saisonende zurückerstatten kann.',

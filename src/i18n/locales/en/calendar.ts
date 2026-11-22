@@ -22,7 +22,7 @@ export default {
   filterTitle: 'Filter',
   filterCategories: 'Categories',
   showHiddenAbsences: 'Show unavailabilities & non-blocking absences',
-  showHiddenAbsencesHint: 'Off by default — these clutter the calendar and don\'t affect the rest of the team.',
+  showHiddenAbsencesHint: 'Off by default, because these clutter the calendar and don\'t affect the rest of the team.',
 
   // Filter groups
   filterGroupGames: 'Games',
@@ -77,7 +77,7 @@ export default {
   icalCopyFailed: 'Could not copy — select the link and copy it manually',
   icalOpenInApp: 'Or open directly in your calendar app',
   icalSubscribeHint:
-    'Paste this link into your calendar app to subscribe — it stays up to date automatically. Google Calendar: Other calendars → From URL. Apple Calendar: File → New Calendar Subscription.',
+    'Paste this link into your calendar app to subscribe. It stays up to date automatically. Google Calendar: Other calendars → From URL. Apple Calendar: File → New Calendar Subscription.',
   // Table columns
   colType: 'Type',
   colTitle: 'Title',

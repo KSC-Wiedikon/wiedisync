@@ -39,7 +39,7 @@ export default {
   publicSignupDeadline: 'Sign up by {{date}}',
   publicSignupCount_one: '{{count}} person signed up',
   publicSignupCount_other: '{{count}} people signed up',
-  publicSignupMemberNotice: 'You are logged in, so sign up in the app — that way you show up on the team list.',
+  publicSignupMemberNotice: 'You are logged in, so sign up in the app to show up on the team list.',
   publicSignupMemberCta: 'Open the event',
   shareTokenTitle: 'Public signup link',
   shareTokenHint: 'For people without a Wiedisync account. Anyone with the link can sign up.',
@@ -60,7 +60,7 @@ export default {
   teamsInvolvedHint: 'Starts with your teams — add or remove any',
   wholeClub: 'Whole club',
   wholeClubHint: 'Every member of the club is invited. Teams, roles and people don\'t apply.',
-  audienceRequired: 'Choose who is invited: at least one team, a role or a person — or turn on Whole club.',
+  audienceRequired: 'Choose who is invited: at least one team, a role or a person, or turn on Whole club.',
 
   // Event types
   club: 'Club',
@@ -95,7 +95,7 @@ export default {
   allowMaybe: 'Allow "Maybe" replies',
   allowMaybeHint: 'When off, participants can only reply Yes or No.',
   inviteGuests: 'Invite guest players',
-  inviteGuestsHint: 'When off, only the core roster of the invited teams is invited — guest players (G1–G3) are left out.',
+  inviteGuestsHint: 'When off, only the core roster of the invited teams is invited; guest players (G1–G3) are left out.',
   guestNotInvited: 'Guest players are not invited to this event',
   enablePositions: 'Position preferences',
   enablePositionsHint: 'Participants must select their top 3 position preferences when confirming.',

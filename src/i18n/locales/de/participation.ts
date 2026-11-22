@@ -55,7 +55,7 @@ export default {
   waitlistedPosition: 'Warteliste Position {{position}}',
   bumpedToWaitlist: 'Du wurdest auf die Warteliste verschoben',
   promotedFromWaitlist: 'Du wurdest von der Warteliste bestätigt',
-  waitlistHint: 'Voll — Gäste werden nach Stufe auf die Warteliste gesetzt',
+  waitlistHint: 'Voll – Gäste werden nach Stufe auf die Warteliste gesetzt',
   joinedWaitlist: 'Voll: Du bist auf der Warteliste und rückst automatisch nach, sobald ein Platz frei wird',
   lateDeclineHint: 'Anmeldeschluss vorbei. Du kannst noch absagen: Dein Platz geht an die nächste Person auf der Warteliste.',
   saved: 'Gespeichert',

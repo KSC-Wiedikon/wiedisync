@@ -35,7 +35,7 @@ export default {
   calendar: 'Kalender',
   lastUpdated: 'Daten aktualisiert {{ago}}',
   neverUpdated: 'Noch nicht synchronisiert',
-  noData: 'Noch keine Verfügbarkeitsdaten — die nächtliche Synchronisation ist noch nicht gelaufen.',
+  noData: 'Noch keine Verfügbarkeitsdaten – die nächtliche Synchronisation ist noch nicht gelaufen.',
   noResults: 'Mit diesen Filtern ist keine Halle die ganze Saison frei. Versuche eine kürzere Dauer oder einen späteren Start.',
   loading: 'Verfügbarkeit wird geladen…',
   error: 'Verfügbarkeit konnte nicht geladen werden.',

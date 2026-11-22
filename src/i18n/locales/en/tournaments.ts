@@ -59,7 +59,7 @@ export default {
   result_closed: "Closed",
   result_wish_picked: "Picked from a weekend wish",
   wishesTitle: "Weekends you want to play",
-  wishesHint: "New tournaments open the moment they are published. Add the weekends your team wants to play: as soon as an open tournament for your age group appears on one of them, it is picked and registered automatically — at most one per weekend, never at a place to avoid.",
+  wishesHint: "New tournaments open the moment they are published. Add the weekends your team wants to play: as soon as an open tournament for your age group appears on one of them, it is picked and registered automatically, at most one per weekend and never at a place to avoid.",
   wishNone: "No weekends yet.",
   weekend: "Sat {{sat}} – Sun {{sun}}",
   wishWaiting: "Waiting for a tournament",

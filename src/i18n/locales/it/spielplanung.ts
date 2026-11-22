@@ -92,7 +92,6 @@ export default {
     hall: 'Palestra',
     hallPlaceholder: 'Seleziona palestra',
     hallComboAB: 'KWI A + B',
-    saturdayHint: 'Precompilato: {{hall}} — il sabato si preferiscono KWI C / la propria palestra di allenamento ad A/B',
     awayVenue: 'Sede trasferta',
     venueName: 'Nome della palestra',
     venueAddress: 'Indirizzo',
