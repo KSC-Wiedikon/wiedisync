@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest'
 
 process.env.SV_API_KEY ||= 'test-key'
-const { applyLocalGuards, cmpVal, deriveLeagueLabel, resolveHomeHall } = await import('../sv-sync.js')
+const { applyLocalGuards, cmpVal, deriveLeagueLabel, resolveHomeHall, regionalTeamName, loadVmTeamNames } = await import('../sv-sync.js')
 
 describe('applyLocalGuards — local cancel preservation', () => {
   it('keeps a locally-cancelled game cancelled when the feed still says scheduled', () => {
@@ -202,5 +202,52 @@ describe('resolveHomeHall — the app owns the hall before the season, VM after'
 
   it('leaves an unchanged hall alone, whatever the id type', () => {
     expect(run({ hall: '3' }, 3)).toBe('3')
+  })
+})
+
+// Romandie / Ticino teams in their own language (owner 2026-11-22): the
+// feed's caption is replaced by svrz_games' region-language name only for
+// clubs of a French, Italian or bilingual association.
+describe('regionalTeamName', () => {
+  it('takes the VM name of a Ticino or Romandie team', () => {
+    expect(regionalTeamName('Pallavolo Esempio DE', { clubId: '915001', name: 'Pallavolo Esempio' })).toBe('Pallavolo Esempio')
+    expect(regionalTeamName('VBC Exemple DE', { clubId: '902001', name: 'VBC Exemple' })).toBe('VBC Exemple')
+    expect(regionalTeamName('Volley Muster', { clubId: '906100', name: 'Volley Muster' })).toBe('Volley Muster')
+  })
+  it('keeps the feed caption for German-region teams, so no existing row is renamed', () => {
+    expect(regionalTeamName('VBC Musterdorf HU23-1', { clubId: '912001', name: 'VBC Musterdorf 1' })).toBe('VBC Musterdorf HU23-1')
+    expect(regionalTeamName('VBC Musterdorf H1', { clubId: '907001', name: 'other' })).toBe('VBC Musterdorf H1')
+  })
+  it('keeps the feed caption without a VM row, club number or name', () => {
+    expect(regionalTeamName('Feed', undefined)).toBe('Feed')
+    expect(regionalTeamName('Feed', { clubId: '', name: 'VM' })).toBe('Feed')
+    expect(regionalTeamName('Feed', { clubId: '915001', name: '  ' })).toBe('Feed')
+    expect(regionalTeamName('Feed', { clubId: '915001', name: null })).toBe('Feed')
+  })
+})
+
+describe('loadVmTeamNames', () => {
+  const fakeDb = (rows, { fail = false } = {}) => (table) => ({
+    whereIn(col, vals) {
+      expect(table).toBe('svrz_games')
+      expect(col).toBe('svrz_number')
+      return { select: async () => { if (fail) throw new Error('boom'); return rows.filter(r => vals.includes(r.svrz_number)) } }
+    },
+  })
+  it('maps game number to both sides', async () => {
+    const db = fakeDb([{ svrz_number: 406001, home_club_id: '912001', home_team_name: 'A', away_club_id: '915001', away_team_name: 'B' }])
+    const m = await loadVmTeamNames(db, ['406001', 406002])
+    expect(m.get('406001')).toEqual({ home: { clubId: '912001', name: 'A' }, away: { clubId: '915001', name: 'B' } })
+    expect(m.has('406002')).toBe(false)
+  })
+  it('no game numbers: no query', async () => {
+    const m = await loadVmTeamNames(() => { throw new Error('must not query') }, [])
+    expect(m.size).toBe(0)
+  })
+  it('a failing query only warns; the sync keeps the captions', async () => {
+    const warnings = []
+    const m = await loadVmTeamNames(fakeDb([], { fail: true }), [1], { warn: (s) => warnings.push(s) })
+    expect(m.size).toBe(0)
+    expect(warnings[0]).toMatch(/keeping the feed's/)
   })
 })
