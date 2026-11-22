@@ -147,6 +147,48 @@ export function applyLocalGuards(data, existing) {
   }
 }
 
+// Team names from Romandie and Ticino in their own language (owner 2026-11-22:
+// Ticino Italian, Romandie French, German-speaking Switzerland German). The
+// public feed gives one caption per team; svrz_games (VolleyManager, written by
+// scripts/svrz-scheduling-sync.mjs) keeps each team's name in its club's region
+// language. A club number's first three digits are its regional association;
+// these are the French, Italian and bilingual ones — twin of
+// scripts/vm-team-language.mjs, which also decides the German-speaking clubs of
+// the bilingual associations. German-region names stay the feed's caption, so
+// existing rows are not renamed.
+export const NON_GERMAN_ASSOCIATIONS = new Set(['901', '902', '903', '904', '905', '906', '915'])
+
+// `vmSide`: { clubId, name } of the same side in svrz_games, or undefined.
+// Exported for tests.
+export function regionalTeamName(caption, vmSide) {
+  const clubId = String(vmSide?.clubId ?? '').trim()
+  const name = typeof vmSide?.name === 'string' ? vmSide.name : ''
+  if (name.trim() !== '' && NON_GERMAN_ASSOCIATIONS.has(clubId.slice(0, 3))) return name
+  return caption
+}
+
+// game number -> { home: { clubId, name }, away: { clubId, name } } from svrz_games.
+// Exported for tests.
+export async function loadVmTeamNames(db, gameIds, log) {
+  const map = new Map()
+  const nums = [...new Set(gameIds.map(Number).filter(Number.isInteger))]
+  if (nums.length === 0) return map
+  try {
+    const rows = await db('svrz_games').whereIn('svrz_number', nums)
+      .select('svrz_number', 'home_club_id', 'home_team_name', 'away_club_id', 'away_team_name')
+    for (const r of rows) {
+      map.set(String(r.svrz_number), {
+        home: { clubId: r.home_club_id, name: r.home_team_name },
+        away: { clubId: r.away_club_id, name: r.away_team_name },
+      })
+    }
+  } catch (err) {
+    // Names only: the sync goes on with the feed's captions.
+    log?.warn?.(`[SV Sync] svrz_games team names unavailable, keeping the feed's: ${err.message}`)
+  }
+  return map
+}
+
 // Who owns an existing home game's `hall`: the app before the season starts,
 // the feed (VolleyManager) after. Replaces the blanket FREEZE_HALLS of
 // 2026-07-09, which pinned every hall forever — so when VM moved HU23-1's
@@ -218,6 +260,9 @@ export async function syncSvGames(db, log) {
   // one-row-per-id map made the sync rewrite the away team's row into a
   // duplicate of the home team's (2026-07-04), so the game vanished from every
   // surface scoped to the away team.
+  // Romandie / Ticino teams' names in their own language (see regionalTeamName)
+  const vmTeamNames = await loadVmTeamNames(db, kscwGames.map(g => g.gameId), log)
+
   const existingRows = await db('games').where('source', 'swiss_volley')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'away_hall_json', 'league', 'round',
@@ -312,8 +357,8 @@ export async function syncSvGames(db, log) {
       // Feed fields shared by every row of this fixture.
       const base = {
         game_id: `vb_${gameId}`,
-        home_team: home.caption || '',
-        away_team: away.caption || '',
+        home_team: regionalTeamName(home.caption, vmTeamNames.get(gameId)?.home) || '',
+        away_team: regionalTeamName(away.caption, vmTeamNames.get(gameId)?.away) || '',
         date: parsed.date,
         time: parsed.time,
         league: deriveLeagueLabel(g),

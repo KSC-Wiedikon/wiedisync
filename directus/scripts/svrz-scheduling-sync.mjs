@@ -9,6 +9,7 @@
 import {
   vmLogin, csrfFromPage, vmUseRole, VM_ROLE_CLUB, VM_ROLE_SPIELPLANER, VM_BASE, UA,
 } from './vm-client.mjs';
+import { germanText, teamName } from './vm-team-language.mjs';
 
 /**
  * Build the URL-encoded POST body for the SVRZ /search endpoint.
@@ -631,12 +632,13 @@ export function gameToSvrzRow(g) {
     playing_weekday: g.playingWeekday,
     home_club_id: homeClub.identifier == null ? '' : String(homeClub.identifier),
     home_club_name: homeClub.name || '',
-    home_team_name: home.name || enc.teamHomeName || '',
+    // Team names in their club's region language, never the VM account's (vm-team-language.mjs)
+    home_team_name: teamName(home) || enc.teamHomeName || '',
     away_club_id: awayClub.identifier == null ? '' : String(awayClub.identifier),
     away_club_name: awayClub.name || '',
-    away_team_name: away.name || enc.teamAwayName || '',
+    away_team_name: teamName(away) || enc.teamAwayName || '',
     league_name: league.displayName || '',
-    league_short: home.leagueCategory?.name || away.leagueCategory?.name || '',
+    league_short: germanText(home.leagueCategory) || germanText(away.leagueCategory) || '',
     gender: league.gender || '',
     season_name: league.season?.name || '',
     raw: g,
