@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-07T09:10:57.708Z
+-- Generated:   2026-11-23T18:15:02.512Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,10 +29,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict NBLIqLFCLl9hYre7oe6sb7oI7LSMhkPaFcDfzvMgYBFgi45ADQDilsSmyn55RGk
+\restrict ADiWnYYZuDZF3WnnZYKrTaygJw3Egn6Q8ETvuRjTZQZRChn63mX4EFgmyMM71A3
 
--- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
--- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
+-- Dumped from database version 16.16 (Debian 16.16-1.pgdg13+1)
+-- Dumped by pg_dump version 16.16 (Debian 16.16-1.pgdg13+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -3150,6 +3150,46 @@ END $$;
 
 
 --
+-- Name: trg_member_teams_purge_future_rsvps(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_member_teams_purge_future_rsvps() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.member IS NULL OR OLD.team IS NULL THEN
+    RETURN NULL;
+  END IF;
+  -- Still on the team (re-added in the same transaction, or a duplicate row)?
+  IF EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = OLD.member AND mt.team = OLD.team) THEN
+    RETURN NULL;
+  END IF;
+
+  DELETE FROM participations p
+   USING trainings t
+   WHERE p.activity_type = 'training'
+     AND p.training = t.id
+     AND t.team = OLD.team
+     AND t.date >= CURRENT_DATE
+     AND p.member = OLD.member
+     AND p.is_staff = false;
+
+  DELETE FROM participations p
+   USING games g
+   WHERE p.activity_type = 'game'
+     AND p.activity_id = g.id::text
+     AND g.kscw_team = OLD.team
+     AND g.date >= CURRENT_DATE
+     AND p.member = OLD.member
+     AND p.is_staff = false
+     AND NOT EXISTS (SELECT 1 FROM game_guests gg WHERE gg.game = g.id AND gg.member = OLD.member);
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: trg_members_coach_approval_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3432,6 +3472,24 @@ BEGIN
     NEW.event := NEW.activity_id::int;
   ELSE
     NEW.event := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$_$;
+
+
+--
+-- Name: trg_participations_sync_training(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_participations_sync_training() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $_$
+BEGIN
+  IF NEW.activity_type = 'training' AND NEW.activity_id ~ '^[0-9]+$' THEN
+    NEW.training := NEW.activity_id::int;
+  ELSE
+    NEW.training := NULL;
   END IF;
   RETURN NEW;
 END;
@@ -11492,6 +11550,7 @@ CREATE TABLE public.participations (
     claimed_at timestamp with time zone,
     requested_status character varying(16),
     promoted_at timestamp with time zone,
+    training integer,
     CONSTRAINT participations_activity_type_chk CHECK (((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[]))),
     CONSTRAINT participations_status_chk CHECK (((status)::text = ANY ((ARRAY['confirmed'::character varying, 'declined'::character varying, 'tentative'::character varying, 'waitlisted'::character varying])::text[])))
 );
@@ -11558,6 +11617,13 @@ COMMENT ON COLUMN public.participations.requested_status IS 'System-set (trg_par
 --
 
 COMMENT ON COLUMN public.participations.promoted_at IS 'System-set: when the capacity rebalance moved this RSVP from the waiting list to a seat. Cleared when it leaves the seat. The app lets a member moved up after the deadline still say No.';
+
+
+--
+-- Name: COLUMN participations.training; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participations.training IS 'Derived mirror of activity_id when activity_type = ''training'' (NULL otherwise). Maintained by trg_participations_sync_training — never write it by hand. Exists so policy filters can join an RSVP to its training; (activity_type, activity_id) remain the source of truth.';
 
 
 --
@@ -18097,6 +18163,13 @@ CREATE INDEX participations_member_index ON public.participations USING btree (m
 
 
 --
+-- Name: participations_training_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participations_training_idx ON public.participations USING btree (training) WHERE (training IS NOT NULL);
+
+
+--
 -- Name: passkeys_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -18853,6 +18926,13 @@ CREATE CONSTRAINT TRIGGER trg_member_guardians_unbind_push AFTER DELETE ON publi
 
 
 --
+-- Name: member_teams trg_member_teams_purge_future_rsvps; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_member_teams_purge_future_rsvps AFTER DELETE ON public.member_teams DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.trg_member_teams_purge_future_rsvps();
+
+
+--
 -- Name: member_teams trg_member_teams_sport_section; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18976,6 +19056,13 @@ CREATE TRIGGER trg_participations_guest_block BEFORE INSERT OR UPDATE ON public.
 --
 
 CREATE TRIGGER trg_participations_sync_event BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_sync_event();
+
+
+--
+-- Name: participations trg_participations_sync_training; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_participations_sync_training BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_sync_training();
 
 
 --
@@ -20961,6 +21048,14 @@ ALTER TABLE ONLY public.participations
 
 
 --
+-- Name: participations participations_training_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participations
+    ADD CONSTRAINT participations_training_foreign FOREIGN KEY (training) REFERENCES public.trainings(id) ON DELETE CASCADE;
+
+
+--
 -- Name: passkeys passkeys_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -21594,7 +21689,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict NBLIqLFCLl9hYre7oe6sb7oI7LSMhkPaFcDfzvMgYBFgi45ADQDilsSmyn55RGk
+\unrestrict ADiWnYYZuDZF3WnnZYKrTaygJw3Egn6Q8ETvuRjTZQZRChn63mX4EFgmyMM71A3
 
 
 
@@ -21612,7 +21707,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 456 migration(s) already in the schema above.
+-- Migration tracker seed — 458 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -22081,6 +22176,8 @@ FROM (VALUES
   ('449-stats-missing-scorer-hu20-referee-and-taefeler.sql'),
   ('450-hu20-taefeler-not-scorer.sql'),
   ('451-duty-rechecks.sql'),
-  ('452-referee-expenses-one-row-per-payer.sql')
+  ('452-referee-expenses-one-row-per-payer.sql'),
+  ('453-participation-training-fk.sql'),
+  ('454-off-roster-rsvp-purge.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
