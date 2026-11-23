@@ -225,7 +225,15 @@ export function registerGameHallOverride(router, { database, logger }) {
       let after = []
       await database.transaction(async (trx) => {
         await trx.raw('SELECT set_config(?, ?, true)', [HALL_OVERRIDE_GUC, 'on'])
-        await trx('games').whereIn('id', rows.map((r) => r.id)).update(patch)
+        // Back to Sync NAMES hall / additional_halls even though the trigger restores
+        // them anyway: `AFTER UPDATE OF hall, …` triggers (basketball floor claims 351,
+        // duty recheck 451) fire on the columns an UPDATE lists, not on values a
+        // BEFORE trigger changed — without these two the restore would move the game
+        // past them.
+        const write = parsed.override
+          ? patch
+          : { ...patch, hall: trx.raw('synced_hall'), additional_halls: trx.raw('synced_additional_halls') }
+        await trx('games').whereIn('id', rows.map((r) => r.id)).update(write)
         after = await trx('games').whereIn('id', rows.map((r) => r.id)).select(ROW_FIELDS)
       })
 

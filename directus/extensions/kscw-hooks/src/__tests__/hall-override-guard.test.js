@@ -16,16 +16,18 @@ import registerHooks from '../index.js'
 const MEMBER = { user: 'u-1', admin: false }
 const ADMIN = { user: 'u-admin', admin: true }
 
-/** games rows by id; answers whereIn('id').where('hall_override', true).first(). */
+/** games rows by id; answers whereIn('id').where('hall_override', true).select(). */
 function gamesDb(rows) {
   const db = (table) => {
     const q = { ids: [], override: null }
+    const pick = () => (table === 'games'
+      ? rows.filter((r) => q.ids.includes(r.id) && (q.override == null || r.hall_override === q.override))
+      : [])
     const chain = {
       whereIn: (_c, ids) => { q.ids = ids.map(Number); return chain },
       where: (_c, v) => { q.override = v; return chain },
-      first: async () => (table === 'games'
-        ? rows.find((r) => q.ids.includes(r.id) && (q.override == null || r.hall_override === q.override))
-        : undefined),
+      select: async () => pick(),
+      first: async () => pick()[0],
     }
     return chain
   }
@@ -55,10 +57,10 @@ describe('refuseHallOverrideColumns', () => {
 })
 
 describe('refuseHallEditWhileOverridden', () => {
-  const db = gamesDb([{ id: 1, hall_override: true }, { id: 2, hall_override: false }])
+  const db = gamesDb([{ id: 1, hall_override: true, hall: 4, additional_halls: null }, { id: 2, hall_override: false, hall: 1 }])
 
   it('refuses a hall or court-set edit on an overwritten game, admins included', async () => {
-    for (const payload of [{ hall: 3 }, { additional_halls: ['2'] }]) {
+    for (const payload of [{ hall: 3 }, { additional_halls: ['2'] }, { hall: null }]) {
       for (const acc of [MEMBER, ADMIN]) {
         await expect(refuseHallEditWhileOverridden(db, [1], payload, acc)).rejects.toMatchObject({ status: 403, code: 'HALL_OVERRIDDEN' })
       }
@@ -71,13 +73,17 @@ describe('refuseHallEditWhileOverridden', () => {
     expect(await refuseHallEditWhileOverridden(db, 1, { hall: 3 }, null)).toEqual({ hall: 3 })
     expect(await refuseHallEditWhileOverridden(db, [], { hall: 3 }, MEMBER)).toEqual({ hall: 3 })
   })
+
+  it('re-sending the hall an overwritten game already has is not a move', async () => {
+    expect(await refuseHallEditWhileOverridden(db, [1], { hall: '4', additional_halls: [] }, MEMBER)).toEqual({ hall: '4', additional_halls: [] })
+  })
 })
 
 describe('wired into kscw-hooks', () => {
   const filters = {}
   const noop = () => {}
   const logger = { child: () => logger, info: noop, warn: noop, error: noop, debug: noop }
-  const database = Object.assign(gamesDb([{ id: 1, hall_override: true }]), { raw: () => {} })
+  const database = Object.assign(gamesDb([{ id: 1, hall_override: true, hall: 4, additional_halls: null }]), { raw: () => {} })
   registerHooks(
     {
       action: noop,
