@@ -28,6 +28,9 @@ import { formatDate, parseDate } from '../../utils/dateUtils'
 import { formatTime } from '../../utils/dateHelpers'
 import { opponentName } from './gameChipUtils'
 import { formatSvrzClipboard } from './utils/svrzClipboard'
+import { useAuth } from '../../hooks/useAuth'
+import GameHallSource from '../games/components/GameHallSource'
+import { hasSyncedHall } from '../games/utils/hallSource'
 
 interface GameDetailDrawerProps {
   game: Game | null
@@ -92,6 +95,7 @@ export default function GameDetailDrawer({
     staleTime: 120_000,
   })
   const { update: updateGame } = useMutation('games')
+  const { hasAdminAccessToTeam } = useAuth()
 
   if (!game) return null
 
@@ -105,6 +109,10 @@ export default function GameDetailDrawer({
   const isManual = game.source === 'manual'
   const showEdit = isManual && canEdit && onEdit
   const showDelete = isManual && canEdit && onDelete
+  // Hall "Sync / Overwrite" for a game synced from Volleymanager / Basketplan
+  // (migration 455): admins of the game's sport. This app has no admin-mode switch
+  // (every user here is a planner), so the plain sport check — the endpoint checks again.
+  const canSwitchHall = !isManual && hasSyncedHall(game) && hasAdminAccessToTeam(String(team?.id ?? game.kscw_team ?? ''))
 
   // Combo A+B action: visible only for basketball home games the caller can edit.
   const isBasketball = team?.sport === 'basketball'
@@ -198,6 +206,14 @@ export default function GameDetailDrawer({
             )}
           </dl>
         </div>
+
+        {canSwitchHall && (
+          <div className="mt-4 px-4">
+            {/* The drawer holds the row it was opened with — close after a save so the
+                calendar behind it shows the new hall. */}
+            <GameHallSource gameId={game.id} onSaved={onClose} indent={false} />
+          </div>
+        )}
 
         {!isManual && (
           <p className="mt-4 px-4 text-xs text-muted-foreground italic">

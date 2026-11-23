@@ -57,6 +57,7 @@ import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 import { sweepHallBookings } from './hall-bookings.js'
+import { refuseHallOverrideColumns, refuseHallEditWhileOverridden } from './hall-override-guard.js'
 import { drainCapacityMoves, cleanupCapacityMoves } from './capacity-moves.js'
 import { drainDutyRechecks, sweepDutyRecheckFollowUps } from './duty-recheck.js'
 import { sendWaitlistEmail } from './waitlist-email.js'
@@ -7517,6 +7518,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
   filter('games.items.create', async (payload, _meta, { accountability }) => refuseEndpointOwnedGameFields(payload, accountability))
   filter('games.items.update', async (payload, _meta, { accountability }) => refuseEndpointOwnedGameFields(payload, accountability))
+  // The hall source switch (migration 455) — POST /kscw/games/:id/hall-source only,
+  // for admins too; and no /items hall edit on a game whose hall is overwritten.
+  filter('games.items.create', async (payload, _meta, { accountability }) => refuseHallOverrideColumns(payload, accountability))
+  filter('games.items.update', async (payload, meta, { accountability, database: db }) => {
+    refuseHallOverrideColumns(payload, accountability)
+    return refuseHallEditWhileOverridden(db, meta?.keys, payload, accountability)
+  })
   filter('games.items.delete', async (keys, _meta, { accountability, database: db }) => {
     await assertManualGamesInScope(db, accountability, keys || [])
     return keys
