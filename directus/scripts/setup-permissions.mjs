@@ -1099,6 +1099,15 @@ const GAME_WRITE_FIELDS = [
   //         'pending' and so block the real push (the lease refuses a pending row).
   //         Members READ them via MEMBER_READ_ALL; none is in PUBLIC_GAME_FIELDS —
   //         the website shows official results only.
+  //   hall_override, synced_hall, synced_additional_halls, hall_override_by_name,
+  //   hall_override_at        (migration 455)
+  //       → POST /kscw/games/:id/hall-source (game-hall-override.js) only — it checks
+  //         admin / own-sport admin, records the actor and pushes the shared hall
+  //         calendar. The trigger trg_games_0_hall_override ignores a flip without
+  //         the endpoint's GUC, and kscw-hooks refuses these columns through /items
+  //         for everyone (the Sport Admin policies are fields:* on games). Members
+  //         READ them via MEMBER_READ_ALL (a name, no email); the website does not
+  //         need them — `hall` is already the effective hall.
   //
   // ⚠ Verify additions against the LIVE database, not SCHEMA.sql — the baseline is
   // regenerated on demand and lags the migration journal (it was missing 202/203/205

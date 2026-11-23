@@ -254,6 +254,19 @@ function releasePush(kind, claim) {
   if (runningPushes.get(kind) === claim) runningPushes.delete(kind)
 }
 
+// " — created vb_1, vb_2; updated bb_3": the keys behind the counts, capped so a
+// season's first run does not write a wall into the log. Exported for tests.
+export function describeChanges(changes, cap = 10) {
+  const parts = []
+  for (const kind of ['created', 'updated', 'deleted']) {
+    const keys = changes?.[kind] ?? []
+    if (!keys.length) continue
+    const shown = keys.slice(0, cap).join(', ')
+    parts.push(`${kind} ${shown}${keys.length > cap ? ` (+${keys.length - cap} more)` : ''}`)
+  }
+  return parts.length ? ` — ${parts.join('; ')}` : ''
+}
+
 /**
  * Reconcile KWI home fixtures onto the calendar — `games` rows plus accepted
  * basketball placements that have no `games` row yet.
@@ -397,6 +410,9 @@ export async function pushHomeGames(db, log) {
     let updated = 0
     let deleted = 0
     const eventIds = new Set()
+    // Which fixtures moved, by key (game_id / bbplan_<id>): the hall-source switch
+    // reports what happened to ITS game, and a dry run (dev) names what it would do.
+    const changes = { created: [], updated: [], deleted: [] }
 
     for (const [gameId, event] of desired) {
       const current = existing.get(gameId)
@@ -408,6 +424,7 @@ export async function pushHomeGames(db, log) {
           eventIds.add(made.id)
         }
         created++
+        changes.created.push(gameId)
       } else {
         eventIds.add(current.id)
         if (needsUpdate(current, event)) {
@@ -417,6 +434,7 @@ export async function pushHomeGames(db, log) {
             })
           }
           updated++
+          changes.updated.push(gameId)
         }
       }
     }
@@ -431,15 +449,17 @@ export async function pushHomeGames(db, log) {
         })
       }
       deleted++
+      changes.deleted.push(gameId)
     }
 
     if (skipped) log.warn({ msg: `gcal-push: ${skipped} home fixture(s) skipped (no kick-off time or opponent)`, endpoint: 'gcal-sync' })
     log.info({
       msg: `gcal-push${dryRun ? ' (dry run — nothing written)' : ''}: +${created} ~${updated} -${deleted}`
-        + ` (${games.length} games, ${placements.length} accepted placements, ${superseded} superseded)`,
+        + ` (${games.length} games, ${placements.length} accepted placements, ${superseded} superseded)`
+        + describeChanges(changes),
       endpoint: 'gcal-sync',
     })
-    return { created, updated, deleted, skipped, superseded, dryRun, eventIds }
+    return { created, updated, deleted, skipped, superseded, dryRun, eventIds, changes }
   } finally {
     releasePush('games', claim)
   }

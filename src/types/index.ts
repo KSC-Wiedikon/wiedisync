@@ -464,6 +464,18 @@ export interface Game extends BaseRecord {
   hall: string
   /** Extra halls this game also blocks (e.g. basketball A+B combo). Empty/null = single-hall. */
   additional_halls?: string[] | null
+  /**
+   * Hall source switch (migration 455): false = Sync (the hall comes from Volleymanager /
+   * Basketplan), true = Overwrite (`hall` + `additional_halls` were set in the app).
+   * `hall` is always the effective hall — read the synced_* pair only to show what the
+   * official source says. Written only by POST /kscw/games/:id/hall-source.
+   */
+  hall_override?: boolean
+  synced_hall?: string | number | null
+  synced_additional_halls?: (string | number)[] | null
+  /** Who / when set the active override (null while on Sync). */
+  hall_override_by_name?: string | null
+  hall_override_at?: string | null
   away_hall_json: { name: string; address: string; city: string; plus_code?: string } | null
   date: string
   time: string

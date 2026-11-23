@@ -38,6 +38,7 @@ import { registerCarpools } from './carpools.js'
 import { registerBbTournamentPicks } from './bb-tournament-picks.js'
 import { registerLiveScoring } from './live-scoring.js'
 import { registerGameResult } from './game-result.js'
+import { registerGameHallOverride } from './game-hall-override.js'
 import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
@@ -2824,6 +2825,7 @@ export default {
     registerBbTournamentPicks(router, ctx)
     registerLiveScoring(router, ctx)
     registerGameResult(router, ctx)
+    registerGameHallOverride(router, ctx)
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx, { validatePassword })
     registerPasskeys(router, ctx)
