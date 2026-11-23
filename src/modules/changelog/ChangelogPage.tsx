@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.75.0'
+const APP_VERSION = '2.76.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.76.0',
+    date: '23.11.2026',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          "Games: admins and the sport admin of a game can overwrite its hall. In the game, Venue → “Edit hall” switches between “Sync” (the hall from Volleymanager or Basketplan) and “Overwrite” (a hall you choose). The chosen hall shows everywhere at once — in the app, on kscw.ch and in the KWI hall calendar — and trainings in the hall are shortened or cancelled for the new hall. Back on “Sync”, the official hall applies again right away. Volleymanager and Basketplan are not changed.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.75.0',
     date: '21.11.2026',

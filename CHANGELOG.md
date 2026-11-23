@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.76.0 — 2026-11-23
+
+### Added
+
+- Games: admins and the sport admin of a game can overwrite its hall. In the game, Venue → “Edit hall” switches between “Sync” (the hall from Volleymanager or Basketplan) and “Overwrite” (a hall you choose). The chosen hall shows everywhere at once — in the app, on kscw.ch and in the KWI hall calendar — and trainings in the hall are shortened or cancelled for the new hall. Back on “Sync”, the official hall applies again right away. Volleymanager and Basketplan are not changed.
+
 ## v2.75.0 — 2026-11-21
 
 ### Added

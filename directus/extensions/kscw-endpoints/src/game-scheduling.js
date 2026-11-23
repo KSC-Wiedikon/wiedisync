@@ -14,6 +14,7 @@ import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 import { writeUserLog } from './activity-log.js'
 import { logCronRun } from './error-log.js'
 import { seasonStartYear } from './season.js'
+import { HALL_OVERRIDE_READ, hallSourceView, overrideAwareWrite } from './hall-override.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -2212,25 +2213,29 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const data of desired) {
         const existing = await db('games')
           .where('game_id', data.game_id).where('kscw_team', data.kscw_team)
-          .first('id', 'status', 'home_team', 'away_team', 'type', 'hall',
+          .first('id', 'status', 'home_team', 'away_team', 'type', 'hall', ...HALL_OVERRIDE_READ,
             database.raw('date::text as date_txt'), database.raw('time::text as time_txt'))
         if (existing) {
           // Never touch a played game; sv-sync owns results.
           if (existing.status === 'completed') { skipped++; continue }
+          // The booked slot's hall is the official one: with the hall switch on
+          // "Overwrite" (migration 455) it is compared with and written to
+          // synced_hall, and the hall the club chose stays.
+          const row = hallSourceView(existing)
           const changed =
             String(existing.date_txt || '').slice(0, 10) !== data.date ||
             String(existing.time_txt || '').slice(0, 5) !== String(data.time || '').slice(0, 5) ||
-            String(existing.hall ?? '') !== String(data.hall ?? '') ||
+            String(row.hall ?? '') !== String(data.hall ?? '') ||
             String(existing.home_team || '') !== data.home_team ||
             String(existing.away_team || '') !== data.away_team ||
             String(existing.type || '') !== data.type
           if (!changed) { skipped++; continue }
-          await db('games').where('id', existing.id).update({
+          await db('games').where('id', existing.id).update(overrideAwareWrite({
             date: data.date, time: data.time, hall: data.hall,
             home_team: data.home_team, away_team: data.away_team, type: data.type,
             away_hall_json: data.away_hall_json,
             date_updated: new Date(),
-          })
+          }, existing))
           updated++
         } else {
           await db('games').insert({ ...data, date_created: new Date(), date_updated: new Date() })

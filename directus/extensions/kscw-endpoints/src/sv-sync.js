@@ -6,6 +6,7 @@
  */
 
 import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
+import { HALL_OVERRIDE_READ, hallSourceView, overrideAwareWrite, isHallOverridden } from './hall-override.js'
 
 const SV_API_BASE = 'https://api.volleyball.ch'
 const SV_API_KEY = process.env.SV_API_KEY
@@ -266,7 +267,8 @@ export async function syncSvGames(db, log) {
   const existingRows = await db('games').where('source', 'swiss_volley')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'away_hall_json', 'league', 'round',
-      'sets_json', 'referees_json', 'respond_by', 'kscw_team', 'type', 'additional_halls')
+      'sets_json', 'referees_json', 'respond_by', 'kscw_team', 'type', 'additional_halls',
+      ...HALL_OVERRIDE_READ)
   const existingByGameId = new Map()
   for (const r of existingRows) {
     const list = existingByGameId.get(r.game_id)
@@ -417,16 +419,21 @@ export async function syncSvGames(db, log) {
         }
 
         if (existing) {
+          // With the hall switch on "Overwrite" (migration 455) everything below
+          // runs against the OFFICIAL hall (synced_hall), and the write records it
+          // there — the effective hall the club chose stays. Off: the row as is.
+          const row = hallSourceView(existing)
           // Home hall: the app's before the season starts, VM's after (see
           // resolveHomeHall). Away rows carry no hall (away_hall_json instead).
           data.hall = resolveHomeHall({
-            existing,
+            existing: row,
             feedHall: data.hall,
             seasonStarted: startedSeasons.has(base.season),
             vmGymByHall,
           })
-          if (String(data.hall ?? '') !== String(existing.hall ?? '')) {
-            log.info(`[SV Sync] vb_${gameId}: hall ${existing.hall ?? '–'} → ${data.hall ?? '–'} (from the feed)`)
+          if (String(data.hall ?? '') !== String(row.hall ?? '')) {
+            log.info(`[SV Sync] vb_${gameId}: hall ${row.hall ?? '–'} → ${data.hall ?? '–'} (from the feed)`
+              + (isHallOverridden(existing) ? ` — recorded as the synced hall, the overwritten hall ${existing.hall ?? '–'} stays` : ''))
           }
           // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
           // let a feed placeholder overwrite it (a real reschedule reaches these via
@@ -438,15 +445,15 @@ export async function syncSvGames(db, log) {
           if (toolScheduledIds.has(`vb_${gameId}`) && !feedHasTakenOver && existing.status !== 'completed' && data.status !== 'completed') {
             data.date = existing.date
             data.time = existing.time
-            data.hall = existing.hall
+            data.hall = row.hall
             data.away_hall_json = existing.away_hall_json
           }
           // Fields the app owns (local cancel, archived-team pointer) — must
           // run before the change comparison below.
-          applyLocalGuards(data, existing)
+          applyLocalGuards(data, row)
           // Skip if nothing meaningful changed — avoids trigger-based
           // notification spam (values normalized via cmpVal — see its comment).
-          const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, existing[f]))
+          const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, row[f]))
           if (!changed) { skipped++; continue }
           // Adjust respond_by if date changed (data.date, not the raw feed date, so a
           // protected tool game whose date we kept doesn't shift its respond_by).
@@ -455,7 +462,7 @@ export async function syncSvGames(db, log) {
             const newRb = new Date(new Date(data.date).getTime() - offset)
             data.respond_by = newRb.toISOString().split('T')[0]
           }
-          await db('games').where('id', existing.id).update({ ...data, date_updated: new Date() })
+          await db('games').where('id', existing.id).update(overrideAwareWrite({ ...data, date_updated: new Date() }, existing))
           updated++
         } else {
           // Apply respond_by default on creation (per intent — the two rows of
