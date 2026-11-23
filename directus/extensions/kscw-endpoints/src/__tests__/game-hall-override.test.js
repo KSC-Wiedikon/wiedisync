@@ -69,13 +69,16 @@ function makeDb({ members = {}, games = [], teams = {} }) {
         if (!state.inTrx || !state.gucs.includes('kscw.hall_override_write')) throw new Error('update outside the GUC transaction')
         state.updates.push({ ids: q.wheres[0][1][1], patch })
         for (const g of state.games.filter(matches)) {
-          if (patch.hall_override === true && !g.hall_override) {
+          // knex raw column references (`hall = synced_hall`) read the row.
+          const resolved = Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v && v.__raw ? g[v.__raw] : v]))
+          if (resolved.hall_override === true && !g.hall_override) {
             g.synced_hall = g.hall; g.synced_additional_halls = g.additional_halls
           }
-          if (patch.hall_override === false && g.hall_override) {
-            Object.assign(g, { hall: g.synced_hall, additional_halls: g.synced_additional_halls, hall_override_by_name: null, hall_override_at: null })
+          // trg_games_0_hall_override: back to Sync restores the official set.
+          if (resolved.hall_override === false && g.hall_override) {
+            Object.assign(resolved, { hall: g.synced_hall, additional_halls: g.synced_additional_halls, hall_override_by_name: null, hall_override_at: null })
           }
-          Object.assign(g, patch, patch.hall_override === false ? { hall: g.synced_hall } : {})
+          Object.assign(g, resolved)
         }
         return 1
       },
@@ -87,7 +90,11 @@ function makeDb({ members = {}, games = [], teams = {} }) {
   db.transaction = async (fn) => {
     state.inTrx = true
     const trx = (table) => run(table)
-    trx.raw = async (_sql, bindings) => { state.gucs.push(bindings[0]); return {} }
+    trx.raw = (sql, bindings) => {
+      if (!bindings) return { __raw: sql } // a column reference inside update()
+      state.gucs.push(bindings[0])
+      return Promise.resolve({})
+    }
     try { return await fn(trx) } finally { state.inTrx = false }
   }
   db.state = state
@@ -292,7 +299,12 @@ describe('back to Sync', () => {
     push.result = { created: 1, updated: 0, deleted: 0, dryRun: true, changes: { created: ['vb_406697'], updated: [], deleted: [] } }
     const res = await call(db, { user: 'u-vb', body: { override: false } })
     expect(res.statusCode).toBe(200)
-    expect(db.state.updates[0].patch).toEqual({ hall_override: false, date_updated: expect.any(Date) })
+    // hall / additional_halls are NAMED (as the synced columns) so the `UPDATE OF hall`
+    // triggers — floor claims, duty recheck — fire on the restore too.
+    expect(db.state.updates[0].patch).toEqual({
+      hall_override: false, date_updated: expect.any(Date),
+      hall: { __raw: 'synced_hall' }, additional_halls: { __raw: 'synced_additional_halls' },
+    })
     expect(res.body.games[0]).toMatchObject({ hall: KWI_A, hall_override: false, hall_override_by_name: null })
     expect(db.state.logs[0].action).toBe('game_hall_sync')
     expect(res.body.calendar.outcome).toBe('created')

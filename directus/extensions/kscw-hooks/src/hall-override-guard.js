@@ -16,7 +16,7 @@
  * Internal service calls (no accountability) pass: the trigger is their guard.
  */
 
-import { HALL_OVERRIDE_COLUMNS } from '../../kscw-endpoints/src/hall-override.js'
+import { HALL_OVERRIDE_COLUMNS, extraHallIds } from '../../kscw-endpoints/src/hall-override.js'
 
 function refusal(message, code) {
   const err = new Error(message)
@@ -38,15 +38,25 @@ export function refuseHallOverrideColumns(payload, accountability) {
   return payload
 }
 
-/** Throws when an /items update moves the hall of a game whose hall is overwritten. */
+const sameHall = (a, b) => String(a ?? '') === String(b ?? '')
+const sameExtra = (a, b) => extraHallIds(a).join(',') === extraHallIds(b).join(',')
+
+/**
+ * Throws when an /items update MOVES the hall of a game whose hall is overwritten.
+ * Re-sending the value it already has (a form that posts every field) passes.
+ */
 export async function refuseHallEditWhileOverridden(db, keys, payload, accountability) {
   if (!accountability) return payload
   if (!payload || typeof payload !== 'object') return payload
-  if (!('hall' in payload) && !('additional_halls' in payload)) return payload
+  const touchesHall = 'hall' in payload
+  const touchesExtra = 'additional_halls' in payload
+  if (!touchesHall && !touchesExtra) return payload
   const ids = (Array.isArray(keys) ? keys : keys != null ? [keys] : []).filter((k) => k != null)
   if (!ids.length) return payload
-  const hit = await db('games').whereIn('id', ids).where('hall_override', true).first('id')
-  if (hit) {
+  const rows = await db('games').whereIn('id', ids).where('hall_override', true).select('id', 'hall', 'additional_halls')
+  const moved = (rows || []).some((r) =>
+    (touchesHall && !sameHall(payload.hall, r.hall)) || (touchesExtra && !sameExtra(payload.additional_halls, r.additional_halls)))
+  if (moved) {
     throw refusal("This game's hall is overwritten — change it with the hall switch in the game (Venue)", 'HALL_OVERRIDDEN')
   }
   return payload

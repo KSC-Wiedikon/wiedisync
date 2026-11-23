@@ -20,7 +20,10 @@
 --     endpoint (kscw-endpoints/src/game-hall-override.js) sets the transaction-local
 --     GUC kscw.hall_override_write = 'on';
 --   • OFF → ON: synced_* keep the court set the game had until now;
---   • ON → OFF: hall / additional_halls go back to synced_* in the same statement;
+--   • ON → OFF: hall / additional_halls go back to synced_* in the same statement
+--     (the endpoint also names both columns in that UPDATE: `UPDATE OF hall` triggers
+--     — floor claims, duty recheck — fire on the listed columns, not on values a
+--     BEFORE trigger changed);
 --   • ON, and a writer without the GUC changes hall / additional_halls (a sync that
 --     does not know about the switch): the value is recorded in synced_* and the
 --     effective court set stays. A writer that sets synced_* itself wins.
