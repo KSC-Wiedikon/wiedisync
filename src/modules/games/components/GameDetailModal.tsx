@@ -32,6 +32,8 @@ import RefereeExpenseSection from './RefereeExpenseSection'
 import { countReferees } from '../utils/refereeFee'
 import GameGuestSection from './GameGuestSection'
 import GameRecordingsSection from './GameRecordingsSection'
+import GameHallSource from './GameHallSource'
+import { hasSyncedHall } from '../utils/hallSource'
 import NominationPushDialog from './NominationPushDialog'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import ShareActivityButton from '../../../components/ShareActivityButton'
@@ -437,6 +439,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // sport while admin mode is ON. `coachTeamIds` is coaches ∪ responsibles, so this
   // covers what `isTeamStaff` and `canEditAsCoach` used to spell out separately.
   const canEditAsCoach = canManageTeam(kscwTeamId)
+  // Venue → Hall "Sync / Overwrite" (migration 455): admins in admin mode with access
+  // to the game's sport, for a game whose hall comes from Volleymanager / Basketplan.
+  // Not a coach power. The endpoint checks the same again.
+  const canSwitchHall = adminSeesContact && hasSyncedHall(game)
   // Car pooling scope (migration 379): the playing team plus every guest team the
   // game is opened to. One team only → no picker.
   const carpoolCandidates: TeamPickerOption[] = [
@@ -525,6 +531,16 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   async function reloadAfterResult() {
     invalidateForCollection('games')
     queryClient.invalidateQueries({ queryKey: ['activities-with-participations'] })
+    try {
+      const fresh = await fetchItem<Game>('games', gameId, {
+        fields: ['*', ...GAME_EXPAND.split(',').map((r) => `${r}.*`)],
+      })
+      setFullGame(fresh)
+    } catch { /* the list refetch still lands */ }
+  }
+
+  // After a hall source switch: the Venue shows the effective hall from the re-read row.
+  async function reloadAfterHallSource() {
     try {
       const fresh = await fetchItem<Game>('games', gameId, {
         fields: ['*', ...GAME_EXPAND.split(',').map((r) => `${r}.*`)],
@@ -923,13 +939,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         </div>
 
         {/* Venue */}
-        {hall && (
+        {(hall || canSwitchHall) && (
           <div className="space-y-3 border-t border-hairline px-6 py-4">
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('venue')}
             </h4>
-            <DetailRow label={t('hallLabel')} value={hall.name} />
-            {hall.address && (() => {
+            <DetailRow label={t('hallLabel')} value={hall?.name || '–'} />
+            {canSwitchHall && <GameHallSource gameId={game.id} onSaved={reloadAfterHallSource} />}
+            {hall?.address && (() => {
               const mapsUrl = (hall.maps_url && sanitizeUrl(hall.maps_url))
                 || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([hall.address, hall.city].filter(Boolean).join(', '))}`
               return (

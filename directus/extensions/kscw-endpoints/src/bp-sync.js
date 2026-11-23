@@ -6,6 +6,7 @@
  */
 
 import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
+import { HALL_OVERRIDE_READ, hallSourceView, overrideAwareWrite, isHallOverridden } from './hall-override.js'
 
 const BP_BASE = 'https://www.basketplan.ch'
 const BP_CLUB_ID = 166
@@ -589,7 +590,7 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
   const existingRows = await db('games').where('source', 'basketplan')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'additional_halls', 'away_hall_json', 'league',
-      'referees_json', 'respond_by', 'kscw_team')
+      'referees_json', 'respond_by', 'kscw_team', ...HALL_OVERRIDE_READ)
   // Keyed by game_id → ALL its rows, not one row per id. A fixture where both
   // sides are ours keeps TWO rows (one per KSCW team), which is what migration
   // 250's partial unique `games (game_id, kscw_team)` already enforces and what
@@ -680,17 +681,25 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
         takeRow((r) => String(r.kscw_team ?? '') === String(pbTeam.id)) ||
         takeRow((r) => String(r.type || '') === intent.type) ||
         takeRow(() => true)
+      // With the hall switch on "Overwrite" (migration 455) the hall logic below
+      // runs against the OFFICIAL court set (synced_*), and the write records it
+      // there — the effective halls the club chose stay. Off: the row as is.
+      const row = hallSourceView(existing)
       if (placements && data.hall != null) {
-        data.additional_halls = JSON.stringify(bigCourtExtraHalls(placements, existing, data.time, hallByName))
+        data.additional_halls = JSON.stringify(bigCourtExtraHalls(placements, row, data.time, hallByName))
       }
       if (existing) {
         // Fields the app owns (local cancel, hand-set halls) — must run
         // before the change comparison below.
-        applyLocalGuards(data, existing)
+        applyLocalGuards(data, row)
         // Skip if nothing meaningful changed — avoids trigger-based
         // notification spam (values normalized via cmpVal — see its comment).
-        const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, existing[f]))
+        const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, row[f]))
         if (!changed) { skipped++; continue }
+        if (isHallOverridden(existing) && (cmpVal('hall', data.hall) !== cmpVal('hall', row.hall)
+          || cmpVal('additional_halls', data.additional_halls) !== cmpVal('additional_halls', row.additional_halls))) {
+          log.info(`[BP Sync] ${gameId}: Basketplan now gives hall ${data.hall ?? '–'} — recorded as the synced hall, the overwritten hall ${existing.hall ?? '–'} stays`)
+        }
         // data.date, not raw string-vs-Date (existing.date !== g.date was
         // always true against a pg Date, recomputing respond_by on every
         // real update).
@@ -698,7 +707,7 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
           const offset = new Date(existing.date).getTime() - new Date(existing.respond_by).getTime()
           data.respond_by = new Date(new Date(g.date).getTime() - offset).toISOString().split('T')[0]
         }
-        await db('games').where('id', existing.id).update({ ...data, date_updated: new Date() })
+        await db('games').where('id', existing.id).update(overrideAwareWrite({ ...data, date_updated: new Date() }, existing))
         updated++
       } else {
         const fe = typeof pbTeam.features_enabled === 'string'
