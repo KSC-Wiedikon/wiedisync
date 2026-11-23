@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-11-23T18:15:02.512Z
+-- Generated:   2026-11-23T18:54:36.636Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ADiWnYYZuDZF3WnnZYKrTaygJw3Egn6Q8ETvuRjTZQZRChn63mX4EFgmyMM71A3
+\restrict jh6qkTD3u9cQEUNUvqdwPsFtMwG570S4rFHOH6ciMlq2dsA0FYffCbXu91luH0A
 
 -- Dumped from database version 16.16 (Debian 16.16-1.pgdg13+1)
 -- Dumped by pg_dump version 16.16 (Debian 16.16-1.pgdg13+1)
@@ -1117,6 +1117,11 @@ CREATE TABLE public.games (
     vm_opponent_report json,
     vm_result_checked_at timestamp with time zone,
     vm_nomination_sheet_changed_at timestamp with time zone,
+    hall_override boolean DEFAULT false NOT NULL,
+    synced_hall integer,
+    synced_additional_halls json,
+    hall_override_by_name character varying(255),
+    hall_override_at timestamp with time zone,
     CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
     CONSTRAINT games_provisional_source_check CHECK (((provisional_source)::text = ANY ((ARRAY['own'::character varying, 'opponent'::character varying, 'confirmed'::character varying, 'vm_official'::character varying, 'live'::character varying])::text[]))),
@@ -1301,6 +1306,41 @@ COMMENT ON COLUMN public.games.vm_result_checked_at IS 'Last Volleymanager read 
 
 
 --
+-- Name: COLUMN games.hall_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.hall_override IS 'Hall source switch: false = Sync (hall comes from VolleyManager / Basketplan), true = Overwrite (hall + additional_halls set in the app; synced_* hold the official ones). Flipped only by POST /kscw/games/:id/hall-source (trigger trg_games_0_hall_override, migration 455).';
+
+
+--
+-- Name: COLUMN games.synced_hall; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.synced_hall IS 'The hall the official source (sv-sync, bp-sync, the Terminplanung booking mirror) gives this game. Equals hall while hall_override is false; restored into hall when the switch goes back to Sync.';
+
+
+--
+-- Name: COLUMN games.synced_additional_halls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.synced_additional_halls IS 'The official additional_halls (court set) — same rules as synced_hall.';
+
+
+--
+-- Name: COLUMN games.hall_override_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.hall_override_by_name IS 'Who set the active hall override (NULL while hall_override is false). The acting user is also in user_logs.';
+
+
+--
+-- Name: COLUMN games.hall_override_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.hall_override_at IS 'When the active hall override was set (NULL while hall_override is false).';
+
+
+--
 -- Name: kscw_duty_recheck_notify_seats(public.games, public.games, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1414,6 +1454,72 @@ CREATE FUNCTION public.kscw_game_hall_ids(p_hall integer, p_additional json) RET
     SELECT e::integer FROM json_array_elements_text(
       CASE WHEN json_typeof(p_additional) = 'array' THEN p_additional ELSE '[]'::json END) e
   ) s
+$$;
+
+
+--
+-- Name: kscw_games_hall_override(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_games_hall_override() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_override_path boolean := COALESCE(current_setting('kscw.hall_override_write', true), '') = 'on';
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT COALESCE(NEW.hall_override, false) THEN
+      NEW.synced_hall := NEW.hall;
+      NEW.synced_additional_halls := NEW.additional_halls;
+      NEW.hall_override_by_name := NULL;
+      NEW.hall_override_at := NULL;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Only the override path flips the switch or writes who did it.
+  IF NOT v_override_path THEN
+    NEW.hall_override := OLD.hall_override;
+    NEW.hall_override_by_name := OLD.hall_override_by_name;
+    NEW.hall_override_at := OLD.hall_override_at;
+  END IF;
+
+  IF NEW.hall_override AND NOT OLD.hall_override THEN
+    -- Sync → Overwrite: while the switch was off, hall WAS the official value.
+    NEW.synced_hall := OLD.hall;
+    NEW.synced_additional_halls := OLD.additional_halls;
+  ELSIF OLD.hall_override AND NOT NEW.hall_override THEN
+    -- Overwrite → Sync: the official court set applies again, now.
+    NEW.hall := NEW.synced_hall;
+    NEW.additional_halls := NEW.synced_additional_halls;
+    NEW.hall_override_by_name := NULL;
+    NEW.hall_override_at := NULL;
+  ELSIF NEW.hall_override THEN
+    IF NOT v_override_path THEN
+      -- A hall deleted from `halls` (FK ON DELETE SET NULL) must not be pinned back.
+      IF NEW.hall IS NULL AND OLD.hall IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM halls h WHERE h.id = OLD.hall) THEN
+        RETURN NEW;
+      END IF;
+      -- Someone else wrote the court set: that is the source's word, not the app's.
+      IF NEW.synced_hall IS NOT DISTINCT FROM OLD.synced_hall
+         AND NEW.hall IS DISTINCT FROM OLD.hall THEN
+        NEW.synced_hall := NEW.hall;
+      END IF;
+      IF NEW.synced_additional_halls::jsonb IS NOT DISTINCT FROM OLD.synced_additional_halls::jsonb
+         AND NEW.additional_halls::jsonb IS DISTINCT FROM OLD.additional_halls::jsonb THEN
+        NEW.synced_additional_halls := NEW.additional_halls;
+      END IF;
+      NEW.hall := OLD.hall;
+      NEW.additional_halls := OLD.additional_halls;
+    END IF;
+  ELSE
+    NEW.synced_hall := NEW.hall;
+    NEW.synced_additional_halls := NEW.additional_halls;
+  END IF;
+  RETURN NEW;
+END;
 $$;
 
 
@@ -17498,6 +17604,13 @@ CREATE INDEX games_hall_index ON public.games USING btree (hall);
 
 
 --
+-- Name: games_hall_override_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX games_hall_override_idx ON public.games USING btree (id) WHERE hall_override;
+
+
+--
 -- Name: games_kscw_team_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -18846,6 +18959,13 @@ CREATE TRIGGER trg_game_roster_officials_forget_dob BEFORE UPDATE OF member ON p
 --
 
 CREATE TRIGGER trg_games_0_bb_floor_claims AFTER INSERT OR UPDATE OF type, date, "time", hall, additional_halls, kscw_team ON public.games FOR EACH ROW EXECUTE FUNCTION public.bb_game_floor_claims();
+
+
+--
+-- Name: games trg_games_0_hall_override; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_games_0_hall_override BEFORE INSERT OR UPDATE ON public.games FOR EACH ROW EXECUTE FUNCTION public.kscw_games_hall_override();
 
 
 --
@@ -20760,6 +20880,14 @@ ALTER TABLE ONLY public.games
 
 
 --
+-- Name: games games_synced_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_synced_hall_foreign FOREIGN KEY (synced_hall) REFERENCES public.halls(id) ON DELETE SET NULL;
+
+
+--
 -- Name: hall_closures hall_closures_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -21689,7 +21817,7 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ADiWnYYZuDZF3WnnZYKrTaygJw3Egn6Q8ETvuRjTZQZRChn63mX4EFgmyMM71A3
+\unrestrict jh6qkTD3u9cQEUNUvqdwPsFtMwG570S4rFHOH6ciMlq2dsA0FYffCbXu91luH0A
 
 
 
@@ -21707,7 +21835,7 @@ CREATE TRIGGER trg_directus_users_revoke_managed AFTER UPDATE OF email, status, 
 
 
 -- ============================================================================
--- Migration tracker seed — 458 migration(s) already in the schema above.
+-- Migration tracker seed — 459 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 -- Schema-qualified: pg_dump's header emptied search_path for this session.
@@ -22178,6 +22306,7 @@ FROM (VALUES
   ('451-duty-rechecks.sql'),
   ('452-referee-expenses-one-row-per-payer.sql'),
   ('453-participation-training-fk.sql'),
-  ('454-off-roster-rsvp-purge.sql')
+  ('454-off-roster-rsvp-purge.sql'),
+  ('455-game-hall-override.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
