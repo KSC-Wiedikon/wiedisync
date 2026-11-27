@@ -2,11 +2,50 @@
  * Volleymanager Auth Client
  *
  * Shared authentication primitives for volleymanager.volleyball.ch.
- * Pure module — reads no env vars; callers pass credentials explicitly.
+ * Reads no credentials from the environment; callers pass them explicitly.
+ * (Env only for the role ids and VM_BLOCK_FILE, the shared block pause.)
  */
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const VM_BASE = 'https://volleymanager.volleyball.ch';
 export const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
+
+// ─── A blocked address ───────────────────────────────────────────────
+// Since 25.11.2026 VolleyManager's web server refuses kscw-server with its
+// stock "403 Forbidden" page, before the app is even reached. The jobs kept
+// knocking (the licence-sync watchdog alone every 30 min), which is what a
+// blocked client must not do. Every job starts with vmLogin, whose requests
+// all go through follow(): the first block page now stops every VolleyManager
+// call for 23 h, and the next attempt after that is the one probe. The jobs
+// run in several processes (Directus crons, spawned push scripts), so the pause
+// is a file in the container's temp dir, not a variable. VolleyManager's own
+// role 403s never carry that page and do not trip it.
+export const VM_BLOCK_FILE = process.env.VM_BLOCK_FILE || join(tmpdir(), 'kscw-vm-blocked-until');
+export const VM_BLOCK_PAUSE_MS = 23 * 60 * 60 * 1000;
+
+export class VmBlockedError extends Error {
+  constructor(message) { super(message); this.name = 'VmBlockedError'; this.code = 'VM_BLOCKED'; }
+}
+
+/** Epoch ms until which VolleyManager is not called, or 0. */
+export function vmBlockedUntil() {
+  try { return Number(readFileSync(VM_BLOCK_FILE, 'utf8').trim()) || 0; } catch { return 0; }
+}
+
+/** The web server's own refusal page (not a role 403 from the app). */
+export function isWebServerBlock(status, body) {
+  return status === 403 && /<title>\s*403 Forbidden\s*<\/title>/i.test(String(body));
+}
+
+function assertNotBlocked() {
+  const until = vmBlockedUntil();
+  if (Date.now() < until) {
+    throw new VmBlockedError(`VolleyManager blocks this server's address: no VolleyManager calls until ${new Date(until).toISOString()}`);
+  }
+}
 
 // ─── Cookie jar ──────────────────────────────────────────────────────
 export class CookieJar {
@@ -25,6 +64,7 @@ export class CookieJar {
 export async function follow(url, jar, init = {}, max = 10) {
   let u = url, opts = init;
   for (let i = 0; i < max; i++) {
+    assertNotBlocked();
     const r = await fetch(u, {
       ...opts,
       headers: { 'User-Agent': UA, Cookie: jar.header(), ...(opts.headers ?? {}) },
@@ -32,6 +72,10 @@ export async function follow(url, jar, init = {}, max = 10) {
     });
     jar.update(r);
     const body = await r.text();
+    if (isWebServerBlock(r.status, body)) {
+      try { writeFileSync(VM_BLOCK_FILE, String(Date.now() + VM_BLOCK_PAUSE_MS)); } catch { /* the throw below still stops this job */ }
+      throw new VmBlockedError(`VolleyManager's web server refused this address (403 Forbidden): VolleyManager calls stop for ${VM_BLOCK_PAUSE_MS / 3600000} h`);
+    }
     const loc = r.headers.get('location') || '';
     if (r.status >= 300 && r.status < 400 && loc) {
       u = loc.startsWith('http') ? loc : `${VM_BASE}${loc}`;
