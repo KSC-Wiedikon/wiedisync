@@ -2598,7 +2598,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // semantics — migration 077). We no longer early-return on team-off, since
     // individual opt-ins must still be honoured.
     const teamOn = await effectiveTrainingAutoConfirm(training, team)
-    const eligibleClause = teamOn ? 'TRUE' : 'm.auto_confirm_trainings = true'
+    // Team auto-confirm covers the core roster only (migration 456): a guest who
+    // never answered must not show as coming. A guest's own opt-in still counts.
+    const eligibleClause = teamOn
+      ? '(e.guest_level = 0 OR m.auto_confirm_trainings = true)'
+      : 'm.auto_confirm_trainings = true'
 
     let excluded = training.excluded_guest_levels
     if (typeof excluded === 'string') { try { excluded = JSON.parse(excluded) } catch { excluded = [] } }
@@ -3850,6 +3854,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               AND t.cancelled = false
               AND t.date >= CURRENT_DATE
               AND t.auto_confirm_rsvp IS NULL
+              AND e.guest_level = 0  -- team auto-confirm = core roster only (migration 456)
               AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
               AND NOT EXISTS (
                 SELECT 1 FROM participations p
@@ -3927,9 +3932,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           AND tr.cancelled = false
           AND tr.date::date >= CURRENT_DATE
           AND (
-            COALESCE(tr.auto_confirm_rsvp,
-                     NULLIF(t.features_enabled->>'training_auto_confirm', '')::boolean,
-                     false) = true
+            (COALESCE(tr.auto_confirm_rsvp,
+                      NULLIF(t.features_enabled->>'training_auto_confirm', '')::boolean,
+                      false) = true
+             AND e.guest_level = 0)  -- team auto-confirm = core roster only (migration 456)
             OR m.auto_confirm_trainings = true
           )
           AND NOT (COALESCE(tr.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
