@@ -1,7 +1,7 @@
 export default {
   // Dateschutz page
   privacyTitle: 'Dateschutzerkläärig',
-  lastUpdated: 'Stand: 26. Oktober 2026',
+  lastUpdated: 'Stand: 27. November 2026',
 
   controllerTitle: '1. Verantwortlichi Stell',
   controllerText:
@@ -52,7 +52,7 @@ export default {
   thirdPartyCloudflare:
     'Cloudflare, Inc. — Frontend-Hosting (Cloudflare Pages) | Global (USA) | DPA, EU-Standardvertragsklausle, Swiss-US Data Privacy Framework',
   thirdPartySwissVolley:
-    'Swiss Volley API (api.volleyball.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte ab. Es werded kei personebezogeni Date a Swiss Volley übermittlet.',
+    'Swiss Volley Game Center (www.svrz.ch) — Mir rüefed öffentlich verfüegbari Spieldate und Ranglischte vo Swiss Volley us em öffentliche Game Center ab. Es werded kei personebezogeni Date a Swiss Volley übermittlet.',
   thirdPartyGCal:
     'Google Calendar — Mir rüefed en öffentliche Kaländer-Feed ab, zum d Hallebelegige aazeige. Es werded kei personebezogeni Date a Google übermittlet.',
   thirdPartyBasketplan:
