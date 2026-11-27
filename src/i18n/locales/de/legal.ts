@@ -1,7 +1,7 @@
 export default {
   // Datenschutz page
   privacyTitle: 'Datenschutzerklärung',
-  lastUpdated: 'Stand: 26. Oktober 2026',
+  lastUpdated: 'Stand: 27. November 2026',
 
   controllerTitle: '1. Verantwortliche Stelle',
   controllerText:
@@ -52,7 +52,7 @@ export default {
   thirdPartyCloudflare:
     'Cloudflare, Inc. – Frontend-Hosting (Cloudflare Pages) | Global (USA) | DPA, EU-Standardvertragsklauseln, Swiss-US Data Privacy Framework',
   thirdPartySwissVolley:
-    'Swiss Volley API (api.volleyball.ch) – Wir rufen öffentlich verfügbare Spieldaten und Ranglisten ab. Es werden keine personenbezogenen Daten an Swiss Volley übermittelt.',
+    'Swiss Volley Game Center (www.svrz.ch) – Wir rufen öffentlich verfügbare Spieldaten und Ranglisten von Swiss Volley aus dem öffentlichen Game Center ab. Es werden keine personenbezogenen Daten an Swiss Volley übermittelt.',
   thirdPartyGCal:
     'Google Calendar – Wir rufen einen öffentlichen Kalender-Feed ab, um Hallenbelegungen anzuzeigen. Es werden keine personenbezogenen Daten an Google übermittelt.',
   thirdPartyBasketplan:
