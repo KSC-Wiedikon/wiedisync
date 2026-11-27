@@ -11,7 +11,7 @@ import fs from 'fs'
 import { currentSeasonShort, currentSeasonLong } from './season.js'
 import path from 'path'
 import { spawn } from 'node:child_process'
-import { syncSvGames, syncSvRankings } from './sv-sync.js'
+import { syncSvGames, syncSvRankings, fetchKscwFeed } from './sv-sync.js'
 import { syncBpGames, syncBpRankings, sweepSupersededManualGames } from './bp-sync.js'
 import { syncBpTournaments } from './bp-tournaments.js'
 import { refuseExternalOnDev, skipExternalJob, EXTERNAL_DISABLED_CODE } from './external-accounts.js'
@@ -1200,8 +1200,12 @@ export default {
         requireAdmin(req, log)
         log.info('Manual SV sync triggered')
         const startedAt = Date.now()
-        const games = await syncSvGames(database, log)
-        const rankings = await syncSvRankings(database, log)
+        // One Game Center read for both: the club's season carries the groups
+        // the standings are read for. A failed read throws → 500 → the cron
+        // logs sv_sync as an error instead of a fresh "ok".
+        const feed = await fetchKscwFeed()
+        const games = await syncSvGames(database, log, feed)
+        const rankings = await syncSvRankings(database, log, feed)
         // Same heartbeat the cron writes — without it a manual run left the
         // data-health card on the cron's "4h ago" and read as a dead button.
         await logCronRun(database, 'sv_sync', { status: 'ok', durationMs: Date.now() - startedAt })
