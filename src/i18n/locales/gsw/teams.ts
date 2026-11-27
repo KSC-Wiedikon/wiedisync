@@ -197,7 +197,7 @@ export default {
   autoConfirmOffCta: 'Usschalte',
   gameAutoConfirmOnMessage: 'Di nächschte Spiel started mit allne Vollmitglieder als bestätigt (Gäscht usgschlosse) — Mitglieder mälded sich aktiv ab, wänn si nöd chönd. Bestehendi Spiel ab hüt werded au nachträit.',
   gameAutoConfirmOffMessage: 'Neui Spiel bestätiged d Mitglieder nöd meh automatisch — alli started als «nöd gantwortet». Bestehendi Bestätigige bliibed; niemert, wo scho bestätigt isch, wird zruggsetzt.',
-  trainingAutoConfirmOnMessage: 'Di nächschte Trainings started mit allne als bestätigt — Mitglieder mälded sich aktiv ab, wänn si nöd chönd. Bestehendi Trainings ab hüt werded au nachträit.',
+  trainingAutoConfirmOnMessage: 'Di nächschte Trainings started mit allne als bestätigt — Mitglieder mälded sich aktiv ab, wänn si nöd chönd. Bestehendi Trainings ab hüt werded au nachträit. Gäscht sind nöd debii: Si antworted sälber.',
   trainingAutoConfirmOffMessage: 'Neui Trainings bestätiged d Mitglieder nöd meh automatisch — alli started als «nöd gantwortet». Bestehendi Bestätigige bliibed; niemert, wo scho bestätigt isch, wird zruggsetzt.',
   // Team-Iistellige
   teamSettings: 'Team-Iistellige',

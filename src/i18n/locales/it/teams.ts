@@ -177,7 +177,7 @@ export default {
   autoConfirmOffCta: 'Disattiva',
   gameAutoConfirmOnMessage: 'Le prossime partite inizieranno con tutti i membri effettivi confermati (ospiti esclusi) — i membri si annullano attivamente se non possono venire. Anche le partite esistenti da oggi in poi vengono completate.',
   gameAutoConfirmOffMessage: 'Le nuove partite non confermeranno più automaticamente i membri — tutti partono come «nessuna risposta». Le conferme esistenti restano; nessuno già confermato viene reimpostato.',
-  trainingAutoConfirmOnMessage: 'I prossimi allenamenti inizieranno con tutti confermati — i membri si annullano attivamente se non possono venire. Anche gli allenamenti esistenti da oggi in poi vengono completati.',
+  trainingAutoConfirmOnMessage: 'I prossimi allenamenti inizieranno con tutti confermati — i membri si annullano attivamente se non possono venire. Anche gli allenamenti esistenti da oggi in poi vengono completati. Gli ospiti non sono inclusi: rispondono da soli.',
   trainingAutoConfirmOffMessage: 'I nuovi allenamenti non confermeranno più automaticamente i membri — tutti partono come «nessuna risposta». Le conferme esistenti restano; nessuno già confermato viene reimpostato.',
   // Impostazioni squadra
   teamSettings: 'Impostazioni squadra',

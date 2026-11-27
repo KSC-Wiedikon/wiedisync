@@ -195,7 +195,7 @@ export default {
   autoConfirmOffCta: 'Ausschalten',
   gameAutoConfirmOnMessage: 'Kommende Spiele starten mit allen Vollmitgliedern als bestätigt (Gäste ausgeschlossen). Mitglieder melden sich aktiv ab, falls sie nicht können. Bestehende Spiele ab heute werden ebenfalls nachgetragen.',
   gameAutoConfirmOffMessage: 'Neue Spiele bestätigen Mitglieder nicht mehr automatisch; alle starten als «nicht geantwortet». Bestehende Bestätigungen bleiben; niemand bereits Bestätigtes wird zurückgesetzt.',
-  trainingAutoConfirmOnMessage: 'Kommende Trainings starten mit allen als bestätigt. Mitglieder melden sich aktiv ab, falls sie nicht können. Bestehende Trainings ab heute werden ebenfalls nachgetragen.',
+  trainingAutoConfirmOnMessage: 'Kommende Trainings starten mit allen als bestätigt. Mitglieder melden sich aktiv ab, falls sie nicht können. Bestehende Trainings ab heute werden ebenfalls nachgetragen. Gäste sind nicht dabei: Sie antworten selbst.',
   trainingAutoConfirmOffMessage: 'Neue Trainings bestätigen Mitglieder nicht mehr automatisch; alle starten als «nicht geantwortet». Bestehende Bestätigungen bleiben; niemand bereits Bestätigtes wird zurückgesetzt.',
   // Team-Einstellungen
   teamSettings: 'Team-Einstellungen',
