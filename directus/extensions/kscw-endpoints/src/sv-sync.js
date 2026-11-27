@@ -8,9 +8,13 @@
 import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
 import { HALL_OVERRIDE_READ, hallSourceView, overrideAwareWrite, isHallOverridden } from './hall-override.js'
 
-const SV_API_BASE = 'https://api.volleyball.ch'
-const SV_API_KEY = process.env.SV_API_KEY
-if (!SV_API_KEY) throw new Error('SV_API_KEY environment variable is required')
+import { fetchClubSeasonGames, fetchStandings } from './game-center.js'
+
+// Since 27.11.2026 the feed is the public Swiss Volley Game Center (svrz.ch),
+// not the official API: api.volleyball.ch runs on VolleyManager's server, which
+// refuses kscw-server. Same data, same field names — see game-center.js. No key
+// needed any more (SV_API_KEY may stay set; nothing reads it here).
+export const KSCW_CLUB_ID = 912530
 
 // KSCW Swiss Volley team ids → label (label is documentation only; ONLY the keys
 // are used, via isKscwTeamId, to include a fixture/ranking in the sync). Keep in
@@ -220,22 +224,19 @@ export function resolveHomeHall({ existing, feedHall, seasonStarted, vmGymByHall
   return feedHall
 }
 
-export async function syncSvGames(db, log) {
+/** The club's season from the Game Center, cups included. Throws on a failed
+ *  read: a read that "returned nothing" used to log, answer 200 and write
+ *  sync_runs ok, so a 403 looked fresh everywhere (26.11.2026). */
+export async function fetchKscwFeed() {
+  // ⚠ includeCup is NOT optional: without it the Züri Cup and the Mobiliar
+  // Volley Cup vanish from the feed (verified 2026-08-01 on the official API,
+  // which the Game Center mirrors).
+  return fetchClubSeasonGames(KSCW_CLUB_ID)
+}
+
+export async function syncSvGames(db, log, feed) {
   log.info('[SV Sync] Fetching games...')
-
-  // ⚠ includeCup=true is NOT optional: Swiss Volley's /indoor/games hides every
-  // cup fixture unless it is set, so the bare URL silently dropped the Züri Cup
-  // and the Mobiliar Volley Cup from `games` entirely — no calendar entry, no
-  // RSVP, no hall block, no scorer row (verified 2026-08-01: 158 fixtures plain
-  // vs 159 with the flag; the extra one was H3's Züri Cup R2 at Stäfa). The 19
-  // cup rows predating this all came from the 2026-03-29 PocketBase import.
-  const res = await fetch(`${SV_API_BASE}/indoor/games?includeCup=true`, {
-    headers: { Authorization: SV_API_KEY },
-  })
-  if (!res.ok) { log.error(`[SV Sync] Games API: ${res.status}`); return { created: 0, updated: 0, errors: 0 } }
-
-  const allGames = await res.json()
-  if (!Array.isArray(allGames)) { log.error('[SV Sync] Unexpected format'); return { created: 0, updated: 0, errors: 0 } }
+  const allGames = feed ?? await fetchKscwFeed()
 
   const kscwGames = allGames.filter(g => {
     const hId = String(g.teams.home.teamId)
@@ -494,21 +495,35 @@ export async function syncSvGames(db, log) {
   return { created, updated, skipped, errors }
 }
 
-export async function syncSvRankings(db, log) {
+/** The groups to read standings for: every group a KSCW team plays in, minus
+ *  the cup rounds (a cup group has no table — the Game Center answers []).
+ *  Each with its phase and league, the shape /indoor/ranking used to return. */
+export function standingsGroups(games) {
+  const out = new Map()
+  for (const g of games || []) {
+    const id = g.group?.groupId
+    if (!id || out.has(id)) continue
+    if (!(isKscwTeamId(g.teams?.home?.teamId) || isKscwTeamId(g.teams?.away?.teamId))) continue
+    if (/cup/i.test(g.league?.caption || '')) continue
+    out.set(id, { groupId: id, phaseId: g.phase?.phaseId, leagueId: g.league?.leagueId })
+  }
+  return [...out.values()]
+}
+
+export async function syncSvRankings(db, log, feed) {
   log.info('[SV Sync] Fetching rankings...')
 
-  const res = await fetch(`${SV_API_BASE}/indoor/ranking`, {
-    headers: { Authorization: SV_API_KEY },
-  })
-  if (!res.ok) { log.error(`[SV Sync] Rankings API: ${res.status}`); return { created: 0, updated: 0, errors: 0 } }
+  const gamesData = feed ?? await fetchKscwFeed()
+  const wanted = standingsGroups(gamesData)
+  // A group known to have a table, to find the action again if svrz.ch redeployed.
+  const probe = wanted[0]?.groupId
+  const allGroups = []
+  for (const grp of wanted) {
+    allGroups.push({ ...grp, ranking: await fetchStandings(grp.groupId, probe) })
+  }
 
-  const allGroups = await res.json()
-  if (!Array.isArray(allGroups)) return { created: 0, updated: 0, errors: 0 }
-
-  // Build caption lookups from games endpoint
-  const gamesRes = await fetch(`${SV_API_BASE}/indoor/games`, {
-    headers: { Authorization: SV_API_KEY },
-  })
+  // Caption and season lookups, from the same feed (they used to cost a second
+  // /indoor/games call whose silent failure filed rankings under "Group <id>").
   const captions = { groups: {}, leagues: {}, phases: {} }
   // Season-year lookups (league.season is the start year as an int, e.g. 2025 = 2025/26).
   // Used to label each ranking group with ITS OWN season rather than a single
@@ -516,20 +531,15 @@ export async function syncSvRankings(db, log) {
   // string and never overwrite the prior season's archived rows.
   const seasonYearByGroup = {}
   const seasonYearByLeague = {}
-  if (gamesRes.ok) {
-    const gamesData = await gamesRes.json()
-    if (Array.isArray(gamesData)) {
-      for (const g of gamesData) {
-        if (g.league?.leagueId) {
-          captions.leagues[g.league.leagueId] = g.league.caption || ''
-          if (typeof g.league.season === 'number') seasonYearByLeague[g.league.leagueId] = g.league.season
-        }
-        if (g.phase?.phaseId) captions.phases[g.phase.phaseId] = g.phase.caption || ''
-        if (g.group?.groupId) {
-          captions.groups[g.group.groupId] = g.group.caption || ''
-          if (typeof g.league?.season === 'number') seasonYearByGroup[g.group.groupId] = g.league.season
-        }
-      }
+  for (const g of gamesData) {
+    if (g.league?.leagueId) {
+      captions.leagues[g.league.leagueId] = g.league.caption || ''
+      if (typeof g.league.season === 'number') seasonYearByLeague[g.league.leagueId] = g.league.season
+    }
+    if (g.phase?.phaseId) captions.phases[g.phase.phaseId] = g.phase.caption || ''
+    if (g.group?.groupId) {
+      captions.groups[g.group.groupId] = g.group.caption || ''
+      if (typeof g.league?.season === 'number') seasonYearByGroup[g.group.groupId] = g.league.season
     }
   }
 
