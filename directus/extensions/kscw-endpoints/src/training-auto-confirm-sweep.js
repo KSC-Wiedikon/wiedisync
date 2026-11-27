@@ -21,7 +21,8 @@
  * with `is_staff = true`, and the training's `excluded_guest_levels` applies.
  *
  * Eligibility per (training, person): NOT in the training's excluded guest
- * levels AND ( effective team training-auto-confirm on OR the person opted in
+ * levels AND ( effective team training-auto-confirm on for a core player
+ * (guest_level 0 — guests only by their own opt-in, migration 456) OR the person opted in
  * via `members.auto_confirm_trainings` ). Effective team setting =
  * COALESCE(trainings.auto_confirm_rsvp, features_enabled->>'training_auto_confirm',
  * false) — mirrors `effectiveTrainingAutoConfirm()` in kscw-hooks, including
@@ -49,9 +50,10 @@ export async function sweepTrainingAutoConfirm(db, log) {
       WHERE tr.date::date >= CURRENT_DATE
         AND tr.cancelled = false
         AND (
-          COALESCE(tr.auto_confirm_rsvp,
-                   NULLIF(t.features_enabled->>'training_auto_confirm', '')::boolean,
-                   false) = true
+          (COALESCE(tr.auto_confirm_rsvp,
+                    NULLIF(t.features_enabled->>'training_auto_confirm', '')::boolean,
+                    false) = true
+           AND e.guest_level = 0)  -- team auto-confirm = core roster only (migration 456)
           OR m.auto_confirm_trainings = true
         )
         AND NOT (COALESCE(tr.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
