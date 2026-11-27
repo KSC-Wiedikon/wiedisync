@@ -197,7 +197,7 @@ export default {
   autoConfirmOffCta: 'Turn off',
   gameAutoConfirmOnMessage: 'Upcoming games will start with all full members confirmed (guests excluded). Members actively decline if they cannot make it. Existing games from today onward are backfilled too.',
   gameAutoConfirmOffMessage: 'New games will no longer auto-confirm members; everyone starts as not responded. Existing confirmations stay; nobody already confirmed is reset.',
-  trainingAutoConfirmOnMessage: 'Upcoming trainings will start with everyone confirmed. Members actively decline if they cannot make it. Existing trainings from today onward are backfilled too.',
+  trainingAutoConfirmOnMessage: 'Upcoming trainings will start with everyone confirmed. Members actively decline if they cannot make it. Existing trainings from today onward are backfilled too. Guests are not included: they answer themselves.',
   trainingAutoConfirmOffMessage: 'New trainings will no longer auto-confirm members; everyone starts as not responded. Existing confirmations stay; nobody already confirmed is reset.',
   // Team Settings
   teamSettings: 'Team Settings',

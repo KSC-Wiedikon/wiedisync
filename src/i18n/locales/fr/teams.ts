@@ -177,7 +177,7 @@ export default {
   autoConfirmOffCta: 'Désactiver',
   gameAutoConfirmOnMessage: 'Les prochains matchs démarreront avec tous les membres titulaires confirmés (invités exclus) — les membres se désinscrivent activement s\'ils ne peuvent pas venir. Les matchs existants à partir d\'aujourd\'hui sont aussi complétés.',
   gameAutoConfirmOffMessage: 'Les nouveaux matchs ne confirmeront plus automatiquement les membres — tout le monde démarre sur « pas de réponse ». Les confirmations existantes sont conservées ; personne de déjà confirmé n\'est réinitialisé.',
-  trainingAutoConfirmOnMessage: 'Les prochains entraînements démarreront avec tout le monde confirmé — les membres se désinscrivent activement s\'ils ne peuvent pas venir. Les entraînements existants à partir d\'aujourd\'hui sont aussi complétés.',
+  trainingAutoConfirmOnMessage: 'Les prochains entraînements démarreront avec tout le monde confirmé — les membres se désinscrivent activement s\'ils ne peuvent pas venir. Les entraînements existants à partir d\'aujourd\'hui sont aussi complétés. Les invités ne sont pas inclus : ils répondent eux-mêmes.',
   trainingAutoConfirmOffMessage: 'Les nouveaux entraînements ne confirmeront plus automatiquement les membres — tout le monde démarre sur « pas de réponse ». Les confirmations existantes sont conservées ; personne de déjà confirmé n\'est réinitialisé.',
   // Paramètres d'équipe
   teamSettings: 'Paramètres d\'équipe',
