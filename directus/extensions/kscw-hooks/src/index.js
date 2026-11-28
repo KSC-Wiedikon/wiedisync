@@ -614,7 +614,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       const members = await (context?.database ?? database)('members').whereIn('id', keys).select('id', 'user')
       for (const m of members) {
-        if (m.user) pendingMemberDeletes.set(m.id, m.user)
+        // String keys: the DB returns 795, but DELETE /items/members/795 hands the action "795".
+        if (m.user) pendingMemberDeletes.set(String(m.id), m.user)
       }
     } catch (e) {
       log.warn({ msg: `member-delete cascade lookup failed: ${e.message}`, event: 'cascade_delete' })
@@ -624,9 +625,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   action('members.items.delete', async ({ keys }) => {
     for (const memberId of keys) {
-      const userId = pendingMemberDeletes.get(memberId)
+      const userId = pendingMemberDeletes.get(String(memberId))
       if (!userId) continue
-      pendingMemberDeletes.delete(memberId)
+      pendingMemberDeletes.delete(String(memberId))
       try {
         await database('directus_users').where('id', userId).delete()
         log.info(`[cascade] Deleted user ${userId} (member ${memberId} deleted from admin)`)
