@@ -237,6 +237,13 @@ class MainActivity : ComponentActivity() {
     /** For URLs the WebView produced (already canonical): navigations, downloads. */
     private fun isAppUrl(uri: Uri) = uri.scheme == "https" && uri.host in appHosts && uri.port == -1
 
+    /** [uri] is [url] plus a query: same https host and path, no port, no user info. WebView-produced URLs only. */
+    private fun isWieplayLogin(uri: Uri, url: String): Boolean {
+        val want = url.toUri()
+        return uri.scheme == "https" && uri.port == -1 && uri.userInfo == null &&
+            uri.host == want.host && uri.path == want.path
+    }
+
     /**
      * A notification tap or an App Link — only ever one of our own pages. The
      * activity is exported, so any app can start it with any extras: [EXTRA_URL]
@@ -338,6 +345,16 @@ class MainActivity : ComponentActivity() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             // Frames (Turnstile, embeds) navigate freely; only the top page is routed.
             if (!request.isForMainFrame || isAppUrl(request.url)) return false
+            // WiePlay login: its browser tab sends people to our /login, which the App Link opens here, and
+            // LoginPage then leaves for the bridge on its own (no tap). The bridge must see this app's
+            // session, so it loads here; its 302 to WiePlay's callback goes back to the browser, which
+            // holds WiePlay's state cookie. Only that redirect, only those two exact URLs.
+            if (isWieplayLogin(request.url, BuildConfig.WIEPLAY_AUTHORIZE_URL)) return false
+            if (request.isRedirect && isWieplayLogin(request.url, BuildConfig.WIEPLAY_CALLBACK_URL)) {
+                openOutside(request.url)
+                view.post { view.loadUrl(BuildConfig.START_URL) } // off /login, where a resume would start over
+                return true
+            }
             if (request.hasGesture()) {
                 openOutside(request.url)
             } else {
