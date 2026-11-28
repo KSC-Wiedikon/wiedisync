@@ -60,7 +60,7 @@ export function setAuthHint(present: boolean): void {
   const attrs = onKscw
     ? 'domain=.kscw.ch; path=/; secure; samesite=lax'
     : `path=/; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`
-  document.cookie = present ? `${key}=1; ${attrs}; max-age=604800` : `${key}=; ${attrs}; max-age=0`
+  document.cookie = present ? `${key}=1; ${attrs}; max-age=2592000` : `${key}=; ${attrs}; max-age=0`
 }
 
 const host = typeof window !== 'undefined' ? window.location.hostname : ''
