@@ -29,8 +29,8 @@ android {
         applicationId = "ch.kscw.wiedisync"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.2.0"
+        versionCode = 6
+        versionName = "1.2.1"
     }
 
     flavorDimensions += "env"
@@ -39,6 +39,9 @@ android {
             dimension = "env"
             buildConfigField("String", "START_URL", "\"https://wiedisync.kscw.ch/\"")
             buildConfigField("String", "APP_HOSTS", "\"wiedisync.kscw.ch,spielplanung.wiedisync.kscw.ch\"")
+            // WiePlay login through the app (MainActivity.isWieplayLogin): the bridge and WiePlay's callback.
+            buildConfigField("String", "WIEPLAY_AUTHORIZE_URL", "\"https://directus.kscw.ch/kscw/wieplay/v1/authorize\"")
+            buildConfigField("String", "WIEPLAY_CALLBACK_URL", "\"https://wieplay.kscw.ch/api/auth/callback\"")
             manifestPlaceholders["appHost"] = "wiedisync.kscw.ch"
         }
         // Dev talks to directus-dev through the only dev host where the session
@@ -49,6 +52,8 @@ android {
             versionNameSuffix = "-dev"
             buildConfigField("String", "START_URL", "\"https://wiedisync-dev.kscw.ch/\"")
             buildConfigField("String", "APP_HOSTS", "\"wiedisync-dev.kscw.ch,spielplanung-dev.kscw.ch\"")
+            buildConfigField("String", "WIEPLAY_AUTHORIZE_URL", "\"https://directus-dev.kscw.ch/kscw/wieplay/v1/authorize\"")
+            buildConfigField("String", "WIEPLAY_CALLBACK_URL", "\"https://wieplay-dev.kscw.ch/api/auth/callback\"")
             manifestPlaceholders["appHost"] = "wiedisync-dev.kscw.ch"
         }
     }
