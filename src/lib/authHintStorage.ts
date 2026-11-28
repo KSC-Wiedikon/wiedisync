@@ -4,7 +4,7 @@
 // to decide whether a session exists at all — no hint, no refresh attempt, straight
 // to /login. It used to be written only at LOGIN with a fixed 7-day max-age, while
 // the server session slides: every refresh pushes `directus_sessions.expires` out by
-// SESSION_COOKIE_TTL (7 days). So exactly a week after logging in, an active member
+// SESSION_COOKIE_TTL (30 days since 28.11.2026). So exactly a week after logging in, an active member
 // still held a valid session but the hint was gone, and the next cold start (iOS
 // relaunching the home-screen app after a switch, a tapped notification) showed the
 // login page without asking the server (prod 12.10.2026: a coach thrown out of the
